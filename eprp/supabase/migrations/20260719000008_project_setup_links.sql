@@ -48,8 +48,6 @@ alter table public.project_contacts
   add constraint project_contacts_unique_scope
     unique nulls not distinct (project_id, contact_id, role, discipline_id);
 
-create index idx_project_contacts_project_id
-  on public.project_contacts(project_id);
 create index idx_project_contacts_department_id
   on public.project_contacts(department_id);
 create index idx_project_contacts_discipline_id
