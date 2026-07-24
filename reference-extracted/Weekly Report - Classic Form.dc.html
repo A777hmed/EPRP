@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Semi+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="firebase-sync/firebase-sync.js"></script>
+<style>
+  html,body{margin:0;padding:0;background:#DDE5EE;}
+  *{box-sizing:border-box;}
+  a{color:#1155A6;} a:hover{color:#0D3B7C;}
+  input,select,textarea,button{font-family:'Barlow',sans-serif;}
+  input::placeholder,textarea::placeholder{color:#93A5BC;}
+  textarea{resize:vertical;}
+  @media print{
+    body{background:#fff!important;}
+    .no-print{display:none!important;}
+    .sheet{border:none!important;box-shadow:none!important;border-radius:0!important;width:100%!important;margin:0!important;}
+    @page{size:A4 portrait;margin:8mm;}
+  }
+</style>
+</helmet>
+<div style="min-height:100vh; font-family:'Barlow',sans-serif; color:#16273D; padding:0 0 60px;">
+  <div class="no-print" style="position:sticky; top:0; z-index:50; background:#0D3B7C; color:#fff; display:flex; align-items:center; gap:16px; padding:10px 26px; box-shadow:0 2px 10px rgba(10,44,92,0.3);">
+    <div style="background:#fff; border-radius:6px; padding:4px 8px;"><img src="assets/eprom-logo.png" alt="EPROM" style="height:26px; display:block;"></div>
+    <div style="font-size:15px; font-weight:700; letter-spacing:0.03em;">Weekly Progress Report System</div>
+    <div style="width:1px; height:24px; background:rgba(255,255,255,0.25);"></div>
+    <select value="{{ projName }}" onChange="{{ onProjectName }}" style="padding:7px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.3); background:rgba(255,255,255,0.1); color:#fff; font-size:13px; font-weight:600;">
+      <sc-for list="{{ projOptions }}" as="o" hint-placeholder-count="3"><option value="{{ o }}" style="color:#16273D;">{{ o }}</option></sc-for>
+    </select>
+    <div style="flex:1;"></div>
+    <div style="font-size:12px; color:#9FE087; font-weight:600;">{{ savedLbl }}</div>
+    <div style="position:relative;">
+      <div onClick="{{ toggleAdminBar }}" style="border:1px solid {{ adminBtnBorder }}; background:{{ adminBtnBg }}; border-radius:6px; padding:7px 14px; font-size:12.5px; font-weight:700; cursor:pointer; color:#fff;">{{ adminBtnLbl }}</div>
+      <sc-if value="{{ adminBarOpen }}" hint-placeholder-val="{{ false }}">
+        <div class="no-print" style="position:absolute; z-index:60; top:40px; right:0; width:270px; background:#fff; color:#16273D; border:1px solid #C9D6E4; border-radius:8px; box-shadow:0 10px 28px rgba(10,44,92,0.28); padding:12px 13px;">
+          <div style="font-size:10px; font-weight:700; color:#8A6A12; letter-spacing:0.06em; margin-bottom:7px;">🔒 ADMIN MODE — ENTER PIN</div>
+          <div style="display:flex; gap:6px;">
+            <input type="password" value="{{ adminBarPin }}" onChange="{{ onAdminBarPinChange }}" onKeyDown="{{ onAdminBarPinKey }}" placeholder="PIN ••••" style="flex:1; padding:7px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:12.5px; letter-spacing:0.2em;">
+            <div onClick="{{ doAdminLogin }}" style="background:#0D3B7C; color:#fff; font-size:12px; font-weight:700; padding:7px 13px; border-radius:6px; cursor:pointer;">Enter</div>
+          </div>
+          <div style="font-size:11px; color:#C62828; font-weight:600; margin-top:6px;">{{ adminBarErr }}</div>
+          <div style="font-size:10.5px; color:#5B6E86; margin-top:6px;">Unlocks every admin-only field &amp; list. Others stay read-only.</div>
+        </div>
+      </sc-if>
+    </div>
+    <a href="Monthly Report - Auto-Compiled.dc.html" style="border:1px solid rgba(255,255,255,0.4); border-radius:6px; padding:7px 14px; font-size:12.5px; font-weight:700; color:#fff; text-decoration:none;">📅 Monthly Report →</a>
+    <div onClick="{{ printPage }}" style="border:1px solid rgba(255,255,255,0.4); border-radius:6px; padding:7px 14px; font-size:12.5px; font-weight:700; cursor:pointer;">🖨 Print / Export PDF</div>
+  </div>
+
+  <div class="sheet" style="width:920px; margin:28px auto 0; background:#fff; border:1px solid #C9D6E4; border-radius:10px; overflow:hidden; box-shadow:0 10px 30px rgba(13,59,124,0.10);">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:18px 24px 14px;">
+      <img src="assets/eprom-logo.png" alt="EPROM" style="height:58px;">
+      <div style="display:flex; align-items:center; gap:12px; border:1px solid #C9D6E4; border-radius:10px; padding:8px 12px;">
+        <div style="width:76px; height:76px; background:#F6F9FC;">{{ qrImg }}</div>
+        <div style="font-size:11px; color:#5B6E86; line-height:1.5; width:110px;"><b style="color:#16273D;">Scan to access archive</b><br>All weekly reports on Google Drive<br><a href="{{ driveUrl }}" target="_blank" style="font-weight:700; text-decoration:none;">Open folder ↗</a></div>
+      </div>
+    </div>
+    <div style="background:#0D3B7C; color:#fff; display:flex; justify-content:space-between; align-items:center; padding:11px 24px;">
+      <div style="font-size:19px; font-weight:800; letter-spacing:0.05em;">WEEKLY PROJECT PROGRESS REPORT</div>
+      <div style="position:relative; display:flex; align-items:center; gap:6px; font-size:11.5px; font-family:'Barlow Semi Condensed',sans-serif;">
+        <span style="opacity:0.85;">Doc No.</span>
+        <span title="Auto-updates every week" style="font-weight:700;">{{ docNoFull }}</span>
+        <span class="no-print" onClick="{{ toggleDocMgr }}" title="Edit document number (admin only)" style="cursor:pointer; border:1px solid rgba(255,255,255,0.4); border-radius:10px; padding:1px 7px; font-size:10px; opacity:0.9;">🔒 edit</span>
+        <sc-if value="{{ docMgrOpen }}" hint-placeholder-val="{{ false }}">
+          <div class="no-print" style="position:absolute; z-index:20; top:26px; right:0; width:280px; background:#fff; color:#16273D; border:1px solid #C9D6E4; border-radius:8px; box-shadow:0 8px 24px rgba(13,59,124,0.22); padding:11px 12px; font-family:'Barlow',sans-serif;">
+            <sc-if value="{{ docLocked }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size:10px; font-weight:700; color:#8A6A12; letter-spacing:0.06em; margin-bottom:7px;">🔒 ADMIN ONLY — ENTER PIN</div>
+              <div style="display:flex; gap:6px;">
+                <input type="password" value="{{ docPin }}" onChange="{{ onDocPinChange }}" onKeyDown="{{ onDocPinKey }}" placeholder="PIN ••••" style="flex:1; padding:7px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:12.5px; letter-spacing:0.2em;">
+                <div onClick="{{ unlockDoc }}" style="background:#0D3B7C; color:#fff; font-size:12px; font-weight:700; padding:7px 13px; border-radius:6px; cursor:pointer;">Unlock</div>
+              </div>
+              <div style="font-size:11px; color:#C62828; font-weight:600; margin-top:6px;">{{ docErr }}</div>
+            </sc-if>
+            <sc-if value="{{ docUnlocked }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:7px;">DOCUMENT NUMBER BASE <span style="color:#2E7D32;">✓ admin</span></div>
+              <input value="{{ docBase }}" onChange="{{ onDocBaseChange }}" placeholder="e.g. EPR-QF-PR-07 · Rev 00" style="width:100%; padding:7px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:12.5px; font-weight:600;">
+              <div style="font-size:10.5px; color:#5B6E86; margin-top:6px;">Auto every week → <b style="color:#0D3B7C;">{{ docNoFull }}</b></div>
+              <div style="display:flex; justify-content:flex-end; margin-top:8px;"><div onClick="{{ toggleDocMgr }}" style="background:#3FA535; color:#fff; font-size:12px; font-weight:700; padding:7px 14px; border-radius:6px; cursor:pointer;">Done</div></div>
+            </sc-if>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <div style="padding:18px 24px 6px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">1 · REPORT INFORMATION</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px 16px;">
+        <div style="position:relative;"><div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;"><span style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">PROJECT NAME ▾ <span style="color:#1155A6;">EDITABLE</span></span><span class="no-print" onClick="{{ togglePnMgr }}" title="Manage project list (admin only)" style="font-size:10px; font-weight:700; color:#1155A6; cursor:pointer; border:1px solid #C9D6E4; border-radius:10px; padding:1px 8px;">🔒 manage</span></div>
+          <input list="projNamesList" value="{{ projName }}" onChange="{{ onProjectName }}" placeholder="Select or type project…" style="width:100%; padding:8px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:13px; font-weight:600; color:#0D3B7C; background:#fff;">
+          <datalist id="projNamesList"><sc-for list="{{ projOptions }}" as="o" hint-placeholder-count="3"><option value="{{ o }}"></option></sc-for></datalist>
+          <sc-if value="{{ pnMgrOpen }}" hint-placeholder-val="{{ false }}">
+            <div class="no-print" style="position:absolute; z-index:20; top:62px; left:0; right:0; background:#fff; border:1px solid #C9D6E4; border-radius:8px; box-shadow:0 8px 24px rgba(13,59,124,0.18); padding:11px 12px;">
+              <sc-if value="{{ pnLocked }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:10px; font-weight:700; color:#8A6A12; letter-spacing:0.06em; margin-bottom:7px;">🔒 ADMIN ONLY — ENTER PIN</div>
+                <div style="display:flex; gap:6px;">
+                  <input type="password" value="{{ pnPin }}" onChange="{{ onPnPinChange }}" onKeyDown="{{ onPnPinKey }}" placeholder="PIN ••••" style="flex:1; padding:7px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:12.5px; letter-spacing:0.2em;">
+                  <div onClick="{{ unlockPn }}" style="background:#0D3B7C; color:#fff; font-size:12px; font-weight:700; padding:7px 13px; border-radius:6px; cursor:pointer;">Unlock</div>
+                  <div onClick="{{ togglePnMgr }}" style="border:1px solid #C9D6E4; color:#5B6E86; font-size:12px; font-weight:700; padding:7px 11px; border-radius:6px; cursor:pointer;">✕</div>
+                </div>
+                <div style="font-size:11px; color:#C62828; font-weight:600; margin-top:6px;">{{ pnErr }}</div>
+              </sc-if>
+              <sc-if value="{{ pnUnlocked }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:7px;">PROJECT LIST <span style="color:#2E7D32;">✓ admin</span></div>
+                <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:9px;">
+                  <sc-for list="{{ pnChips }}" as="p" hint-placeholder-count="3">
+                    <div style="display:flex; align-items:center; gap:6px; background:#EDF2F8; border-radius:14px; padding:4px 6px 4px 11px; font-size:12px; font-weight:600; color:#0D3B7C;">{{ p.name }}<span onClick="{{ p.onRemove }}" title="Remove" style="cursor:pointer; color:#C62828; font-weight:700; font-size:13px; line-height:1;">×</span></div>
+                  </sc-for>
+                  <sc-if value="{{ noPns }}" hint-placeholder-val="{{ false }}"><div style="font-size:11.5px; color:#93A5BC;">No projects yet — add one below.</div></sc-if>
+                </div>
+                <div style="display:flex; gap:6px;">
+                  <input value="{{ newPn }}" onChange="{{ onNewPnChange }}" onKeyDown="{{ onNewPnKey }}" placeholder="Add project name…" style="flex:1; padding:7px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:12.5px;">
+                  <div onClick="{{ addPn }}" style="background:#3FA535; color:#fff; font-size:12px; font-weight:700; padding:7px 13px; border-radius:6px; cursor:pointer;">＋ Add</div>
+                  <div onClick="{{ togglePnMgr }}" style="border:1px solid #C9D6E4; color:#5B6E86; font-size:12px; font-weight:700; padding:7px 11px; border-radius:6px; cursor:pointer;">Done</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if></div>
+        <div style="position:relative;"><div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;"><span style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">PROJECT ID <span style="color:#3FA535;">● AUTO</span></span><span class="no-print" onClick="{{ togglePidMgr }}" title="Manage Project IDs (admin only)" style="font-size:10px; font-weight:700; color:#1155A6; cursor:pointer; border:1px solid #C9D6E4; border-radius:10px; padding:1px 8px;">🔒 manage</span></div>
+          <input list="projectIdsList" data-f="projCode" value="{{ doc.projCode }}" onChange="{{ setField }}" disabled="{{ locked }}" placeholder="Code" style="width:100%; padding:8px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:13px; font-weight:600;">
+          <datalist id="projectIdsList"><sc-for list="{{ projectIdOptions }}" as="o" hint-placeholder-count="3"><option value="{{ o }}"></option></sc-for></datalist>
+          <div style="font-size:9.5px; color:#93A5BC; margin-top:3px;">Report No. {{ doc.projCode }}-WPR-{{ weekNo }}</div>
+          <sc-if value="{{ pidMgrOpen }}" hint-placeholder-val="{{ false }}">
+            <div class="no-print" style="position:absolute; z-index:20; top:62px; left:0; right:0; background:#fff; border:1px solid #C9D6E4; border-radius:8px; box-shadow:0 8px 24px rgba(13,59,124,0.18); padding:11px 12px;">
+              <sc-if value="{{ pidLocked }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:10px; font-weight:700; color:#8A6A12; letter-spacing:0.06em; margin-bottom:7px;">🔒 ADMIN ONLY — ENTER PIN</div>
+                <div style="display:flex; gap:6px;">
+                  <input type="password" value="{{ pidPin }}" onChange="{{ onPidPinChange }}" onKeyDown="{{ onPidPinKey }}" placeholder="PIN ••••" style="flex:1; padding:7px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:12.5px; letter-spacing:0.2em;">
+                  <div onClick="{{ unlockPid }}" style="background:#0D3B7C; color:#fff; font-size:12px; font-weight:700; padding:7px 13px; border-radius:6px; cursor:pointer;">Unlock</div>
+                  <div onClick="{{ togglePidMgr }}" style="border:1px solid #C9D6E4; color:#5B6E86; font-size:12px; font-weight:700; padding:7px 11px; border-radius:6px; cursor:pointer;">✕</div>
+                </div>
+                <div style="font-size:11px; color:#C62828; font-weight:600; margin-top:6px;">{{ pidErr }}</div>
+              </sc-if>
+              <sc-if value="{{ pidUnlocked }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:7px;">PROJECT ID LIST <span style="color:#2E7D32;">✓ admin</span></div>
+                <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:9px;">
+                  <sc-for list="{{ pidChips }}" as="p" hint-placeholder-count="3">
+                    <div style="display:flex; align-items:center; gap:6px; background:#EDF2F8; border-radius:14px; padding:4px 6px 4px 11px; font-size:12px; font-weight:600; color:#0D3B7C;">{{ p.name }}<span onClick="{{ p.onRemove }}" title="Remove" style="cursor:pointer; color:#C62828; font-weight:700; font-size:13px; line-height:1;">×</span></div>
+                  </sc-for>
+                  <sc-if value="{{ noPids }}" hint-placeholder-val="{{ false }}"><div style="font-size:11.5px; color:#93A5BC;">No Project IDs yet — add one below.</div></sc-if>
+                </div>
+                <div style="display:flex; gap:6px;">
+                  <input value="{{ newPid }}" onChange="{{ onNewPidChange }}" onKeyDown="{{ onNewPidKey }}" placeholder="Add Project ID…" style="flex:1; padding:7px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:12.5px;">
+                  <div onClick="{{ addPid }}" style="background:#3FA535; color:#fff; font-size:12px; font-weight:700; padding:7px 13px; border-radius:6px; cursor:pointer;">＋ Add</div>
+                  <div onClick="{{ togglePidMgr }}" style="border:1px solid #C9D6E4; color:#5B6E86; font-size:12px; font-weight:700; padding:7px 11px; border-radius:6px; cursor:pointer;">Done</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if></div>
+        <div style="position:relative;"><div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;"><span style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">CLIENT ▾ <span style="color:#1155A6;">EDITABLE</span></span><span class="no-print" onClick="{{ toggleClientMgr }}" title="Manage company list (admin only)" style="font-size:10px; font-weight:700; color:#1155A6; cursor:pointer; border:1px solid #C9D6E4; border-radius:10px; padding:1px 8px;">🔒 manage</span></div>
+          <input list="clientsList" data-f="projClient" value="{{ doc.projClient }}" onChange="{{ setField }}" disabled="{{ locked }}" placeholder="Select or type client…" style="width:100%; padding:8px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:13px; font-weight:600;">
+          <datalist id="clientsList"><sc-for list="{{ clientOptions }}" as="o" hint-placeholder-count="3"><option value="{{ o }}"></option></sc-for></datalist>
+          <sc-if value="{{ clientMgrOpen }}" hint-placeholder-val="{{ false }}">
+            <div class="no-print" style="position:absolute; z-index:20; top:62px; left:0; right:0; background:#fff; border:1px solid #C9D6E4; border-radius:8px; box-shadow:0 8px 24px rgba(13,59,124,0.18); padding:11px 12px;">
+              <sc-if value="{{ clientLocked }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:10px; font-weight:700; color:#8A6A12; letter-spacing:0.06em; margin-bottom:7px;">🔒 ADMIN ONLY — ENTER PIN</div>
+                <div style="display:flex; gap:6px;">
+                  <input type="password" value="{{ clientPin }}" onChange="{{ onClientPinChange }}" onKeyDown="{{ onClientPinKey }}" placeholder="PIN ••••" style="flex:1; padding:7px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:12.5px; letter-spacing:0.2em;">
+                  <div onClick="{{ unlockClient }}" style="background:#0D3B7C; color:#fff; font-size:12px; font-weight:700; padding:7px 13px; border-radius:6px; cursor:pointer;">Unlock</div>
+                  <div onClick="{{ toggleClientMgr }}" style="border:1px solid #C9D6E4; color:#5B6E86; font-size:12px; font-weight:700; padding:7px 11px; border-radius:6px; cursor:pointer;">✕</div>
+                </div>
+                <div style="font-size:11px; color:#C62828; font-weight:600; margin-top:6px;">{{ clientErr }}</div>
+              </sc-if>
+              <sc-if value="{{ clientUnlocked }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:7px;">COMPANY LIST <span style="color:#2E7D32;">✓ admin</span></div>
+                <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:9px;">
+                  <sc-for list="{{ clientChips }}" as="c" hint-placeholder-count="4">
+                    <div style="display:flex; align-items:center; gap:6px; background:#EDF2F8; border-radius:14px; padding:4px 6px 4px 11px; font-size:12px; font-weight:600; color:#0D3B7C;">{{ c.name }}<span onClick="{{ c.onRemove }}" title="Remove" style="cursor:pointer; color:#C62828; font-weight:700; font-size:13px; line-height:1;">×</span></div>
+                  </sc-for>
+                  <sc-if value="{{ noClients }}" hint-placeholder-val="{{ false }}"><div style="font-size:11.5px; color:#93A5BC;">No companies yet — add one below.</div></sc-if>
+                </div>
+                <div style="display:flex; gap:6px;">
+                  <input value="{{ newClient }}" onChange="{{ onNewClientChange }}" onKeyDown="{{ onNewClientKey }}" placeholder="Add company name…" style="flex:1; padding:7px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:12.5px;">
+                  <div onClick="{{ addClient }}" style="background:#3FA535; color:#fff; font-size:12px; font-weight:700; padding:7px 13px; border-radius:6px; cursor:pointer;">＋ Add</div>
+                  <div onClick="{{ toggleClientMgr }}" style="border:1px solid #C9D6E4; color:#5B6E86; font-size:12px; font-weight:700; padding:7px 11px; border-radius:6px; cursor:pointer;">Done</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if></div>
+        <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">REPORTING WEEK <span style="color:#3FA535;">● AUTO</span></div>
+          <div style="padding:8px 10px; border:1px solid #E2EAF3; background:#F6F9FC; border-radius:6px; font-size:13px; font-weight:600;">{{ weekLabel }}</div></div>
+        <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">REPORT DATE <span style="color:#3FA535;">● AUTO</span></div>
+          <div style="padding:8px 10px; border:1px solid #E2EAF3; background:#F6F9FC; border-radius:6px; font-size:13px; font-weight:600;">{{ reportDateLong }}</div></div>
+        <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">CUT-OFF (THU) <span style="color:#3FA535;">● AUTO</span></div>
+          <div style="padding:8px 10px; border:1px solid #E2EAF3; background:#F6F9FC; border-radius:6px; font-size:13px; font-weight:600;">{{ cutoffLong }}</div></div>
+        <div style="position:relative;"><div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;"><span style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">PREPARED BY *</span><span class="no-print" onClick="{{ toggleInfoMgr }}" title="{{ infoHint }}" style="font-size:10px; font-weight:700; color:#1155A6; cursor:pointer; border:1px solid #C9D6E4; border-radius:10px; padding:1px 8px;">{{ infoChip }}</span></div>
+          <input data-f="preparedBy" value="{{ doc.preparedBy }}" onChange="{{ setField }}" disabled="{{ infoLock }}" placeholder="Name" style="width:100%; padding:8px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:13px;">
+          <sc-if value="{{ infoMgrOpen }}" hint-placeholder-val="{{ false }}">
+            <div class="no-print" style="position:absolute; z-index:20; top:62px; left:0; width:290px; background:#fff; border:1px solid #C9D6E4; border-radius:8px; box-shadow:0 8px 24px rgba(13,59,124,0.2); padding:11px 12px;">
+              <div style="font-size:10px; font-weight:700; color:#8A6A12; letter-spacing:0.06em; margin-bottom:7px;">🔒 ADMIN ONLY — ENTER PIN</div>
+              <div style="display:flex; gap:6px;">
+                <input type="password" value="{{ infoPin }}" onChange="{{ onInfoPinChange }}" onKeyDown="{{ onInfoPinKey }}" placeholder="PIN ••••" style="flex:1; padding:7px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:12.5px; letter-spacing:0.2em;">
+                <div onClick="{{ unlockInfo }}" style="background:#0D3B7C; color:#fff; font-size:12px; font-weight:700; padding:7px 13px; border-radius:6px; cursor:pointer;">Unlock</div>
+                <div onClick="{{ toggleInfoMgr }}" style="border:1px solid #C9D6E4; color:#5B6E86; font-size:12px; font-weight:700; padding:7px 11px; border-radius:6px; cursor:pointer;">✕</div>
+              </div>
+              <div style="font-size:11px; color:#C62828; font-weight:600; margin-top:6px;">{{ infoErr }}</div>
+              <div style="font-size:10px; color:#5B6E86; margin-top:6px;">Unlocks Prepared By &amp; Position for this session.</div>
+            </div>
+          </sc-if></div>
+        <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">POSITION</div>
+          <input data-f="position" value="{{ doc.position }}" onChange="{{ setField }}" disabled="{{ infoLock }}" placeholder="e.g. Projects Control Engineer" style="width:100%; padding:8px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:13px;"></div>
+        <div style="position:relative;"><div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;"><span style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">CURRENT PROJECT STATUS <span style="color:{{ psBadgeC }};">{{ psBadge }}</span></span><span class="no-print" onClick="{{ toggleAdvMgr }}" title="{{ advHint }}" style="font-size:10px; font-weight:700; color:#1155A6; cursor:pointer; border:1px solid #C9D6E4; border-radius:10px; padding:1px 8px;">{{ advChip }}</span></div>
+          <select value="{{ projStatus }}" onChange="{{ setProjStatus }}" disabled="{{ advLock }}" style="width:100%; padding:8px 10px; border-radius:6px; font-size:13px; font-weight:700; border:1px solid {{ projStatusC }}; background:{{ projStatusBg }}; color:{{ projStatusC }};">
+            <option>On Schedule</option><option>Delayed</option><option>Critical</option><option>Completed</option><option>—</option>
+          </select>
+          <div style="font-size:9.5px; color:#93A5BC; margin-top:3px;">Auto from SV: ≥ {{ onTrackMinLbl }}% On Schedule · ≥ {{ atRiskMinLbl }}% Delayed · below → Critical <span onClick="{{ resetProjStatus }}" style="color:#1155A6; font-weight:700; cursor:pointer;">{{ resetLbl }}</span></div>
+          <sc-if value="{{ advMgrOpen }}" hint-placeholder-val="{{ false }}">
+            <div class="no-print" style="position:absolute; z-index:20; top:62px; left:0; right:0; background:#fff; border:1px solid #C9D6E4; border-radius:8px; box-shadow:0 8px 24px rgba(13,59,124,0.2); padding:11px 12px;">
+              <div style="font-size:10px; font-weight:700; color:#8A6A12; letter-spacing:0.06em; margin-bottom:7px;">🔒 ADMIN ONLY — ENTER PIN</div>
+              <div style="display:flex; gap:6px;">
+                <input type="password" value="{{ advPin }}" onChange="{{ onAdvPinChange }}" onKeyDown="{{ onAdvPinKey }}" placeholder="PIN ••••" style="flex:1; padding:7px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:12.5px; letter-spacing:0.2em;">
+                <div onClick="{{ unlockAdv }}" style="background:#0D3B7C; color:#fff; font-size:12px; font-weight:700; padding:7px 13px; border-radius:6px; cursor:pointer;">Unlock</div>
+                <div onClick="{{ toggleAdvMgr }}" style="border:1px solid #C9D6E4; color:#5B6E86; font-size:12px; font-weight:700; padding:7px 11px; border-radius:6px; cursor:pointer;">✕</div>
+              </div>
+              <div style="font-size:11px; color:#C62828; font-weight:600; margin-top:6px;">{{ advErr }}</div>
+              <div style="font-size:10px; color:#5B6E86; margin-top:6px;">Unlocks Status &amp; the Weekly Tasks table.</div>
+            </div>
+          </sc-if></div>
+      </div>
+    </div>
+
+    <div style="padding:16px 24px 4px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">2 · KEY PERFORMANCE INDICATORS</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+        <div style="font-size:10.5px; color:#5B6E86;">type the numbers — variance &amp; status update live</div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px;">
+        <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px; position:relative;">
+          <div style="display:flex; align-items:center; gap:6px;"><span style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">PLANNED vs ACTUAL % (CUM.)</span><span style="flex:1;"></span><span class="no-print" onClick="{{ toggleKpiMgr }}" title="{{ kpiHint }}" style="font-size:9.5px; font-weight:700; color:#1155A6; cursor:pointer; border:1px solid #C9D6E4; border-radius:10px; padding:1px 7px;">{{ kpiChip }}</span></div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <div style="flex:1;"><input type="number" step="0.1" min="0" max="100" data-f="planned" value="{{ doc.planned }}" onChange="{{ setField }}" disabled="{{ kpiLock }}" placeholder="—" style="width:100%; padding:6px 8px; border:1px solid #C9D6E4; border-radius:6px; font-size:17px; font-weight:800; color:#1155A6;"><div style="font-size:9.5px; color:#5B6E86; margin-top:2px;">PLANNED %</div></div>
+            <div style="flex:1;"><input type="number" step="0.1" min="0" max="100" data-f="actual" value="{{ doc.actual }}" onChange="{{ setField }}" disabled="{{ kpiLock }}" placeholder="—" style="width:100%; padding:6px 8px; border:1px solid #C9D6E4; border-radius:6px; font-size:17px; font-weight:800; color:#3FA535;"><div style="font-size:9.5px; color:#5B6E86; margin-top:2px;">ACTUAL %</div></div>
+          </div>
+          <div style="margin-top:8px; height:6px; background:#E8F0FA; border-radius:3px; position:relative;"><div style="width:{{ actualW }}; height:6px; background:#3FA535; border-radius:3px;"></div><div style="position:absolute; left:{{ plannedW }}; top:-2px; width:2px; height:10px; background:#1155A6;"></div></div>
+          <div style="font-size:9px; color:#93A5BC; margin-top:5px;">Carried forward from last week automatically · {{ carriedNote }}</div>
+          <sc-if value="{{ kpiMgrOpen }}" hint-placeholder-val="{{ false }}">
+            <div class="no-print" style="position:absolute; z-index:20; top:44px; left:10px; right:10px; background:#fff; border:1px solid #C9D6E4; border-radius:8px; box-shadow:0 8px 24px rgba(13,59,124,0.2); padding:11px 12px;">
+              <div style="font-size:10px; font-weight:700; color:#8A6A12; letter-spacing:0.06em; margin-bottom:7px;">🔒 ADMIN ONLY — ENTER PIN TO EDIT KPIs</div>
+              <div style="display:flex; gap:6px;">
+                <input type="password" value="{{ kpiPin }}" onChange="{{ onKpiPinChange }}" onKeyDown="{{ onKpiPinKey }}" placeholder="PIN ••••" style="flex:1; padding:7px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:12.5px; letter-spacing:0.2em;">
+                <div onClick="{{ unlockKpi }}" style="background:#0D3B7C; color:#fff; font-size:12px; font-weight:700; padding:7px 13px; border-radius:6px; cursor:pointer;">Unlock</div>
+                <div onClick="{{ toggleKpiMgr }}" style="border:1px solid #C9D6E4; color:#5B6E86; font-size:12px; font-weight:700; padding:7px 11px; border-radius:6px; cursor:pointer;">✕</div>
+              </div>
+              <div style="font-size:11px; color:#C62828; font-weight:600; margin-top:6px;">{{ kpiErr }}</div>
+            </div>
+          </sc-if>
+        </div>
+        <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px;">
+          <div style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">SCHEDULE VARIANCE (SV)</div>
+          <div style="font-size:30px; font-weight:800; color:{{ statusC }}; margin-top:4px;">{{ varStr }}</div>
+          <div style="font-size:11px; font-weight:700; color:{{ statusC }};">{{ statusLabel }}</div>
+          <div style="margin-top:6px; height:5px; border-radius:3px; background:linear-gradient(90deg,#C62828,#E8A13A 40%,#DCE5EF 50%,#3FA535); position:relative;"><div style="position:absolute; left:{{ gaugeLeft }}; top:-3px; width:3px; height:11px; background:#16273D; border-radius:2px;"></div></div>
+          <div style="display:flex; justify-content:space-between; font-size:8.5px; color:#93A5BC; margin-top:2px;"><span>−20%</span><span>0</span><span>+20%</span></div>
+        </div>
+        <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px; position:relative;">
+          <div style="display:flex; align-items:center; gap:6px;"><span style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">MAN-HOURS TO DATE</span><span style="flex:1;"></span><span class="no-print" onClick="{{ toggleKpiMgr }}" title="{{ kpiHint }}" style="font-size:9.5px; font-weight:700; color:#1155A6; cursor:pointer; border:1px solid #C9D6E4; border-radius:10px; padding:1px 7px;">{{ kpiChip }}</span></div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <div style="flex:1;"><input type="number" min="0" data-f="mhPlanned" value="{{ doc.mhPlanned }}" onChange="{{ setField }}" disabled="{{ kpiLock }}" placeholder="—" style="width:100%; padding:6px 8px; border:1px solid #C9D6E4; border-radius:6px; font-size:15px; font-weight:700;"><div style="font-size:9.5px; color:#5B6E86; margin-top:2px;">PLANNED MH</div></div>
+            <div style="flex:1;"><input type="number" min="0" data-f="mhActual" value="{{ doc.mhActual }}" onChange="{{ setField }}" disabled="{{ kpiLock }}" placeholder="—" style="width:100%; padding:6px 8px; border:1px solid #C9D6E4; border-radius:6px; font-size:15px; font-weight:700;"><div style="font-size:9.5px; color:#5B6E86; margin-top:2px;">ACTUAL MH</div></div>
+          </div>
+          <div style="font-size:11px; color:#5B6E86; margin-top:7px;">Variance <b style="color:{{ mhVarC }};">{{ mhVarStr }}</b> MH · <span style="color:#93A5BC;">carried forward weekly</span></div>
+        </div>
+        <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px; position:relative;">
+          <div style="display:flex; align-items:center; gap:6px;"><span style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">HSE STATUS (TO DATE)</span><span style="flex:1;"></span><span class="no-print" onClick="{{ toggleKpiMgr }}" title="{{ kpiHint }}" style="font-size:9.5px; font-weight:700; color:#1155A6; cursor:pointer; border:1px solid #C9D6E4; border-radius:10px; padding:1px 7px;">{{ kpiChip }}</span></div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 8px; margin-top:8px;">
+            <div><input type="number" min="0" data-f="lti" value="{{ doc.lti }}" onChange="{{ setField }}" disabled="{{ kpiLock }}" style="width:100%; padding:4px 6px; border:1px solid #C9D6E4; border-radius:5px; font-size:15px; font-weight:800; color:{{ ltiC }};"><div style="font-size:9px; font-weight:700; color:#5B6E86; margin-top:1px;">LTI</div></div>
+            <div><input type="number" min="0" data-f="rec" value="{{ doc.rec }}" onChange="{{ setField }}" disabled="{{ kpiLock }}" style="width:100%; padding:4px 6px; border:1px solid #C9D6E4; border-radius:5px; font-size:15px; font-weight:800; color:{{ recC }};"><div style="font-size:9px; font-weight:700; color:#5B6E86; margin-top:1px;">RECORDABLE</div></div>
+            <div><input type="number" min="0" data-f="fa" value="{{ doc.fa }}" onChange="{{ setField }}" disabled="{{ kpiLock }}" style="width:100%; padding:4px 6px; border:1px solid #C9D6E4; border-radius:5px; font-size:15px; font-weight:800; color:{{ faC }};"><div style="font-size:9px; font-weight:700; color:#5B6E86; margin-top:1px;">FIRST AID</div></div>
+            <div><input type="number" min="0" data-f="nm" value="{{ doc.nm }}" onChange="{{ setField }}" disabled="{{ kpiLock }}" style="width:100%; padding:4px 6px; border:1px solid #C9D6E4; border-radius:5px; font-size:15px; font-weight:800; color:{{ nmC }};"><div style="font-size:9px; font-weight:700; color:#5B6E86; margin-top:1px;">NEAR MISS</div></div>
+          </div>
+          <div style="font-size:9px; color:#93A5BC; margin-top:6px;">Cumulative — carried forward weekly · admin edit</div>
+        </div>
+      </div>
+      <div style="border:1px solid #E2EAF3; border-radius:8px; padding:10px 14px 8px; margin-top:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">CUMULATIVE TREND — PLANNED vs ACTUAL <span style="font-weight:500; letter-spacing:0; color:#93A5BC;">(builds automatically as each week is saved)</span></div>
+          <div style="font-size:10px; color:#5B6E86;"><span style="display:inline-block; width:8px; height:8px; background:#9FB8D8; border-radius:2px;"></span> Planned&nbsp;&nbsp;<span style="display:inline-block; width:8px; height:8px; background:#3FA535; border-radius:2px;"></span> Actual</div>
+        </div>
+        <div style="display:flex; align-items:flex-end; gap:8px; height:70px; margin-top:8px; border-bottom:1px solid #E2EAF3; padding:0 2px;">
+          <sc-for list="{{ trend }}" as="w" hint-placeholder-count="8">
+            <div style="flex:1; display:flex; align-items:flex-end; gap:2px; justify-content:center;">
+              <div style="width:7px; background:#9FB8D8; border-radius:2px 2px 0 0; height:{{ w.ph }};"></div>
+              <div style="width:7px; background:#3FA535; border-radius:2px 2px 0 0; height:{{ w.ah }};"></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex; gap:8px; padding-top:3px;">
+          <sc-for list="{{ trend }}" as="w" hint-placeholder-count="8"><div style="flex:1; text-align:center; font-size:8.5px; color:#93A5BC; font-weight:{{ w.fw }};">{{ w.lbl }}</div></sc-for>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:280px 1fr; gap:12px; margin-top:12px;">
+        <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px;">
+          <div style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">NUMBER OF TASKS COMPLETED</div>
+          <div style="display:flex; align-items:center; gap:14px; margin-top:10px;">
+            <svg width="118" height="118" viewBox="0 0 118 118">
+              <circle cx="59" cy="59" r="45" fill="none" stroke="#EDF2F8" stroke-width="16"></circle>
+              <circle cx="59" cy="59" r="45" fill="none" stroke="#C9D6E4" stroke-width="16" stroke-dasharray="{{ dNot }}" stroke-dashoffset="{{ oNot }}" transform="rotate(-90 59 59)"></circle>
+              <circle cx="59" cy="59" r="45" fill="none" stroke="#1155A6" stroke-width="16" stroke-dasharray="{{ dProg }}" stroke-dashoffset="{{ oProg }}" transform="rotate(-90 59 59)"></circle>
+              <circle cx="59" cy="59" r="45" fill="none" stroke="#3FA535" stroke-width="16" stroke-dasharray="{{ dDone }}" stroke-dashoffset="{{ oDone }}" transform="rotate(-90 59 59)"></circle>
+              <text x="59" y="57" text-anchor="middle" font-size="24" font-weight="800" fill="#16273D" font-family="Barlow">{{ tTotal }}</text>
+              <text x="59" y="73" text-anchor="middle" font-size="8.5" fill="#5B6E86" font-family="Barlow">TASKS</text>
+            </svg>
+            <div style="font-size:11.5px; color:#3A4E68; line-height:2.1; white-space:nowrap;">
+              <div><span style="display:inline-block; width:9px; height:9px; background:#3FA535; border-radius:2px;"></span> Completed ({{ tDone }})</div>
+              <div><span style="display:inline-block; width:9px; height:9px; background:#1155A6; border-radius:2px;"></span> In Progress ({{ tProg }})</div>
+              <div><span style="display:inline-block; width:9px; height:9px; background:#C9D6E4; border-radius:2px;"></span> Not Started ({{ tNot }})</div>
+            </div>
+          </div>
+        </div>
+        <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">PROJECT WEEKLY TASKS — 6-WEEK VIEW <span class="no-print" onClick="{{ toggleAdvMgr }}" title="{{ advHint }}" style="font-size:9.5px; color:#1155A6; cursor:pointer; border:1px solid #C9D6E4; border-radius:10px; padding:1px 7px; margin-left:4px;">{{ advChip }}</span></div>
+            <div style="font-size:10px; color:#5B6E86;">status sets bar color · counted in donut · admin edit</div>
+          </div>
+          <div style="display:grid; grid-template-columns:140px 46px 46px 1fr 106px 18px; gap:6px; align-items:center; font-size:9px; font-weight:700; color:#5B6E86; letter-spacing:0.05em; padding-bottom:4px;">
+            <div>TASK</div><div>FROM</div><div>TO</div>
+            <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:2px;">
+              <sc-for list="{{ tWeeks }}" as="tw" hint-placeholder-count="6"><div style="text-align:center; padding:3px 0; background:{{ tw.bg }}; color:{{ tw.c }}; border-radius:3px;">{{ tw.lbl }}</div></sc-for>
+            </div>
+            <div>STATUS</div><div></div>
+          </div>
+          <sc-for list="{{ tasks }}" as="t" hint-placeholder-count="4">
+            <div style="display:grid; grid-template-columns:140px 46px 46px 1fr 106px 18px; gap:6px; align-items:center; padding:4px 0; border-bottom:1px solid #EFF3F8;">
+              <input value="{{ t.text }}" onChange="{{ t.onText }}" disabled="{{ advLock }}" placeholder="Task…" style="width:100%; border:1px solid #E2EAF3; border-radius:5px; padding:5px 8px; font-size:11.5px; color:#3A4E68;">
+              <select value="{{ t.s }}" onChange="{{ t.onS }}" disabled="{{ advLock }}" style="width:100%; padding:4px 2px; border:1px solid #E2EAF3; border-radius:5px; font-size:10px; font-weight:600; color:#0D3B7C; background:#fff;">
+                <sc-for list="{{ tWeekOpts }}" as="o" hint-placeholder-count="6"><option value="{{ o.v }}">{{ o.lbl }}</option></sc-for>
+              </select>
+              <select value="{{ t.e }}" onChange="{{ t.onE }}" disabled="{{ advLock }}" style="width:100%; padding:4px 2px; border:1px solid #E2EAF3; border-radius:5px; font-size:10px; font-weight:600; color:#0D3B7C; background:#fff;">
+                <sc-for list="{{ tWeekOpts }}" as="o" hint-placeholder-count="6"><option value="{{ o.v }}">{{ o.lbl }}</option></sc-for>
+              </select>
+              <div style="display:grid; grid-template-columns:repeat(6,1fr); align-items:center; height:20px; background:repeating-linear-gradient(90deg, #F6F9FC 0, #F6F9FC calc(16.666% - 1px), #E2EAF3 calc(16.666% - 1px), #E2EAF3 16.666%); border-radius:4px;">
+                <div style="grid-row:1; grid-column:{{ t.gc }}; background:{{ t.bc }}; height:12px; border-radius:6px; margin:0 3px;"></div>
+              </div>
+              <select value="{{ t.status }}" onChange="{{ t.onStatus }}" disabled="{{ advLock }}" style="width:100%; padding:4px 4px; border-radius:5px; font-size:10px; font-weight:700; border:1px solid {{ t.stC }}; background:{{ t.stBg }}; color:{{ t.stC }};">
+                <option>Not Started</option><option>In Progress</option><option>Completed</option>
+              </select>
+              <sc-if value="{{ advEditable }}" hint-placeholder-val="{{ false }}"><div class="no-print" onClick="{{ t.onDel }}" title="Remove" style="font-size:12px; color:#C62828; cursor:pointer; text-align:center;">✕</div></sc-if>
+            </div>
+          </sc-for>
+          <sc-if value="{{ advEditable }}" hint-placeholder-val="{{ false }}"><div class="no-print" onClick="{{ addTask }}" style="display:inline-block; border:1.5px dashed #9FB8D8; color:#1155A6; border-radius:5px; padding:5px 12px; font-size:11px; font-weight:600; cursor:pointer; margin-top:7px;">＋ Add task</div></sc-if>
+          <sc-if value="{{ advEditable }}" hint-placeholder-val="{{ false }}">
+            <div class="no-print" style="margin-top:9px; border-top:1px dashed #E2EAF3; padding-top:9px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+              <span style="font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.05em;">🔗 INTEGRATIONS</span>
+              <div onClick="{{ importP6 }}" title="Primavera P6 XER export" style="border:1px solid #C9D6E4; color:#0D3B7C; border-radius:5px; padding:5px 10px; font-size:10.5px; font-weight:700; cursor:pointer;">⬇ Import Primavera P6 (.xer)</div>
+              <div onClick="{{ importExcel }}" title="Excel — save as .csv first" style="border:1px solid #C9D6E4; color:#0D3B7C; border-radius:5px; padding:5px 10px; font-size:10.5px; font-weight:700; cursor:pointer;">⬇ Import Excel / CSV</div>
+              <div onClick="{{ exportPBI }}" title="Progress history for Power BI / Excel" style="border:1px solid #3FA535; color:#2E7D32; border-radius:5px; padding:5px 10px; font-size:10.5px; font-weight:700; cursor:pointer;">⬆ Export for Power BI (CSV)</div>
+              <span style="font-size:10.5px; font-weight:600; color:{{ intMsgC }};">{{ intMsg }}</span>
+            </div>
+          </sc-if>
+          <input type="file" accept=".xer,.csv,.txt,.xlsx" ref="{{ intFileRef }}" onChange="{{ onIntFile }}" style="display:none;">
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:16px 24px 4px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">3 · DISCIPLINE UPDATE</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+        <div style="font-size:11px; color:#5B6E86;">auto-filtered by project · editable</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <sc-for list="{{ disciplines }}" as="d" hint-placeholder-count="4">
+          <div style="display:flex; gap:10px; align-items:stretch;">
+            <div style="flex:0 0 155px; display:flex; flex-direction:column; gap:5px;">
+              <input value="{{ d.name }}" onChange="{{ d.onName }}" disabled="{{ locked }}" placeholder="Discipline" style="width:100%; background:#E8F0FA; color:#0D3B7C; font-size:11.5px; font-weight:700; padding:7px 8px; border-radius:5px; text-align:center; border:1px solid #E8F0FA;">
+              <select value="{{ d.status }}" onChange="{{ d.onStatus }}" disabled="{{ locked }}" style="width:100%; padding:5px 6px; border-radius:5px; font-size:10.5px; font-weight:700; border:1px solid {{ d.stC }}; background:{{ d.stBg }}; color:{{ d.stC }};">
+                <option>Open</option><option>In Progress</option><option>Completed</option><option>On Hold</option>
+              </select>
+            </div>
+            <textarea rows="2" value="{{ d.text }}" onChange="{{ d.onText }}" disabled="{{ locked }}" placeholder="Update this week…" style="flex:1; border:1px solid #E2EAF3; border-radius:5px; padding:6px 10px; font-size:12.5px; color:#3A4E68; line-height:1.5;"></textarea>
+            <div class="no-print" onClick="{{ d.onDel }}" title="Remove" style="flex:0 0 auto; font-size:13px; color:#C62828; cursor:pointer; padding:6px 2px;">✕</div>
+          </div>
+        </sc-for>
+        <div class="no-print" onClick="{{ addDiscipline }}" style="align-self:flex-start; border:1.5px dashed #9FB8D8; color:#1155A6; border-radius:6px; padding:7px 14px; font-size:12px; font-weight:600; cursor:pointer;">＋ Add discipline</div>
+      </div>
+    </div>
+
+    <div style="padding:16px 24px 4px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">4 · LOOK-AHEAD MILESTONES (NEXT 2 WEEKS)</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 150px 130px; gap:10px; font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; padding:0 2px 6px; border-bottom:1.5px solid #DCE5EF;">
+        <div>MILESTONE / DELIVERABLE</div><div>TARGET DATE</div><div>OWNER</div>
+      </div>
+      <sc-for list="{{ milestones }}" as="m" hint-placeholder-count="2">
+        <div style="display:grid; grid-template-columns:1fr 150px 130px 20px; gap:10px; align-items:center; padding:6px 0; border-bottom:1px solid #EFF3F8;">
+          <input value="{{ m.text }}" onChange="{{ m.onText }}" disabled="{{ locked }}" placeholder="Milestone…" style="width:100%; border:1px solid #E2EAF3; border-radius:6px; padding:7px 10px; font-size:12.5px; color:#3A4E68;">
+          <input type="date" value="{{ m.date }}" onChange="{{ m.onDate }}" disabled="{{ locked }}" style="width:100%; border:1px solid #E2EAF3; border-radius:6px; padding:6px 8px; font-size:12px; color:{{ m.dateC }}; font-weight:600;">
+          <input value="{{ m.owner }}" onChange="{{ m.onOwner }}" disabled="{{ locked }}" placeholder="Owner" style="width:100%; border:1px solid #E2EAF3; border-radius:6px; padding:7px 10px; font-size:12px; color:#0D3B7C; font-weight:600;">
+          <div class="no-print" onClick="{{ m.onDel }}" title="Remove" style="font-size:13px; color:#C62828; cursor:pointer; text-align:center;">✕</div>
+        </div>
+      </sc-for>
+      <div class="no-print" onClick="{{ addMilestone }}" style="display:inline-block; border:1.5px dashed #9FB8D8; color:#1155A6; border-radius:6px; padding:7px 14px; font-size:12px; font-weight:600; cursor:pointer; margin-top:8px;">＋ Add milestone</div>
+    </div>
+
+    <div style="padding:16px 24px 4px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">5 · NEXT WEEK PLAN — GANTT</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+        <div style="font-size:11px; color:#5B6E86;">{{ ganttRange }} · work week Sun–Thu</div>
+      </div>
+      <div style="display:grid; grid-template-columns:200px 62px 62px 1fr 20px; gap:8px; align-items:center; font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; padding-bottom:6px; border-bottom:1.5px solid #DCE5EF;">
+        <div>TASK</div><div>FROM</div><div>TO</div>
+        <div style="display:grid; grid-template-columns:repeat(5,1fr);">
+          <sc-for list="{{ ganttDays }}" as="gd" hint-placeholder-count="5"><div style="text-align:center;">{{ gd }}</div></sc-for>
+        </div><div></div>
+      </div>
+      <sc-for list="{{ gantt }}" as="g" hint-placeholder-count="3">
+        <div style="display:grid; grid-template-columns:200px 62px 62px 1fr 20px; gap:8px; align-items:center; padding:6px 0; border-bottom:1px solid #EFF3F8;">
+          <input value="{{ g.text }}" onChange="{{ g.onText }}" disabled="{{ locked }}" placeholder="Task…" style="width:100%; border:1px solid #E2EAF3; border-radius:6px; padding:7px 10px; font-size:12px; color:#3A4E68;">
+          <select value="{{ g.s }}" onChange="{{ g.onS }}" disabled="{{ locked }}" style="width:100%; padding:6px 4px; border:1px solid #E2EAF3; border-radius:6px; font-size:11px; font-weight:600; color:#0D3B7C; background:#fff;">
+            <option value="0">Sun</option><option value="1">Mon</option><option value="2">Tue</option><option value="3">Wed</option><option value="4">Thu</option>
+          </select>
+          <select value="{{ g.e }}" onChange="{{ g.onE }}" disabled="{{ locked }}" style="width:100%; padding:6px 4px; border:1px solid #E2EAF3; border-radius:6px; font-size:11px; font-weight:600; color:#0D3B7C; background:#fff;">
+            <option value="0">Sun</option><option value="1">Mon</option><option value="2">Tue</option><option value="3">Wed</option><option value="4">Thu</option>
+          </select>
+          <div style="display:grid; grid-template-columns:repeat(5,1fr); align-items:center; height:22px; background:repeating-linear-gradient(90deg, #F6F9FC 0, #F6F9FC calc(20% - 1px), #E2EAF3 calc(20% - 1px), #E2EAF3 20%); border-radius:4px;">
+            <div style="grid-row:1; grid-column:{{ g.gc }}; background:{{ g.bc }}; height:14px; border-radius:7px; margin:0 3px;"></div>
+          </div>
+          <div class="no-print" onClick="{{ g.onDel }}" title="Remove" style="font-size:13px; color:#C62828; cursor:pointer; text-align:center;">✕</div>
+        </div>
+      </sc-for>
+      <div class="no-print" onClick="{{ addGantt }}" style="display:inline-block; border:1.5px dashed #9FB8D8; color:#1155A6; border-radius:6px; padding:7px 14px; font-size:12px; font-weight:600; cursor:pointer; margin-top:8px;">＋ Add task</div>
+    </div>
+
+    <div style="padding:16px 24px 4px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">6 · COMMENTS &amp; ATTACHMENTS</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+        <div style="font-size:11px; color:#5B6E86;">★ = include in Monthly Report</div>
+      </div>
+      <sc-for list="{{ comments }}" as="c" hint-placeholder-count="3">
+        <div style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">
+          <select value="{{ c.type }}" onChange="{{ c.onType }}" disabled="{{ locked }}" style="flex:0 0 200px; padding:7px 8px; border:1px solid #C9D6E4; border-radius:6px; font-size:12px; color:#0D3B7C; font-weight:600; background:#fff;">
+            <option>Client approval pending</option><option>Waiting client feedback</option><option>Resource gap</option><option>Technical issue / clarification</option><option>Delay risk</option><option>Vendor/TUV delay</option><option>Achievement / milestone</option><option>Other</option>
+          </select>
+          <div style="flex:1;">
+            <input value="{{ c.text }}" onChange="{{ c.onText }}" disabled="{{ locked }}" placeholder="Comment detail…" style="width:100%; border:1px solid #E2EAF3; border-radius:6px; padding:7px 10px; font-size:12.5px; color:#3A4E68;">
+            <div style="font-size:10.5px; color:#1155A6; font-weight:600; margin-top:2px;">{{ c.attNames }}</div>
+          </div>
+          <div class="no-print" onClick="{{ c.onAttach }}" title="Attach PDF / Excel / Word" style="flex:0 0 auto; border:1px solid #C9D6E4; border-radius:6px; padding:6px 9px; font-size:13px; cursor:pointer; color:#1155A6;">📎</div>
+          <div onClick="{{ c.onFlag }}" title="Flag for monthly report" style="flex:0 0 auto; font-size:18px; color:{{ c.starC }}; cursor:pointer; padding-top:3px;">{{ c.star }}</div>
+          <div class="no-print" onClick="{{ c.onDel }}" title="Remove" style="flex:0 0 auto; font-size:13px; color:#C62828; cursor:pointer; padding:6px 4px;">✕</div>
+        </div>
+      </sc-for>
+      <div class="no-print" style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+        <div onClick="{{ addComment }}" style="border:1.5px dashed #9FB8D8; color:#1155A6; border-radius:6px; padding:7px 14px; font-size:12px; font-weight:600; cursor:pointer;">＋ Add comment</div>
+        <div style="font-size:11px; color:#93A5BC;">📎 attaches PDF · Excel · Word to a comment row</div>
+      </div>
+      <input type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx" ref="{{ fileRef }}" onChange="{{ onFilePick }}" style="display:none;">
+    </div>
+
+    <div style="margin:16px 24px 0; background:#FFFBEF; border:1.5px solid #E8C15A; border-radius:8px; padding:11px 14px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div style="font-size:11px; font-weight:800; color:#8A6A12; letter-spacing:0.05em;">★ MONTHLY REPORT TRAY — {{ flaggedCount }} FLAGGED</div>
+        <div style="flex:1;"></div>
+        <div class="no-print" onClick="{{ copyMonthly }}" style="background:#0D3B7C; color:#fff; font-size:11.5px; font-weight:700; padding:6px 12px; border-radius:6px; cursor:pointer;">{{ copyLbl }}</div>
+      </div>
+      <sc-for list="{{ flagged }}" as="f" hint-placeholder-count="1">
+        <div style="font-size:11.5px; color:#6B5A1E; margin-top:5px;">★ <b>{{ f.type }}:</b> {{ f.text }}</div>
+      </sc-for>
+    </div>
+
+    <div class="no-print" style="margin:14px 24px 0; background:#F0F5FA; border:1px solid #C9D6E4; border-radius:8px; padding:12px 14px;">
+      <sc-if value="{{ isDraft }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="font-size:11px; font-weight:800; color:#0D3B7C; letter-spacing:0.05em;">ADMIN<br>UPLOAD</div>
+          <input type="password" value="{{ pin }}" onChange="{{ setPin }}" placeholder="PIN ••••" style="width:110px; padding:8px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:13px; letter-spacing:0.2em;">
+          <div onClick="{{ doUpload }}" style="background:#3FA535; color:#fff; font-size:12.5px; font-weight:700; padding:9px 16px; border-radius:6px; cursor:pointer; white-space:nowrap; flex:0 0 auto;">⬆ Approve &amp; Upload to Google Drive</div>
+          <div style="font-size:11px; color:#C62828; font-weight:600;">{{ pinErr }}</div>
+          <div style="flex:1;"></div>
+          <div style="font-size:11px; color:#5B6E86; font-weight:600;"><span style="color:#3FA535;">● Draft saved</span> ▸ Approved ▸ Uploaded</div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ isUploading }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; align-items:center; gap:12px; font-size:13px; font-weight:700; color:#1155A6;">
+          <div style="width:14px; height:14px; border:2.5px solid #C9D6E4; border-top-color:#1155A6; border-radius:50%; animation:spin 0.8s linear infinite;"></div>
+          Uploading to Google Drive…
+        </div>
+      </sc-if>
+      <sc-if value="{{ isUploaded }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="font-size:20px;">✅</div>
+          <div style="flex:1; font-size:12.5px; color:#2E7D32; font-weight:700;">Approved &amp; uploaded to Google Drive — {{ uploadedAt }} · report locked <a href="{{ driveUrl }}" target="_blank" style="color:#1155A6;">Open folder ↗</a></div>
+          <div onClick="{{ resetUpload }}" style="border:1px solid #C9D6E4; color:#5B6E86; font-size:11.5px; font-weight:700; padding:6px 12px; border-radius:6px; cursor:pointer;">✎ New revision</div>
+        </div>
+      </sc-if>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; padding:16px 24px;">
+      <div style="border:1px solid #C9D6E4; border-radius:8px; padding:10px 12px;"><div style="font-size:11px; font-weight:800; color:#0D3B7C; margin-bottom:8px;">PREPARED BY</div>
+        <input data-f="sig1n" value="{{ doc.sig1n }}" onChange="{{ setField }}" disabled="{{ locked }}" placeholder="Name" style="width:100%; border:none; border-bottom:1px solid #C9D6E4; font-size:12px; padding:4px 2px; margin-bottom:6px; background:transparent;">
+        <div style="font-size:11px; color:#5B6E86; line-height:2.4;">Signature ____________________</div>
+        <input data-f="sig1d" value="{{ doc.sig1d }}" onChange="{{ setField }}" disabled="{{ locked }}" placeholder="Date" style="width:100%; border:none; border-bottom:1px solid #C9D6E4; font-size:12px; padding:4px 2px; background:transparent;"></div>
+      <div style="border:1px solid #C9D6E4; border-radius:8px; padding:10px 12px;"><div style="font-size:11px; font-weight:800; color:#0D3B7C; margin-bottom:8px;">REVIEWED BY</div>
+        <input data-f="sig2n" value="{{ doc.sig2n }}" onChange="{{ setField }}" disabled="{{ locked }}" placeholder="Name" style="width:100%; border:none; border-bottom:1px solid #C9D6E4; font-size:12px; padding:4px 2px; margin-bottom:6px; background:transparent;">
+        <div style="font-size:11px; color:#5B6E86; line-height:2.4;">Signature ____________________</div>
+        <input data-f="sig2d" value="{{ doc.sig2d }}" onChange="{{ setField }}" disabled="{{ locked }}" placeholder="Date" style="width:100%; border:none; border-bottom:1px solid #C9D6E4; font-size:12px; padding:4px 2px; background:transparent;"></div>
+      <div style="border:1px solid #C9D6E4; border-radius:8px; padding:10px 12px;"><div style="font-size:11px; font-weight:800; color:#0D3B7C; margin-bottom:8px;">APPROVED BY</div>
+        <input data-f="sig3n" value="{{ doc.sig3n }}" onChange="{{ setField }}" disabled="{{ locked }}" placeholder="Name" style="width:100%; border:none; border-bottom:1px solid #C9D6E4; font-size:12px; padding:4px 2px; margin-bottom:6px; background:transparent;">
+        <div style="font-size:11px; color:#5B6E86; line-height:2.4;">Signature ____________________</div>
+        <input data-f="sig3d" value="{{ doc.sig3d }}" onChange="{{ setField }}" disabled="{{ locked }}" placeholder="Date" style="width:100%; border:none; border-bottom:1px solid #C9D6E4; font-size:12px; padding:4px 2px; background:transparent;"></div>
+    </div>
+
+    <div style="background:#0D3B7C; color:#fff; display:flex; justify-content:space-between; align-items:center; padding:10px 24px; font-size:11.5px;">
+      <div style="font-weight:600; white-space:nowrap;">One Team. One Goal. Operational Excellence.</div>
+      <div style="opacity:0.85; white-space:nowrap;">www.eprom.com.eg</div>
+      <div style="opacity:0.85; white-space:nowrap;">Page 1 of 1</div>
+    </div>
+  </div>
+  <div class="no-print" style="width:920px; margin:10px auto 0; font-size:11px; color:#5B6E86; text-align:center;">Data auto-saves in this browser per project &amp; week. The QR + “Open folder” use the Drive link set in Tweaks. Live Drive upload requires connecting a Google Apps Script — the Approve flow here simulates it end-to-end.</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;driveUrl&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;https://drive.google.com/drive/folders/EPROM-WEEKLY-REPORTS&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Google Drive&quot;},&quot;uploadEndpoint&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Google Drive&quot;},&quot;adminPin&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;2468&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Google Drive&quot;},&quot;onTrackMin&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:-3,&quot;min&quot;:-10,&quot;max&quot;:0,&quot;step&quot;:0.5,&quot;unit&quot;:&quot;%&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Status thresholds&quot;},&quot;atRiskMin&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:-7,&quot;min&quot;:-15,&quot;max&quot;:-3,&quot;step&quot;:0.5,&quot;unit&quot;:&quot;%&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Status thresholds&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this._projects = {
+      'PSAIM – Suez Projects (SOPC)': { code: 'EP-SU-PSAIM', client: 'SOPC', disciplines: ['In Common', 'Process', 'Process Safety', 'Asset Integrity'] },
+      'MIDOR Expansion – Unit 08': { code: 'SD-08-C-M55', client: 'MIDOR', disciplines: ['Mechanical – Static', 'Piping & Welding', 'Electrical & Instrumentation', 'Insulation & Scaffolding'] },
+      'Tank Farm Upgrade': { code: 'EP-SU-TFU', client: 'SOPC', disciplines: ['Civil & Foundations', 'Mechanical – Tanks', 'Coating & Painting', 'Fire Fighting System'] }
+    };
+    this._psaim = 'PSAIM – Suez Projects (SOPC)';
+    this._defaultClients = ['SOPC', 'MIDOR', 'ANRPC', 'EPROM'];
+    this._defaultPids = Object.values(this._projects).map(p => p.code);
+    const w = this.week();
+    this.state = Object.assign({ projName: this._psaim, pin: '', pinErr: '', qr: '', savedAt: '', copied: false, clients: this.loadClients(), clientMgrOpen: false, clientUnlocked: false, clientPin: '', clientErr: '', newClient: '', projectIds: this.loadPids(), pidMgrOpen: false, pidUnlocked: false, pidPin: '', pidErr: '', newPid: '', projNames: this.loadProjNames(), pnMgrOpen: false, pnUnlocked: false, pnPin: '', pnErr: '', newPn: '', docBase: this.loadDocBase(), docMgrOpen: false, docUnlocked: false, docPin: '', docErr: '', kpiMgrOpen: false, kpiUnlocked: false, kpiPin: '', kpiErr: '', infoMgrOpen: false, infoUnlocked: false, infoPin: '', infoErr: '', advMgrOpen: false, advUnlocked: false, advPin: '', advErr: '', adminMode: false, adminBarOpen: false, adminBarPin: '', adminBarErr: '', intMsg: '' }, this.load(this._psaim, w.weekKey));
+  }
+  week() {
+    const now = new Date();
+    const add = (7 - now.getDay()) % 7;
+    const report = new Date(now.getFullYear(), now.getMonth(), now.getDate() + add);
+    const wkStart = new Date(report); wkStart.setDate(report.getDate() - 7);
+    const cut = new Date(wkStart); cut.setDate(wkStart.getDate() + 4);
+    const oneJan = new Date(wkStart.getFullYear(), 0, 1);
+    const weekNo = Math.ceil(((wkStart - oneJan) / 86400000 + oneJan.getDay() + 1) / 7);
+    return { report, wkStart, cut, weekNo, year: wkStart.getFullYear(), weekKey: wkStart.getFullYear() + '-W' + String(weekNo).padStart(2, '0') };
+  }
+  blank(name) {
+    const known = this._projects[name];
+    return { doc: { docNo: 'EPR-QF-PR-07 · Rev 00', preparedBy: '', position: '', projCode: known ? known.code : '', projClient: known ? known.client : '', statusOverride: '', planned: '', actual: '', mhPlanned: '', mhActual: '', lti: '0', rec: '0', fa: '0', nm: '0', sig1n: '', sig1d: '', sig2n: '', sig2d: '', sig3n: '', sig3d: '' }, disciplines: (known ? known.disciplines : ['General']).map(n => ({ name: n, status: 'Open', text: '' })), comments: [{ type: 'Client approval pending', text: '', atts: [], flag: false }], milestones: [{ text: '', date: '', owner: '' }], gantt: [{ text: '', s: 0, e: 2 }], tasks: [{ text: '', s: 2, e: 3, status: 'Not Started' }], stage: 0, uploadedAt: '' };
+  }
+  seedPsaim() {
+    const b = this.blank(this._psaim);
+    b.doc = Object.assign(b.doc, { planned: '46.0', actual: '42.5', mhPlanned: '23000', mhActual: '21340', lti: '0', rec: '0', fa: '1', nm: '3' });
+    const dt = ['Reviewed Gap Analysis Report & Action Plan (final rev.) per agreed CRS with SOPC/TUV.',
+      'Completed review of 11 SOPs for CDU-01 (all five operating modes); submitted to SOPC.',
+      'Updated SOPC risk matrix for final approval ahead of HIRA workshops.',
+      'RBI procedure Rev.01 with SOPC; Layer-1 criticality for U20/21/22 approved.'];
+    b.disciplines = b.disciplines.map((d, i) => Object.assign(d, { text: dt[i] || '', status: 'In Progress' }));
+    b.comments = [
+      { type: 'Client approval pending', text: 'RBI procedure Rev.01 submitted to SOPC — awaiting feedback.', atts: ['RBI-Proc-R01.pdf'], flag: true },
+      { type: 'Vendor/TUV delay', text: 'Unit-20 SOP internal review slipped 3 days (reference data pending).', atts: [], flag: false },
+      { type: 'Achievement / milestone', text: 'Maintenance Strategy officially approved by SOPC.', atts: [], flag: true }
+    ];
+    b.milestones = [
+      { text: 'HIRA workshop kick-off (5 PS elements)', date: this.iso(3), owner: 'Process Safety' },
+      { text: 'Submit Unit-20 SOP package to SOPC', date: this.iso(9), owner: 'Process' }
+    ];
+    b.gantt = [
+      { text: 'HIRA workshop preparation', s: 0, e: 2 },
+      { text: 'Unit-20 SOP internal review', s: 0, e: 4 },
+      { text: 'RBI data collection — U21', s: 2, e: 4 },
+      { text: 'Weekly progress meeting w/ SOPC', s: 3, e: 3 }
+    ];
+    b.tasks = [
+      { text: 'Gap Analysis & Action Plan', s: 0, e: 1, status: 'Completed' },
+      { text: 'CDU-01 SOP reviews (11 SOPs)', s: 0, e: 2, status: 'Completed' },
+      { text: 'Risk matrix update w/ SOPC', s: 1, e: 2, status: 'In Progress' },
+      { text: 'RBI data collection — U20/21/22', s: 2, e: 3, status: 'In Progress' },
+      { text: 'HIRA workshops (5 PS elements)', s: 3, e: 5, status: 'Not Started' }
+    ];
+    return b;
+  }
+  iso(days) { const d = new Date(); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); }
+  loadClients() {
+    try { const r = localStorage.getItem('eprom.clients'); if (r) return JSON.parse(r); } catch (e) {}
+    return this._defaultClients.slice();
+  }
+  saveClients(list) { try { localStorage.setItem('eprom.clients', JSON.stringify(list)); } catch (e) {} this.setState({ clients: list }); }
+  loadPids() {
+    try { const r = localStorage.getItem('eprom.projectIds'); if (r) return JSON.parse(r); } catch (e) {}
+    return this._defaultPids.slice();
+  }
+  savePids(list) { try { localStorage.setItem('eprom.projectIds', JSON.stringify(list)); } catch (e) {} this.setState({ projectIds: list }); }
+  loadProjNames() {
+    try { const r = localStorage.getItem('eprom.projectNames'); if (r) return JSON.parse(r); } catch (e) {}
+    return Object.keys(this._projects);
+  }
+  saveProjNames(list) { try { localStorage.setItem('eprom.projectNames', JSON.stringify(list)); } catch (e) {} this.setState({ projNames: list }); }
+  loadDocBase() {
+    try { const r = localStorage.getItem('eprom.docNo'); if (r) return r; } catch (e) {}
+    return 'EPR-QF-PR-07 · Rev 00';
+  }
+  saveDocBase(v) { try { localStorage.setItem('eprom.docNo', v); } catch (e) {} this.setState({ docBase: v }); }
+  slug(n) { return String(n || 'untitled').toLowerCase().replace(/[^a-z0-9]+/g, '-'); }
+  key(id, weekKey) { return 'eprom.wpr.' + id + '.' + weekKey; }
+  histKey(id) { return 'eprom.wpr.hist.' + id; }
+  load(name, weekKey) {
+    try {
+      const raw = localStorage.getItem(this.key(this.slug(name), weekKey));
+      if (raw) {
+        const d = JSON.parse(raw);
+        d.doc = Object.assign(this.blank(name).doc, d.doc);
+        d.milestones = d.milestones || [];
+        d.gantt = d.gantt || (name === this._psaim ? this.seedPsaim().gantt : [{ text: '', s: 0, e: 2 }]);
+        d.tasks = d.tasks || (name === this._psaim ? this.seedPsaim().tasks : [{ text: '', s: 2, e: 3, status: 'Not Started' }]);
+        if (!d.disciplines) d.disciplines = name === this._psaim ? this.seedPsaim().disciplines : this.blank(name).disciplines;
+        return d;
+      }
+    } catch (e) {}
+    if (name === this._psaim) return this.seedPsaim();
+    const b = this.blank(name);
+    return this.carryForward(name, weekKey, b);
+  }
+  carryForward(name, weekKey, b) {
+    try {
+      const hist = JSON.parse(localStorage.getItem(this.histKey(this.slug(name))) || '{}');
+      const m = weekKey.match(/^(\d{4})-W(\d{2})$/);
+      if (!m) return b;
+      const cur = +m[1] * 100 + +m[2];
+      let best = null;
+      Object.values(hist).forEach(h => { const ord = h.y * 100 + h.wk; if (ord < cur && (!best || ord > best.ord)) best = { ord, h }; });
+      if (best) {
+        if (best.h.p != null && b.doc.planned === '') b.doc.planned = String(best.h.p);
+        if (best.h.a != null && b.doc.actual === '') b.doc.actual = String(best.h.a);
+        if (best.h.mhp != null && b.doc.mhPlanned === '') b.doc.mhPlanned = String(best.h.mhp);
+        if (best.h.mha != null && b.doc.mhActual === '') b.doc.mhActual = String(best.h.mha);
+        ['lti', 'rec', 'fa', 'nm'].forEach(k => { if (best.h[k] != null) b.doc[k] = String(best.h[k]); });
+        b._carried = true;
+      }
+    } catch (e) {}
+    return b;
+  }
+  persist = () => {
+    const w = this.week();
+    const s = this.state;
+    try {
+      localStorage.setItem(this.key(this.slug(s.projName), w.weekKey), JSON.stringify({ doc: s.doc, disciplines: s.disciplines, comments: s.comments, milestones: s.milestones, gantt: s.gantt, tasks: s.tasks, stage: s.stage, uploadedAt: s.uploadedAt }));
+      const p = parseFloat(s.doc.planned), a = parseFloat(s.doc.actual);
+      if (!isNaN(p) || !isNaN(a)) {
+        const hist = JSON.parse(localStorage.getItem(this.histKey(this.slug(s.projName))) || '{}');
+        const mhp = parseFloat(s.doc.mhPlanned), mha = parseFloat(s.doc.mhActual);
+        hist[w.weekKey] = { wk: w.weekNo, y: w.year, p: isNaN(p) ? null : p, a: isNaN(a) ? null : a, mhp: isNaN(mhp) ? null : mhp, mha: isNaN(mha) ? null : mha, lti: s.doc.lti, rec: s.doc.rec, fa: s.doc.fa, nm: s.doc.nm };
+        localStorage.setItem(this.histKey(this.slug(s.projName)), JSON.stringify(hist));
+      }
+    } catch (e) {}
+    this.setState({ savedAt: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) });
+  };
+  componentDidMount() {
+    this.genQr(0);
+    this._onStorage = e => {
+      if (!e.key || !e.key.startsWith('eprom.')) return;
+      const w = this.week();
+      if (e.key === this.key(this.slug(this.state.projName), w.weekKey)) this.setState(this.load(this.state.projName, w.weekKey));
+      else this.forceUpdate();
+    };
+    window.addEventListener('storage', this._onStorage);
+  }
+  componentWillUnmount() { window.removeEventListener('storage', this._onStorage); }
+  componentDidUpdate(prevProps) { if (prevProps.driveUrl !== this.props.driveUrl) this.genQr(0); }
+  genQr(n) {
+    if (window.qrcode) {
+      try {
+        const q = window.qrcode(0, 'M');
+        q.addData(this.props.driveUrl ?? 'https://drive.google.com/drive/folders/EPROM-WEEKLY-REPORTS');
+        q.make();
+        this.setState({ qr: q.createDataURL(4, 8) });
+      } catch (e) {}
+    } else if (n < 30) setTimeout(() => this.genQr(n + 1), 200);
+  }
+  demoHist(w) {
+    const arr = [[4,3],[9,7],[14,12],[19,17],[24,21],[28,26],[32,30],[36,33],[40,36],[43,39]];
+    const out = {};
+    arr.forEach((v, i) => { const wk = w.weekNo - arr.length + i; if (wk > 0) out[w.year + '-W' + String(wk).padStart(2, '0')] = { wk, y: w.year, p: v[0], a: v[1] }; });
+    return out;
+  }
+  renderVals() {
+    const s = this.state, w = this.week();
+    const long = d => d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const short = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    const onTrackMin = this.props.onTrackMin ?? -3, atRiskMin = this.props.atRiskMin ?? -7;
+    const p = parseFloat(s.doc.planned), a = parseFloat(s.doc.actual);
+    const hasKpi = !isNaN(p) && !isNaN(a);
+    const v = hasKpi ? +(a - p).toFixed(1) : null;
+    const st = !hasKpi ? { label: '—', c: '#5B6E86', bg: '#EDF2F8' }
+      : v >= 0 ? { label: 'Ahead of Schedule', c: '#2E7D32', bg: '#E7F3E7' }
+      : v >= onTrackMin ? { label: 'On Track', c: '#1155A6', bg: '#E8F0FA' }
+      : v >= atRiskMin ? { label: 'At Risk', c: '#B26A00', bg: '#FBF1DE' }
+      : { label: 'Delayed', c: '#C62828', bg: '#FAE7E7' };
+    const autoStatus = !hasKpi ? '—' : a >= 100 ? 'Completed' : v >= onTrackMin ? 'On Schedule' : v >= atRiskMin ? 'Delayed' : 'Critical';
+    const projStatus = s.doc.statusOverride || autoStatus;
+    const psMap = { 'On Schedule': ['#2E7D32', '#E7F3E7'], 'Delayed': ['#B26A00', '#FBF1DE'], 'Critical': ['#C62828', '#FAE7E7'], 'Completed': ['#1155A6', '#E8F0FA'] };
+    const psC = psMap[projStatus] || ['#5B6E86', '#EDF2F8'];
+    const dMap = { 'Open': ['#5B6E86', '#EDF2F8'], 'In Progress': ['#1155A6', '#E8F0FA'], 'Completed': ['#2E7D32', '#E7F3E7'], 'On Hold': ['#B26A00', '#FBF1DE'] };
+    const mp = parseFloat(s.doc.mhPlanned), ma = parseFloat(s.doc.mhActual);
+    const mv = !isNaN(mp) && !isNaN(ma) ? ma - mp : null;
+    const fmt = n => n.toLocaleString('en-US');
+    let hist = {};
+    try { hist = JSON.parse(localStorage.getItem(this.histKey(this.slug(s.projName))) || '{}'); } catch (e) {}
+    if (Object.keys(hist).length === 0 && s.projName === this._psaim) hist = this.demoHist(w);
+    hist[w.weekKey] = { wk: w.weekNo, y: w.year, p: isNaN(p) ? 0 : p, a: isNaN(a) ? 0 : a };
+    const pts = Object.values(hist).sort((x, y) => (x.y * 100 + x.wk) - (y.y * 100 + y.wk)).slice(-12);
+    const mx = Math.max(10, ...pts.map(t => Math.max(t.p || 0, t.a || 0)));
+    const trend = pts.map(t => ({
+      ph: Math.max(2, Math.round((t.p || 0) / mx * 62)) + 'px',
+      ah: Math.max(2, Math.round((t.a || 0) / mx * 62)) + 'px',
+      lbl: 'W' + t.wk, fw: t.wk === w.weekNo ? '800' : '400'
+    }));
+    const locked = s.stage === 2;
+    const admin = s.adminMode;
+    const advLock = locked || !(admin || s.advUnlocked);
+    const mkComment = (c, i) => ({
+      type: c.type, text: c.text,
+      attNames: c.atts.length ? '📎 ' + c.atts.join(' · ') : '',
+      star: c.flag ? '★' : '☆', starC: c.flag ? '#E8A13A' : '#B7C6D8',
+      onType: e => this.editC(i, { type: e.target.value }),
+      onText: e => this.editC(i, { text: e.target.value }),
+      onFlag: () => { if (!locked) this.editC(i, { flag: !s.comments[i].flag }); },
+      onDel: () => { if (!locked) this.setState(st2 => ({ comments: st2.comments.filter((_, j) => j !== i) }), this.persist); },
+      onAttach: () => { if (!locked && this._file) { this._attachTo = i; this._file.value = ''; this._file.click(); } }
+    });
+    const flagged = s.comments.filter(c => c.flag).map(c => ({ type: c.type, text: c.text }));
+    return {
+      projName: s.projName,
+      projOptions: s.projNames.concat(s.projNames.indexOf(s.projName) < 0 && s.projName ? [s.projName] : []),
+      pnMgrOpen: s.pnMgrOpen, pnLocked: !(admin || s.pnUnlocked), pnUnlocked: admin || s.pnUnlocked,
+      pnPin: s.pnPin, pnErr: s.pnErr, newPn: s.newPn, noPns: !s.projNames.length,
+      pnChips: s.projNames.map((name, i) => ({ name, onRemove: () => this.saveProjNames(s.projNames.filter((_, j) => j !== i)) })),
+      togglePnMgr: () => this.setState(st2 => ({ pnMgrOpen: !st2.pnMgrOpen, pnPin: '', pnErr: '', newPn: '' })),
+      onPnPinChange: e => this.setState({ pnPin: e.target.value, pnErr: '' }),
+      onPnPinKey: e => { if (e.key === 'Enter') { e.preventDefault(); this._unlockPn(); } },
+      unlockPn: () => this._unlockPn(),
+      onNewPnChange: e => this.setState({ newPn: e.target.value }),
+      onNewPnKey: e => { if (e.key === 'Enter') { e.preventDefault(); this._addPn(); } },
+      addPn: () => this._addPn(),
+      advLock, advEditable: !advLock,
+      advChip: (admin || s.advUnlocked) ? '🔓 admin' : '🔒 edit',
+      advHint: (admin || s.advUnlocked) ? 'Admin unlocked — editable' : 'Edit Status & Weekly Tasks (admin only)',
+      advMgrOpen: s.advMgrOpen, advPin: s.advPin, advErr: s.advErr,
+      toggleAdvMgr: () => this.setState(st2 => ({ advMgrOpen: !st2.advMgrOpen, advPin: '', advErr: '' })),
+      onAdvPinChange: e => this.setState({ advPin: e.target.value, advErr: '' }),
+      onAdvPinKey: e => { if (e.key === 'Enter') { e.preventDefault(); this._unlockAdv(); } },
+      unlockAdv: () => this._unlockAdv(),
+      adminMode: admin,
+      adminBtnLbl: admin ? '🔓 Admin ON — sign out' : '🔒 Admin login',
+      adminBtnBg: admin ? 'rgba(63,165,53,0.5)' : 'rgba(255,255,255,0.1)',
+      adminBtnBorder: admin ? '#7ED957' : 'rgba(255,255,255,0.4)',
+      adminBarOpen: s.adminBarOpen, adminBarPin: s.adminBarPin, adminBarErr: s.adminBarErr,
+      toggleAdminBar: () => { if (this.state.adminMode) this._adminLogout(); else this.setState(st2 => ({ adminBarOpen: !st2.adminBarOpen, adminBarPin: '', adminBarErr: '' })); },
+      onAdminBarPinChange: e => this.setState({ adminBarPin: e.target.value, adminBarErr: '' }),
+      onAdminBarPinKey: e => { if (e.key === 'Enter') { e.preventDefault(); this._adminLogin(); } },
+      doAdminLogin: () => this._adminLogin(),
+      infoLock: locked || !(admin || s.infoUnlocked),
+      infoChip: (admin || s.infoUnlocked) ? '🔓 admin' : '🔒 edit',
+      infoHint: (admin || s.infoUnlocked) ? 'Admin unlocked — editable' : 'Edit Prepared By / Position (admin only)',
+      infoMgrOpen: s.infoMgrOpen, infoPin: s.infoPin, infoErr: s.infoErr,
+      toggleInfoMgr: () => this.setState(st2 => ({ infoMgrOpen: !st2.infoMgrOpen, infoPin: '', infoErr: '' })),
+      onInfoPinChange: e => this.setState({ infoPin: e.target.value, infoErr: '' }),
+      onInfoPinKey: e => { if (e.key === 'Enter') { e.preventDefault(); this._unlockInfo(); } },
+      unlockInfo: () => this._unlockInfo(),
+      kpiLock: locked || !(admin || s.kpiUnlocked),
+      kpiChip: (admin || s.kpiUnlocked) ? '🔓 admin' : '🔒 edit',
+      kpiHint: (admin || s.kpiUnlocked) ? 'Admin unlocked — KPIs editable' : 'Edit Planned/Actual % (admin only)',
+      carriedNote: s._carried ? 'seeded from prior week — edit to update' : 'first week / no prior data',
+      kpiMgrOpen: s.kpiMgrOpen, kpiPin: s.kpiPin, kpiErr: s.kpiErr,
+      toggleKpiMgr: () => this.setState(st2 => ({ kpiMgrOpen: !st2.kpiMgrOpen, kpiPin: '', kpiErr: '' })),
+      onKpiPinChange: e => this.setState({ kpiPin: e.target.value, kpiErr: '' }),
+      onKpiPinKey: e => { if (e.key === 'Enter') { e.preventDefault(); this._unlockKpi(); } },
+      unlockKpi: () => this._unlockKpi(),
+      docNoFull: s.docBase + ' · ' + w.weekKey,
+      docBase: s.docBase, docMgrOpen: s.docMgrOpen, docLocked: !(admin || s.docUnlocked), docUnlocked: admin || s.docUnlocked, docPin: s.docPin, docErr: s.docErr,
+      toggleDocMgr: () => this.setState(st2 => ({ docMgrOpen: !st2.docMgrOpen, docPin: '', docErr: '' })),
+      onDocPinChange: e => this.setState({ docPin: e.target.value, docErr: '' }),
+      onDocPinKey: e => { if (e.key === 'Enter') { e.preventDefault(); this._unlockDoc(); } },
+      unlockDoc: () => this._unlockDoc(),
+      onDocBaseChange: e => this.saveDocBase(e.target.value),
+      clientOptions: s.clients,
+      clientMgrOpen: s.clientMgrOpen,
+      noClients: !s.clients.length,
+      newClient: s.newClient,
+      clientChips: s.clients.map((name, i) => ({ name, onRemove: () => this.saveClients(s.clients.filter((_, j) => j !== i)) })),
+      clientLocked: !(admin || s.clientUnlocked), clientUnlocked: admin || s.clientUnlocked, clientPin: s.clientPin, clientErr: s.clientErr,
+      toggleClientMgr: () => this.setState(st2 => ({ clientMgrOpen: !st2.clientMgrOpen, clientPin: '', clientErr: '', newClient: '' })),
+      onClientPinChange: e => this.setState({ clientPin: e.target.value, clientErr: '' }),
+      onClientPinKey: e => { if (e.key === 'Enter') { e.preventDefault(); this._unlockClient(); } },
+      unlockClient: () => this._unlockClient(),
+      onNewClientChange: e => this.setState({ newClient: e.target.value }),
+      onNewClientKey: e => { if (e.key === 'Enter') { e.preventDefault(); this._addClient(); } },
+      addClient: () => this._addClient(),
+      projectIdOptions: s.projectIds,
+      pidMgrOpen: s.pidMgrOpen, pidLocked: !(admin || s.pidUnlocked), pidUnlocked: admin || s.pidUnlocked,
+      pidPin: s.pidPin, pidErr: s.pidErr, newPid: s.newPid, noPids: !s.projectIds.length,
+      pidChips: s.projectIds.map((name, i) => ({ name, onRemove: () => this.savePids(s.projectIds.filter((_, j) => j !== i)) })),
+      togglePidMgr: () => this.setState(st2 => ({ pidMgrOpen: !st2.pidMgrOpen, pidPin: '', pidErr: '', newPid: '' })),
+      onPidPinChange: e => this.setState({ pidPin: e.target.value, pidErr: '' }),
+      onPidPinKey: e => { if (e.key === 'Enter') { e.preventDefault(); this._unlockPid(); } },
+      unlockPid: () => this._unlockPid(),
+      onNewPidChange: e => this.setState({ newPid: e.target.value }),
+      onNewPidKey: e => { if (e.key === 'Enter') { e.preventDefault(); this._addPid(); } },
+      addPid: () => this._addPid(),
+      weekNo: w.weekNo,
+      weekLabel: 'Week ' + w.weekNo + ' · ' + short(w.wkStart) + ' – ' + short(w.cut) + ' ' + w.year,
+      reportDateLong: long(w.report), cutoffLong: long(w.cut),
+      driveUrl: this.props.driveUrl ?? 'https://drive.google.com/drive/folders/EPROM-WEEKLY-REPORTS',
+      qrImg: s.qr ? React.createElement('img', { src: s.qr, alt: 'QR', style: { width: 76, height: 76, display: 'block' } }) : null,
+      doc: s.doc, locked,
+      savedLbl: locked ? '🔒 Locked (uploaded)' : (s.savedAt ? 'Auto-saved ✓ ' + s.savedAt : 'Auto-save on'),
+      onProjectName: e => { const nm = e.target.value; this.setState(Object.assign({ projName: nm, pin: '', pinErr: '' }, this.load(nm, w.weekKey))); },
+      setField: e => { const f = e.target.dataset.f; const val = e.target.value; this.setState(st2 => ({ doc: Object.assign({}, st2.doc, { [f]: val }) }), this.persist); },
+      projStatus, projStatusC: psC[0], projStatusBg: psC[1],
+      psBadge: !s.doc.statusOverride ? '● AUTO FROM KPIs' : '✎ MANUAL OVERRIDE',
+      psBadgeC: !s.doc.statusOverride ? '#3FA535' : '#B26A00',
+      resetLbl: s.doc.statusOverride ? '↺ reset to auto' : '',
+      setProjStatus: e => { const val = e.target.value; this.setState(st2 => ({ doc: Object.assign({}, st2.doc, { statusOverride: val === autoStatus ? '' : val }) }), this.persist); },
+      resetProjStatus: () => this.setState(st2 => ({ doc: Object.assign({}, st2.doc, { statusOverride: '' }) }), this.persist),
+      printPage: () => window.print(),
+      statusLabel: st.label, statusC: st.c, statusBg: st.bg,
+      varStr: hasKpi ? (v > 0 ? '+' : '') + v.toFixed(1) + '%' : '—',
+      gaugeLeft: hasKpi ? (Math.max(-20, Math.min(20, v)) + 20) / 40 * 100 + '%' : '50%',
+      actualW: hasKpi ? Math.min(100, a) + '%' : '0%',
+      plannedW: hasKpi ? Math.min(100, p) + '%' : '0%',
+      onTrackMinLbl: onTrackMin, atRiskMinLbl: atRiskMin,
+      mhVarStr: mv === null ? '—' : (mv > 0 ? '+' : '') + fmt(mv),
+      mhVarC: mv === null ? '#5B6E86' : mv > 0 ? '#C62828' : '#2E7D32',
+      ...(() => {
+        const ts = s.tasks || [];
+        const nD = ts.filter(t => t.status === 'Completed').length, nP = ts.filter(t => t.status === 'In Progress').length, nN = ts.filter(t => t.status === 'Not Started').length;
+        const tot = nD + nP + nN, circ = 2 * Math.PI * 45;
+        const seg = n => tot ? n / tot * circ : 0;
+        return { tDone: nD, tProg: nP, tNot: nN, tTotal: tot,
+          dDone: seg(nD).toFixed(1) + ' ' + circ.toFixed(1), oDone: '0',
+          dProg: seg(nP).toFixed(1) + ' ' + circ.toFixed(1), oProg: (-seg(nD)).toFixed(1),
+          dNot: seg(nN).toFixed(1) + ' ' + circ.toFixed(1), oNot: (-(seg(nD) + seg(nP))).toFixed(1) };
+      })(),
+      ltiC: +s.doc.lti > 0 ? '#C62828' : '#2E7D32',
+      recC: +s.doc.rec > 0 ? '#C62828' : '#2E7D32',
+      faC: +s.doc.fa > 0 ? '#B26A00' : '#2E7D32',
+      nmC: +s.doc.nm > 0 ? '#B26A00' : '#2E7D32',
+      trend,
+      disciplines: (s.disciplines || []).map((d, i) => ({
+        name: d.name, text: d.text, status: d.status,
+        stC: (dMap[d.status] || dMap['Open'])[0], stBg: (dMap[d.status] || dMap['Open'])[1],
+        onName: e => this.editD(i, { name: e.target.value }),
+        onText: e => this.editD(i, { text: e.target.value }),
+        onStatus: e => this.editD(i, { status: e.target.value }),
+        onDel: () => { if (!locked) this.setState(st2 => ({ disciplines: st2.disciplines.filter((_, j) => j !== i) }), this.persist); }
+      })),
+      addDiscipline: () => { if (!locked) this.setState(st2 => ({ disciplines: (st2.disciplines || []).concat([{ name: '', status: 'Open', text: '' }]) }), this.persist); },
+      milestones: (s.milestones || []).map((m, i) => ({
+        text: m.text, date: m.date, owner: m.owner,
+        dateC: m.date && m.date < new Date().toISOString().slice(0, 10) ? '#C62828' : '#3A4E68',
+        onText: e => this.editM(i, { text: e.target.value }),
+        onDate: e => this.editM(i, { date: e.target.value }),
+        onOwner: e => this.editM(i, { owner: e.target.value }),
+        onDel: () => { if (!locked) this.setState(st2 => ({ milestones: st2.milestones.filter((_, j) => j !== i) }), this.persist); }
+      })),
+      addMilestone: () => { if (!locked) this.setState(st2 => ({ milestones: (st2.milestones || []).concat([{ text: '', date: '', owner: '' }]) }), this.persist); },
+      ganttRange: short(w.report) + ' – ' + (() => { const d = new Date(w.report); d.setDate(d.getDate() + 4); return short(d); })(),
+      ganttDays: [0, 1, 2, 3, 4].map(i => { const d = new Date(w.report); d.setDate(d.getDate() + i); return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' }).toUpperCase(); }),
+      gantt: (s.gantt || []).map((g, i) => {
+        const cols = ['#1155A6', '#3FA535', '#B26A00', '#6B4FA0', '#0D8A8A'];
+        const s0 = Math.min(+g.s, +g.e), e0 = Math.max(+g.s, +g.e);
+        return { text: g.text, s: String(g.s), e: String(g.e),
+          gc: (s0 + 1) + ' / span ' + (e0 - s0 + 1), bc: cols[i % cols.length],
+          onText: e => this.editG(i, { text: e.target.value }),
+          onS: e => this.editG(i, { s: +e.target.value }),
+          onE: e => this.editG(i, { e: +e.target.value }),
+          onDel: () => { if (!locked) this.setState(st2 => ({ gantt: st2.gantt.filter((_, j) => j !== i) }), this.persist); } };
+      }),
+      addGantt: () => { if (!locked) this.setState(st2 => ({ gantt: (st2.gantt || []).concat([{ text: '', s: 0, e: 2 }]) }), this.persist); },
+      tWeeks: [0, 1, 2, 3, 4, 5].map(i => ({ lbl: 'W' + (w.weekNo - 2 + i), bg: i === 2 ? '#0D3B7C' : '#EDF2F8', c: i === 2 ? '#fff' : '#5B6E86' })),
+      tWeekOpts: [0, 1, 2, 3, 4, 5].map(i => ({ v: String(i), lbl: 'W' + (w.weekNo - 2 + i) })),
+      tasks: (s.tasks || []).map((t, i) => {
+        const tMap = { 'Completed': ['#2E7D32', '#E7F3E7', '#3FA535'], 'In Progress': ['#1155A6', '#E8F0FA', '#1155A6'], 'Not Started': ['#5B6E86', '#EDF2F8', '#C9D6E4'] };
+        const c = tMap[t.status] || tMap['Not Started'];
+        const s0 = Math.min(+t.s, +t.e), e0 = Math.max(+t.s, +t.e);
+        return { text: t.text, s: String(t.s), e: String(t.e), status: t.status,
+          gc: (s0 + 1) + ' / span ' + (e0 - s0 + 1), stC: c[0], stBg: c[1], bc: c[2],
+          onText: e => this.editT(i, { text: e.target.value }),
+          onS: e => this.editT(i, { s: +e.target.value }),
+          onE: e => this.editT(i, { e: +e.target.value }),
+          onStatus: e => this.editT(i, { status: e.target.value }),
+          onDel: () => { if (!advLock) this.setState(st2 => ({ tasks: st2.tasks.filter((_, j) => j !== i) }), this.persist); } };
+      }),
+      addTask: () => { if (!advLock) this.setState(st2 => ({ tasks: (st2.tasks || []).concat([{ text: '', s: 2, e: 3, status: 'Not Started' }]) }), this.persist); },
+      intMsg: s.intMsg || '', intMsgC: (s.intMsg || '').indexOf('✓') === 0 ? '#2E7D32' : ((s.intMsg || '').indexOf('⚠') === 0 ? '#C62828' : '#5B6E86'),
+      intFileRef: el => { this._intFile = el; },
+      importP6: () => { if (advLock) return; this._intMode = 'xer'; if (this._intFile) { this._intFile.value = ''; this._intFile.click(); } },
+      importExcel: () => { if (advLock) return; this._intMode = 'csv'; if (this._intFile) { this._intFile.value = ''; this._intFile.click(); } },
+      onIntFile: e => this._onIntFile(e),
+      exportPBI: () => this._exportPBI(w),
+      comments: s.comments.map(mkComment),
+      addComment: () => { if (!locked) this.setState(st2 => ({ comments: st2.comments.concat([{ type: 'Other', text: '', atts: [], flag: false }]) }), this.persist); },
+      fileRef: el => { this._file = el; },
+      onFilePick: e => {
+        const names = Array.from(e.target.files || []).map(f => f.name);
+        if (names.length && this._attachTo != null) this.editC(this._attachTo, { atts: s.comments[this._attachTo].atts.concat(names) });
+      },
+      flagged, flaggedCount: flagged.length,
+      copyLbl: s.copied ? '✓ Copied' : '⧉ Copy monthly summary',
+      copyMonthly: () => {
+        const lines = ['EPROM — Monthly Report Extract', s.projName + ' · Week ' + w.weekNo + ' (' + short(w.wkStart) + ' – ' + short(w.cut) + ' ' + w.year + ')',
+          'Progress: planned ' + (s.doc.planned || '—') + '% / actual ' + (s.doc.actual || '—') + '% (SV ' + (hasKpi ? (v > 0 ? '+' : '') + v.toFixed(1) + '%' : '—') + ') · Status: ' + st.label, ''];
+        flagged.forEach(f2 => lines.push('• [' + f2.type + '] ' + f2.text));
+        const txt = lines.join('\n');
+        const done = () => { this.setState({ copied: true }); setTimeout(() => this.setState({ copied: false }), 1800); };
+        if (navigator.clipboard) navigator.clipboard.writeText(txt).then(done, done); else done();
+      },
+      pin: s.pin, pinErr: s.pinErr,
+      setPin: e => this.setState({ pin: e.target.value, pinErr: '' }),
+      isDraft: s.stage === 0, isUploading: s.stage === 1, isUploaded: s.stage === 2,
+      uploadedAt: s.uploadedAt,
+      doUpload: () => {
+        const want = String(this.props.adminPin ?? '2468');
+        if (s.pin !== want) { this.setState({ pinErr: 'Wrong PIN — admin only' }); return; }
+        this.setState({ stage: 1, pinErr: '' });
+        const done = () => this.setState({ stage: 2, uploadedAt: new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }), pin: '' }, this.persist);
+        const ep = (this.props.uploadEndpoint ?? '').trim();
+        if (!ep) { setTimeout(done, 1400); return; }
+        const rx = new RegExp('<scr' + 'ipt[\\s\\S]*?</scr' + 'ipt>', 'gi');
+        const html = '<!DOCTYPE html>' + document.documentElement.outerHTML.replace(rx, '');
+        fetch(ep, { method: 'POST', body: JSON.stringify({
+          pin: s.pin, project: s.projName, year: w.year,
+          filename: (s.doc.projCode || 'EP') + '-WPR-' + w.weekNo + ' — ' + w.weekKey,
+          html, data: { doc: s.doc, disciplines: s.disciplines, comments: s.comments, milestones: s.milestones, gantt: s.gantt }
+        }) }).then(r => r.json()).then(res => {
+          if (res && res.ok) done();
+          else this.setState({ stage: 0, pinErr: (res && res.error) || 'Upload failed' });
+        }).catch(() => this.setState({ stage: 0, pinErr: 'Network error — check endpoint URL' }));
+      },
+      resetUpload: () => this.setState({ stage: 0, uploadedAt: '' }, this.persist)
+    };
+  }
+  editD(i, patch) {
+    this.setState(st2 => ({ disciplines: st2.disciplines.map((d, j) => j === i ? Object.assign({}, d, patch) : d) }), this.persist);
+  }
+  _addClient() {
+    const name = (this.state.newClient || '').trim();
+    if (!name) return;
+    const exists = this.state.clients.some(c => c.toLowerCase() === name.toLowerCase());
+    if (!exists) this.saveClients(this.state.clients.concat([name]));
+    this.setState({ newClient: '' });
+  }
+  _statusFromPct(pct) { const n = parseFloat(pct); if (isNaN(n)) return 'Not Started'; return n >= 100 ? 'Completed' : n > 0 ? 'In Progress' : 'Not Started'; }
+  _dayIdx(v) {
+    if (v == null) return null;
+    const s = String(v).trim().toLowerCase();
+    const map = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4 };
+    for (const k in map) if (s.indexOf(k) === 0) return map[k];
+    const n = parseInt(s, 10); return isNaN(n) ? null : Math.max(0, Math.min(5, n));
+  }
+  _splitCSVLine(line) {
+    const out = []; let cur = '', q = false;
+    for (let i = 0; i < line.length; i++) { const c = line[i];
+      if (c === '"') { if (q && line[i + 1] === '"') { cur += '"'; i++; } else q = !q; }
+      else if (c === ',' && !q) { out.push(cur); cur = ''; } else cur += c; }
+    out.push(cur); return out.map(x => x.trim());
+  }
+  _onIntFile(e) {
+    const file = (e.target.files || [])[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = String(reader.result || '');
+        const res = this._intMode === 'xer' ? this._parseXER(text) : this._parseCSV(text);
+        if (!res.tasks.length && res.kpi == null) { this.setState({ intMsg: '⚠ No rows recognized in file' }); return; }
+        this.setState(st2 => {
+          const doc = Object.assign({}, st2.doc);
+          if (res.kpi) { if (res.kpi.planned != null) doc.planned = String(res.kpi.planned); if (res.kpi.actual != null) doc.actual = String(res.kpi.actual); }
+          return { tasks: res.tasks.length ? res.tasks : st2.tasks, doc, intMsg: '✓ Imported ' + res.tasks.length + ' task(s)' + (res.kpi ? ' + KPIs' : '') + ' from ' + (this._intMode === 'xer' ? 'P6' : 'CSV') };
+        }, this.persist);
+      } catch (err) { this.setState({ intMsg: '⚠ Could not read file' }); }
+    };
+    reader.readAsText(file);
+  }
+  _parseCSV(text) {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (!lines.length) return { tasks: [], kpi: null };
+    const header = this._splitCSVLine(lines[0]).map(h => h.toLowerCase());
+    const col = names => { for (const n of names) { const i = header.indexOf(n); if (i >= 0) return i; } return -1; };
+    const ci = { name: col(['task', 'activity', 'name', 'activity name', 'description']), start: col(['start', 'from', 'startday', 'start day']), end: col(['end', 'to', 'finish', 'endday', 'end day']), status: col(['status']), pct: col(['%', 'percent', '% complete', 'complete', 'progress', 'phys %']) };
+    const hasHeader = ci.name >= 0 || ci.pct >= 0 || ci.status >= 0;
+    const rows = hasHeader ? lines.slice(1) : lines;
+    const tasks = []; let kpi = null;
+    rows.forEach(l => {
+      const c = this._splitCSVLine(l);
+      const name = (ci.name >= 0 ? c[ci.name] : c[0]) || '';
+      if (/planned/i.test(name) || /actual/i.test(name)) {
+        const v = parseFloat(c[ci.pct >= 0 ? ci.pct : 1]); if (!isNaN(v)) { kpi = kpi || {}; if (/planned/i.test(name)) kpi.planned = v; else kpi.actual = v; }
+        return;
+      }
+      if (!name) return;
+      let status = ci.status >= 0 ? c[ci.status] : '';
+      if (!status && ci.pct >= 0) status = this._statusFromPct(c[ci.pct]);
+      status = ['Not Started', 'In Progress', 'Completed'].find(x => x.toLowerCase() === String(status).trim().toLowerCase()) || this._statusFromPct(ci.pct >= 0 ? c[ci.pct] : '');
+      const s0 = this._dayIdx(ci.start >= 0 ? c[ci.start] : null), e0 = this._dayIdx(ci.end >= 0 ? c[ci.end] : null);
+      tasks.push({ text: name, s: s0 == null ? 0 : s0, e: e0 == null ? (s0 == null ? 2 : s0) : e0, status });
+    });
+    return { tasks, kpi };
+  }
+  _parseXER(text) {
+    const lines = text.split(/\r?\n/); let fields = null, ni = -1, pi = -1; const tasks = [];
+    let inTask = false;
+    lines.forEach(l => {
+      const parts = l.split('\t');
+      if (parts[0] === '%T') { inTask = parts[1] === 'TASK'; fields = null; }
+      else if (parts[0] === '%F' && inTask) { fields = parts.slice(1); ni = fields.indexOf('task_name'); pi = fields.indexOf('phys_complete_pct'); }
+      else if (parts[0] === '%R' && inTask && ni >= 0) {
+        const name = parts[ni + 1]; if (!name) return;
+        tasks.push({ text: name, s: 0, e: 2, status: this._statusFromPct(pi >= 0 ? parts[pi + 1] : '') });
+      }
+    });
+    return { tasks: tasks.slice(0, 40), kpi: null };
+  }
+  _download(name, text, mime) {
+    try {
+      const blob = new Blob([text], { type: mime || 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
+    } catch (e) {}
+  }
+  _exportPBI(w) {
+    const s = this.state;
+    let hist = {};
+    try { hist = JSON.parse(localStorage.getItem(this.histKey(this.slug(s.projName))) || '{}'); } catch (e) {}
+    const rows = [['Project', 'Week', 'Year', 'PlannedPct', 'ActualPct', 'VariancePct', 'ManHoursPlanned', 'ManHoursActual', 'LTI', 'Recordable', 'FirstAid', 'NearMiss']];
+    Object.values(hist).sort((a, b) => (a.y * 100 + a.wk) - (b.y * 100 + b.wk)).forEach(h => {
+      const v = (h.p != null && h.a != null) ? (h.a - h.p).toFixed(1) : '';
+      rows.push([s.projName, 'W' + h.wk, h.y, h.p == null ? '' : h.p, h.a == null ? '' : h.a, v, h.mhp == null ? '' : h.mhp, h.mha == null ? '' : h.mha, h.lti == null ? '' : h.lti, h.rec == null ? '' : h.rec, h.fa == null ? '' : h.fa, h.nm == null ? '' : h.nm]);
+    });
+    const csv = rows.map(r => r.map(c => /[",\n]/.test(String(c)) ? '"' + String(c).replace(/"/g, '""') + '"' : c).join(',')).join('\n');
+    this._download((s.doc.projCode || 'EPROM') + '-progress-' + w.year + '.csv', csv, 'text/csv');
+    this.setState({ intMsg: '✓ Exported progress history for Power BI' });
+  }
+  _adminLogin() {
+    const want = String(this.props.adminPin ?? '2468');
+    if (this.state.adminBarPin === want) this.setState({ adminMode: true, adminBarOpen: false, adminBarPin: '', adminBarErr: '' });
+    else this.setState({ adminBarErr: 'Wrong PIN — admin only' });
+  }
+  _adminLogout() {
+    this.setState({ adminMode: false, adminBarOpen: false, advUnlocked: false, infoUnlocked: false, kpiUnlocked: false, clientUnlocked: false, pidUnlocked: false, pnUnlocked: false, docUnlocked: false });
+  }
+  _unlockAdv() {
+    const want = String(this.props.adminPin ?? '2468');
+    if (this.state.advPin === want) this.setState({ advUnlocked: true, advMgrOpen: false, advPin: '', advErr: '' });
+    else this.setState({ advErr: 'Wrong PIN — admin only' });
+  }
+  _unlockInfo() {
+    const want = String(this.props.adminPin ?? '2468');
+    if (this.state.infoPin === want) this.setState({ infoUnlocked: true, infoMgrOpen: false, infoPin: '', infoErr: '' });
+    else this.setState({ infoErr: 'Wrong PIN — admin only' });
+  }
+  _unlockKpi() {
+    const want = String(this.props.adminPin ?? '2468');
+    if (this.state.kpiPin === want) this.setState({ kpiUnlocked: true, kpiMgrOpen: false, kpiPin: '', kpiErr: '' });
+    else this.setState({ kpiErr: 'Wrong PIN — admin only' });
+  }
+  _unlockDoc() {
+    const want = String(this.props.adminPin ?? '2468');
+    if (this.state.docPin === want) this.setState({ docUnlocked: true, docPin: '', docErr: '' });
+    else this.setState({ docErr: 'Wrong PIN — admin only' });
+  }
+  _unlockPn() {
+    const want = String(this.props.adminPin ?? '2468');
+    if (this.state.pnPin === want) this.setState({ pnUnlocked: true, pnPin: '', pnErr: '' });
+    else this.setState({ pnErr: 'Wrong PIN — admin only' });
+  }
+  _addPn() {
+    const name = (this.state.newPn || '').trim();
+    if (!name) return;
+    const exists = this.state.projNames.some(p => p.toLowerCase() === name.toLowerCase());
+    if (!exists) this.saveProjNames(this.state.projNames.concat([name]));
+    this.setState({ newPn: '' });
+  }
+  _unlockClient() {
+    const want = String(this.props.adminPin ?? '2468');
+    if (this.state.clientPin === want) this.setState({ clientUnlocked: true, clientPin: '', clientErr: '' });
+    else this.setState({ clientErr: 'Wrong PIN — admin only' });
+  }
+  _unlockPid() {
+    const want = String(this.props.adminPin ?? '2468');
+    if (this.state.pidPin === want) this.setState({ pidUnlocked: true, pidPin: '', pidErr: '' });
+    else this.setState({ pidErr: 'Wrong PIN — admin only' });
+  }
+  _addPid() {
+    const name = (this.state.newPid || '').trim();
+    if (!name) return;
+    const exists = this.state.projectIds.some(p => p.toLowerCase() === name.toLowerCase());
+    if (!exists) this.savePids(this.state.projectIds.concat([name]));
+    this.setState({ newPid: '' });
+  }
+  editT(i, patch) {
+    this.setState(st2 => ({ tasks: st2.tasks.map((t, j) => j === i ? Object.assign({}, t, patch) : t) }), this.persist);
+  }
+  editG(i, patch) {
+    this.setState(st2 => ({ gantt: st2.gantt.map((g, j) => j === i ? Object.assign({}, g, patch) : g) }), this.persist);
+  }
+  editM(i, patch) {
+    this.setState(st2 => ({ milestones: st2.milestones.map((m, j) => j === i ? Object.assign({}, m, patch) : m) }), this.persist);
+  }
+  editC(i, patch) {
+    this.setState(st2 => ({ comments: st2.comments.map((c, j) => j === i ? Object.assign({}, c, patch) : c) }), this.persist);
+  }
+}
+</script>
+</body>
+</html>

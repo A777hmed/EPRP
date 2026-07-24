@@ -1,0 +1,450 @@
+import { format } from "date-fns";
+
+import type {
+  CommentCategory,
+  EntryStatus,
+  IsoDate,
+  KpiRating,
+  Priority,
+  ProgressStatus,
+  ReportStatus,
+  SubmissionStatus,
+  WeeklyEntry,
+  WeeklyEntryType,
+  WeeklyReport,
+  WeeklySubmission,
+} from "@/types";
+import {
+  formatReportNumber,
+  getReportingWeekRange,
+  getReportingYear,
+  getWeekNumber,
+} from "@/lib/reporting";
+import { canTransition } from "@/config/workflows";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import {
+  mockWeeklyReports,
+  mockWeeklySubmissions,
+} from "@/data/mock/weekly-reports.mock";
+import { projectService } from "./project-service";
+import { supabaseWeeklyReportService } from "./supabase-weekly-report-service";
+
+/** Fields captured by the Phase 6A.1 header and Phase 6A.2 KPI form.
+ * Project data and report identity are derived by the service. */
+export interface WeeklyReportCreateInput {
+  projectId: string;
+  /** Any date within the reporting week; the week is derived from it. */
+  periodStart: IsoDate;
+  preparedByContactId?: string;
+  disciplineIds: string[];
+  /** Phase 6A.2 KPIs — default to the project's figures when omitted. */
+  plannedProgress?: number;
+  actualProgress?: number;
+  manHoursToDate?: number | null;
+  hseStatus?: KpiRating;
+  qualityStatus?: KpiRating;
+  overallProgressStatus?: ProgressStatus;
+}
+
+export interface WeeklyReportUpdateInput {
+  periodStart?: IsoDate;
+  preparedByContactId?: string;
+  reviewedByContactId?: string;
+  approvedByContactId?: string;
+  plannedProgress?: number;
+  actualProgress?: number;
+  disciplineIds?: string[];
+  /** `null` explicitly clears a previously saved value. */
+  manHoursToDate?: number | null;
+  hseStatus?: KpiRating;
+  qualityStatus?: KpiRating;
+  overallProgressStatus?: ProgressStatus;
+}
+
+/** One "Department Updates" row submitted from the weekly form (Phase 6A.3). */
+export interface WeeklySubmissionInput {
+  /** Existing submission id when editing; omitted for new rows. */
+  id?: string;
+  departmentId: string;
+  disciplineId?: string;
+  status: SubmissionStatus;
+  progressPercent?: number;
+  summary?: string;
+  keyAchievement?: string;
+  delayConstraint?: string;
+  nextWeekPlan?: string;
+  responsibleContactId?: string;
+  targetDate?: IsoDate;
+}
+
+/** One comment / risk / issue / action row from the weekly form (Phase 6A.4). */
+export interface WeeklyEntryInput {
+  id?: string;
+  entryType: WeeklyEntryType;
+  category: CommentCategory;
+  description: string;
+  priority: Priority;
+  status: EntryStatus;
+  ownerContactId?: string;
+  dueDate?: IsoDate;
+  departmentId?: string;
+  systemId?: string;
+  disciplineId?: string;
+  includeInMonthly: boolean;
+}
+
+export interface WeeklyReportService {
+  list(): Promise<WeeklyReport[]>;
+  getById(id: string): Promise<WeeklyReport | null>;
+  create(input: WeeklyReportCreateInput): Promise<WeeklyReport>;
+  update(id: string, input: WeeklyReportUpdateInput): Promise<WeeklyReport>;
+  duplicate(id: string): Promise<WeeklyReport>;
+  archive(id: string): Promise<WeeklyReport>;
+  changeStatus(id: string, to: ReportStatus): Promise<WeeklyReport>;
+  listSubmissions(reportId: string): Promise<WeeklySubmission[]>;
+  /** Replace the report's department updates with exactly these rows. */
+  saveSubmissions(
+    reportId: string,
+    updates: WeeklySubmissionInput[]
+  ): Promise<WeeklySubmission[]>;
+  listEntries(reportId: string): Promise<WeeklyEntry[]>;
+  /** Replace the report's comments / risks / issues / actions. */
+  saveEntries(
+    reportId: string,
+    entries: WeeklyEntryInput[]
+  ): Promise<WeeklyEntry[]>;
+}
+
+/* --------------------------------- Helpers -------------------------------- */
+
+function clone<T>(value: T): T {
+  return structuredClone(value);
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function delay(ms = 200): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function toIsoDate(date: Date): IsoDate {
+  return format(date, "yyyy-MM-dd");
+}
+
+/* ------------------------------ Mock service ------------------------------ */
+
+const reportStore = new Map<string, WeeklyReport>(
+  mockWeeklyReports.map((r) => [r.id, clone(r)])
+);
+const submissionStore = new Map<string, WeeklySubmission>(
+  mockWeeklySubmissions.map((s) => [s.id, clone(s)])
+);
+const entryStore = new Map<string, WeeklyEntry>();
+
+let sequence = reportStore.size;
+function nextId(prefix: string): string {
+  sequence += 1;
+  return `${prefix}-new-${sequence}`;
+}
+
+const mockWeeklyReportService: WeeklyReportService = {
+  async list() {
+    await delay();
+    return [...reportStore.values()]
+      .map(clone)
+      .sort((a, b) => b.periodStart.localeCompare(a.periodStart));
+  },
+
+  async getById(id) {
+    await delay(150);
+    const report = reportStore.get(id);
+    return report ? clone(report) : null;
+  },
+
+  async create(input) {
+    await delay();
+    const project = await projectService.getProjectById(input.projectId);
+    if (!project) throw new Error("Selected project not found");
+
+    const { start, end } = getReportingWeekRange(input.periodStart);
+    const weekNumber = getWeekNumber(start);
+    const year = getReportingYear(start);
+    const timestamp = nowIso();
+    const reportId = nextId("wr");
+
+    // One submission per reporting-required department (or all if none).
+    const reportingDepts = project.departments.filter(
+      (d) => d.reportingRequired
+    );
+    const depts =
+      reportingDepts.length > 0 ? reportingDepts : project.departments;
+    const submissionIds: string[] = [];
+    for (const dept of depts) {
+      const sub: WeeklySubmission = {
+        id: nextId("sub"),
+        weeklyReportId: reportId,
+        departmentId: dept.departmentId,
+        status: "pending",
+        accomplishments: [],
+        plannedNextWeek: [],
+        blockers: [],
+      };
+      submissionStore.set(sub.id, sub);
+      submissionIds.push(sub.id);
+    }
+
+    const report: WeeklyReport = {
+      id: reportId,
+      reportNumber: formatReportNumber("weekly", project.code, year, weekNumber),
+      projectId: project.id,
+      status: "draft",
+      source: "platform",
+      weekNumber,
+      periodStart: toIsoDate(start),
+      periodEnd: toIsoDate(end),
+      plannedProgress: input.plannedProgress ?? project.plannedProgress,
+      actualProgress: input.actualProgress ?? project.actualProgress,
+      preparedByContactId:
+        input.preparedByContactId ?? project.reportingCoordinatorId,
+      disciplineIds: [...input.disciplineIds],
+      manHoursToDate: input.manHoursToDate ?? undefined,
+      hseStatus: input.hseStatus,
+      qualityStatus: input.qualityStatus,
+      overallProgressStatus: input.overallProgressStatus,
+      submissionIds,
+      entryIds: [],
+      attachmentIds: [],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    reportStore.set(report.id, report);
+    return clone(report);
+  },
+
+  async update(id, input) {
+    await delay();
+    const existing = reportStore.get(id);
+    if (!existing) throw new Error(`Weekly report ${id} not found`);
+
+    const patch: Partial<WeeklyReport> = {};
+    if (input.periodStart) {
+      const { start, end } = getReportingWeekRange(input.periodStart);
+      patch.periodStart = toIsoDate(start);
+      patch.periodEnd = toIsoDate(end);
+      patch.weekNumber = getWeekNumber(start);
+      const project = await projectService.getProjectById(existing.projectId);
+      if (!project) throw new Error("Report project not found");
+      patch.reportNumber = formatReportNumber(
+        "weekly",
+        project.code,
+        getReportingYear(start),
+        getWeekNumber(start)
+      );
+    }
+    if (input.preparedByContactId !== undefined)
+      patch.preparedByContactId = input.preparedByContactId || undefined;
+    if (input.reviewedByContactId !== undefined)
+      patch.reviewedByContactId = input.reviewedByContactId || undefined;
+    if (input.approvedByContactId !== undefined)
+      patch.approvedByContactId = input.approvedByContactId || undefined;
+    if (input.plannedProgress !== undefined)
+      patch.plannedProgress = input.plannedProgress;
+    if (input.actualProgress !== undefined)
+      patch.actualProgress = input.actualProgress;
+    if (input.disciplineIds !== undefined)
+      patch.disciplineIds = [...input.disciplineIds];
+    if (input.manHoursToDate !== undefined)
+      patch.manHoursToDate = input.manHoursToDate ?? undefined;
+    if (input.hseStatus !== undefined) patch.hseStatus = input.hseStatus;
+    if (input.qualityStatus !== undefined)
+      patch.qualityStatus = input.qualityStatus;
+    if (input.overallProgressStatus !== undefined)
+      patch.overallProgressStatus = input.overallProgressStatus;
+
+    const updated: WeeklyReport = {
+      ...existing,
+      ...patch,
+      updatedAt: nowIso(),
+    };
+    reportStore.set(id, updated);
+    return clone(updated);
+  },
+
+  async duplicate(id) {
+    await delay();
+    const source = reportStore.get(id);
+    if (!source) throw new Error(`Weekly report ${id} not found`);
+    const timestamp = nowIso();
+    const newId = nextId("wr");
+
+    const submissionIds: string[] = [];
+    for (const subId of source.submissionIds) {
+      const sub = submissionStore.get(subId);
+      if (!sub) continue;
+      const copy: WeeklySubmission = {
+        ...clone(sub),
+        id: nextId("sub"),
+        weeklyReportId: newId,
+        status: "pending",
+        summary: undefined,
+        accomplishments: [],
+        plannedNextWeek: [],
+        blockers: [],
+        submittedByContactId: undefined,
+        submittedAt: undefined,
+      };
+      submissionStore.set(copy.id, copy);
+      submissionIds.push(copy.id);
+    }
+
+    const copy: WeeklyReport = {
+      ...clone(source),
+      id: newId,
+      reportNumber: `${source.reportNumber}-COPY`,
+      status: "draft",
+      submissionIds,
+      entryIds: [],
+      reviewedByContactId: undefined,
+      approvedByContactId: undefined,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    reportStore.set(copy.id, copy);
+    return clone(copy);
+  },
+
+  async archive(id) {
+    await delay();
+    return mockWeeklyReportService.changeStatus(id, "archived");
+  },
+
+  async changeStatus(id, to) {
+    await delay();
+    const existing = reportStore.get(id);
+    if (!existing) throw new Error(`Weekly report ${id} not found`);
+    if (
+      to !== "archived" &&
+      !canTransition("weekly", existing.status, to)
+    ) {
+      throw new Error(
+        `Cannot move a weekly report from ${existing.status} to ${to}.`
+      );
+    }
+    const updated: WeeklyReport = {
+      ...existing,
+      status: to,
+      updatedAt: nowIso(),
+    };
+    reportStore.set(id, updated);
+    return clone(updated);
+  },
+
+  async listSubmissions(reportId) {
+    await delay(120);
+    return [...submissionStore.values()]
+      .filter((s) => s.weeklyReportId === reportId)
+      .map(clone);
+  },
+
+  async saveSubmissions(reportId, updates) {
+    await delay();
+    const report = reportStore.get(reportId);
+    if (!report) throw new Error(`Weekly report ${reportId} not found`);
+
+    // Drop rows the user removed, then upsert the submitted set in order.
+    for (const existing of [...submissionStore.values()]) {
+      if (existing.weeklyReportId === reportId) {
+        submissionStore.delete(existing.id);
+      }
+    }
+
+    const saved: WeeklySubmission[] = updates.map((update) => {
+      const submission: WeeklySubmission = {
+        id: update.id ?? nextId("sub"),
+        weeklyReportId: reportId,
+        departmentId: update.departmentId,
+        disciplineId: update.disciplineId,
+        status: update.status,
+        progressPercent: update.progressPercent,
+        summary: update.summary,
+        keyAchievement: update.keyAchievement,
+        delayConstraint: update.delayConstraint,
+        nextWeekPlan: update.nextWeekPlan,
+        responsibleContactId: update.responsibleContactId,
+        targetDate: update.targetDate,
+        accomplishments: [],
+        plannedNextWeek: [],
+        blockers: [],
+      };
+      submissionStore.set(submission.id, submission);
+      return clone(submission);
+    });
+
+    reportStore.set(reportId, {
+      ...report,
+      submissionIds: saved.map((s) => s.id),
+      updatedAt: nowIso(),
+    });
+    return saved;
+  },
+
+  async listEntries(reportId) {
+    await delay(120);
+    return [...entryStore.values()]
+      .filter((e) => e.weeklyReportId === reportId)
+      .map(clone);
+  },
+
+  async saveEntries(reportId, entries) {
+    await delay();
+    const report = reportStore.get(reportId);
+    if (!report) throw new Error(`Weekly report ${reportId} not found`);
+
+    // Rows absent from the payload were removed by the user.
+    const previous = new Map(
+      [...entryStore.values()]
+        .filter((e) => e.weeklyReportId === reportId)
+        .map((e) => [e.id, e])
+    );
+    for (const id of previous.keys()) entryStore.delete(id);
+
+    const saved: WeeklyEntry[] = entries.map((input) => {
+      const id = input.id ?? nextId("entry");
+      const entry: WeeklyEntry = {
+        id,
+        weeklyReportId: reportId,
+        entryType: input.entryType,
+        category: input.category,
+        description: input.description,
+        priority: input.priority,
+        status: input.status,
+        ownerContactId: input.ownerContactId,
+        dueDate: input.dueDate,
+        departmentId: input.departmentId,
+        systemId: input.systemId,
+        disciplineId: input.disciplineId,
+        includeInMonthly: input.includeInMonthly,
+        createdAt: previous.get(id)?.createdAt ?? nowIso(),
+      };
+      entryStore.set(entry.id, entry);
+      return clone(entry);
+    });
+
+    reportStore.set(reportId, {
+      ...report,
+      entryIds: saved.map((e) => e.id),
+      updatedAt: nowIso(),
+    });
+    return saved;
+  },
+};
+
+/**
+ * Active weekly-report service — Supabase when configured, in-memory mock
+ * otherwise. Both satisfy the same interface.
+ */
+export const weeklyReportService: WeeklyReportService = isSupabaseConfigured()
+  ? supabaseWeeklyReportService
+  : mockWeeklyReportService;

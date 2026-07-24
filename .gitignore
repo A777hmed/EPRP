@@ -1,0 +1,48 @@
+# Repository-wide ignores.
+# The app at eprp/ has its own .gitignore, which still applies inside it.
+
+# ---------------------------------------------------------------- dependencies
+node_modules/
+.pnpm-store/
+.yarn/
+.npm/
+
+# ------------------------------------------------------------------- build out
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+
+# --------------------------------------------------------------------- secrets
+# Never commit real credentials. .env.example is the only env file tracked.
+.env
+.env.*
+!.env.example
+
+# ------------------------------------------------------------------ large refs
+# 15 MB archive — keep it on disk, out of git history.
+Progress Report System.zip
+
+# Separate reference project with its own .git repository and its own history.
+# Tracking it here would either nest a repo or swallow its history — leave it
+# to manage itself.
+chrome-site/
+
+# ----------------------------------------------------------------------- local
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+.vercel
+.idea/
+*.swp
+
+# Machine-local editor state. Shared settings under .vscode/ stay tracked.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+
+# Claude Code local overrides (may contain machine-specific paths).
+.claude/settings.local.json

@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Semi+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="firebase-sync/firebase-sync.js"></script>
+<style>
+  html,body{margin:0;padding:0;background:#DDE5EE;}
+  *{box-sizing:border-box;}
+  a{color:#1155A6;} a:hover{color:#0D3B7C;}
+  input,select,textarea,button{font-family:'Barlow',sans-serif;}
+  input::placeholder,textarea::placeholder{color:#93A5BC;}
+  textarea{resize:vertical;}
+  @media print{
+    body{background:#fff!important;}
+    .no-print{display:none!important;}
+    .sheet{border:none!important;box-shadow:none!important;border-radius:0!important;width:100%!important;margin:0!important;}
+    @page{size:A4 portrait;margin:8mm;}
+  }
+</style>
+</helmet>
+<div style="min-height:100vh; font-family:'Barlow',sans-serif; color:#16273D; padding:0 0 60px;">
+  <div class="no-print" style="position:sticky; top:0; z-index:50; background:#0D3B7C; color:#fff; display:flex; align-items:center; gap:16px; padding:10px 26px; box-shadow:0 2px 10px rgba(10,44,92,0.3);">
+    <div style="background:#fff; border-radius:6px; padding:4px 8px;"><img src="assets/eprom-logo.png" alt="EPROM" style="height:26px; display:block;"></div>
+    <div style="font-size:15px; font-weight:700; letter-spacing:0.03em;">Monthly Progress Report</div>
+    <div style="width:1px; height:24px; background:rgba(255,255,255,0.25);"></div>
+    <select value="{{ projName }}" onChange="{{ onProjectName }}" style="padding:7px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.3); background:rgba(255,255,255,0.1); color:#fff; font-size:13px; font-weight:600;">
+      <sc-for list="{{ projOptions }}" as="o" hint-placeholder-count="3"><option value="{{ o }}" style="color:#16273D;">{{ o }}</option></sc-for>
+    </select>
+    <div style="flex:1;"></div>
+    <sc-if value="{{ showUnlock }}" hint-placeholder-val="{{ false }}">
+      <div class="no-print" onClick="{{ doUnlock }}" style="border:1px solid #E8B84B; background:rgba(232,184,75,0.18); color:#FFE29A; border-radius:6px; padding:7px 12px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;">🔓 Admin unlock</div>
+    </sc-if>
+    <sc-if value="{{ isUnlocked }}" hint-placeholder-val="{{ false }}">
+      <div class="no-print" onClick="{{ doRelock }}" style="border:1px solid #9FE087; background:rgba(159,224,135,0.18); color:#CFF3BE; border-radius:6px; padding:7px 12px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;">🔒 Re-lock</div>
+    </sc-if>
+    <div style="font-size:12px; color:#9FE087; font-weight:600;">{{ savedLbl }}</div>
+    <a class="no-print" href="Weekly Report - Classic Form.dc.html" style="border:1px solid rgba(255,255,255,0.4); border-radius:6px; padding:7px 14px; font-size:12.5px; font-weight:700; color:#fff; text-decoration:none;">← Weekly Report</a>
+    <div onClick="{{ printPage }}" style="border:1px solid rgba(255,255,255,0.4); border-radius:6px; padding:7px 14px; font-size:12.5px; font-weight:700; cursor:pointer;">🖨 Print / Export PDF</div>
+  </div>
+
+  <div class="no-print" style="position:sticky; top:47px; z-index:49; background:#EEF3F8; border-bottom:1px solid #D3DFEC; display:flex; align-items:stretch; padding:0 26px; overflow-x:auto;">
+    <div style="display:flex; align-items:center; font-size:10.5px; font-weight:800; color:#8194AC; letter-spacing:0.08em; padding-right:16px; white-space:nowrap;">MONTHLY TABS</div>
+    <sc-for list="{{ monthTabs }}" as="t" hint-placeholder-count="4">
+      <div onClick="{{ t.onClick }}" title="{{ t.title }}" style="display:flex; align-items:center; gap:8px; padding:11px 17px 8px; font-size:13px; font-weight:{{ t.fw }}; color:{{ t.color }}; background:{{ t.bg }}; border-bottom:3px solid {{ t.bar }}; cursor:pointer; white-space:nowrap;">
+        <span style="font-size:10px;">{{ t.lock }}</span>{{ t.label }}<span style="width:6px; height:6px; border-radius:50%; background:{{ t.dot }};"></span>
+      </div>
+    </sc-for>
+    <div onClick="{{ addNextMonth }}" title="Add next month" style="display:flex; align-items:center; padding:9px 15px; font-size:17px; font-weight:700; color:#1155A6; cursor:pointer;">＋</div>
+  </div>
+
+  <div class="sheet" style="width:920px; margin:28px auto 0; background:#fff; border:1px solid #C9D6E4; border-radius:10px; overflow:hidden; box-shadow:0 10px 30px rgba(13,59,124,0.10);">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:18px 24px 14px;">
+      <img src="assets/eprom-logo.png" alt="EPROM" style="height:58px;">
+      <div style="display:flex; align-items:center; gap:12px; border:1px solid #C9D6E4; border-radius:10px; padding:8px 12px;">
+        <div style="width:76px; height:76px; background:#F6F9FC;">{{ qrImg }}</div>
+        <div style="font-size:11px; color:#5B6E86; line-height:1.5; width:110px;"><b style="color:#16273D;">Scan to access archive</b><br>All reports on Google Drive<br><a href="{{ driveUrl }}" target="_blank" style="font-weight:700; text-decoration:none;">Open folder ↗</a></div>
+      </div>
+    </div>
+    <div style="background:#0D3B7C; color:#fff; display:flex; justify-content:space-between; align-items:center; padding:11px 24px;">
+      <div style="font-size:19px; font-weight:800; letter-spacing:0.05em;">MONTHLY PROJECT PROGRESS REPORT</div>
+      <div style="display:flex; align-items:center; gap:6px; font-size:11.5px; font-family:'Barlow Semi Condensed',sans-serif;">
+        <span style="opacity:0.85;">Doc No.</span>
+        <input data-f="docNo" value="{{ meta.docNo }}" onChange="{{ setField }}" disabled="{{ locked }}" title="Editable document number" style="width:170px; background:rgba(255,255,255,0.08); border:1px dashed rgba(255,255,255,0.35); border-radius:4px; color:#fff; font-size:11.5px; padding:3px 8px; font-family:'Barlow Semi Condensed',sans-serif;">
+      </div>
+    </div>
+
+    <div style="padding:18px 24px 6px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">1 · REPORT INFORMATION</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+        <div style="font-size:11px; color:#5B6E86;">{{ compiledNote }}</div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px 16px;">
+        <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">PROJECT</div>
+          <div style="padding:8px 10px; border:1px solid #E2EAF3; background:#F6F9FC; border-radius:6px; font-size:13px; font-weight:600;">{{ projName }}</div></div>
+        <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">REPORT NO.</div>
+          <div style="padding:8px 10px; border:1px solid #E2EAF3; background:#F6F9FC; border-radius:6px; font-size:13px; font-weight:600;">{{ projCode }}-MPR-{{ monthShort }}</div></div>
+        <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">CLIENT</div>
+          <div style="padding:8px 10px; border:1px solid #E2EAF3; background:#F6F9FC; border-radius:6px; font-size:13px; font-weight:600;">{{ projClient }}</div></div>
+        <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">REPORTING MONTH <span style="color:#3FA535;">● AUTO</span></div>
+          <div style="padding:8px 10px; border:1px solid #E2EAF3; background:#F6F9FC; border-radius:6px; font-size:13px; font-weight:600;">{{ monthLabel }}</div></div>
+        <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">PREPARED BY</div>
+          <input data-f="preparedBy" value="{{ meta.preparedBy }}" onChange="{{ setField }}" disabled="{{ locked }}" placeholder="Name" style="width:100%; padding:8px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:13px;"></div>
+        <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">MONTH-END STATUS <span style="color:#3FA535;">● AUTO FROM KPIs</span></div>
+          <div style="padding:8px 10px; border-radius:6px; font-size:13px; font-weight:700; border:1px solid {{ statusC }}; background:{{ statusBg }}; color:{{ statusC }};">{{ statusLabel }} · {{ varStr }} vs plan</div></div>
+      </div>
+    </div>
+
+    <div style="padding:16px 24px 4px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">2 · MONTH-END KPI SUMMARY</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr; gap:12px;">
+        <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px;">
+          <div style="font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">PLANNED %</div>
+          <div style="font-size:26px; font-weight:800; color:#1155A6; margin-top:4px;">{{ kPlanned }}</div>
+        </div>
+        <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px;">
+          <div style="font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">ACTUAL %</div>
+          <div style="font-size:26px; font-weight:800; color:#3FA535; margin-top:4px;">{{ kActual }}</div>
+        </div>
+        <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px;">
+          <div style="font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">VARIANCE (SV)</div>
+          <div style="font-size:26px; font-weight:800; color:{{ statusC }}; margin-top:4px;">{{ varStr }}</div>
+        </div>
+        <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px;">
+          <div style="font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">PROGRESS THIS MONTH</div>
+          <div style="font-size:26px; font-weight:800; margin-top:4px;">{{ kGain }}</div>
+        </div>
+        <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px;">
+          <div style="font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">MAN-HOURS TO DATE</div>
+          <div style="font-size:22px; font-weight:800; margin-top:6px;">{{ kMh }}</div>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 300px; gap:12px; margin-top:12px;">
+        <div style="border:1px solid #E2EAF3; border-radius:8px; padding:10px 14px 8px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">CUMULATIVE TREND — WEEKS IN {{ monthLabelUp }}</div>
+            <div style="font-size:10px; color:#5B6E86;"><span style="display:inline-block; width:8px; height:8px; background:#9FB8D8; border-radius:2px;"></span> Planned&nbsp;&nbsp;<span style="display:inline-block; width:8px; height:8px; background:#3FA535; border-radius:2px;"></span> Actual</div>
+          </div>
+          <div style="display:flex; align-items:flex-end; gap:14px; height:70px; margin-top:8px; border-bottom:1px solid #E2EAF3; padding:0 6px;">
+            <sc-for list="{{ trend }}" as="w" hint-placeholder-count="4">
+              <div style="flex:1; display:flex; align-items:flex-end; gap:3px; justify-content:center;">
+                <div style="width:12px; background:#9FB8D8; border-radius:2px 2px 0 0; height:{{ w.ph }};"></div>
+                <div style="width:12px; background:#3FA535; border-radius:2px 2px 0 0; height:{{ w.ah }};"></div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; gap:14px; padding:3px 6px 0;">
+            <sc-for list="{{ trend }}" as="w" hint-placeholder-count="4"><div style="flex:1; text-align:center; font-size:9px; color:#93A5BC;">{{ w.lbl }}</div></sc-for>
+          </div>
+        </div>
+        <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px;">
+          <div style="font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">HSE STATUS (CUMULATIVE)</div>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <div style="flex:1; background:{{ ltiBg }}; border-radius:8px; text-align:center; padding:8px 2px;"><div style="font-size:20px; font-weight:800; color:{{ ltiC }};">{{ hse.lti }}</div><div style="font-size:9px; font-weight:700; color:{{ ltiC }};">LTI</div></div>
+            <div style="flex:1; background:{{ recBg }}; border-radius:8px; text-align:center; padding:8px 2px;"><div style="font-size:20px; font-weight:800; color:{{ recC }};">{{ hse.rec }}</div><div style="font-size:9px; font-weight:700; color:{{ recC }};">REC.</div></div>
+            <div style="flex:1; background:{{ faBg }}; border-radius:8px; text-align:center; padding:8px 2px;"><div style="font-size:20px; font-weight:800; color:{{ faC }};">{{ hse.fa }}</div><div style="font-size:9px; font-weight:700; color:{{ faC }};">F.AID</div></div>
+            <div style="flex:1; background:{{ nmBg }}; border-radius:8px; text-align:center; padding:8px 2px;"><div style="font-size:20px; font-weight:800; color:{{ nmC }};">{{ hse.nm }}</div><div style="font-size:9px; font-weight:700; color:{{ nmC }};">N.MISS</div></div>
+          </div>
+          <div style="font-size:10px; color:#93A5BC; margin-top:8px;">From latest weekly in month</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:16px 24px 4px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">3 · WEEKLY BREAKDOWN</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+      </div>
+      <div style="display:grid; grid-template-columns:90px 1fr 90px 90px 90px 150px 70px; gap:8px; font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; padding:0 2px 6px; border-bottom:1.5px solid #DCE5EF;">
+        <div>WEEK</div><div>PERIOD</div><div style="text-align:right;">PLANNED</div><div style="text-align:right;">ACTUAL</div><div style="text-align:right;">SV</div><div>STATUS</div><div style="text-align:center;">DRIVE</div>
+      </div>
+      <sc-for list="{{ weeks }}" as="r" hint-placeholder-count="4">
+        <div style="display:grid; grid-template-columns:90px 1fr 90px 90px 90px 150px 70px; gap:8px; align-items:center; padding:7px 2px; border-bottom:1px solid #EFF3F8; font-size:12.5px;">
+          <div style="font-weight:700; color:#0D3B7C;">{{ r.wk }}</div>
+          <div style="color:#3A4E68;">{{ r.period }}</div>
+          <div style="text-align:right; font-weight:600; color:#1155A6;">{{ r.p }}</div>
+          <div style="text-align:right; font-weight:600; color:#3FA535;">{{ r.a }}</div>
+          <div style="text-align:right; font-weight:700; color:{{ r.vc }};">{{ r.v }}</div>
+          <div><span style="background:{{ r.stBg }}; color:{{ r.stC }}; font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:10px;">{{ r.st }}</span></div>
+          <div style="text-align:center; font-size:13px;">{{ r.up }}</div>
+        </div>
+      </sc-for>
+      <sc-if value="{{ noWeeks }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:14px 2px; font-size:12.5px; color:#93A5BC;">No saved weekly reports found for this month — open the Weekly Report, fill it, and it will appear here automatically.</div>
+      </sc-if>
+    </div>
+
+    <div style="padding:16px 24px 4px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">4 · DISCIPLINE STATUS</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+        <div style="font-size:11px; color:#5B6E86;">{{ discSrc }}</div>
+      </div>
+      <div style="display:grid; grid-template-columns:180px 130px 1fr; gap:8px; font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; padding:0 2px 6px; border-bottom:1.5px solid #DCE5EF;">
+        <div>DISCIPLINE</div><div>STATUS</div><div>LATEST UPDATE</div>
+      </div>
+      <sc-for list="{{ discRows }}" as="d" hint-placeholder-count="4">
+        <div style="display:grid; grid-template-columns:180px 130px 1fr; gap:8px; align-items:center; padding:7px 2px; border-bottom:1px solid #EFF3F8; font-size:12.5px;">
+          <div style="font-weight:700; color:#0D3B7C;">{{ d.name }}</div>
+          <div><span style="background:{{ d.stBg }}; color:{{ d.stC }}; font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:10px; white-space:nowrap;">{{ d.status }}</span></div>
+          <div style="color:#3A4E68;">{{ d.text }}</div>
+        </div>
+      </sc-for>
+      <sc-if value="{{ noDisc }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:14px 2px; font-size:12.5px; color:#93A5BC;">No discipline updates saved for this month yet.</div>
+      </sc-if>
+    </div>
+
+    <div style="padding:16px 24px 4px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">5 · CLIENT ACTION ITEMS — {{ projClient }}</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+        <div style="font-size:11px; color:#5B6E86;">auto from client-pending comments · ✕ excludes</div>
+      </div>
+      <div style="display:grid; grid-template-columns:62px 185px 1fr 110px 20px; gap:8px; font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; padding:0 2px 6px; border-bottom:1.5px solid #DCE5EF;">
+        <div>WEEK</div><div>TYPE</div><div>ACTION REQUIRED FROM CLIENT</div><div>STATUS</div><div></div>
+      </div>
+      <sc-for list="{{ clientActs }}" as="a" hint-placeholder-count="2">
+        <div style="display:grid; grid-template-columns:62px 185px 1fr 110px 20px; gap:8px; align-items:center; padding:7px 2px; border-bottom:1px solid #EFF3F8; font-size:12.5px; opacity:{{ a.op }};">
+          <div style="font-weight:700; color:#5B6E86; font-size:10.5px;">{{ a.wk }}</div>
+          <div><span style="background:#EDF2F8; color:#0D3B7C; font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:10px;">{{ a.type }}</span></div>
+          <div style="color:#3A4E68; text-decoration:{{ a.deco }};">{{ a.text }}</div>
+          <div><span style="background:#FBF1DE; color:#B26A00; font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:10px;">Pending</span></div>
+          <div class="no-print" onClick="{{ a.onToggle }}" style="font-size:13px; color:{{ a.tc }}; cursor:pointer; text-align:center; font-weight:700;">{{ a.tIcon }}</div>
+        </div>
+      </sc-for>
+      <sc-for list="{{ manualActs }}" as="a" hint-placeholder-count="1">
+        <div style="display:grid; grid-template-columns:62px 185px 1fr 110px 20px; gap:8px; align-items:center; padding:7px 2px; border-bottom:1px solid #EFF3F8; font-size:12.5px;">
+          <div style="font-weight:700; color:#5B6E86; font-size:10.5px;">MPR</div>
+          <div><span style="background:#EDF2F8; color:#0D3B7C; font-size:10.5px; font-weight:700; padding:3px 10px; border-radius:10px;">Added in monthly</span></div>
+          <input value="{{ a.text }}" onChange="{{ a.onText }}" disabled="{{ locked }}" placeholder="Action required…" style="width:100%; border:1px solid #E2EAF3; border-radius:6px; padding:6px 10px; font-size:12px; color:#3A4E68;">
+          <select value="{{ a.status }}" onChange="{{ a.onStatus }}" disabled="{{ locked }}" style="width:100%; padding:5px 6px; border-radius:6px; font-size:10.5px; font-weight:700; border:1px solid {{ a.stC }}; background:{{ a.stBg }}; color:{{ a.stC }};">
+            <option>Open</option><option>In Progress</option><option>Closed</option>
+          </select>
+          <div class="no-print" onClick="{{ a.onDel }}" style="font-size:13px; color:#C62828; cursor:pointer; text-align:center;">✕</div>
+        </div>
+      </sc-for>
+      <sc-if value="{{ noActs }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:10px 2px 4px; font-size:12.5px; color:#93A5BC;">No client-pending items this month.</div>
+      </sc-if>
+      <div class="no-print" onClick="{{ addAction }}" style="display:inline-block; border:1.5px dashed #9FB8D8; color:#1155A6; border-radius:6px; padding:7px 14px; font-size:12px; font-weight:600; cursor:pointer; margin-top:8px;">＋ Add action item</div>
+    </div>
+
+    <div style="padding:16px 24px 4px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">6 · KEY HIGHLIGHTS &amp; ISSUES <span style="opacity:0.8;">★ FLAGGED IN WEEKLIES</span></div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+        <div style="font-size:11px; color:#5B6E86;">✕ excludes an item · auto-compiled</div>
+      </div>
+      <sc-for list="{{ flagged }}" as="f" hint-placeholder-count="3">
+        <div style="display:flex; gap:8px; align-items:flex-start; margin-bottom:7px; opacity:{{ f.op }};">
+          <div style="flex:0 0 62px; font-size:10.5px; font-weight:700; color:#5B6E86; padding-top:6px;">{{ f.wk }}</div>
+          <div style="flex:0 0 185px; background:#EDF2F8; color:#0D3B7C; font-size:10.5px; font-weight:700; padding:5px 10px; border-radius:10px; text-align:center;">{{ f.type }}</div>
+          <div style="flex:1; border:1px solid #E2EAF3; border-radius:6px; padding:6px 10px; font-size:12.5px; color:#3A4E68; text-decoration:{{ f.deco }};">{{ f.text }}</div>
+          <div class="no-print" onClick="{{ f.onToggle }}" title="Include / exclude" style="flex:0 0 auto; font-size:13px; color:{{ f.tc }}; cursor:pointer; padding:6px 4px; font-weight:700;">{{ f.tIcon }}</div>
+        </div>
+      </sc-for>
+      <sc-if value="{{ noFlagged }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:6px 2px 10px; font-size:12.5px; color:#93A5BC;">No ★-flagged comments in this month's weeklies yet.</div>
+      </sc-if>
+    </div>
+
+    <div style="padding:16px 24px 4px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">7 · NEXT MONTH OUTLOOK — {{ nextMonthLabel }}</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+        <div style="font-size:11px; color:#5B6E86;">milestones auto from weeklies · editable</div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px;">
+          <div style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:8px;">PLANNED MILESTONES</div>
+          <sc-for list="{{ nextMilestones }}" as="nm" hint-placeholder-count="2">
+            <div style="display:flex; gap:9px; align-items:baseline; padding:5px 0; border-bottom:1px solid #F0F4F9; font-size:12.5px;">
+              <span style="flex:0 0 74px; font-weight:700; color:#0D3B7C; font-size:11px;">{{ nm.date }}</span>
+              <span style="flex:1; color:#3A4E68;">{{ nm.text }}</span>
+              <span style="font-size:10.5px; color:#5B6E86;">{{ nm.owner }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ noNextMs }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:12px; color:#93A5BC; padding:4px 0;">No look-ahead milestones dated next month in the weeklies.</div>
+          </sc-if>
+        </div>
+        <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px; display:flex; flex-direction:column;">
+          <div style="display:flex; align-items:center; margin-bottom:8px;">
+            <div style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">FOCUS &amp; TARGETS</div>
+            <div style="flex:1;"></div>
+            <div><span style="font-size:10.5px; font-weight:700; color:#5B6E86;">PLANNED % TARGET&nbsp;</span>
+            <input data-f="nextTarget" value="{{ meta.nextTarget }}" onChange="{{ setField }}" disabled="{{ locked }}" placeholder="e.g. 52.0" style="width:64px; padding:4px 8px; border:1px solid #C9D6E4; border-radius:6px; font-size:12.5px; font-weight:700; color:#1155A6;"></div>
+          </div>
+          <textarea rows="4" data-f="nextOutlook" value="{{ meta.nextOutlook }}" onChange="{{ setField }}" disabled="{{ locked }}" placeholder="Key priorities, risks to watch, resource plans for next month…" style="width:100%; flex:1; border:1px solid #E2EAF3; border-radius:6px; padding:9px 12px; font-size:12.5px; color:#3A4E68; line-height:1.6;"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:16px 24px 4px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">8 · EXECUTIVE SUMMARY</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+        <div class="no-print" onClick="{{ draftSummary }}" style="border:1px solid #C9D6E4; color:#1155A6; font-size:11px; font-weight:700; padding:5px 12px; border-radius:6px; cursor:pointer;">⟳ Auto-draft from data</div>
+      </div>
+      <textarea rows="4" data-f="summary" value="{{ meta.summary }}" onChange="{{ setField }}" disabled="{{ locked }}" placeholder="Executive summary for the month… (or click Auto-draft)" style="width:100%; border:1px solid #E2EAF3; border-radius:6px; padding:9px 12px; font-size:12.5px; color:#3A4E68; line-height:1.6;"></textarea>
+    </div>
+
+    <div class="no-print" style="margin:14px 24px 0; background:#F0F5FA; border:1px solid #C9D6E4; border-radius:8px; padding:12px 14px;">
+      <sc-if value="{{ isDraft }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="font-size:11px; font-weight:800; color:#0D3B7C; letter-spacing:0.05em;">ADMIN<br>UPLOAD</div>
+          <input type="password" value="{{ pin }}" onChange="{{ setPin }}" placeholder="PIN ••••" style="width:110px; padding:8px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:13px; letter-spacing:0.2em;">
+          <div onClick="{{ doUpload }}" style="background:#3FA535; color:#fff; font-size:12.5px; font-weight:700; padding:9px 16px; border-radius:6px; cursor:pointer; white-space:nowrap; flex:0 0 auto;">⬆ Approve &amp; Upload to Google Drive</div>
+          <div style="font-size:11px; color:#C62828; font-weight:600;">{{ pinErr }}</div>
+          <div style="flex:1;"></div>
+          <div style="font-size:11px; color:#5B6E86; font-weight:600;"><span style="color:#3FA535;">● Draft saved</span> ▸ Approved ▸ Uploaded</div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ isUploading }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; align-items:center; gap:12px; font-size:13px; font-weight:700; color:#1155A6;">
+          <div style="width:14px; height:14px; border:2.5px solid #C9D6E4; border-top-color:#1155A6; border-radius:50%; animation:spin 0.8s linear infinite;"></div>
+          Uploading to Google Drive…
+        </div>
+      </sc-if>
+      <sc-if value="{{ isUploaded }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="font-size:20px;">✅</div>
+          <div style="flex:1; font-size:12.5px; color:#2E7D32; font-weight:700;">Approved &amp; uploaded to Google Drive — {{ uploadedAt }} · report locked <a href="{{ driveUrl }}" target="_blank" style="color:#1155A6;">Open folder ↗</a></div>
+          <div onClick="{{ resetUpload }}" style="border:1px solid #C9D6E4; color:#5B6E86; font-size:11.5px; font-weight:700; padding:6px 12px; border-radius:6px; cursor:pointer;">✎ New revision</div>
+        </div>
+      </sc-if>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; padding:16px 24px;">
+      <div style="border:1px solid #C9D6E4; border-radius:8px; padding:10px 12px;"><div style="font-size:11px; font-weight:800; color:#0D3B7C; margin-bottom:8px;">PREPARED BY</div>
+        <input data-f="sig1n" value="{{ meta.sig1n }}" onChange="{{ setField }}" disabled="{{ locked }}" placeholder="Name" style="width:100%; border:none; border-bottom:1px solid #C9D6E4; font-size:12px; padding:4px 2px; margin-bottom:6px; background:transparent;">
+        <div style="font-size:11px; color:#5B6E86; line-height:2.4;">Signature ____________________</div></div>
+      <div style="border:1px solid #C9D6E4; border-radius:8px; padding:10px 12px;"><div style="font-size:11px; font-weight:800; color:#0D3B7C; margin-bottom:8px;">REVIEWED BY</div>
+        <input data-f="sig2n" value="{{ meta.sig2n }}" onChange="{{ setField }}" disabled="{{ locked }}" placeholder="Name" style="width:100%; border:none; border-bottom:1px solid #C9D6E4; font-size:12px; padding:4px 2px; margin-bottom:6px; background:transparent;">
+        <div style="font-size:11px; color:#5B6E86; line-height:2.4;">Signature ____________________</div></div>
+      <div style="border:1px solid #C9D6E4; border-radius:8px; padding:10px 12px;"><div style="font-size:11px; font-weight:800; color:#0D3B7C; margin-bottom:8px;">APPROVED BY</div>
+        <input data-f="sig3n" value="{{ meta.sig3n }}" onChange="{{ setField }}" disabled="{{ locked }}" placeholder="Name" style="width:100%; border:none; border-bottom:1px solid #C9D6E4; font-size:12px; padding:4px 2px; margin-bottom:6px; background:transparent;">
+        <div style="font-size:11px; color:#5B6E86; line-height:2.4;">Signature ____________________</div></div>
+    </div>
+
+    <div style="background:#0D3B7C; color:#fff; display:flex; justify-content:space-between; align-items:center; padding:10px 24px; font-size:11.5px;">
+      <div style="font-weight:600; white-space:nowrap;">One Team. One Goal. Operational Excellence.</div>
+      <div style="opacity:0.85; white-space:nowrap;">www.eprom.com.eg</div>
+      <div style="opacity:0.85; white-space:nowrap;">Page 1 of 1</div>
+    </div>
+  </div>
+  <div class="no-print" style="width:920px; margin:10px auto 0; font-size:11px; color:#5B6E86; text-align:center;">Compiled live from weekly reports saved in this browser. ★ items flagged in a weekly appear in section 4 automatically; ✕ excludes one from the monthly without touching the weekly.</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;driveUrl&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;https://drive.google.com/drive/folders/EPROM-WEEKLY-REPORTS&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Google Drive&quot;},&quot;uploadEndpoint&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Google Drive&quot;},&quot;adminPin&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;2468&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Google Drive&quot;},&quot;onTrackMin&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:-3,&quot;min&quot;:-10,&quot;max&quot;:0,&quot;step&quot;:0.5,&quot;unit&quot;:&quot;%&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Status thresholds&quot;},&quot;atRiskMin&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:-7,&quot;min&quot;:-15,&quot;max&quot;:-3,&quot;step&quot;:0.5,&quot;unit&quot;:&quot;%&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Status thresholds&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this._projects = {
+      'PSAIM – Suez Projects (SOPC)': { code: 'EP-SU-PSAIM', client: 'SOPC' },
+      'MIDOR Expansion – Unit 08': { code: 'SD-08-C-M55', client: 'MIDOR' },
+      'Tank Farm Upgrade': { code: 'EP-SU-TFU', client: 'SOPC' }
+    };
+    this._psaim = 'PSAIM – Suez Projects (SOPC)';
+    const now = new Date();
+    const month = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    this.state = Object.assign({ projName: this._psaim, month, pin: '', pinErr: '', qr: '', savedAt: '', adminUnlock: false }, this.mLoad(this._psaim, month));
+  }
+  slug(n) { return String(n || 'untitled').toLowerCase().replace(/[^a-z0-9]+/g, '-'); }
+  mKey(name, month) { return 'eprom.mpr.' + this.slug(name) + '.' + month; }
+  mBlank() { return { meta: { docNo: 'EPR-QF-PR-08 · Rev 00', preparedBy: '', summary: '', sig1n: '', sig2n: '', sig3n: '', actions: [], nextTarget: '', nextOutlook: '' }, excluded: [], stage: 0, uploadedAt: '' }; }
+  editA(i, patch) {
+    this.setState(st2 => ({ meta: Object.assign({}, st2.meta, { actions: (st2.meta.actions || []).map((a, j) => j === i ? Object.assign({}, a, patch) : a) }) }), this.persist);
+  }
+  mLoad(name, month) {
+    try {
+      const raw = localStorage.getItem(this.mKey(name, month));
+      if (raw) { const d = JSON.parse(raw); d.meta = Object.assign(this.mBlank().meta, d.meta); d.excluded = d.excluded || []; return d; }
+    } catch (e) {}
+    return this.mBlank();
+  }
+  persist = () => {
+    const s = this.state;
+    try { localStorage.setItem(this.mKey(s.projName, s.month), JSON.stringify({ meta: s.meta, excluded: s.excluded, stage: s.stage, uploadedAt: s.uploadedAt })); } catch (e) {}
+    this.setState({ savedAt: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) });
+  };
+  componentDidMount() {
+    this.genQr(0);
+    this._onStorage = e => {
+      if (!e.key || !e.key.startsWith('eprom.')) return;
+      if (e.key === this.mKey(this.state.projName, this.state.month)) this.setState(this.mLoad(this.state.projName, this.state.month));
+      else this.forceUpdate(); // weekly data changed in another tab → recompile
+    };
+    window.addEventListener('storage', this._onStorage);
+  }
+  componentWillUnmount() { window.removeEventListener('storage', this._onStorage); }
+  componentDidUpdate(prevProps) { if (prevProps.driveUrl !== this.props.driveUrl) this.genQr(0); }
+  genQr(n) {
+    if (window.qrcode) {
+      try {
+        const q = window.qrcode(0, 'M');
+        q.addData(this.props.driveUrl ?? 'https://drive.google.com/drive/folders/EPROM-WEEKLY-REPORTS');
+        q.make();
+        this.setState({ qr: q.createDataURL(4, 8) });
+      } catch (e) {}
+    } else if (n < 30) setTimeout(() => this.genQr(n + 1), 200);
+  }
+  weekStart(y, wk) { const j = new Date(y, 0, 1); return new Date(y, 0, 1 + (wk - 1) * 7 - j.getDay()); }
+  isPastMonth(m) { const now = new Date(); return m < (now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0')); }
+  monthList() {
+    const s = this.state, slug = this.slug(s.projName);
+    const all = new Set(), data = new Set();
+    const now = new Date();
+    all.add(now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0'));
+    all.add(s.month);
+    try {
+      const mp = 'eprom.mpr.' + slug + '.', wp = 'eprom.wpr.' + slug + '.';
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i); if (!k) continue;
+        if (k.startsWith(mp)) { const m = k.slice(mp.length); if (/^\d{4}-\d{2}$/.test(m)) { all.add(m); data.add(m); } }
+        else if (k.startsWith(wp) && !k.startsWith(wp + 'hist')) {
+          const wm = k.slice(wp.length).match(/^(\d{4})-W(\d{2})$/);
+          if (wm) { const ws = this.weekStart(+wm[1], +wm[2]); const mk = ws.getFullYear() + '-' + String(ws.getMonth() + 1).padStart(2, '0'); all.add(mk); data.add(mk); }
+        }
+      }
+    } catch (e) {}
+    if (s.projName === this._psaim) data.add(s.month); // demo data always present for PSAIM
+    const arr = Array.from(all).sort();
+    let [yy, mm] = arr[0].split('-').map(Number);
+    const [ey, em] = arr[arr.length - 1].split('-').map(Number);
+    const list = []; let guard = 0;
+    while ((yy < ey || (yy === ey && mm <= em)) && guard < 240) {
+      list.push(yy + '-' + String(mm).padStart(2, '0'));
+      mm++; if (mm > 12) { mm = 1; yy++; } guard++;
+    }
+    return { list, data };
+  }
+  compile(name, month) {
+    const pref = 'eprom.wpr.' + this.slug(name) + '.';
+    const out = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(pref)) continue;
+        const m = k.slice(pref.length).match(/^(\d{4})-W(\d{2})$/);
+        if (!m) continue;
+        const y = +m[1], wk = +m[2];
+        const ws = this.weekStart(y, wk);
+        const mk = ws.getFullYear() + '-' + String(ws.getMonth() + 1).padStart(2, '0');
+        if (mk !== month) continue;
+        const d = JSON.parse(localStorage.getItem(k));
+        out.push({ wk, y, ws, weekKey: m[0], data: d, demo: false });
+      }
+    } catch (e) {}
+    out.sort((a, b) => (a.y * 100 + a.wk) - (b.y * 100 + b.wk));
+    if (out.length === 0 && name === this._psaim) return this.demoWeeks(month);
+    return out;
+  }
+  demoWeeks(month) {
+    const parts = month.split('-'); const y = +parts[0], mo = +parts[1] - 1;
+    const vals = [[37, 33.5], [40, 36], [43, 39], [46, 42.5]];
+    const cms = [
+      [{ type: 'Achievement / milestone', text: 'Maintenance Strategy officially approved by SOPC.', flag: true }],
+      [{ type: 'Vendor/TUV delay', text: 'TUV feedback on baseline schedule delayed one week.', flag: true }],
+      [{ type: 'Client approval pending', text: 'Risk matrix update with SOPC for final approval.', flag: true }],
+      [{ type: 'Client approval pending', text: 'RBI procedure Rev.01 submitted to SOPC — awaiting feedback.', flag: true }, { type: 'Achievement / milestone', text: 'Layer-1 criticality for U20/21/22 approved.', flag: true }]
+    ];
+    const out = [];
+    let d = new Date(y, mo, 1);
+    while (d.getDay() !== 0) d.setDate(d.getDate() + 1);
+    let i = 0;
+    while (d.getMonth() === mo && i < 4) {
+      const oneJan = new Date(d.getFullYear(), 0, 1);
+      const wk = Math.ceil(((d - oneJan) / 86400000 + oneJan.getDay() + 1) / 7);
+      out.push({ wk, y: d.getFullYear(), ws: new Date(d), weekKey: d.getFullYear() + '-W' + String(wk).padStart(2, '0'),
+        data: { doc: { planned: String(vals[i][0]), actual: String(vals[i][1]), mhPlanned: '23000', mhActual: String(18000 + i * 1100), lti: '0', rec: '0', fa: '1', nm: '3' }, comments: cms[i], stage: i < 3 ? 2 : 0 }, demo: true });
+      d = new Date(d); d.setDate(d.getDate() + 7); i++;
+    }
+    return out;
+  }
+  renderVals() {
+    const s = this.state;
+    const known = this._projects[s.projName] || { code: 'EP-XX', client: '—' };
+    const onTrackMin = this.props.onTrackMin ?? -3, atRiskMin = this.props.atRiskMin ?? -7;
+    const short = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    const parts = s.month.split('-');
+    const mDate = new Date(+parts[0], +parts[1] - 1, 1);
+    const monthLabel = mDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    const weeks = this.compile(s.projName, s.month);
+    const isDemo = weeks.length > 0 && weeks[0].demo;
+    const psMap = { 'On Schedule': ['#2E7D32', '#E7F3E7'], 'Delayed': ['#B26A00', '#FBF1DE'], 'Critical': ['#C62828', '#FAE7E7'], 'Completed': ['#1155A6', '#E8F0FA'], '—': ['#5B6E86', '#EDF2F8'] };
+    const stOf = (p, a) => {
+      if (isNaN(p) || isNaN(a)) return '—';
+      const v = a - p;
+      return a >= 100 ? 'Completed' : v >= onTrackMin ? 'On Schedule' : v >= atRiskMin ? 'Delayed' : 'Critical';
+    };
+    const rows = weeks.map(w2 => {
+      const p = parseFloat(w2.data.doc.planned), a = parseFloat(w2.data.doc.actual);
+      const v = !isNaN(p) && !isNaN(a) ? +(a - p).toFixed(1) : null;
+      const st = stOf(p, a); const c = psMap[st];
+      const cut = new Date(w2.ws); cut.setDate(w2.ws.getDate() + 4);
+      return { wk: 'W' + w2.wk, period: short(w2.ws) + ' – ' + short(cut),
+        p: isNaN(p) ? '—' : p.toFixed(1) + '%', a: isNaN(a) ? '—' : a.toFixed(1) + '%',
+        v: v === null ? '—' : (v > 0 ? '+' : '') + v.toFixed(1) + '%',
+        vc: v === null ? '#5B6E86' : v >= 0 ? '#2E7D32' : v >= atRiskMin ? '#B26A00' : '#C62828',
+        st, stC: c[0], stBg: c[1], up: w2.data.stage === 2 ? '✅' : '—' };
+    });
+    const last = weeks[weeks.length - 1], first = weeks[0];
+    const lp = last ? parseFloat(last.data.doc.planned) : NaN, la = last ? parseFloat(last.data.doc.actual) : NaN;
+    const hasK = !isNaN(lp) && !isNaN(la);
+    const v = hasK ? +(la - lp).toFixed(1) : null;
+    const status = hasK ? stOf(lp, la) : '—';
+    const sc = psMap[status];
+    const fa2 = first ? parseFloat(first.data.doc.actual) : NaN;
+    const gain = hasK && !isNaN(fa2) ? +(la - fa2).toFixed(1) : null;
+    const mh = last && last.data.doc.mhActual ? (+last.data.doc.mhActual).toLocaleString('en-US') + ' / ' + (+last.data.doc.mhPlanned || 0).toLocaleString('en-US') : '—';
+    const hse = last ? { lti: last.data.doc.lti || '0', rec: last.data.doc.rec || '0', fa: last.data.doc.fa || '0', nm: last.data.doc.nm || '0' } : { lti: '—', rec: '—', fa: '—', nm: '—' };
+    const gCol = (n, warn) => +n > 0 ? (warn ? ['#B26A00', '#FBF1DE'] : ['#C62828', '#FAE7E7']) : ['#2E7D32', '#E7F3E7'];
+    const mx = Math.max(10, ...weeks.map(w2 => Math.max(parseFloat(w2.data.doc.planned) || 0, parseFloat(w2.data.doc.actual) || 0)));
+    const trend = weeks.map(w2 => ({
+      ph: Math.max(2, Math.round((parseFloat(w2.data.doc.planned) || 0) / mx * 62)) + 'px',
+      ah: Math.max(2, Math.round((parseFloat(w2.data.doc.actual) || 0) / mx * 62)) + 'px',
+      lbl: 'W' + w2.wk
+    }));
+    const flagged = [];
+    weeks.forEach(w2 => (w2.data.comments || []).forEach((c, i) => {
+      if (c.flag && c.text) flagged.push({ id: w2.weekKey + '#' + i, wk: 'W' + w2.wk, type: c.type, text: c.text });
+    }));
+    const lockBase = s.stage === 2 || this.isPastMonth(s.month);
+    const locked = lockBase && !s.adminUnlock;
+    const exSet = s.excluded || [];
+    const flaggedR = flagged.map(f => {
+      const ex = exSet.indexOf(f.id) >= 0;
+      return { wk: f.wk, type: f.type, text: f.text, op: ex ? '0.45' : '1', deco: ex ? 'line-through' : 'none',
+        tIcon: ex ? '↺' : '✕', tc: ex ? '#1155A6' : '#C62828',
+        onToggle: () => { if (!locked) this.setState(st2 => ({ excluded: ex ? st2.excluded.filter(x => x !== f.id) : (st2.excluded || []).concat([f.id]) }), this.persist); } };
+    });
+    const inc = flagged.filter(f => exSet.indexOf(f.id) < 0);
+    return {
+      projName: s.projName,
+      projOptions: Object.keys(this._projects).concat(this._projects[s.projName] ? [] : [s.projName]),
+      projCode: known.code, projClient: known.client,
+      month: s.month, monthLabel, monthLabelUp: monthLabel.toUpperCase(),
+      monthShort: mDate.toLocaleDateString('en-GB', { month: 'short' }).toUpperCase() + '-' + String(mDate.getFullYear()).slice(2),
+      compiledNote: (isDemo ? 'demo data · ' : '') + 'compiled from ' + weeks.length + ' weekl' + (weeks.length === 1 ? 'y' : 'ies'),
+      driveUrl: this.props.driveUrl ?? 'https://drive.google.com/drive/folders/EPROM-WEEKLY-REPORTS',
+      qrImg: s.qr ? React.createElement('img', { src: s.qr, alt: 'QR', style: { width: 76, height: 76, display: 'block' } }) : null,
+      meta: s.meta, locked,
+      savedLbl: (lockBase && s.adminUnlock) ? '🔓 Admin-unlocked — editing' : (s.stage === 2 ? '🔒 Locked (uploaded)' : (this.isPastMonth(s.month) ? '🔒 Locked (past month)' : (s.savedAt ? 'Auto-saved ✓ ' + s.savedAt : 'Auto-save on'))),
+      showUnlock: lockBase && !s.adminUnlock,
+      isUnlocked: lockBase && s.adminUnlock,
+      doUnlock: () => {
+        const want = String(this.props.adminPin ?? '2468');
+        const p = window.prompt('Admin PIN to unlock this locked report for editing:');
+        if (p == null) return;
+        if (p === want) this.setState({ adminUnlock: true });
+        else window.alert('Wrong PIN — admin only.');
+      },
+      doRelock: () => this.setState({ adminUnlock: false }),
+      onProjectName: e => { const nm = e.target.value; this.setState(Object.assign({ projName: nm, pin: '', pinErr: '', adminUnlock: false }, this.mLoad(nm, s.month))); },
+      monthTabs: (() => {
+        const ml = this.monthList();
+        return ml.list.map(k => {
+          const [yy, mm] = k.split('-').map(Number);
+          const label = new Date(yy, mm - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+          const active = k === s.month, hasData = ml.data.has(k), past = this.isPastMonth(k);
+          return { key: k, label, lock: past ? '🔒' : '', title: (past ? 'Locked (past month) \u00b7 ' : '') + (hasData ? label + ' \u2014 has report data' : label + ' \u2014 no data yet'),
+            fw: active ? '700' : '600', color: active ? '#0D3B7C' : '#5B6E86',
+            bg: active ? '#fff' : 'transparent', bar: active ? '#1155A6' : 'transparent',
+            dot: hasData ? '#3FA535' : 'transparent',
+            onClick: () => { if (k !== s.month) this.setState(Object.assign({ month: k, pin: '', pinErr: '', adminUnlock: false }, this.mLoad(s.projName, k))); } };
+        });
+      })(),
+      addNextMonth: () => {
+        const list = this.monthList().list;
+        let [yy, mm] = list[list.length - 1].split('-').map(Number);
+        mm++; if (mm > 12) { mm = 1; yy++; }
+        const nk = yy + '-' + String(mm).padStart(2, '0');
+        this.setState(Object.assign({ month: nk, pin: '', pinErr: '', adminUnlock: false }, this.mLoad(s.projName, nk)));
+      },
+      onMonth: e => { const mo = e.target.value; if (mo) this.setState(Object.assign({ month: mo, pin: '', pinErr: '' }, this.mLoad(s.projName, mo))); },
+      setField: e => { const f = e.target.dataset.f; const val = e.target.value; this.setState(st2 => ({ meta: Object.assign({}, st2.meta, { [f]: val }) }), this.persist); },
+      printPage: () => window.print(),
+      statusLabel: status, statusC: sc[0], statusBg: sc[1],
+      varStr: v === null ? '—' : (v > 0 ? '+' : '') + v.toFixed(1) + '%',
+      kPlanned: hasK ? lp.toFixed(1) + '%' : '—', kActual: hasK ? la.toFixed(1) + '%' : '—',
+      kGain: gain === null ? '—' : (gain > 0 ? '+' : '') + gain.toFixed(1) + ' pts', kMh: mh,
+      hse, ltiC: gCol(hse.lti)[0], ltiBg: gCol(hse.lti)[1], recC: gCol(hse.rec)[0], recBg: gCol(hse.rec)[1],
+      faC: gCol(hse.fa, 1)[0], faBg: gCol(hse.fa, 1)[1], nmC: gCol(hse.nm, 1)[0], nmBg: gCol(hse.nm, 1)[1],
+      discRows: (() => {
+        const dMap = { 'Open': ['#5B6E86', '#EDF2F8'], 'In Progress': ['#1155A6', '#E8F0FA'], 'Completed': ['#2E7D32', '#E7F3E7'], 'On Hold': ['#B26A00', '#FBF1DE'] };
+        let ds = last && last.data.disciplines;
+        if ((!ds || !ds.length) && isDemo) ds = [
+          { name: 'In Common', status: 'In Progress', text: 'Gap Analysis Report & Action Plan reviewed per CRS with SOPC/TUV.' },
+          { name: 'Process', status: 'In Progress', text: '11 SOPs for CDU-01 reviewed and submitted to SOPC.' },
+          { name: 'Process Safety', status: 'On Hold', text: 'Risk matrix with SOPC for final approval ahead of HIRA workshops.' },
+          { name: 'Asset Integrity', status: 'In Progress', text: 'RBI procedure Rev.01 with SOPC; Layer-1 criticality approved.' }];
+        return (ds || []).filter(d => d.name).map(d => {
+          const c = dMap[d.status] || dMap['Open'];
+          return { name: d.name, status: d.status, text: d.text || '—', stC: c[0], stBg: c[1] };
+        });
+      })(),
+      discSrc: last ? 'from latest weekly (W' + last.wk + ') · auto-compiled' : 'auto-compiled',
+      clientActs: (() => {
+        const acts = [];
+        weeks.forEach(w2 => (w2.data.comments || []).forEach((c, i) => {
+          if ((c.type === 'Client approval pending' || c.type === 'Waiting client feedback') && c.text) acts.push({ id: 'ca:' + w2.weekKey + '#' + i, wk: 'W' + w2.wk, type: c.type, text: c.text });
+        }));
+        return acts.map(a => {
+          const ex = exSet.indexOf(a.id) >= 0;
+          return { wk: a.wk, type: a.type, text: a.text, op: ex ? '0.45' : '1', deco: ex ? 'line-through' : 'none',
+            tIcon: ex ? '↺' : '✕', tc: ex ? '#1155A6' : '#C62828',
+            onToggle: () => { if (!locked) this.setState(st2 => ({ excluded: ex ? st2.excluded.filter(x => x !== a.id) : (st2.excluded || []).concat([a.id]) }), this.persist); } };
+        });
+      })(),
+      manualActs: (s.meta.actions || []).map((a, i) => {
+        const cMap = { 'Open': ['#B26A00', '#FBF1DE'], 'In Progress': ['#1155A6', '#E8F0FA'], 'Closed': ['#2E7D32', '#E7F3E7'] };
+        const c = cMap[a.status] || cMap['Open'];
+        return { text: a.text, status: a.status, stC: c[0], stBg: c[1],
+          onText: e => this.editA(i, { text: e.target.value }),
+          onStatus: e => this.editA(i, { status: e.target.value }),
+          onDel: () => { if (!locked) this.setState(st2 => ({ meta: Object.assign({}, st2.meta, { actions: st2.meta.actions.filter((_, j) => j !== i) }) }), this.persist); } };
+      }),
+      addAction: () => { if (!locked) this.setState(st2 => ({ meta: Object.assign({}, st2.meta, { actions: (st2.meta.actions || []).concat([{ text: '', status: 'Open' }]) }) }), this.persist); },
+      nextMonthLabel: (() => { const d = new Date(+parts[0], +parts[1], 1); return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }).toUpperCase(); })(),
+      nextMilestones: (() => {
+        const nm = new Date(+parts[0], +parts[1], 1);
+        const nk = nm.getFullYear() + '-' + String(nm.getMonth() + 1).padStart(2, '0');
+        const out = [];
+        weeks.forEach(w2 => (w2.data.milestones || []).forEach(m => {
+          if (m.text && m.date && m.date.slice(0, 7) === nk) out.push(m);
+        }));
+        if (!out.length && isDemo) {
+          const f = (d2) => nk + '-' + String(d2).padStart(2, '0');
+          out.push({ text: 'HIRA workshops — 5 process-safety elements', date: f(6), owner: 'Process Safety' }, { text: 'Unit-20 SOP package submission to SOPC', date: f(13), owner: 'Process' });
+        }
+        out.sort((a, b) => a.date < b.date ? -1 : 1);
+        return out.map(m => ({ text: m.text, owner: m.owner || '', date: new Date(m.date + 'T00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) }));
+      })(),
+      noNextMs: !isDemo && !weeks.some(w2 => (w2.data.milestones || []).some(m => {
+        const nm = new Date(+parts[0], +parts[1], 1);
+        return m.text && m.date && m.date.slice(0, 7) === nm.getFullYear() + '-' + String(nm.getMonth() + 1).padStart(2, '0');
+      })),
+      noActs: weeks.every(w2 => !(w2.data.comments || []).some(c => (c.type === 'Client approval pending' || c.type === 'Waiting client feedback') && c.text)) && !(s.meta.actions || []).length,
+      noDisc: !(last && last.data.disciplines && last.data.disciplines.length) && !isDemo,
+      trend, weeks: rows, noWeeks: rows.length === 0,
+      flagged: flaggedR, noFlagged: flaggedR.length === 0,
+      draftSummary: () => {
+        if (locked) return;
+        const lines = [s.projName + ' — ' + monthLabel + ': cumulative progress reached ' + (hasK ? la.toFixed(1) + '% actual vs ' + lp.toFixed(1) + '% planned (SV ' + (v > 0 ? '+' : '') + v.toFixed(1) + '%, ' + status + ')' : 'n/a') + (gain !== null ? ', gaining ' + gain.toFixed(1) + ' pts during the month' : '') + '.'];
+        if (+hse.lti === 0 && +hse.rec === 0) lines.push('HSE: zero LTI / recordables to date (' + hse.fa + ' first aid, ' + hse.nm + ' near miss).');
+        if (inc.length) lines.push('Key items: ' + inc.map(f => f.text).join(' '));
+        this.setState(st2 => ({ meta: Object.assign({}, st2.meta, { summary: lines.join(' ') }) }), this.persist);
+      },
+      pin: s.pin, pinErr: s.pinErr,
+      setPin: e => this.setState({ pin: e.target.value, pinErr: '' }),
+      isDraft: s.stage === 0, isUploading: s.stage === 1, isUploaded: s.stage === 2,
+      uploadedAt: s.uploadedAt,
+      doUpload: () => {
+        const want = String(this.props.adminPin ?? '2468');
+        if (s.pin !== want) { this.setState({ pinErr: 'Wrong PIN — admin only' }); return; }
+        this.setState({ stage: 1, pinErr: '' });
+        const done = () => this.setState({ stage: 2, uploadedAt: new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }), pin: '' }, this.persist);
+        const ep = (this.props.uploadEndpoint ?? '').trim();
+        if (!ep) { setTimeout(done, 1400); return; }
+        const rx = new RegExp('<scr' + 'ipt[\\s\\S]*?</scr' + 'ipt>', 'gi');
+        const html = '<!DOCTYPE html>' + document.documentElement.outerHTML.replace(rx, '');
+        fetch(ep, { method: 'POST', body: JSON.stringify({
+          pin: s.pin, project: s.projName, year: +s.month.split('-')[0],
+          filename: known.code + '-MPR-' + s.month,
+          html, data: { meta: s.meta, month: s.month }
+        }) }).then(r => r.json()).then(res => {
+          if (res && res.ok) done();
+          else this.setState({ stage: 0, pinErr: (res && res.error) || 'Upload failed' });
+        }).catch(() => this.setState({ stage: 0, pinErr: 'Network error — check endpoint URL' }));
+      },
+      resetUpload: () => this.setState({ stage: 0, uploadedAt: '' }, this.persist)
+    };
+  }
+}
+</script>
+</body>
+</html>

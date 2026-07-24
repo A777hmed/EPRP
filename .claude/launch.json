@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "eprp-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "C:\\Users\\ahmed Morsy\\Desktop\\EPROM Progress Report\\eprp",
+      "port": 3000,
+      "autoPort": true
+    }
+  ]
+}

@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Semi+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>
+  html,body{margin:0;padding:0;background:#DDE5EE;}
+  *{box-sizing:border-box;}
+  a{color:#1155A6;} a:hover{color:#0D3B7C;}
+  input,select,button{font-family:'Barlow',sans-serif;}
+  input::placeholder{color:#93A5BC;}
+</style>
+</helmet>
+<section style="padding:44px 56px 80px; font-family:'Barlow',sans-serif; color:#16273D;">
+  <div style="max-width:1200px; margin-bottom:30px;">
+    <div style="display:flex; align-items:center; gap:14px;">
+      <img src="assets/eprom-logo.png" alt="EPROM" style="height:44px;">
+      <div style="width:1px; height:36px; background:#B7C6D8;"></div>
+      <div>
+        <div style="font-size:21px; font-weight:800; letter-spacing:0.02em;">Weekly Progress Report — 4 Design Directions</div>
+        <div style="font-size:13.5px; color:#5B6E86; margin-top:2px;">All four share the same engine: auto report date (first day of upcoming week, Sun–Thu cut-off), Drive QR archive, PIN-gated admin upload, status auto-locked to schedule variance, and comments flaggable for the monthly report. Pick <a href="#1a">1a</a>, <a href="#1b">1b</a>, <a href="#1c">1c</a> or <a href="#1d">1d</a>.</div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex; flex-wrap:wrap; gap:64px; align-items:flex-start; max-width:2560px;">
+
+    <!-- ══════════════ 1a CLASSIC FORM ══════════════ -->
+    <div id="1a" style="flex:0 0 auto;">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+        <span style="background:#0D3B7C; color:#fff; font-weight:700; font-size:13px; padding:3px 10px; border-radius:6px;">1a</span>
+        <span style="font-weight:700; font-size:15px;">Classic Form</span>
+        <span style="font-size:13px; color:#5B6E86;">— paper-style single sheet, closest to your mockup; prints 1:1</span>
+      </div>
+      <div style="width:920px; background:#fff; border:1px solid #C9D6E4; border-radius:10px; overflow:hidden; box-shadow:0 10px 30px rgba(13,59,124,0.10);">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:18px 24px 14px;">
+          <img src="assets/eprom-logo.png" alt="EPROM" style="height:58px;">
+          <div style="display:flex; align-items:center; gap:12px; border:1px solid #C9D6E4; border-radius:10px; padding:8px 12px;">
+            <div style="width:74px; height:74px; background-image:url('{{ qr }}'); background-size:contain; background-repeat:no-repeat; background-color:#F6F9FC;"></div>
+            <div style="font-size:11px; color:#5B6E86; line-height:1.45; width:104px;"><b style="color:#16273D;">Scan to access archive</b><br>All weekly reports on Google Drive</div>
+          </div>
+        </div>
+        <div style="background:#0D3B7C; color:#fff; display:flex; justify-content:space-between; align-items:center; padding:11px 24px;">
+          <div style="font-size:19px; font-weight:800; letter-spacing:0.05em;">WEEKLY PROJECT PROGRESS REPORT</div>
+          <div style="font-size:11.5px; opacity:0.85; font-family:'Barlow Semi Condensed',sans-serif;">Doc No. EPR-QF-PR-07 · Rev 00</div>
+        </div>
+        <div style="padding:18px 24px 6px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+            <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">1 · REPORT INFORMATION</div>
+            <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px 16px;">
+            <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">PROJECT *</div>
+              <select style="width:100%; padding:8px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:13px; color:#16273D; background:#fff;"><option>PSAIM – Suez Projects (SOPC)</option><option>MIDOR Expansion – Unit 08</option><option>Tank Farm Upgrade</option></select></div>
+            <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">PROJECT CODE</div>
+              <div style="padding:8px 10px; border:1px solid #E2EAF3; background:#F6F9FC; border-radius:6px; font-size:13px; font-weight:600;">EP-SU-PSAIM-WPR-{{ weekNo }}</div></div>
+            <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">CLIENT</div>
+              <div style="padding:8px 10px; border:1px solid #E2EAF3; background:#F6F9FC; border-radius:6px; font-size:13px; font-weight:600;">SOPC</div></div>
+            <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">REPORTING WEEK <span style="color:#3FA535;">● AUTO</span></div>
+              <div style="padding:8px 10px; border:1px solid #E2EAF3; background:#F6F9FC; border-radius:6px; font-size:13px; font-weight:600;">{{ weekLabel }}</div></div>
+            <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">REPORT DATE <span style="color:#3FA535;">● AUTO</span></div>
+              <div style="padding:8px 10px; border:1px solid #E2EAF3; background:#F6F9FC; border-radius:6px; font-size:13px; font-weight:600;">{{ reportDateLong }}</div></div>
+            <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">CUT-OFF <span style="color:#3FA535;">● AUTO</span></div>
+              <div style="padding:8px 10px; border:1px solid #E2EAF3; background:#F6F9FC; border-radius:6px; font-size:13px; font-weight:600;">{{ cutoffLong }}</div></div>
+            <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">PREPARED BY *</div>
+              <input placeholder="Name" style="width:100%; padding:8px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:13px;"></div>
+            <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">POSITION</div>
+              <input placeholder="e.g. Projects Control Engineer" style="width:100%; padding:8px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:13px;"></div>
+            <div><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; margin-bottom:4px;">STATUS <span style="color:#B26A00;">🔒 AUTO FROM KPIs</span></div>
+              <div style="padding:8px 10px; border-radius:6px; font-size:13px; font-weight:700; background:{{ statusBg }}; color:{{ statusC }};">{{ statusLabel }} · {{ varStr }} vs plan</div></div>
+          </div>
+        </div>
+        <div style="padding:16px 24px 4px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+            <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">2 · KEY PERFORMANCE INDICATORS</div>
+            <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px;">
+            <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px;">
+              <div style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">PLANNED vs ACTUAL %</div>
+              <div style="display:flex; gap:14px; margin-top:8px;">
+                <div><div style="font-size:24px; font-weight:800; color:#1155A6;">46.0%</div><div style="font-size:10px; color:#5B6E86;">Planned</div></div>
+                <div><div style="font-size:24px; font-weight:800; color:#3FA535;">42.5%</div><div style="font-size:10px; color:#5B6E86;">Actual</div></div>
+              </div>
+              <div style="margin-top:8px; height:6px; background:#E8F0FA; border-radius:3px; position:relative;"><div style="width:42.5%; height:6px; background:#3FA535; border-radius:3px;"></div><div style="position:absolute; left:46%; top:-2px; width:2px; height:10px; background:#1155A6;"></div></div>
+            </div>
+            <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px;">
+              <div style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">SCHEDULE VARIANCE</div>
+              <div style="font-size:30px; font-weight:800; color:{{ statusC }}; margin-top:4px;">{{ varStr }}</div>
+              <div style="font-size:11px; font-weight:700; color:{{ statusC }};">{{ statusLabel }}</div>
+              <div style="margin-top:6px; height:5px; border-radius:3px; background:linear-gradient(90deg,#C62828,#E8A13A 40%,#DCE5EF 50%,#3FA535); position:relative;"><div style="position:absolute; left:{{ gaugeLeft }}; top:-3px; width:3px; height:11px; background:#16273D; border-radius:2px;"></div></div>
+            </div>
+            <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px;">
+              <div style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">MAN-HOURS TO DATE</div>
+              <div style="font-size:26px; font-weight:800; color:#16273D; margin-top:4px;">21,340</div>
+              <div style="font-size:11px; color:#5B6E86; line-height:1.5;">Planned 23,000<br>Variance <b style="color:#C62828;">−1,660</b></div>
+            </div>
+            <div style="border:1px solid #C9D6E4; border-radius:8px; padding:12px;">
+              <div style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.06em;">HSE STATUS (TO DATE)</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 10px; margin-top:8px;">
+                <div style="font-size:12px;"><b style="font-size:18px; color:#2E7D32;">0</b> LTI</div>
+                <div style="font-size:12px;"><b style="font-size:18px; color:#2E7D32;">0</b> Recordable</div>
+                <div style="font-size:12px;"><b style="font-size:18px; color:#B26A00;">1</b> First Aid</div>
+                <div style="font-size:12px;"><b style="font-size:18px; color:#B26A00;">3</b> Near Miss</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:16px 24px 4px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+            <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">3 · WEEKLY ACTIVITIES BY CATEGORY</div>
+            <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; gap:10px; align-items:flex-start;"><div style="flex:0 0 130px; background:#E8F0FA; color:#0D3B7C; font-size:11.5px; font-weight:700; padding:6px 10px; border-radius:5px; text-align:center;">IN COMMON</div><div style="flex:1; border:1px solid #E2EAF3; border-radius:5px; padding:6px 10px; font-size:12.5px; color:#3A4E68;">Reviewed Gap Analysis Report &amp; Action Plan (final rev.) per agreed CRS with SOPC/TUV.</div></div>
+            <div style="display:flex; gap:10px; align-items:flex-start;"><div style="flex:0 0 130px; background:#E8F0FA; color:#0D3B7C; font-size:11.5px; font-weight:700; padding:6px 10px; border-radius:5px; text-align:center;">PROCESS</div><div style="flex:1; border:1px solid #E2EAF3; border-radius:5px; padding:6px 10px; font-size:12.5px; color:#3A4E68;">Completed review of 11 SOPs for CDU-01 (all five operating modes); submitted to SOPC.</div></div>
+            <div style="display:flex; gap:10px; align-items:flex-start;"><div style="flex:0 0 130px; background:#E8F0FA; color:#0D3B7C; font-size:11.5px; font-weight:700; padding:6px 10px; border-radius:5px; text-align:center;">PROCESS SAFETY</div><div style="flex:1; border:1px solid #E2EAF3; border-radius:5px; padding:6px 10px; font-size:12.5px; color:#3A4E68;">Updated SOPC risk matrix for final approval ahead of HIRA workshops.</div></div>
+            <div style="display:flex; gap:10px; align-items:flex-start;"><div style="flex:0 0 130px; background:#E8F0FA; color:#0D3B7C; font-size:11.5px; font-weight:700; padding:6px 10px; border-radius:5px; text-align:center;">ASSET INTEGRITY</div><div style="flex:1; border:1px solid #E2EAF3; border-radius:5px; padding:6px 10px; font-size:12.5px; color:#3A4E68;">RBI procedure Rev.01 with SOPC; Layer-1 criticality for U20/21/22 approved.</div></div>
+          </div>
+        </div>
+        <div style="padding:16px 24px 4px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+            <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">4 · COMMENTS &amp; ATTACHMENTS</div>
+            <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+            <div style="font-size:11px; color:#5B6E86;">★ = include in Monthly Report</div>
+          </div>
+          <sc-for list="{{ comments }}" as="c" hint-placeholder-count="3">
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+              <select style="flex:0 0 210px; padding:7px 8px; border:1px solid #C9D6E4; border-radius:6px; font-size:12px; color:#0D3B7C; font-weight:600; background:#fff;"><option>{{ c.type }}</option><option>Client approval pending</option><option>Waiting client feedback</option><option>Resource gap</option><option>Technical issue / clarification</option><option>Delay risk</option><option>Vendor/TUV delay</option><option>Achievement / milestone</option><option>Other (free text)</option></select>
+              <div style="flex:1; border:1px solid #E2EAF3; border-radius:6px; padding:7px 10px; font-size:12.5px; color:#3A4E68;">{{ c.text }} <span style="font-size:11px; color:#1155A6; font-weight:600;">{{ c.att }}</span></div>
+              <div style="flex:0 0 auto; font-size:17px; color:{{ c.starC }}; cursor:pointer;" title="Flag for monthly report">{{ c.star }}</div>
+            </div>
+          </sc-for>
+          <div style="display:flex; gap:8px; align-items:center; margin-top:4px;">
+            <div style="border:1.5px dashed #9FB8D8; color:#1155A6; border-radius:6px; padding:7px 14px; font-size:12px; font-weight:600; cursor:pointer;">＋ Add comment</div>
+            <div style="border:1.5px dashed #9FB8D8; color:#1155A6; border-radius:6px; padding:7px 14px; font-size:12px; font-weight:600; cursor:pointer;">📎 Attach PDF · Excel · Word</div>
+          </div>
+        </div>
+        <div style="margin:16px 24px 0; background:#F0F5FA; border:1px solid #C9D6E4; border-radius:8px; padding:12px 14px; display:flex; align-items:center; gap:12px;">
+          <div style="font-size:11px; font-weight:800; color:#0D3B7C; letter-spacing:0.05em;">ADMIN<br>UPLOAD</div>
+          <input type="password" placeholder="PIN ••••" style="width:110px; padding:8px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:13px; letter-spacing:0.2em;">
+          <div style="background:#3FA535; color:#fff; font-size:12.5px; font-weight:700; padding:9px 16px; border-radius:6px; cursor:pointer;">⬆ Approve &amp; Upload to Google Drive</div>
+          <div style="flex:1;"></div>
+          <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#5B6E86; font-weight:600;"><span style="color:#3FA535;">● Draft saved</span> ▸ <span>Approved</span> ▸ <span>Uploaded to Drive</span></div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; padding:16px 24px;">
+          <div style="border:1px solid #C9D6E4; border-radius:8px; padding:10px 12px;"><div style="font-size:11px; font-weight:800; color:#0D3B7C; margin-bottom:8px;">PREPARED BY</div><div style="font-size:11px; color:#5B6E86; line-height:2.2;">Name ______________________<br>Signature __________________<br>Date _______________________</div></div>
+          <div style="border:1px solid #C9D6E4; border-radius:8px; padding:10px 12px;"><div style="font-size:11px; font-weight:800; color:#0D3B7C; margin-bottom:8px;">REVIEWED BY</div><div style="font-size:11px; color:#5B6E86; line-height:2.2;">Name ______________________<br>Signature __________________<br>Date _______________________</div></div>
+          <div style="border:1px solid #C9D6E4; border-radius:8px; padding:10px 12px;"><div style="font-size:11px; font-weight:800; color:#0D3B7C; margin-bottom:8px;">APPROVED BY</div><div style="font-size:11px; color:#5B6E86; line-height:2.2;">Name ______________________<br>Signature __________________<br>Date _______________________</div></div>
+        </div>
+        <div style="background:#0D3B7C; color:#fff; display:flex; justify-content:space-between; align-items:center; padding:10px 24px; font-size:11.5px;">
+          <div style="font-weight:600;">One Team. One Goal. Operational Excellence.</div>
+          <div style="opacity:0.85;">www.eprom.com.eg</div>
+          <div style="opacity:0.85;">Page 1 of 1</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ 1b OPS DASHBOARD ══════════════ -->
+    <div id="1b" style="flex:0 0 auto;">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+        <span style="background:#0D3B7C; color:#fff; font-weight:700; font-size:13px; padding:3px 10px; border-radius:6px;">1b</span>
+        <span style="font-weight:700; font-size:15px;">Ops Dashboard</span>
+        <span style="font-size:13px; color:#5B6E86;">— app-like screen with sidebar; live KPIs, trend chart, comment feed</span>
+      </div>
+      <div style="width:1460px; height:900px; background:#F3F6FA; border-radius:14px; overflow:hidden; display:flex; box-shadow:0 10px 30px rgba(13,59,124,0.12); border:1px solid #C9D6E4;">
+        <div style="flex:0 0 292px; background:linear-gradient(180deg,#0D3B7C,#0A2C5C); color:#fff; padding:20px 18px; display:flex; flex-direction:column; gap:14px;">
+          <div style="background:#fff; border-radius:8px; padding:8px 10px; align-self:flex-start;"><img src="assets/eprom-logo.png" alt="EPROM" style="height:38px; display:block;"></div>
+          <div>
+            <div style="font-size:10.5px; font-weight:700; letter-spacing:0.1em; opacity:0.6; margin-bottom:5px;">PROJECT</div>
+            <select style="width:100%; padding:9px 10px; border-radius:7px; border:1px solid rgba(255,255,255,0.25); background:rgba(255,255,255,0.08); color:#fff; font-size:13px; font-weight:600;"><option>PSAIM – Suez Projects (SOPC)</option><option>MIDOR Expansion – Unit 08</option><option>Tank Farm Upgrade</option></select>
+          </div>
+          <div style="background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.14); border-radius:9px; padding:12px;">
+            <div style="font-size:10.5px; font-weight:700; letter-spacing:0.1em; opacity:0.6;">REPORTING WEEK <span style="color:#7ED957;">● AUTO</span></div>
+            <div style="font-size:15px; font-weight:700; margin-top:4px;">{{ weekLabel }}</div>
+            <div style="font-size:11.5px; opacity:0.75; margin-top:6px; line-height:1.6;">Report date: <b>{{ reportDateMed }}</b><br>Cut-off: <b>{{ cutoffMed }}</b></div>
+          </div>
+          <div style="background:#fff; border-radius:9px; padding:12px; display:flex; gap:10px; align-items:center;">
+            <div style="width:64px; height:64px; background-image:url('{{ qr }}'); background-size:contain; background-repeat:no-repeat; background-color:#F6F9FC;"></div>
+            <div style="color:#16273D; font-size:11px; line-height:1.5;"><b>Report archive</b><br><span style="color:#5B6E86;">Scan → Google Drive folder</span></div>
+          </div>
+          <div style="background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.14); border-radius:9px; padding:12px;">
+            <div style="font-size:10.5px; font-weight:700; letter-spacing:0.1em; opacity:0.6; margin-bottom:8px;">ADMIN · WEEKLY UPLOAD</div>
+            <input type="password" placeholder="Enter PIN" style="width:100%; padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.25); background:rgba(255,255,255,0.1); color:#fff; font-size:13px; letter-spacing:0.15em;">
+            <div style="margin-top:8px; background:#3FA535; text-align:center; font-size:12.5px; font-weight:700; padding:9px; border-radius:6px; cursor:pointer;">⬆ Approve &amp; Upload to Drive</div>
+            <div style="display:flex; gap:5px; margin-top:10px; align-items:center; font-size:10px; opacity:0.85;">
+              <span style="width:8px; height:8px; border-radius:50%; background:#7ED957;"></span> Draft
+              <span style="flex:1; height:1px; background:rgba(255,255,255,0.25);"></span>
+              <span style="width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.3);"></span> Approved
+              <span style="flex:1; height:1px; background:rgba(255,255,255,0.25);"></span>
+              <span style="width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.3);"></span> On Drive
+            </div>
+          </div>
+          <div style="flex:1;"></div>
+          <div style="border:1px solid rgba(255,255,255,0.3); border-radius:7px; text-align:center; padding:9px; font-size:12.5px; font-weight:600; cursor:pointer;">🖨 Print / Export PDF</div>
+          <div style="font-size:10px; opacity:0.55; text-align:center;">Doc EPR-QF-PR-07 · Rev 00 · www.eprom.com.eg</div>
+        </div>
+        <div style="flex:1; padding:20px 22px; display:flex; flex-direction:column; gap:14px; overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:14px;">
+            <div>
+              <div style="font-size:20px; font-weight:800;">Weekly Project Progress</div>
+              <div style="font-size:12.5px; color:#5B6E86;">PSAIM – Suez Projects · Client SOPC · Week {{ weekNo }}</div>
+            </div>
+            <div style="flex:1;"></div>
+            <div style="font-size:11px; color:#5B6E86; text-align:right;">Status auto-locked to variance 🔒</div>
+            <div style="background:{{ statusBg }}; color:{{ statusC }}; font-weight:800; font-size:14px; padding:8px 16px; border-radius:20px; border:1px solid {{ statusC }};">● {{ statusLabel }}</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1.25fr 1fr 1fr 1.25fr; gap:12px;">
+            <div style="background:#fff; border-radius:11px; padding:14px 16px; box-shadow:0 2px 8px rgba(13,59,124,0.06);">
+              <div style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.07em;">PLANNED vs ACTUAL (CUM.)</div>
+              <div style="display:flex; gap:18px; align-items:baseline; margin-top:6px;">
+                <div><span style="font-size:32px; font-weight:800; color:#1155A6;">46.0</span><span style="font-size:15px; font-weight:700; color:#1155A6;">%</span><div style="font-size:10.5px; color:#5B6E86;">PLANNED</div></div>
+                <div><span style="font-size:32px; font-weight:800; color:#3FA535;">42.5</span><span style="font-size:15px; font-weight:700; color:#3FA535;">%</span><div style="font-size:10.5px; color:#5B6E86;">ACTUAL</div></div>
+              </div>
+            </div>
+            <div style="background:#fff; border-radius:11px; padding:14px 16px; box-shadow:0 2px 8px rgba(13,59,124,0.06);">
+              <div style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.07em;">SCHEDULE VARIANCE</div>
+              <div style="font-size:34px; font-weight:800; color:{{ statusC }}; margin-top:2px;">{{ varStr }}</div>
+              <div style="height:6px; border-radius:3px; background:linear-gradient(90deg,#C62828,#E8A13A 40%,#DCE5EF 50%,#3FA535); position:relative; margin-top:8px;"><div style="position:absolute; left:{{ gaugeLeft }}; top:-3px; width:3px; height:12px; background:#16273D; border-radius:2px;"></div></div>
+              <div style="display:flex; justify-content:space-between; font-size:9px; color:#93A5BC; margin-top:3px;"><span>−20%</span><span>0</span><span>+20%</span></div>
+            </div>
+            <div style="background:#fff; border-radius:11px; padding:14px 16px; box-shadow:0 2px 8px rgba(13,59,124,0.06);">
+              <div style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.07em;">MAN-HOURS TO DATE</div>
+              <div style="font-size:30px; font-weight:800; margin-top:2px;">21,340</div>
+              <div style="height:6px; background:#E8F0FA; border-radius:3px; margin-top:8px;"><div style="width:{{ mhPct }}; height:6px; background:#1155A6; border-radius:3px;"></div></div>
+              <div style="font-size:10.5px; color:#5B6E86; margin-top:4px;">of 23,000 planned · <b style="color:#C62828;">−1,660</b></div>
+            </div>
+            <div style="background:#fff; border-radius:11px; padding:14px 16px; box-shadow:0 2px 8px rgba(13,59,124,0.06);">
+              <div style="font-size:10.5px; font-weight:700; color:#5B6E86; letter-spacing:0.07em;">HSE STATUS (TO DATE)</div>
+              <div style="display:flex; gap:8px; margin-top:9px;">
+                <div style="flex:1; background:#E7F3E7; border-radius:8px; text-align:center; padding:7px 2px;"><div style="font-size:20px; font-weight:800; color:#2E7D32;">0</div><div style="font-size:9.5px; font-weight:700; color:#2E7D32;">LTI</div></div>
+                <div style="flex:1; background:#E7F3E7; border-radius:8px; text-align:center; padding:7px 2px;"><div style="font-size:20px; font-weight:800; color:#2E7D32;">0</div><div style="font-size:9.5px; font-weight:700; color:#2E7D32;">REC.</div></div>
+                <div style="flex:1; background:#FBF1DE; border-radius:8px; text-align:center; padding:7px 2px;"><div style="font-size:20px; font-weight:800; color:#B26A00;">1</div><div style="font-size:9.5px; font-weight:700; color:#B26A00;">F.AID</div></div>
+                <div style="flex:1; background:#FBF1DE; border-radius:8px; text-align:center; padding:7px 2px;"><div style="font-size:20px; font-weight:800; color:#B26A00;">3</div><div style="font-size:9.5px; font-weight:700; color:#B26A00;">N.MISS</div></div>
+              </div>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1.6fr 1fr; gap:12px;">
+            <div style="background:#fff; border-radius:11px; padding:14px 16px; box-shadow:0 2px 8px rgba(13,59,124,0.06);">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-size:12.5px; font-weight:700;">Planned vs Actual — weekly trend</div>
+                <div style="font-size:10.5px; color:#5B6E86;"><span style="display:inline-block; width:9px; height:9px; background:#9FB8D8; border-radius:2px;"></span> Planned&nbsp;&nbsp;<span style="display:inline-block; width:9px; height:9px; background:#3FA535; border-radius:2px;"></span> Actual</div>
+              </div>
+              <div style="display:flex; align-items:flex-end; gap:10px; height:96px; margin-top:12px; border-bottom:1px solid #E2EAF3; padding:0 4px;">
+                <sc-for list="{{ trendB }}" as="w" hint-placeholder-count="11">
+                  <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:0;">
+                    <div style="display:flex; align-items:flex-end; gap:2px; width:100%; justify-content:center;">
+                      <div style="width:8px; background:#9FB8D8; border-radius:2px 2px 0 0; height:{{ w.ph }};"></div>
+                      <div style="width:8px; background:#3FA535; border-radius:2px 2px 0 0; height:{{ w.ah }};"></div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex; gap:10px; padding:4px 4px 0;">
+                <sc-for list="{{ trendB }}" as="w" hint-placeholder-count="11"><div style="flex:1; text-align:center; font-size:9px; color:#93A5BC;">{{ w.lbl }}</div></sc-for>
+              </div>
+            </div>
+            <div style="background:#fff; border-radius:11px; padding:14px 16px; box-shadow:0 2px 8px rgba(13,59,124,0.06); display:flex; align-items:center; gap:16px;">
+              <svg width="128" height="128" viewBox="0 0 128 128">
+                <circle cx="64" cy="64" r="52" fill="none" stroke="#E8F0FA" stroke-width="13"></circle>
+                <circle cx="64" cy="64" r="52" fill="none" stroke="#9FB8D8" stroke-width="13" stroke-dasharray="{{ plannedDash }}" stroke-linecap="round" transform="rotate(-90 64 64)"></circle>
+                <circle cx="64" cy="64" r="52" fill="none" stroke="#3FA535" stroke-width="13" stroke-dasharray="{{ actualDash }}" stroke-linecap="round" transform="rotate(-90 64 64)"></circle>
+                <text x="64" y="60" text-anchor="middle" font-size="24" font-weight="800" fill="#16273D" font-family="Barlow">42.5%</text>
+                <text x="64" y="78" text-anchor="middle" font-size="10" fill="#5B6E86" font-family="Barlow">COMPLETE</text>
+              </svg>
+              <div style="font-size:11.5px; color:#5B6E86; line-height:1.8;"><span style="color:#9FB8D8;">◼</span> Planned 46.0%<br><span style="color:#3FA535;">◼</span> Actual 42.5%<br><b style="color:{{ statusC }};">{{ varStr }} deviation</b></div>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1.15fr 1fr; gap:12px; flex:1; min-height:0;">
+            <div style="background:#fff; border-radius:11px; padding:14px 16px; box-shadow:0 2px 8px rgba(13,59,124,0.06); overflow:hidden;">
+              <div style="font-size:12.5px; font-weight:700; margin-bottom:10px;">Weekly activities <span style="font-weight:500; color:#5B6E86; font-size:11px;">— by category</span></div>
+              <div style="display:flex; gap:6px; margin-bottom:10px;">
+                <div style="background:#0D3B7C; color:#fff; font-size:11px; font-weight:700; padding:5px 12px; border-radius:14px;">In Common</div>
+                <div style="background:#EDF2F8; color:#0D3B7C; font-size:11px; font-weight:700; padding:5px 12px; border-radius:14px;">Process</div>
+                <div style="background:#EDF2F8; color:#0D3B7C; font-size:11px; font-weight:700; padding:5px 12px; border-radius:14px;">Process Safety</div>
+                <div style="background:#EDF2F8; color:#0D3B7C; font-size:11px; font-weight:700; padding:5px 12px; border-radius:14px;">Asset Integrity</div>
+              </div>
+              <div style="font-size:12.5px; color:#3A4E68; line-height:1.7;">
+                <div style="display:flex; gap:8px; margin-bottom:6px;"><span style="color:#3FA535; font-weight:800;">✓</span> Gap Analysis Report &amp; Action Plan reviewed (final rev.) per CRS with SOPC/TUV.</div>
+                <div style="display:flex; gap:8px; margin-bottom:6px;"><span style="color:#3FA535; font-weight:800;">✓</span> Baseline PSAIM schedule review finalized with TUV.</div>
+                <div style="display:flex; gap:8px;"><span style="color:#1155A6; font-weight:800;">▸</span> Next: KoM + training sessions for 5 process-safety elements.</div>
+              </div>
+            </div>
+            <div style="background:#fff; border-radius:11px; padding:14px 16px; box-shadow:0 2px 8px rgba(13,59,124,0.06); display:flex; flex-direction:column; overflow:hidden;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <div style="font-size:12.5px; font-weight:700;">Comments</div>
+                <div style="font-size:10.5px; color:#5B6E86;">★ → Monthly Report</div>
+              </div>
+              <sc-for list="{{ comments }}" as="c" hint-placeholder-count="3">
+                <div style="border:1px solid #E2EAF3; border-radius:8px; padding:8px 10px; margin-bottom:7px;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="background:#EDF2F8; color:#0D3B7C; font-size:10px; font-weight:700; padding:3px 8px; border-radius:10px;">{{ c.type }} ▾</span>
+                    <span style="flex:1;"></span>
+                    <span style="font-size:15px; color:{{ c.starC }}; cursor:pointer;">{{ c.star }}</span>
+                  </div>
+                  <div style="font-size:12px; color:#3A4E68; margin-top:5px;">{{ c.text }} <span style="font-size:10.5px; color:#1155A6; font-weight:600;">{{ c.att }}</span></div>
+                </div>
+              </sc-for>
+              <div style="display:flex; gap:8px; margin-top:auto;">
+                <div style="flex:1; border:1.5px dashed #9FB8D8; color:#1155A6; border-radius:7px; padding:7px; font-size:11.5px; font-weight:600; text-align:center; cursor:pointer;">＋ Comment</div>
+                <div style="flex:1; border:1.5px dashed #9FB8D8; color:#1155A6; border-radius:7px; padding:7px; font-size:11.5px; font-weight:600; text-align:center; cursor:pointer;">📎 PDF / XLS / DOC</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ 1c EXECUTIVE BRIEF ══════════════ -->
+    <div id="1c" style="flex:0 0 auto;">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+        <span style="background:#0D3B7C; color:#fff; font-weight:700; font-size:13px; padding:3px 10px; border-radius:6px;">1c</span>
+        <span style="font-weight:700; font-size:15px;">Executive Brief</span>
+        <span style="font-size:13px; color:#5B6E86;">— airy one-pager for management; big numbers, minimal chrome</span>
+      </div>
+      <div style="width:1000px; background:#fff; border:1px solid #C9D6E4; border-radius:10px; padding:52px 60px 40px; box-shadow:0 10px 30px rgba(13,59,124,0.10);">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:20px; border-bottom:2px solid #0D3B7C;">
+          <img src="assets/eprom-logo.png" alt="EPROM" style="height:44px;">
+          <div style="text-align:right; font-size:11px; color:#5B6E86; line-height:1.7;">Doc EPR-QF-PR-07 · Rev 00<br><b style="color:#16273D;">Week {{ weekNo }} · {{ rangeShort }}</b></div>
+        </div>
+        <div style="margin-top:30px;">
+          <div style="font-size:36px; font-weight:800; letter-spacing:-0.01em;">Weekly Progress Report</div>
+          <div style="font-size:15px; color:#5B6E86; margin-top:6px;">PSAIM – Suez Projects · Client: SOPC · Report date <b style="color:#16273D;">{{ reportDateMed }}</b> <span style="color:#3FA535; font-size:11.5px; font-weight:700;">● AUTO</span> · Cut-off {{ cutoffMed }}</div>
+        </div>
+        <div style="margin-top:26px; font-size:22px; font-weight:600; line-height:1.5;">Project is <span style="color:{{ statusC }}; font-weight:800; border-bottom:3px solid {{ statusC }};">{{ statusLabel }}</span> — actual progress trails plan by <b style="color:{{ statusC }};">3.5 pts</b> at cut-off.</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; margin-top:30px; border-top:1px solid #E2EAF3;">
+          <div style="padding:18px 18px 18px 0; border-right:1px solid #E2EAF3;">
+            <div style="font-size:40px; font-weight:800; color:#3FA535;">42.5<span style="font-size:20px;">%</span></div>
+            <div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.08em; margin-top:2px;">ACTUAL vs 46.0% PLANNED</div>
+          </div>
+          <div style="padding:18px; border-right:1px solid #E2EAF3;">
+            <div style="font-size:40px; font-weight:800; color:{{ statusC }};">{{ varStr }}</div>
+            <div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.08em; margin-top:2px;">SCHEDULE VARIANCE</div>
+          </div>
+          <div style="padding:18px; border-right:1px solid #E2EAF3;">
+            <div style="font-size:40px; font-weight:800;">21,340</div>
+            <div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.08em; margin-top:2px;">MAN-HOURS · PLAN 23,000</div>
+          </div>
+          <div style="padding:18px 0 18px 18px;">
+            <div style="font-size:40px; font-weight:800; color:#2E7D32;">0 <span style="font-size:16px; color:#5B6E86; font-weight:700;">LTI</span></div>
+            <div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.08em; margin-top:2px;">1 FIRST AID · 3 NEAR MISS</div>
+          </div>
+        </div>
+        <div style="border-top:1px solid #E2EAF3; padding-top:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.08em;">CUMULATIVE TREND — PLANNED vs ACTUAL</div>
+            <div style="font-size:10.5px; color:#5B6E86;"><span style="display:inline-block; width:9px; height:9px; background:#9FB8D8; border-radius:2px;"></span> Planned&nbsp;&nbsp;<span style="display:inline-block; width:9px; height:9px; background:#3FA535; border-radius:2px;"></span> Actual</div>
+          </div>
+          <div style="display:flex; align-items:flex-end; gap:14px; height:64px; margin-top:12px; border-bottom:1px solid #E2EAF3;">
+            <sc-for list="{{ trendC }}" as="w" hint-placeholder-count="11">
+              <div style="flex:1; display:flex; align-items:flex-end; gap:2px; justify-content:center;">
+                <div style="width:7px; background:#D6E2F0; border-radius:2px 2px 0 0; height:{{ w.ph }};"></div>
+                <div style="width:7px; background:#3FA535; border-radius:2px 2px 0 0; height:{{ w.ah }};"></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:40px; margin-top:26px;">
+          <div>
+            <div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.08em; margin-bottom:10px;">THIS WEEK — KEY POINTS</div>
+            <div style="font-size:13.5px; color:#3A4E68; line-height:1.8;">
+              <div style="display:flex; gap:9px;"><span style="color:#3FA535; font-weight:800;">✓</span> 11 CDU-01 SOPs reviewed &amp; submitted to SOPC</div>
+              <div style="display:flex; gap:9px;"><span style="color:#3FA535; font-weight:800;">✓</span> Maintenance Strategy approved by SOPC</div>
+              <div style="display:flex; gap:9px;"><span style="color:#3FA535; font-weight:800;">✓</span> Layer-1 criticality U20/21/22 approved</div>
+              <div style="display:flex; gap:9px;"><span style="color:#1155A6; font-weight:800;">▸</span> Next: HIRA workshops after risk-matrix approval</div>
+            </div>
+          </div>
+          <div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px;"><div style="font-size:11px; font-weight:700; color:#5B6E86; letter-spacing:0.08em;">COMMENTS</div><div style="font-size:10.5px; color:#5B6E86;">★ → Monthly</div></div>
+            <sc-for list="{{ comments }}" as="c" hint-placeholder-count="3">
+              <div style="display:flex; gap:10px; align-items:baseline; padding:7px 0; border-bottom:1px solid #F0F4F9;">
+                <span style="font-size:10px; font-weight:700; color:#0D3B7C; letter-spacing:0.04em; flex:0 0 128px; text-transform:uppercase;">{{ c.type }} ▾</span>
+                <span style="flex:1; font-size:12.5px; color:#3A4E68;">{{ c.text }}</span>
+                <span style="font-size:14px; color:{{ c.starC }};">{{ c.star }}</span>
+              </div>
+            </sc-for>
+            <div style="font-size:11.5px; color:#1155A6; font-weight:600; margin-top:8px; cursor:pointer;">＋ Add comment · 📎 Attach PDF / Excel / Word</div>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:18px; margin-top:34px; padding-top:18px; border-top:2px solid #0D3B7C;">
+          <div style="width:58px; height:58px; background-image:url('{{ qr }}'); background-size:contain; background-repeat:no-repeat; background-color:#F6F9FC;"></div>
+          <div style="font-size:10.5px; color:#5B6E86; line-height:1.5; width:130px;"><b style="color:#16273D;">Report archive</b><br>Scan → Google Drive</div>
+          <div style="flex:1;"></div>
+          <input type="password" placeholder="Admin PIN" style="width:100px; padding:8px 10px; border:1px solid #C9D6E4; border-radius:6px; font-size:12px; letter-spacing:0.15em;">
+          <div style="background:#0D3B7C; color:#fff; font-size:12px; font-weight:700; padding:9px 16px; border-radius:6px; cursor:pointer;">⬆ Upload to Drive</div>
+          <div style="border:1px solid #C9D6E4; color:#0D3B7C; font-size:12px; font-weight:700; padding:9px 16px; border-radius:6px; cursor:pointer;">🖨 Print PDF</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ 1d SPLIT CONTROL SHEET ══════════════ -->
+    <div id="1d" style="flex:0 0 auto;">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+        <span style="background:#0D3B7C; color:#fff; font-weight:700; font-size:13px; padding:3px 10px; border-radius:6px;">1d</span>
+        <span style="font-weight:700; font-size:15px;">Split Control Sheet</span>
+        <span style="font-size:13px; color:#5B6E86;">— compact engineering layout; per-category %, comments table, monthly tray</span>
+      </div>
+      <div style="width:1380px; background:#E9EEF4; border:1px solid #C9D6E4; border-radius:12px; padding:14px; font-family:'Barlow Semi Condensed',sans-serif; box-shadow:0 10px 30px rgba(13,59,124,0.10);">
+        <div style="background:#fff; border-radius:9px; padding:10px 16px; display:flex; align-items:center; gap:14px; margin-bottom:12px;">
+          <img src="assets/eprom-logo.png" alt="EPROM" style="height:36px;">
+          <div style="width:1px; height:28px; background:#DCE5EF;"></div>
+          <div style="font-size:17px; font-weight:700; letter-spacing:0.04em;">WEEKLY PROGRESS CONTROL SHEET</div>
+          <div style="background:{{ statusBg }}; color:{{ statusC }}; font-weight:700; font-size:12px; padding:4px 12px; border-radius:12px;">🔒 {{ statusLabel }} · {{ varStr }}</div>
+          <div style="flex:1;"></div>
+          <div style="font-size:11px; color:#5B6E86;">Doc EPR-QF-PR-07 · Rev 00</div>
+          <div style="border:1px solid #C9D6E4; color:#0D3B7C; font-size:11.5px; font-weight:700; padding:6px 12px; border-radius:6px; cursor:pointer;">🖨 PDF</div>
+        </div>
+        <div style="display:flex; gap:12px;">
+          <div style="flex:0 0 300px; display:flex; flex-direction:column; gap:10px;">
+            <div style="background:#fff; border-radius:9px; padding:12px 14px;">
+              <div style="font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.08em; margin-bottom:5px;">PROJECT</div>
+              <select style="width:100%; padding:7px 9px; border:1px solid #C9D6E4; border-radius:6px; font-size:12.5px; font-weight:600; color:#16273D; background:#fff;"><option>PSAIM – Suez Projects (SOPC)</option><option>MIDOR Expansion – Unit 08</option><option>Tank Farm Upgrade</option></select>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; margin-top:10px; font-size:11.5px; color:#3A4E68;">
+                <div><b style="color:#5B6E86; font-size:9.5px; letter-spacing:0.06em;">CODE</b><br>EP-SU-PSAIM</div>
+                <div><b style="color:#5B6E86; font-size:9.5px; letter-spacing:0.06em;">CLIENT</b><br>SOPC</div>
+              </div>
+            </div>
+            <div style="background:#0D3B7C; color:#fff; border-radius:9px; padding:12px 14px;">
+              <div style="font-size:10px; font-weight:700; letter-spacing:0.08em; opacity:0.65;">REPORTING WEEK ● AUTO</div>
+              <div style="font-size:16px; font-weight:700; margin-top:3px;">{{ weekLabel }}</div>
+              <div style="font-size:11px; opacity:0.8; margin-top:5px; line-height:1.6;">Report date <b>{{ reportDateMed }}</b><br>Cut-off <b>{{ cutoffMed }}</b> (Thu)</div>
+            </div>
+            <div style="background:#fff; border-radius:9px; padding:12px 14px; display:flex; gap:10px; align-items:center;">
+              <div style="width:58px; height:58px; background-image:url('{{ qr }}'); background-size:contain; background-repeat:no-repeat; background-color:#F6F9FC;"></div>
+              <div style="font-size:10.5px; color:#5B6E86; line-height:1.5;"><b style="color:#16273D;">Archive QR</b><br>Google Drive — all weeklies</div>
+            </div>
+            <div style="background:#fff; border-radius:9px; padding:12px 14px;">
+              <div style="font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.08em; margin-bottom:6px;">HSE (TO DATE)</div>
+              <div style="display:flex; gap:6px;">
+                <div style="flex:1; text-align:center; background:#E7F3E7; border-radius:6px; padding:5px 2px;"><b style="font-size:16px; color:#2E7D32;">0</b><div style="font-size:8.5px; font-weight:700; color:#2E7D32;">LTI</div></div>
+                <div style="flex:1; text-align:center; background:#E7F3E7; border-radius:6px; padding:5px 2px;"><b style="font-size:16px; color:#2E7D32;">0</b><div style="font-size:8.5px; font-weight:700; color:#2E7D32;">REC</div></div>
+                <div style="flex:1; text-align:center; background:#FBF1DE; border-radius:6px; padding:5px 2px;"><b style="font-size:16px; color:#B26A00;">1</b><div style="font-size:8.5px; font-weight:700; color:#B26A00;">FA</div></div>
+                <div style="flex:1; text-align:center; background:#FBF1DE; border-radius:6px; padding:5px 2px;"><b style="font-size:16px; color:#B26A00;">3</b><div style="font-size:8.5px; font-weight:700; color:#B26A00;">NM</div></div>
+              </div>
+            </div>
+            <div style="background:#fff; border:1.5px solid #3FA535; border-radius:9px; padding:12px 14px;">
+              <div style="font-size:10px; font-weight:700; color:#2E7D32; letter-spacing:0.08em; margin-bottom:7px;">ADMIN · UPLOAD TO DRIVE</div>
+              <div style="display:flex; gap:7px;">
+                <input type="password" placeholder="PIN" style="flex:0 0 76px; padding:7px 9px; border:1px solid #C9D6E4; border-radius:6px; font-size:12px; letter-spacing:0.2em;">
+                <div style="flex:1; background:#3FA535; color:#fff; text-align:center; font-size:11.5px; font-weight:700; padding:8px 4px; border-radius:6px; cursor:pointer;">⬆ Approve &amp; Upload</div>
+              </div>
+              <div style="font-size:10px; color:#5B6E86; margin-top:7px;">● Draft saved ▸ Approved ▸ On Drive</div>
+            </div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px;">
+              <div style="background:#fff; border-radius:9px; padding:10px 12px;"><div style="font-size:9.5px; font-weight:700; color:#5B6E86; letter-spacing:0.07em;">PLANNED %</div><div style="font-size:24px; font-weight:700; color:#1155A6;">46.0</div></div>
+              <div style="background:#fff; border-radius:9px; padding:10px 12px;"><div style="font-size:9.5px; font-weight:700; color:#5B6E86; letter-spacing:0.07em;">ACTUAL %</div><div style="font-size:24px; font-weight:700; color:#3FA535;">42.5</div></div>
+              <div style="background:#fff; border-radius:9px; padding:10px 12px;"><div style="font-size:9.5px; font-weight:700; color:#5B6E86; letter-spacing:0.07em;">VARIANCE</div><div style="font-size:24px; font-weight:700; color:{{ statusC }};">{{ varStr }}</div></div>
+              <div style="background:#fff; border-radius:9px; padding:10px 12px;"><div style="font-size:9.5px; font-weight:700; color:#5B6E86; letter-spacing:0.07em;">MAN-HOURS</div><div style="font-size:24px; font-weight:700;">21,340 <span style="font-size:11px; color:#5B6E86;">/ 23,000</span></div></div>
+            </div>
+            <div style="background:#fff; border-radius:9px; padding:12px 14px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div style="font-size:12px; font-weight:700;">PROGRESS BY CATEGORY <span style="color:#5B6E86; font-weight:500; font-size:10.5px;">planned / actual / var</span></div>
+                <div style="font-size:10px; color:#5B6E86;"><span style="display:inline-block; width:8px; height:8px; background:#9FB8D8; border-radius:2px;"></span> Plan <span style="display:inline-block; width:8px; height:8px; background:#3FA535; border-radius:2px; margin-left:6px;"></span> Actual</div>
+              </div>
+              <sc-for list="{{ cats }}" as="k" hint-placeholder-count="4">
+                <div style="display:grid; grid-template-columns:130px 1fr 54px 54px 54px; gap:10px; align-items:center; padding:5px 0; border-top:1px solid #EFF3F8; font-size:12px;">
+                  <div style="font-weight:700; color:#0D3B7C;">{{ k.name }}</div>
+                  <div style="height:8px; background:#EDF2F8; border-radius:4px; position:relative;"><div style="height:8px; background:#3FA535; border-radius:4px; width:{{ k.aw }};"></div><div style="position:absolute; top:-2px; width:2px; height:12px; background:#1155A6; left:{{ k.pw }};"></div></div>
+                  <div style="color:#1155A6; font-weight:600;">{{ k.p }}%</div>
+                  <div style="color:#3FA535; font-weight:600;">{{ k.a }}%</div>
+                  <div style="font-weight:700; color:{{ k.vc }};">{{ k.v }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="background:#fff; border-radius:9px; padding:12px 14px;">
+              <div style="display:grid; grid-template-columns:180px 1fr 150px 70px; gap:10px; font-size:9.5px; font-weight:700; color:#5B6E86; letter-spacing:0.07em; padding-bottom:6px; border-bottom:1.5px solid #DCE5EF;">
+                <div>COMMENT TYPE ▾</div><div>DETAIL</div><div>ATTACHMENT</div><div style="text-align:center;">MONTHLY</div>
+              </div>
+              <sc-for list="{{ comments }}" as="c" hint-placeholder-count="3">
+                <div style="display:grid; grid-template-columns:180px 1fr 150px 70px; gap:10px; align-items:center; padding:7px 0; border-bottom:1px solid #EFF3F8; font-size:12px;">
+                  <div style="color:#0D3B7C; font-weight:700;">{{ c.type }} ▾</div>
+                  <div style="color:#3A4E68;">{{ c.text }}</div>
+                  <div style="color:#1155A6; font-size:11px; font-weight:600;">{{ c.att }}</div>
+                  <div style="text-align:center; font-size:15px; color:{{ c.starC }};">{{ c.star }}</div>
+                </div>
+              </sc-for>
+              <div style="display:flex; gap:8px; margin-top:9px;">
+                <div style="border:1.5px dashed #9FB8D8; color:#1155A6; border-radius:6px; padding:6px 12px; font-size:11px; font-weight:700; cursor:pointer;">＋ ADD ROW</div>
+                <div style="border:1.5px dashed #9FB8D8; color:#1155A6; border-radius:6px; padding:6px 12px; font-size:11px; font-weight:700; cursor:pointer;">📎 UPLOAD PDF / XLS / DOC</div>
+              </div>
+            </div>
+            <div style="background:#FFFBEF; border:1.5px solid #E8C15A; border-radius:9px; padding:11px 14px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div style="font-size:11px; font-weight:700; color:#8A6A12; letter-spacing:0.07em;">★ MONTHLY REPORT TRAY — {{ flaggedCount }} FLAGGED</div>
+                <div style="flex:1;"></div>
+                <div style="background:#0D3B7C; color:#fff; font-size:11px; font-weight:700; padding:6px 12px; border-radius:6px; cursor:pointer;">Export to Monthly Report →</div>
+              </div>
+              <div style="font-size:11.5px; color:#6B5A1E; margin-top:6px;">{{ flaggedSummary }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { qr: '' };
+  componentDidMount() {
+    const make = (n) => {
+      if (window.qrcode) {
+        try {
+          const q = window.qrcode(0, 'M');
+          q.addData('https://drive.google.com/drive/folders/EPROM-WEEKLY-REPORTS');
+          q.make();
+          this.setState({ qr: q.createDataURL(4, 8) });
+        } catch (e) {}
+      } else if (n < 30) setTimeout(() => make(n + 1), 200);
+    };
+    make(0);
+  }
+  renderVals() {
+    const now = new Date();
+    const add = (7 - now.getDay()) % 7;
+    const report = new Date(now.getFullYear(), now.getMonth(), now.getDate() + add);
+    const wkStart = new Date(report); wkStart.setDate(report.getDate() - 7);
+    const cut = new Date(wkStart); cut.setDate(wkStart.getDate() + 4);
+    const oneJan = new Date(wkStart.getFullYear(), 0, 1);
+    const weekNo = Math.ceil(((wkStart - oneJan) / 86400000 + oneJan.getDay() + 1) / 7);
+    const long = d => d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const med = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const short = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    const planned = 46.0, actual = 42.5;
+    const v = +(actual - planned).toFixed(1);
+    const st = v >= 0 ? { label: 'Ahead of Schedule', c: '#2E7D32', bg: '#E7F3E7' }
+      : v >= -3 ? { label: 'On Track', c: '#1155A6', bg: '#E8F0FA' }
+      : v >= -7 ? { label: 'At Risk', c: '#B26A00', bg: '#FBF1DE' }
+      : { label: 'Delayed', c: '#C62828', bg: '#FAE7E7' };
+    const weeks = [[4,3],[9,7],[14,12],[19,17],[24,21],[28,26],[32,30],[36,33],[40,36],[43,39],[46,42.5]];
+    const mk = (scale) => weeks.map((w, i) => ({
+      ph: Math.max(3, Math.round(w[0] * scale)) + 'px',
+      ah: Math.max(2, Math.round(w[1] * scale)) + 'px',
+      lbl: 'W' + (weekNo - weeks.length + 1 + i)
+    }));
+    const circ = 2 * Math.PI * 52;
+    const comments = [
+      { type: 'Client approval pending', text: 'RBI procedure Rev.01 submitted to SOPC — awaiting feedback.', att: '📎 RBI-Proc-R01.pdf', star: '★', starC: '#E8A13A' },
+      { type: 'Vendor/TUV delay', text: 'Unit-20 SOP internal review slipped 3 days (reference data pending).', att: '', star: '☆', starC: '#B7C6D8' },
+      { type: 'Achievement / milestone', text: 'Maintenance Strategy officially approved by SOPC.', att: '📎 MS-Approval.docx', star: '★', starC: '#E8A13A' }
+    ];
+    const catData = [
+      { name: 'In Common', p: 44.0, a: 41.2 },
+      { name: 'Process', p: 52.0, a: 50.1 },
+      { name: 'Process Safety', p: 38.0, a: 35.6 },
+      { name: 'Asset Integrity', p: 47.5, a: 44.0 }
+    ];
+    const cats = catData.map(k => {
+      const kv = +(k.a - k.p).toFixed(1);
+      return { name: k.name, p: k.p.toFixed(1), a: k.a.toFixed(1), v: (kv > 0 ? '+' : '') + kv.toFixed(1),
+        vc: kv >= 0 ? '#2E7D32' : kv >= -3 ? '#B26A00' : '#C62828',
+        aw: k.a + '%', pw: k.p + '%' };
+    });
+    const flagged = comments.filter(c => c.star === '★');
+    return {
+      qr: this.state.qr,
+      weekNo: weekNo,
+      weekLabel: 'Week ' + weekNo + ' · ' + short(wkStart) + ' – ' + short(cut),
+      rangeShort: short(wkStart) + ' – ' + short(cut) + ' ' + cut.getFullYear(),
+      reportDateLong: long(report), cutoffLong: long(cut),
+      reportDateMed: med(report), cutoffMed: med(cut),
+      varStr: (v > 0 ? '+' : '') + v.toFixed(1) + '%',
+      statusLabel: st.label, statusC: st.c, statusBg: st.bg,
+      gaugeLeft: ((v + 20) / 40 * 100).toFixed(1) + '%',
+      mhPct: (21340 / 23000 * 100).toFixed(1) + '%',
+      plannedDash: (planned / 100 * circ).toFixed(1) + ' ' + circ.toFixed(1),
+      actualDash: (actual / 100 * circ).toFixed(1) + ' ' + circ.toFixed(1),
+      trendB: mk(1.9), trendC: mk(1.3),
+      comments: comments, cats: cats,
+      flaggedCount: flagged.length,
+      flaggedSummary: flagged.map(c => c.text).join('   ·   ')
+    };
+  }
+}
+</script>
+</body>
+</html>

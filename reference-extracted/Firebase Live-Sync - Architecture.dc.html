@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Semi+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#DDE5EE;}
+  *{box-sizing:border-box;}
+  a{color:#1155A6;} a:hover{color:#0D3B7C;}
+</style>
+</helmet>
+<div style="min-height:100vh; font-family:'Barlow',sans-serif; color:#16273D; padding:36px 0 70px;">
+  <div style="width:1060px; margin:0 auto; background:#fff; border:1px solid #C9D6E4; border-radius:10px; overflow:hidden; box-shadow:0 10px 30px rgba(13,59,124,0.10);">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:18px 28px 14px;">
+      <img src="assets/eprom-logo.png" alt="EPROM" style="height:46px;">
+      <div style="font-size:11.5px; color:#5B6E86; text-align:right; line-height:1.6;">Weekly Progress Report System<br><b style="color:#16273D;">Live-Sync Design — Firebase Firestore</b></div>
+    </div>
+    <div style="background:#0D3B7C; color:#fff; padding:12px 28px; font-size:18px; font-weight:800; letter-spacing:0.04em;">REAL-TIME MULTI-USER SYNC — ARCHITECTURE</div>
+
+    <div style="padding:22px 28px 8px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">1 · FLOW</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 44px 1.2fr 44px 1fr; gap:0; align-items:center;">
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div style="border:1.5px solid #1155A6; border-radius:9px; padding:11px 13px; background:#F6F9FC;">
+            <div style="font-size:12px; font-weight:800; color:#0D3B7C;">👤 Engineer A — Weekly form</div>
+            <div style="font-size:11px; color:#5B6E86; margin-top:3px; line-height:1.5;">Types Actual % → saved to <b>localStorage</b> (works offline)</div>
+          </div>
+          <div style="border:1.5px solid #1155A6; border-radius:9px; padding:11px 13px; background:#F6F9FC;">
+            <div style="font-size:12px; font-weight:800; color:#0D3B7C;">👤 PM — Monthly report</div>
+            <div style="font-size:11px; color:#5B6E86; margin-top:3px; line-height:1.5;">Sees the new week appear in the breakdown <b>instantly</b></div>
+          </div>
+          <div style="border:1.5px solid #1155A6; border-radius:9px; padding:11px 13px; background:#F6F9FC;">
+            <div style="font-size:12px; font-weight:800; color:#0D3B7C;">👤 Admin — any device</div>
+            <div style="font-size:11px; color:#5B6E86; margin-top:3px; line-height:1.5;">PIN → Approve; the 🔒 lock state propagates to everyone</div>
+          </div>
+        </div>
+        <div style="text-align:center; font-size:20px; color:#1155A6; font-weight:800;">⇄</div>
+        <div style="border:2px solid #0D3B7C; border-radius:11px; overflow:hidden;">
+          <div style="background:#0D3B7C; color:#fff; padding:8px 14px; font-size:12.5px; font-weight:800;">🔄 sync adapter — firebase-sync.js</div>
+          <div style="padding:11px 14px; font-size:11px; color:#3A4E68; line-height:1.7;">
+            <b style="color:#0D3B7C;">Outbound:</b> intercepts every <code style="background:#EDF2F8; padding:1px 5px; border-radius:3px;">eprom.*</code> localStorage write → debounced 400 ms → Firestore <code style="background:#EDF2F8; padding:1px 5px; border-radius:3px;">set()</code><br>
+            <b style="color:#0D3B7C;">Inbound:</b> <code style="background:#EDF2F8; padding:1px 5px; border-radius:3px;">onSnapshot</code> → writes localStorage → fires a <code style="background:#EDF2F8; padding:1px 5px; border-radius:3px;">storage</code> event — the forms already react to it, so <b>zero changes</b> to the report pages<br>
+            <b style="color:#0D3B7C;">Loop guard:</b> applying-flag + value diff · <b>Conflicts:</b> last-write-wins on <code style="background:#EDF2F8; padding:1px 5px; border-radius:3px;">updatedAt</code>
+          </div>
+        </div>
+        <div style="text-align:center; font-size:20px; color:#1155A6; font-weight:800;">⇄</div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div style="border:1.5px solid #E8A13A; border-radius:9px; padding:11px 13px; background:#FFFBEF;">
+            <div style="font-size:12px; font-weight:800; color:#8A6A12;">☁ Firestore — eprom-reports</div>
+            <div style="font-size:11px; color:#6B5A1E; margin-top:3px; line-height:1.5;">One doc per storage key<br><code style="background:#fff; padding:1px 5px; border-radius:3px;">{ v, updatedAt, by }</code><br>Realtime push ≤ 1 s · offline queue built-in</div>
+          </div>
+          <div style="border:1.5px solid #3FA535; border-radius:9px; padding:11px 13px; background:#F4FAF2;">
+            <div style="font-size:12px; font-weight:800; color:#2E7D32;">📁 Google Drive (existing)</div>
+            <div style="font-size:11px; color:#3A4E68; margin-top:3px; line-height:1.5;">Apps Script keeps receiving the <b>approved snapshot</b> on upload — Drive = archive, Firestore = live state</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:18px 28px 8px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">2 · DATA MODEL</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+        <div style="font-size:11px; color:#5B6E86;">doc id = storage key with “.” → “~”</div>
+      </div>
+      <div style="display:grid; grid-template-columns:290px 1fr; gap:8px; font-size:10px; font-weight:700; color:#5B6E86; letter-spacing:0.06em; padding:0 2px 6px; border-bottom:1.5px solid #DCE5EF;">
+        <div>FIRESTORE DOC ID</div><div>CONTENT (v = JSON string)</div>
+      </div>
+      <div style="display:grid; grid-template-columns:290px 1fr; gap:8px; padding:7px 2px; border-bottom:1px solid #EFF3F8; font-size:12px;"><div style="font-family:'Barlow Semi Condensed'; color:#0D3B7C; font-weight:700;">eprom~wpr~psaim-suez-projects-sopc~2026-W29</div><div style="color:#3A4E68;">One weekly report: KPIs, disciplines, tasks, Gantt, milestones, comments, lock stage</div></div>
+      <div style="display:grid; grid-template-columns:290px 1fr; gap:8px; padding:7px 2px; border-bottom:1px solid #EFF3F8; font-size:12px;"><div style="font-family:'Barlow Semi Condensed'; color:#0D3B7C; font-weight:700;">eprom~wpr~hist~psaim-suez-projects-sopc</div><div style="color:#3A4E68;">Planned/actual history per week — feeds the trend charts</div></div>
+      <div style="display:grid; grid-template-columns:290px 1fr; gap:8px; padding:7px 2px; border-bottom:1px solid #EFF3F8; font-size:12px;"><div style="font-family:'Barlow Semi Condensed'; color:#0D3B7C; font-weight:700;">eprom~mpr~psaim-suez-projects-sopc~2026-07</div><div style="color:#3A4E68;">Monthly meta: summary, outlook, manual action items, exclusions, lock stage</div></div>
+    </div>
+
+    <div style="padding:18px 28px 8px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">3 · SETUP (ONE-TIME, ~10 MIN)</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+      </div>
+      <div style="font-size:13px; color:#3A4E68; line-height:2.0;">
+        <b>1.</b> <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> → Add project (e.g. <i>eprom-reports</i>) — no Analytics needed<br>
+        <b>2.</b> Build → Firestore Database → Create (production mode, region eur3)<br>
+        <b>2b.</b> Build → Authentication → Sign-in method → enable <b>Email link (passwordless)</b>, and under Settings → Authorized domains add the domain the reports run on. Signed-out users see a slim bar at the bottom of the report: enter work email → click the emailed link → signed in, no passwords<br>
+        <b>3.</b> Project settings → Your apps → Web app → copy the <code style="background:#EDF2F8; padding:1px 6px; border-radius:3px;">firebaseConfig</code> object<br>
+        <b>4.</b> Paste it into <code style="background:#EDF2F8; padding:1px 6px; border-radius:3px;">firebase-sync/firebase-sync.js</code> (the <code style="background:#EDF2F8; padding:1px 6px; border-radius:3px;">var CONFIG</code> line) — the adapter is inert until then<br>
+        <b>5.</b> Firestore → Rules → paste the rules below → Publish<br>
+        <b>6.</b> <b>Whitelists (two levels):</b> each person opens a report, signs in via the email link, and sends you the UID from the browser console (also under <code style="background:#EDF2F8; padding:1px 6px; border-radius:3px;">epromFbUid</code> in DevTools → Local Storage). In Firestore create two collections and add docs whose <b>ID = the UID</b> (fields optional, e.g. name):<br>
+        <span style="display:inline-block; margin-left:18px;">· <code style="background:#EDF2F8; padding:1px 6px; border-radius:3px;">editors</code> — required for <b>any</b> write; everyone not listed is read-only</span><br>
+        <span style="display:inline-block; margin-left:18px;">· <code style="background:#EDF2F8; padding:1px 6px; border-radius:3px;">admins</code> — additionally may Approve/lock and edit locked reports (admins also need an <code style="background:#EDF2F8; padding:1px 6px; border-radius:3px;">editors</code> entry)</span>
+      </div>
+      <div style="background:#16273D; color:#D6E2F0; border-radius:8px; padding:14px 18px; margin-top:10px; font-family:'Barlow Semi Condensed',monospace; font-size:12.5px; line-height:1.8; white-space:pre;">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // admin = a doc exists at /admins/&lt;your UID&gt; (content irrelevant)
+    function isAdmin() {
+      return request.auth != null
+        &amp;&amp; exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // editor = a doc exists at /editors/&lt;UID&gt; — required for ANY write
+    function isEditor() {
+      return request.auth != null
+        &amp;&amp; exists(/databases/$(database)/documents/editors/$(request.auth.uid));
+    }
+
+    match /admins/{uid} {
+      allow read: if request.auth != null;
+      allow write: if false;   // manage ONLY from the Firebase console
+    }
+
+    match /editors/{uid} {
+      allow read: if request.auth != null;
+      allow write: if false;   // manage ONLY from the Firebase console
+    }
+
+    match /eprom-reports/{doc} {
+      allow read: if request.auth != null;
+
+      allow create, update: if isEditor()
+        &amp;&amp; request.resource.data.keys().hasAll(['v', 'updatedAt'])
+        &amp;&amp; request.resource.data.v is string
+        &amp;&amp; request.resource.data.v.size() &lt; 200000        // ≤ 200 KB per report
+        &amp;&amp; request.resource.data.updatedAt is number
+        // stale writes lose — last-write-wins server-side:
+        &amp;&amp; (resource == null
+            || request.resource.data.updatedAt &gt;= resource.data.updatedAt)
+        // editing an already-LOCKED (approved) report → admins only:
+        &amp;&amp; (resource == null || resource.data.locked != true || isAdmin())
+        // setting the lock (Approve &amp; Upload) → admins only:
+        &amp;&amp; (request.resource.data.locked != true || isAdmin());
+
+      allow delete: if false;   // reports are never deleted from the app
+    }
+  }
+}</div>
+      <div style="font-size:11.5px; color:#5B6E86; margin-top:8px;">Auth-hardened: unauthenticated traffic is rejected, payloads are schema- and size-checked, stale writes lose server-side, deletes are blocked. The admin PIN stays app-level and the 🔒 uploaded lock still blocks edits in the UI. Sign-in is passwordless email-link, so every UID maps to a real team mailbox. All writes require an <code style="background:#EDF2F8; padding:1px 5px; border-radius:3px;">editors</code> entry (everyone else is read-only); locking/editing locked reports additionally requires <code style="background:#EDF2F8; padding:1px 5px; border-radius:3px;">admins</code> (step 6).</div>
+    </div>
+
+    <div style="padding:18px 28px 26px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <div style="background:#1155A6; color:#fff; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px;">4 · BEHAVIOUR GUARANTEES</div>
+        <div style="flex:1; height:1px; background:#DCE5EF;"></div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:12.5px; color:#3A4E68; line-height:1.7;">
+        <div style="border:1px solid #E2EAF3; border-radius:8px; padding:11px 14px;"><b style="color:#2E7D32;">✓ Offline-first</b> — no internet: everything keeps saving locally; Firestore queues and reconciles on reconnect</div>
+        <div style="border:1px solid #E2EAF3; border-radius:8px; padding:11px 14px;"><b style="color:#2E7D32;">✓ Instant cross-form</b> — weekly edits recompile any open Monthly in ≤ 1 s (same tab-sync path as today)</div>
+        <div style="border:1px solid #E2EAF3; border-radius:8px; padding:11px 14px;"><b style="color:#2E7D32;">✓ Lock propagation</b> — Approve &amp; Upload sets stage=2 in the doc; every device sees 🔒 read-only immediately</div>
+        <div style="border:1px solid #E2EAF3; border-radius:8px; padding:11px 14px;"><b style="color:#2E7D32;">✓ Role badge</b> — corner chip after sign-in: 🔒 <i>Read-only</i> (amber) when the UID isn't in <code style="background:#EDF2F8; padding:1px 5px; border-radius:3px;">editors</code> — hovering shows the UID to send the admin; ★ <i>Admin</i> (green) for whitelisted admins; editors see no chip</div>
+        <div style="border:1px solid #E2EAF3; border-radius:8px; padding:11px 14px;"><b style="color:#B26A00;">△ Conflicts</b> — two people editing the same week: last write wins per report (400 ms debounce); field-level merge is a later upgrade</div>
+      </div>
+    </div>
+
+    <div style="background:#0D3B7C; color:#fff; display:flex; justify-content:space-between; align-items:center; padding:10px 28px; font-size:11.5px;">
+      <div style="font-weight:600;">One Team. One Goal. Operational Excellence.</div>
+      <div style="opacity:0.85;"><a href="Weekly Report - Classic Form.dc.html" style="color:#fff;">Weekly Report</a> · <a href="Monthly Report - Auto-Compiled.dc.html" style="color:#fff;">Monthly Report</a></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

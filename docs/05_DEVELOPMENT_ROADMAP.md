@@ -1,0 +1,258 @@
+# Development Roadmap
+
+## How to use this roadmap
+
+Complete one phase at a time. After each phase, review the browser result, run validation, and record what changed. Do not let Claude Code start the next phase automatically.
+
+This file is the single source of truth for **where the project actually is**. Update the status table below at the end of every phase.
+
+---
+
+## Status at a glance
+
+Last verified: **2026-07-25** (lint, type-check, and production build all green; no database reachable).
+
+| # | Phase | Status |
+|---|---|---|
+| 0 | Documentation and audit | ✅ Complete |
+| 1 | Existing foundation | ✅ Complete |
+| 2 | Project master data | ✅ Complete |
+| 2A | Organization Chart *(added — see note)* | ✅ Complete |
+| 3 | Data foundation | ⚠️ **Partial — migrations written, never executed** |
+| 4 | Weekly Workspace UI | ⚠️ Partial (~60%) |
+| 5 | Weekly data and department submission | ⚠️ Partial |
+| 6 | Comments and collaboration | ⚠️ Partial |
+| 7 | Workflow, permissions, notifications | ❌ Config only, nothing enforced |
+| 8 | Excel exchange | ❌ Not started |
+| 9 | Monthly Reports | ❌ **Not started** |
+| 10 | Executive reporting | ❌ **Not started** |
+| 11 | A4/PDF output | ❌ Not started |
+| 12 | Hardening and future integrations | ❌ Not started |
+
+**Current phase: 3 (blocked on database provisioning).**
+**Recommended next: finish Phase 3, then Phase 4.**
+
+Two standing facts that affect every estimate below:
+
+- **No database has ever been provisioned.** There is no `.env.local`, the Supabase CLI is not authenticated, and Docker is not installed. The application runs entirely on in-memory mock data. All 13 migrations are unexecuted SQL.
+- **The repository has no version control history.** `.git` exists but is empty. There is no way to revert a bad change.
+
+### A note on phase numbering
+
+Earlier sessions used ad-hoc labels — `5A`, `5B`, `5C`, `6A.1`–`6A.4`, `OC-1`–`OC-6` — that do **not** correspond to the phases here. That mismatch caused real confusion (an "OC-2" request meant one thing to the requester and another in the code). Those labels are retired. Use the numbers in this file only.
+
+Phase 2A did not exist in the original plan. The Organization Chart was built across six sessions and is substantial and working, so it is recorded here rather than left undocumented.
+
+---
+
+## Phase 0 — Documentation and audit ✅
+
+- Read this pack and inspect the existing application.
+- Confirm current routes, components, database state, and unfinished work.
+- Resolve contradictions before implementation.
+
+**Done when:** the team can name the current phase and the next phase without guessing.
+
+**Outcome:** audit completed 2026-07-25. Documentation consolidated to the repository root; the duplicate set under `eprp/docs/` was merged into `docs/engineering/`.
+
+---
+
+## Phase 1 — Existing foundation ✅
+
+Preserve or complete the existing project foundation, design system, sidebar, layout, and routes.
+
+**Done when:** the app builds and existing pages remain stable.
+
+**Delivered:** Next.js 16 App Router + React 19 + TypeScript strict + Tailwind v4 + shadcn/ui. EPROM-branded shell (navy sidebar with logo, top bar, breadcrumbs, mobile sheet, icon-rail collapse). 13 shared components with a `/design-system` reference page. Executive Dashboard with 6 KPI tiles, 5 Recharts charts, insight cards, and HSE/quality stats.
+
+**Known gap:** the dashboard imports `data/mock` directly instead of going through the service layer, so it will not pick up real data when the database connects. Fix during Phase 3.
+
+---
+
+## Phase 2 — Project master data ✅
+
+Projects, clients, project types, phases, departments, systems, disciplines, contacts, responsibilities, and safe archive/delete behavior. Dropdowns must be admin-managed, not hardcoded.
+
+**Done when:** a project can be created/edited with linked master data and validation.
+
+**Delivered:**
+
+- Full CRUD for Clients, Project Types, Phases, Departments, Systems, Disciplines, and Contacts, each with list/detail/new/edit routes.
+- Every dropdown is admin-managed; none are hardcoded.
+- Safe archive/deactivate with reference checks.
+- 6-step project creation wizard, guided setup flow, and a 13-section project workspace.
+- Responsibility fields store contact IDs, not names.
+- Zod validation with Save Draft versus Final Submission rules.
+
+---
+
+## Phase 2A — Organization Chart ✅ *(added to plan retrospectively)*
+
+Project-scoped reporting structure, listed under "Main modules" in `01_PROJECT_VISION.md` but absent from the original phase list.
+
+**Delivered:**
+
+- Relational hierarchy (`parentPositionId` + `sortOrder`); no canvas coordinates are stored, and layout is always derived.
+- Pan/zoom canvas with minimap, collapse/expand, and drag-and-drop re-parenting with circular-hierarchy rejection.
+- Position editor with 14 fields, vacancy as a first-class state, and assignment history.
+- Five starting templates (EPC, EPCM, Construction, Turnaround, Blank) with preview and overwrite confirmation.
+- Four-step Excel import (Upload → Mapping → Validation → Preview) using `xlsx`, with duplicate/missing-parent/cycle detection.
+- Chart management: rename, description, type, effective date, status, archive.
+- Six-state review lifecycle (Draft → In Progress → Under Review → Approved → Locked, plus Archived) with read-only locking and Create New Revision.
+
+**Known gap:** the mock service enforces locking with nine explicit guards, but the Supabase service relies solely on a database trigger that has never run. Verify during Phase 3.
+
+---
+
+## Phase 3 — Data foundation ⚠️ PARTIAL — **current phase**
+
+Connect the existing application to the chosen database/storage architecture. Add migrations, typed data access, seed data, authorization foundation, and loading/error handling.
+
+**Done when:** master data persists after reload and access is protected.
+
+**Written but not executed:**
+
+- 13 migrations covering 17 tables, with composite foreign keys, partial unique indexes, check constraints, and a chart-locking trigger.
+- Row Level Security enabled on all 17 tables.
+- Typed row definitions and browser/server Supabase clients.
+- Three gated services (`project`, `weekly-report`, `organization-chart`) at full method parity with their mock counterparts, switching on `isSupabaseConfigured()`.
+- `.env.example` with public keys separated from the server-only service-role key.
+
+**Not done — this is what blocks the phase:**
+
+- No Supabase project or local Postgres exists. `supabase db push` has never succeeded.
+- Therefore no migration, RLS policy, constraint, or trigger has been verified. Migration `…0003` rewrites existing status data and drops an index; if it fails partway, recovery is manual.
+- RLS policies are `using (true) with check (true)` — the intended temporary Admin CRUD, but they grant every authenticated user full access to all 17 tables. **These must not reach production.**
+- No seed data script has been run.
+- The dashboard still bypasses the service layer.
+
+**To finish:** provision a database (Docker + `supabase start`, or link a hosted project) → `supabase db push` → populate `.env.local` → re-verify Projects, Weekly, and Organization Chart against real persistence → point the dashboard at services.
+
+---
+
+## Phase 4 — Weekly Workspace UI ⚠️ PARTIAL (~60%)
+
+Implement the Weekly design as a project workspace: header, workflow, KPIs, summary, activities, department updates, risks/issues, Next Week Plan, Look Ahead, comments, attachments, approval, and history.
+
+**Done when:** the complete Weekly experience is usable with typed data and matches the approved references.
+
+**Delivered:** report header with project linkage, workflow status display, progress and KPI section with auto-calculated variance and SPI, department updates with discipline auto-linking, narrative entries (key comments, risks, issues, actions) with priority/status/owner/due date and an `includeInMonthly` flag, submission status by department, and detail plus preview views.
+
+**Still missing, from `02_REPORTING_ARCHITECTURE.md` §3:**
+
+- Executive Summary section
+- Major Activities Completed section
+- Look Ahead (next week, 2 weeks, 4 weeks, month, quarter)
+- Documents and attachments
+- Approval actions
+- History / audit trail
+
+---
+
+## Phase 5 — Weekly data and department submission ⚠️ PARTIAL
+
+Create Weekly records, department submissions, project-scoped filtering, department ownership, save draft, submit, return, and resubmit.
+
+**Done when:** each department can submit only its authorized section and Project Control can track all submissions.
+
+**Delivered:** weekly records with department submissions, project-scoped filtering, submission status tracking, and save-draft behaviour.
+
+**Missing:** department *ownership* — there is no authentication, so no user is scoped to a department and every user sees everything. Return-with-reason and resubmit are not implemented. Depends on Phase 7.
+
+---
+
+## Phase 6 — Comments and collaboration ⚠️ PARTIAL
+
+Add unlimited local threads, free-text comments, replies, mentions, attachments, resolve/reopen, Executive flag, Include in Monthly, and the persistent Comment Register with history and carry-forward.
+
+**Done when:** a comment can persist from Weekly to later reports without overwriting its original history.
+
+**Delivered:** flat narrative entries with category, priority, status, owner, due date, and an `includeInMonthly` flag.
+
+**Missing:** threads, replies, mentions, attachments, resolve/reopen, the Executive flag, and the entire **Comment Register** — the persistent cross-report master record with history and carry-forward described in `02_REPORTING_ARCHITECTURE.md` §6. Phase 9 depends on this: Monthly compilation needs carried-forward comments.
+
+---
+
+## Phase 7 — Workflow, permissions, notifications ❌ CONFIG ONLY
+
+Implement lifecycle transitions, role-based access/RLS, secure links, email notifications, reminders, return reasons, and audit history.
+
+**Done when:** the system enforces who can see, edit, review, approve, finalize, and lock each report.
+
+**Exists:** `config/workflows.ts` (transition rules) and `config/permissions.ts` (7 roles × 18 permissions), both documented in `engineering/`.
+
+**Nothing is enforced.** `hasPermission()` is called by zero components. There is no login, session, or role resolution. Two specification gaps must be reconciled here: the code's 10-state lifecycle versus the 6 states in `03_WORKFLOW.md`, and the code's role names versus §6 of the same file.
+
+---
+
+## Phase 8 — Excel exchange ❌ NOT STARTED
+
+Generate a protected workbook per project/department/period, prefill authorized data and open comments, validate uploads, preview changes, detect duplicates, and import only approved rows.
+
+**Done when:** Excel is a safe exception path, not a second uncontrolled database.
+
+**Note:** `xlsx` is installed and a four-step import wizard exists, but it imports **organization charts only**. The department workbook exchange is untouched; `import-service.ts` is five stubs and `/weekly-reports/import` is a placeholder. The org-chart wizard is a reusable pattern for this phase.
+
+---
+
+## Phase 9 — Monthly Reports ❌ NOT STARTED
+
+Compile finalized Weeklies, selected/carry-forward comments, progress trends, achievements, risks, issues, HSE, quality, actions, and Look Ahead. Allow unlimited new Monthly comments and Monthly-specific editing.
+
+**Done when:** a Monthly Draft can be generated, reviewed, approved, finalized, locked, and traced back to its Weeklies.
+
+**Current state:** all six routes are placeholders, `features/monthly-reports/` is empty, `monthly-report-service.ts` is seven stubs, and **no `monthly_reports` table exists in any migration**.
+
+**Do not start before Phases 3, 4, and 6 are complete.** Monthly compiles from approved Weeklies and carried-forward comments; building it on an incomplete Weekly (no Executive Summary, no Major Activities, no Look Ahead) and a missing Comment Register would mean compiling from sources that do not yet hold the data.
+
+---
+
+## Phase 10 — Executive reporting ❌ NOT STARTED
+
+Build project and portfolio Executive Reports, executive comments, KPIs, health status, trends, risks, actions, decisions, and the company-president view across all projects.
+
+**Done when:** leadership can understand portfolio health without opening raw department submissions.
+
+**Current state:** all five routes are placeholders, `features/executive-reports/` is empty, `executive-report-service.ts` is five stubs, and no `executive_reports` table exists. The Executive Dashboard at `/dashboard` is a mock-data view, not this report.
+
+Depends on Phase 9 and on the Executive comment flag from Phase 6.
+
+---
+
+## Phase 11 — A4/PDF output ❌ NOT STARTED
+
+Create print views and PDF export for Weekly, Monthly, Project Executive, and Portfolio Executive reports. Include logos, compact charts, selected comments, decisions, sign-offs, and page metadata.
+
+**Done when:** the one-page Executive output is readable and print-safe.
+
+**Current state:** `export-service.ts` is two stubs; there are no print views or print CSS. Requirements are detailed in `04_EXECUTIVE_REPORT.md` §7.
+
+---
+
+## Phase 12 — Hardening and future integrations ❌ NOT STARTED
+
+Add DOCX output, branding management, signatures, QR codes, advanced audit/revision tools, Primavera/Power BI integrations, performance improvements, and final user documentation.
+
+**Done when:** production readiness is assessed and future integrations are explicitly scoped.
+
+**Carry into this phase:**
+
+- Replace the temporary `using (true)` RLS policies with real per-role rules.
+- `xlsx@0.18.5` carries a high-severity advisory with no registry fix available; `next@16.2.10` has one fixed in 16.2.11. Eight advisories total (5 high, 3 moderate).
+- There is no test runner. Assertions written for the tree helpers, chart templates, locking rules, and the Excel importer (87 in total, all passing) live in a scratch directory outside the repository and are lost between sessions. They should be moved into `eprp/src` under a real runner.
+
+---
+
+## Standard phase prompt
+
+Use this short instruction before a phase:
+
+```text
+Read CLAUDE.md and all documents under docs/.
+Inspect the existing implementation before changing it.
+Implement only [PHASE NAME].
+Preserve existing validated UI and behavior; do not modify unrelated modules.
+Run lint, type-check, and production build.
+Report changed files, completed requirements, deferred items, and remaining issues.
+Stop after this phase.
+```
