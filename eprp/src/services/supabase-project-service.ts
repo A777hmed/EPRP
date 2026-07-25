@@ -30,6 +30,21 @@ function client(): SupabaseClient {
   return getSupabaseBrowserClient() as unknown as SupabaseClient;
 }
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * `projects.id` is a `uuid` column, so Postgres rejects a malformed id with
+ * `22P02 invalid input syntax` rather than returning no rows. Callers cannot
+ * tell that apart from a real failure, so an id that cannot possibly exist is
+ * treated here as "not found" — the same answer a well-formed but unused id
+ * gets. Without this, a bad id in the URL rejects and leaves the page loading
+ * forever.
+ */
+function isUuid(value: string): boolean {
+  return UUID_PATTERN.test(value);
+}
+
 type ProjectInput = Omit<Project, "id" | "createdAt" | "updatedAt">;
 
 const RESPONSIBILITY_ROLES: {
@@ -394,6 +409,7 @@ export const supabaseProjectService: ProjectService = {
   },
 
   async getProjectById(id) {
+    if (!isUuid(id)) return null;
     const { data, error } = await client()
       .from("projects")
       .select("*")
