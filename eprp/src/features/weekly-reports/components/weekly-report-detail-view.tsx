@@ -27,10 +27,15 @@ import {
   KPI_RATING_META,
   PROGRESS_STATUS_META,
   REPORT_STATUS_META,
+  SCHEDULE_RECOMMENDATION_META,
 } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { formatDate, formatNumber } from "@/lib/formatters";
-import { calculateSpi, scheduleVariance } from "@/lib/reporting";
+import {
+  calculateSpi,
+  recommendScheduleStatus,
+  scheduleVariance,
+} from "@/lib/reporting";
 import { weeklyWorkflow, type WorkflowStatus } from "@/config/workflows";
 import { getContactById } from "@/features/master-data";
 import { projectService } from "@/services/project-service";
@@ -330,7 +335,46 @@ export function WeeklyReportDetailView({ reportId }: WeeklyReportDetailViewProps
                   <span className="text-sm text-muted-foreground">—</span>
                 )}
               </div>
+              {/*
+                Derived from variance, never stored. Overriding it is a later
+                System Administrator / Project Control-only feature (spec §5),
+                blocked until login and role enforcement exist.
+              */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  System Recommendation
+                </span>
+                <StatusBadge
+                  tone={
+                    SCHEDULE_RECOMMENDATION_META[
+                      recommendScheduleStatus(variance)
+                    ].tone
+                  }
+                >
+                  {
+                    SCHEDULE_RECOMMENDATION_META[
+                      recommendScheduleStatus(variance)
+                    ].label
+                  }
+                </StatusBadge>
+              </div>
             </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Executive Summary"
+            description="Narrative for management covering the week overall."
+          >
+            {report.summary ? (
+              <p className="whitespace-pre-wrap text-sm text-pretty">
+                {report.summary}
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No executive summary has been written for this week.
+                {isEditableReport(report) && " Add one from the edit form."}
+              </p>
+            )}
           </SectionCard>
 
           <SectionCard

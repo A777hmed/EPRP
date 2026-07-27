@@ -15,6 +15,7 @@ import type {
   SubmissionStatus,
   WeeklyEntryType,
 } from "@/types";
+import type { ScheduleRecommendation } from "@/lib/reporting";
 import type { StatusTone } from "@/components/shared/status-badge";
 
 /**
@@ -128,6 +129,22 @@ export const PROGRESS_STATUS_META: Record<
   on_track: { label: "On Track", tone: "success" },
   at_risk: { label: "At Risk", tone: "warning" },
   behind: { label: "Behind Schedule", tone: "danger" },
+  critical: { label: "Critical", tone: "danger" },
+};
+
+/**
+ * Labels for the derived schedule recommendation (spec §5). Separate from
+ * {@link PROGRESS_STATUS_META} because the recommendation has three values
+ * and is never stored.
+ */
+export const SCHEDULE_RECOMMENDATION_META: Record<
+  ScheduleRecommendation,
+  // Narrowed: these three are the only tones the recommendation can take,
+  // which lets read-only metric fields accept it without a cast.
+  { label: string; tone: Extract<StatusTone, "success" | "warning" | "danger"> }
+> = {
+  on_schedule: { label: "On Schedule", tone: "success" },
+  delayed: { label: "Delayed", tone: "warning" },
   critical: { label: "Critical", tone: "danger" },
 };
 

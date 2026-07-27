@@ -178,9 +178,10 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
   async create(input: WeeklyReportCreateInput) {
     const project = await projectService.getProjectById(input.projectId);
     if (!project) throw new Error("Selected project not found");
-    const { start, end } = getReportingWeekRange(input.periodStart);
-    const weekNumber = getWeekNumber(start);
-    const year = getReportingYear(start);
+    const { start, end, anchor } = getReportingWeekRange(input.periodStart);
+    // Week numbering uses the Monday anchor — see getReportingWeekRange.
+    const weekNumber = getWeekNumber(anchor);
+    const year = getReportingYear(anchor);
 
     const { data, error } = await client()
       .from("weekly_reports")
@@ -206,6 +207,7 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
         hse_status: input.hseStatus ?? null,
         quality_status: input.qualityStatus ?? null,
         overall_progress_status: input.overallProgressStatus ?? null,
+        summary: input.summary || null,
       })
       .select("*")
       .single();
@@ -241,10 +243,10 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
   async update(id, input: WeeklyReportUpdateInput) {
     const patch: Record<string, unknown> = {};
     if (input.periodStart) {
-      const { start, end } = getReportingWeekRange(input.periodStart);
+      const { start, end, anchor } = getReportingWeekRange(input.periodStart);
       patch.period_start = toIsoDate(start);
       patch.period_end = toIsoDate(end);
-      patch.week_number = getWeekNumber(start);
+      patch.week_number = getWeekNumber(anchor);
       const current = await supabaseWeeklyReportService.getById(id);
       if (!current) throw new Error(`Weekly report ${id} not found`);
       const project = await projectService.getProjectById(current.projectId);
@@ -252,8 +254,8 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
       patch.report_number = formatReportNumber(
         "weekly",
         project.code,
-        getReportingYear(start),
-        getWeekNumber(start)
+        getReportingYear(anchor),
+        getWeekNumber(anchor)
       );
     }
     if (input.preparedByContactId !== undefined)
@@ -275,6 +277,8 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
       patch.quality_status = input.qualityStatus;
     if (input.overallProgressStatus !== undefined)
       patch.overall_progress_status = input.overallProgressStatus;
+    // Empty string clears the narrative, matching the position editor rule.
+    if (input.summary !== undefined) patch.summary = input.summary || null;
 
     const { error } = await client()
       .from("weekly_reports")

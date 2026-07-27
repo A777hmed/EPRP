@@ -27,8 +27,10 @@ const weeklyPeriodStartSchema = z
   .min(1, "Select the reporting period")
   .refine(isRealIsoDate, "Enter a valid reporting date")
   .refine(
-    (value) => !isRealIsoDate(value) || getISODay(parseISO(value)) === 1,
-    "The reporting period must start on Monday"
+    // The work week runs Sunday–Thursday (spec §5), so the period starts on
+    // a Sunday — ISO day 7.
+    (value) => !isRealIsoDate(value) || getISODay(parseISO(value)) === 7,
+    "The reporting period must start on Sunday"
   );
 
 const kpiRatings = [
@@ -248,6 +250,11 @@ export const weeklyReportHeaderSchema = z.object({
   hseStatus: z.enum(kpiRatings, "Select an HSE status"),
   qualityStatus: z.enum(kpiRatings, "Select a quality status"),
   overallProgressStatus: z.enum(progressStatuses, "Select an overall status"),
+  /** Optional narrative; blank is a valid "not written yet" state. */
+  executiveSummary: z
+    .string()
+    .trim()
+    .max(5000, "Keep the executive summary under 5000 characters"),
   departmentUpdates: z
     .array(departmentUpdateSchema)
     .superRefine((rows, ctx) => {
@@ -276,7 +283,7 @@ export type WeeklyReportHeaderValues = z.infer<
   typeof weeklyReportHeaderSchema
 >;
 
-/** Snap any selected date to the Monday that starts its ISO reporting week. */
+/** Snap any selected date to the Sunday that starts its reporting week. */
 export function normalizeWeeklyPeriodStart(value: string): string {
   if (!isRealIsoDate(value)) return value;
   return format(getReportingWeekRange(value).start, "yyyy-MM-dd");
@@ -295,6 +302,7 @@ export function emptyWeeklyReportHeaderValues(): WeeklyReportHeaderValues {
     hseStatus: "good",
     qualityStatus: "good",
     overallProgressStatus: "on_track",
+    executiveSummary: "",
     departmentUpdates: [],
     entries: [],
   };
@@ -354,6 +362,7 @@ export function weeklyReportToHeaderValues(
     hseStatus: report.hseStatus ?? "good",
     qualityStatus: report.qualityStatus ?? "good",
     overallProgressStatus: report.overallProgressStatus ?? "on_track",
+    executiveSummary: report.summary ?? "",
     departmentUpdates: submissionsToDepartmentUpdates(submissions),
     entries: entriesToEntryValues(entries),
   };

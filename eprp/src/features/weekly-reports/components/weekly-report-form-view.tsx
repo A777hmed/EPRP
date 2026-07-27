@@ -101,6 +101,8 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
       hseStatus: values.hseStatus,
       qualityStatus: values.qualityStatus,
       overallProgressStatus: values.overallProgressStatus,
+      // Empty string clears any previously saved narrative.
+      summary: values.executiveSummary,
     };
 
     // Blank optional text/date/number fields are stored as "not set".

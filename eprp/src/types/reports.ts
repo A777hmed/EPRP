@@ -111,6 +111,8 @@ export interface WeeklyReport extends ReportBase {
   hseStatus?: KpiRating;
   qualityStatus?: KpiRating;
   overallProgressStatus?: ProgressStatus;
+  /** Executive Summary narrative for the week (spec section 5). */
+  summary?: string;
   submissionIds: string[];
   /** Key comments, risks, issues, and action items (Phase 6A.4). */
   entryIds: string[];

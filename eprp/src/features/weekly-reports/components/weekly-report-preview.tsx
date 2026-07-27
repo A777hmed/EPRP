@@ -154,6 +154,21 @@ export function WeeklyReportPreview({ reportId }: WeeklyReportPreviewProps) {
         </section>
 
         <section>
+          <h2 className="mb-2 text-sm font-semibold">Executive Summary</h2>
+          <div className="rounded-lg border p-4">
+            {report.summary ? (
+              <p className="whitespace-pre-wrap text-sm text-pretty">
+                {report.summary}
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No executive summary recorded for this week.
+              </p>
+            )}
+          </div>
+        </section>
+
+        <section>
           <h2 className="mb-2 text-sm font-semibold">
             Department Submissions
           </h2>

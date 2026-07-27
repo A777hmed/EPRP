@@ -181,6 +181,8 @@ export interface WeeklyReportRow {
   hse_status: string | null;
   quality_status: string | null;
   overall_progress_status: string | null;
+  /** Report-level Executive Summary (spec section 5). */
+  summary: string | null;
   active: boolean;
   archived_at: string | null;
   created_at: string;

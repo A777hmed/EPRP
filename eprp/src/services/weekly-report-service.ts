@@ -44,6 +44,8 @@ export interface WeeklyReportCreateInput {
   hseStatus?: KpiRating;
   qualityStatus?: KpiRating;
   overallProgressStatus?: ProgressStatus;
+  /** Executive Summary narrative. */
+  summary?: string;
 }
 
 export interface WeeklyReportUpdateInput {
@@ -59,6 +61,8 @@ export interface WeeklyReportUpdateInput {
   hseStatus?: KpiRating;
   qualityStatus?: KpiRating;
   overallProgressStatus?: ProgressStatus;
+  /** Empty string clears the saved narrative. */
+  summary?: string;
 }
 
 /** One "Department Updates" row submitted from the weekly form (Phase 6A.3). */
@@ -168,9 +172,10 @@ const mockWeeklyReportService: WeeklyReportService = {
     const project = await projectService.getProjectById(input.projectId);
     if (!project) throw new Error("Selected project not found");
 
-    const { start, end } = getReportingWeekRange(input.periodStart);
-    const weekNumber = getWeekNumber(start);
-    const year = getReportingYear(start);
+    const { start, end, anchor } = getReportingWeekRange(input.periodStart);
+    // Week numbering uses the Monday anchor — see getReportingWeekRange.
+    const weekNumber = getWeekNumber(anchor);
+    const year = getReportingYear(anchor);
     const timestamp = nowIso();
     const reportId = nextId("wr");
 
@@ -213,6 +218,7 @@ const mockWeeklyReportService: WeeklyReportService = {
       hseStatus: input.hseStatus,
       qualityStatus: input.qualityStatus,
       overallProgressStatus: input.overallProgressStatus,
+      summary: input.summary || undefined,
       submissionIds,
       entryIds: [],
       attachmentIds: [],
@@ -230,17 +236,17 @@ const mockWeeklyReportService: WeeklyReportService = {
 
     const patch: Partial<WeeklyReport> = {};
     if (input.periodStart) {
-      const { start, end } = getReportingWeekRange(input.periodStart);
+      const { start, end, anchor } = getReportingWeekRange(input.periodStart);
       patch.periodStart = toIsoDate(start);
       patch.periodEnd = toIsoDate(end);
-      patch.weekNumber = getWeekNumber(start);
+      patch.weekNumber = getWeekNumber(anchor);
       const project = await projectService.getProjectById(existing.projectId);
       if (!project) throw new Error("Report project not found");
       patch.reportNumber = formatReportNumber(
         "weekly",
         project.code,
-        getReportingYear(start),
-        getWeekNumber(start)
+        getReportingYear(anchor),
+        getWeekNumber(anchor)
       );
     }
     if (input.preparedByContactId !== undefined)
@@ -262,6 +268,8 @@ const mockWeeklyReportService: WeeklyReportService = {
       patch.qualityStatus = input.qualityStatus;
     if (input.overallProgressStatus !== undefined)
       patch.overallProgressStatus = input.overallProgressStatus;
+    // Empty string clears the narrative, matching the Supabase NULL write.
+    if (input.summary !== undefined) patch.summary = input.summary || undefined;
 
     const updated: WeeklyReport = {
       ...existing,

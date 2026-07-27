@@ -15,6 +15,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -33,9 +34,11 @@ import {
   OVERALL_STATUS_META,
   PROGRESS_STATUS_META,
   REPORT_STATUS_META,
+  SCHEDULE_RECOMMENDATION_META,
 } from "@/lib/constants";
 import {
   calculateSpi,
+  recommendScheduleStatus,
   formatReportNumber,
   getReportingWeekRange,
   getReportingYear,
@@ -247,13 +250,14 @@ function defaultDisciplineIds(
 function derivePeriod(periodStart: string) {
   const date = parseISO(periodStart);
   if (!isValid(date) || format(date, "yyyy-MM-dd") !== periodStart) return null;
-  const { start, end } = getReportingWeekRange(date);
+  const { start, end, anchor } = getReportingWeekRange(date);
   return {
     start,
     end,
     periodEnd: format(end, "yyyy-MM-dd"),
-    weekNumber: getWeekNumber(start),
-    year: getReportingYear(start),
+    // Numbering uses the Monday anchor — see getReportingWeekRange.
+    weekNumber: getWeekNumber(anchor),
+    year: getReportingYear(anchor),
   };
 }
 
@@ -481,7 +485,7 @@ export function WeeklyReportHeaderForm({
               name="periodStart"
               label="Reporting Period"
               required
-              description="Choose any date; the period snaps to Monday–Sunday."
+              description="Choose any date; the period snaps to the Sunday–Thursday work week."
             >
               {({ field, controlProps }) => (
                 <div className="grid grid-cols-2 gap-2">
@@ -680,6 +684,31 @@ export function WeeklyReportHeaderForm({
               }
               description="Actual ÷ planned (1.00 = on plan)."
             />
+            {/*
+              Derived and read-only. Spec §5 allows a manual override with a
+              reason, but restricts it to System Administrator / authorized
+              Project Control users — so it is deliberately not built until
+              login and role enforcement exist.
+            */}
+            <AutoMetricField
+              label="System Recommendation"
+              value={
+                variance === null
+                  ? undefined
+                  : SCHEDULE_RECOMMENDATION_META[
+                      recommendScheduleStatus(variance)
+                    ].label
+              }
+              tone={
+                variance === null
+                  ? undefined
+                  : SCHEDULE_RECOMMENDATION_META[
+                      recommendScheduleStatus(variance)
+                    ].tone
+              }
+              placeholder="Enter progress"
+              description="From variance: ≥ −3% On Schedule · ≥ −7% Delayed · below Critical."
+            />
 
             <RhfField
               control={control}
@@ -772,7 +801,7 @@ export function WeeklyReportHeaderForm({
               description={
                 variance === null
                   ? "Reported verdict for the week."
-                  : `Suggested from variance: ${PROGRESS_STATUS_META[suggestProgressStatus(variance)].label}.`
+                  : "Reported verdict for the week. See System Recommendation above."
               }
             >
               {({ field, controlProps }) => (
@@ -792,6 +821,32 @@ export function WeeklyReportHeaderForm({
               )}
             </RhfField>
           </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Executive Summary"
+          description="A short narrative for management covering the week overall."
+        >
+          <RhfField
+            control={control}
+            name="executiveSummary"
+            label="Executive Summary"
+            optional
+            description="Plain text. Leave blank if there is nothing to report this week."
+          >
+            {({ field, controlProps }) => (
+              <Textarea
+                {...controlProps}
+                rows={5}
+                placeholder="Summarise progress, key achievements, and anything management should be aware of this week."
+                value={(field.value as string) ?? ""}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                name={field.name}
+                ref={field.ref}
+              />
+            )}
+          </RhfField>
         </SectionCard>
 
         <DepartmentUpdatesSection
