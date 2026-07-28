@@ -64,6 +64,7 @@ import {
   type WeeklyReportHeaderValues,
 } from "../schemas/weekly-report-header";
 import { DepartmentUpdatesSection } from "./department-updates-section";
+import { MajorActivitiesSection } from "./major-activities-section";
 import { WeeklyEntriesSection } from "./weekly-entries-section";
 
 interface WeeklyReportHeaderFormProps {
@@ -848,6 +849,12 @@ export function WeeklyReportHeaderForm({
             )}
           </RhfField>
         </SectionCard>
+
+        <MajorActivitiesSection
+          control={control}
+          setValue={setValue}
+          disabled={!selectedProject}
+        />
 
         <DepartmentUpdatesSection
           control={control}

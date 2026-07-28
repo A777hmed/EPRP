@@ -230,6 +230,21 @@ export interface WeeklyEntryRow {
   updated_at: string;
 }
 
+export interface WeeklyActivityRow {
+  id: string;
+  weekly_report_id: string;
+  title: string;
+  department_id: string | null;
+  discipline_id: string | null;
+  owner_contact_id: string | null;
+  status: string;
+  progress_percent: number | null;
+  remarks: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface OrganizationChartRow {
   id: string;
   project_id: string;
@@ -324,6 +339,7 @@ export interface Database {
       weekly_reports: TableDef<WeeklyReportRow, Writable<WeeklyReportRow> & { report_number: string; project_id: string; week_number: number; period_start: string; period_end: string }, Writable<WeeklyReportRow>>;
       weekly_submissions: TableDef<WeeklySubmissionRow, Omit<WeeklySubmissionRow, "id" | "created_at" | "updated_at">, Partial<WeeklySubmissionRow>>;
       weekly_entries: TableDef<WeeklyEntryRow, Omit<WeeklyEntryRow, "id" | "created_at" | "updated_at">, Partial<WeeklyEntryRow>>;
+      weekly_activities: TableDef<WeeklyActivityRow, Omit<WeeklyActivityRow, "id" | "created_at" | "updated_at">, Partial<WeeklyActivityRow>>;
     };
   };
 }

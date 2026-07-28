@@ -3,12 +3,14 @@ import { format } from "date-fns";
 
 import type {
   ReportStatus,
+  WeeklyActivity,
   WeeklyEntry,
   WeeklyReport,
   WeeklySubmission,
 } from "@/types";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
+  WeeklyActivityRow,
   WeeklyEntryRow,
   WeeklyReportRow,
   WeeklySubmissionRow,
@@ -83,10 +85,28 @@ function rowToEntry(row: WeeklyEntryRow): WeeklyEntry {
   };
 }
 
+function rowToActivity(row: WeeklyActivityRow): WeeklyActivity {
+  return {
+    id: row.id,
+    weeklyReportId: row.weekly_report_id,
+    title: row.title,
+    departmentId: row.department_id ?? undefined,
+    disciplineId: row.discipline_id ?? undefined,
+    ownerContactId: row.owner_contact_id ?? undefined,
+    status: row.status as WeeklyActivity["status"],
+    progressPercent: row.progress_percent ?? undefined,
+    remarks: row.remarks ?? undefined,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function rowToReport(
   row: WeeklyReportRow,
   submissionIds: string[],
-  entryIds: string[]
+  entryIds: string[],
+  activityIds: string[] = []
 ): WeeklyReport {
   return {
     id: row.id,
@@ -112,6 +132,7 @@ function rowToReport(
       undefined,
     submissionIds,
     entryIds,
+    activityIds,
     attachmentIds: [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -120,7 +141,7 @@ function rowToReport(
 
 /** Collect child-row ids per report, so a list view needs one query per table. */
 async function childIdsByReport(
-  table: "weekly_submissions" | "weekly_entries",
+  table: "weekly_submissions" | "weekly_entries" | "weekly_activities",
   reportIds: string[]
 ): Promise<Map<string, string[]>> {
   const grouped = new Map<string, string[]>();
@@ -150,12 +171,18 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
     if (error) throw new Error(error.message);
     const rows = (data ?? []) as WeeklyReportRow[];
     const ids = rows.map((r) => r.id);
-    const [subs, entries] = await Promise.all([
+    const [subs, entries, acts] = await Promise.all([
       childIdsByReport("weekly_submissions", ids),
       childIdsByReport("weekly_entries", ids),
+      childIdsByReport("weekly_activities", ids),
     ]);
     return rows.map((row) =>
-      rowToReport(row, subs.get(row.id) ?? [], entries.get(row.id) ?? [])
+      rowToReport(
+        row,
+        subs.get(row.id) ?? [],
+        entries.get(row.id) ?? [],
+        acts.get(row.id) ?? []
+      )
     );
   },
 
@@ -168,11 +195,17 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
     if (error) throw new Error(error.message);
     if (!data) return null;
     const row = data as WeeklyReportRow;
-    const [subs, entries] = await Promise.all([
+    const [subs, entries, acts] = await Promise.all([
       childIdsByReport("weekly_submissions", [row.id]),
       childIdsByReport("weekly_entries", [row.id]),
+      childIdsByReport("weekly_activities", [row.id]),
     ]);
-    return rowToReport(row, subs.get(row.id) ?? [], entries.get(row.id) ?? []);
+    return rowToReport(
+      row,
+      subs.get(row.id) ?? [],
+      entries.get(row.id) ?? [],
+      acts.get(row.id) ?? []
+    );
   },
 
   async create(input: WeeklyReportCreateInput) {
@@ -414,6 +447,54 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
       .select("*");
     if (error) throw new Error(error.message);
     return ((data ?? []) as WeeklySubmissionRow[]).map(rowToSubmission);
+  },
+
+  async listActivities(reportId) {
+    const { data, error } = await client()
+      .from("weekly_activities")
+      .select("*")
+      .eq("weekly_report_id", reportId)
+      .order("sort_order", { ascending: true });
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as WeeklyActivityRow[]).map(rowToActivity);
+  },
+
+  async saveActivities(reportId, activities) {
+    const sb = client();
+    // Rows absent from the payload were removed by the user.
+    const { error: deleteError } = await sb
+      .from("weekly_activities")
+      .delete()
+      .eq("weekly_report_id", reportId);
+    if (deleteError) throw new Error(deleteError.message);
+
+    if (activities.length === 0) return [];
+
+    const { data, error } = await sb
+      .from("weekly_activities")
+      .insert(
+        activities.map((activity, index) => ({
+          weekly_report_id: reportId,
+          title: activity.title,
+          department_id: activity.departmentId || null,
+          discipline_id: activity.disciplineId || null,
+          owner_contact_id: activity.ownerContactId || null,
+          status: activity.status,
+          progress_percent:
+            activity.progressPercent === undefined ||
+            Number.isNaN(activity.progressPercent)
+              ? null
+              : activity.progressPercent,
+          remarks: activity.remarks || null,
+          // Array order is the authoring order.
+          sort_order: index,
+        }))
+      )
+      .select("*");
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as WeeklyActivityRow[])
+      .map(rowToActivity)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
   },
 
   async listEntries(reportId) {

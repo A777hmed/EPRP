@@ -1,4 +1,5 @@
 import type {
+  ActivityStatus,
   CommentCategory,
   EntryStatus,
   IsoDate,
@@ -100,6 +101,28 @@ export interface WeeklyEntry {
   createdAt: IsoDateTime;
 }
 
+/**
+ * One "Major Activity Completed" row on a weekly report (spec section 6).
+ * Department and discipline are master-data references; the project is
+ * reached through the parent report rather than duplicated here.
+ */
+export interface WeeklyActivity {
+  id: string;
+  weeklyReportId: string;
+  title: string;
+  departmentId?: string;
+  disciplineId?: string;
+  ownerContactId?: string;
+  status: ActivityStatus;
+  /** Whole percentage 0-100, or undefined when not tracked. */
+  progressPercent?: number;
+  remarks?: string;
+  /** Authoring order within the report. */
+  sortOrder: number;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
 export interface WeeklyReport extends ReportBase {
   weekNumber: number; // ISO week of periodStart
   plannedProgress: number; // cumulative planned %
@@ -116,6 +139,8 @@ export interface WeeklyReport extends ReportBase {
   submissionIds: string[];
   /** Key comments, risks, issues, and action items (Phase 6A.4). */
   entryIds: string[];
+  /** Major activities completed this week (Phase W2). */
+  activityIds: string[];
 }
 
 /* --------------------------------- Monthly -------------------------------- */

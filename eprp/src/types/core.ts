@@ -67,6 +67,9 @@ export type ProgressStatus =
  */
 export type WeeklyEntryType = "comment" | "risk" | "issue" | "action";
 
+/** Lifecycle of a major activity on a weekly report (spec section 6). */
+export type ActivityStatus = "not_started" | "in_progress" | "completed";
+
 /** Lifecycle of a comment / risk / issue / action item. */
 export type EntryStatus =
   | "open"

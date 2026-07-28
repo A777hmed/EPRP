@@ -25,7 +25,13 @@ import { scheduleVariance } from "@/lib/reporting";
 import { getContactById, getDepartmentById } from "@/features/master-data";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
-import type { Project, WeeklyReport, WeeklySubmission } from "@/types";
+import { ActivitiesTable } from "./activities-table";
+import type {
+  Project,
+  WeeklyActivity,
+  WeeklyReport,
+  WeeklySubmission,
+} from "@/types";
 import { SubmissionStatusBadge } from "./weekly-status-badge";
 
 function Cell({ label, value }: { label: string; value: string }) {
@@ -45,6 +51,7 @@ export interface WeeklyReportPreviewProps {
 export function WeeklyReportPreview({ reportId }: WeeklyReportPreviewProps) {
   const [report, setReport] = React.useState<WeeklyReport | null | undefined>();
   const [submissions, setSubmissions] = React.useState<WeeklySubmission[]>([]);
+  const [activities, setActivities] = React.useState<WeeklyActivity[]>([]);
   const [project, setProject] = React.useState<Project | null>(null);
 
   React.useEffect(() => {
@@ -53,13 +60,15 @@ export function WeeklyReportPreview({ reportId }: WeeklyReportPreviewProps) {
       if (cancelled) return;
       setReport(r);
       if (r) {
-        const [subs, proj] = await Promise.all([
+        const [subs, proj, acts] = await Promise.all([
           weeklyReportService.listSubmissions(r.id),
           projectService.getProjectById(r.projectId),
+          weeklyReportService.listActivities(r.id),
         ]);
         if (cancelled) return;
         setSubmissions(subs);
         setProject(proj);
+        setActivities(acts);
       }
     });
     return () => {
@@ -166,6 +175,13 @@ export function WeeklyReportPreview({ reportId }: WeeklyReportPreviewProps) {
               </p>
             )}
           </div>
+        </section>
+
+        <section>
+          <h2 className="mb-2 text-sm font-semibold">
+            Major Activities Completed
+          </h2>
+          <ActivitiesTable activities={activities} />
         </section>
 
         <section>

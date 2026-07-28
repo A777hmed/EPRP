@@ -1,4 +1,5 @@
 import type {
+  ActivityStatus,
   CommentCategory,
   EmploymentType,
   PositionStatus,
@@ -146,6 +147,16 @@ export const SCHEDULE_RECOMMENDATION_META: Record<
   on_schedule: { label: "On Schedule", tone: "success" },
   delayed: { label: "Delayed", tone: "warning" },
   critical: { label: "Critical", tone: "danger" },
+};
+
+/** Major activity lifecycle (spec section 6). */
+export const ACTIVITY_STATUS_META: Record<
+  ActivityStatus,
+  { label: string; tone: StatusTone }
+> = {
+  not_started: { label: "Not Started", tone: "neutral" },
+  in_progress: { label: "In Progress", tone: "info" },
+  completed: { label: "Completed", tone: "success" },
 };
 
 /** The four narrative entry kinds captured on a report (Phase 6A.4). */

@@ -2,7 +2,12 @@ import { format, getISODay, isValid, parseISO } from "date-fns";
 import { z } from "zod";
 
 import { getReportingWeekRange } from "@/lib/reporting";
-import type { WeeklyEntry, WeeklyReport, WeeklySubmission } from "@/types";
+import type {
+  WeeklyActivity,
+  WeeklyEntry,
+  WeeklyReport,
+  WeeklySubmission,
+} from "@/types";
 
 const reportStatuses = [
   "draft",
@@ -141,6 +146,65 @@ export function emptyDepartmentUpdate(
   };
 }
 
+const activityStatuses = ["not_started", "in_progress", "completed"] as const;
+
+/** One "Major Activities Completed" row (Phase W2). */
+export const weeklyActivitySchema = z.object({
+  id: z.string().optional(),
+  title: z
+    .string()
+    .trim()
+    .min(1, "Enter the activity")
+    .max(300, "Keep the activity under 300 characters"),
+  departmentId: z.string().trim(),
+  disciplineId: z.string().trim(),
+  ownerContactId: z.string().trim(),
+  status: z.enum(activityStatuses),
+  // Optional per row; NaN means "not tracked".
+  progressPercent: looseNumber.superRefine((value, ctx) => {
+    if (Number.isNaN(value)) return;
+    if (value < 0 || value > 100) {
+      ctx.addIssue({ code: "custom", message: "Must be between 0 and 100" });
+      return;
+    }
+    if (!Number.isInteger(value)) {
+      ctx.addIssue({ code: "custom", message: "Enter a whole percentage" });
+    }
+  }),
+  remarks: z.string().trim().max(1000).optional().or(z.literal("")),
+});
+
+export type WeeklyActivityValues = z.infer<typeof weeklyActivitySchema>;
+
+export function emptyWeeklyActivity(): WeeklyActivityValues {
+  return {
+    title: "",
+    departmentId: "",
+    disciplineId: "",
+    ownerContactId: "",
+    status: "not_started",
+    progressPercent: Number.NaN,
+    remarks: "",
+  };
+}
+
+function activitiesToValues(
+  activities: WeeklyActivity[]
+): WeeklyActivityValues[] {
+  return [...activities]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((activity) => ({
+      id: activity.id,
+      title: activity.title,
+      departmentId: activity.departmentId ?? "",
+      disciplineId: activity.disciplineId ?? "",
+      ownerContactId: activity.ownerContactId ?? "",
+      status: activity.status,
+      progressPercent: activity.progressPercent ?? Number.NaN,
+      remarks: activity.remarks ?? "",
+    }));
+}
+
 const entryTypes = ["comment", "risk", "issue", "action"] as const;
 
 const entryCategories = [
@@ -255,6 +319,7 @@ export const weeklyReportHeaderSchema = z.object({
     .string()
     .trim()
     .max(5000, "Keep the executive summary under 5000 characters"),
+  activities: z.array(weeklyActivitySchema),
   departmentUpdates: z
     .array(departmentUpdateSchema)
     .superRefine((rows, ctx) => {
@@ -303,6 +368,7 @@ export function emptyWeeklyReportHeaderValues(): WeeklyReportHeaderValues {
     qualityStatus: "good",
     overallProgressStatus: "on_track",
     executiveSummary: "",
+    activities: [],
     departmentUpdates: [],
     entries: [],
   };
@@ -348,7 +414,8 @@ export function submissionsToDepartmentUpdates(
 export function weeklyReportToHeaderValues(
   report: WeeklyReport,
   submissions: WeeklySubmission[] = [],
-  entries: WeeklyEntry[] = []
+  entries: WeeklyEntry[] = [],
+  activities: WeeklyActivity[] = []
 ): WeeklyReportHeaderValues {
   return {
     projectId: report.projectId,
@@ -363,6 +430,7 @@ export function weeklyReportToHeaderValues(
     qualityStatus: report.qualityStatus ?? "good",
     overallProgressStatus: report.overallProgressStatus ?? "on_track",
     executiveSummary: report.summary ?? "",
+    activities: activitiesToValues(activities),
     departmentUpdates: submissionsToDepartmentUpdates(submissions),
     entries: entriesToEntryValues(entries),
   };

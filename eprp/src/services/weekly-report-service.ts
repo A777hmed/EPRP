@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 
 import type {
+  ActivityStatus,
   CommentCategory,
   EntryStatus,
   IsoDate,
@@ -9,6 +10,7 @@ import type {
   ProgressStatus,
   ReportStatus,
   SubmissionStatus,
+  WeeklyActivity,
   WeeklyEntry,
   WeeklyEntryType,
   WeeklyReport,
@@ -46,6 +48,19 @@ export interface WeeklyReportCreateInput {
   overallProgressStatus?: ProgressStatus;
   /** Executive Summary narrative. */
   summary?: string;
+}
+
+/** One Major Activity row submitted from the form (Phase W2). */
+export interface WeeklyActivityInput {
+  /** Present when editing an existing row. */
+  id?: string;
+  title: string;
+  departmentId?: string;
+  disciplineId?: string;
+  ownerContactId?: string;
+  status: ActivityStatus;
+  progressPercent?: number;
+  remarks?: string;
 }
 
 export interface WeeklyReportUpdateInput {
@@ -111,6 +126,12 @@ export interface WeeklyReportService {
     reportId: string,
     updates: WeeklySubmissionInput[]
   ): Promise<WeeklySubmission[]>;
+  listActivities(reportId: string): Promise<WeeklyActivity[]>;
+  /** Replace-all: rows missing from the payload are deleted. */
+  saveActivities(
+    reportId: string,
+    activities: WeeklyActivityInput[]
+  ): Promise<WeeklyActivity[]>;
   listEntries(reportId: string): Promise<WeeklyEntry[]>;
   /** Replace the report's comments / risks / issues / actions. */
   saveEntries(
@@ -146,6 +167,7 @@ const submissionStore = new Map<string, WeeklySubmission>(
   mockWeeklySubmissions.map((s) => [s.id, clone(s)])
 );
 const entryStore = new Map<string, WeeklyEntry>();
+const activityStore = new Map<string, WeeklyActivity>();
 
 let sequence = reportStore.size;
 function nextId(prefix: string): string {
@@ -221,6 +243,7 @@ const mockWeeklyReportService: WeeklyReportService = {
       summary: input.summary || undefined,
       submissionIds,
       entryIds: [],
+      activityIds: [],
       attachmentIds: [],
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -393,6 +416,56 @@ const mockWeeklyReportService: WeeklyReportService = {
     reportStore.set(reportId, {
       ...report,
       submissionIds: saved.map((s) => s.id),
+      updatedAt: nowIso(),
+    });
+    return saved;
+  },
+
+  async listActivities(reportId) {
+    await delay(120);
+    return [...activityStore.values()]
+      .filter((a) => a.weeklyReportId === reportId)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map(clone);
+  },
+
+  async saveActivities(reportId, activities) {
+    await delay();
+    const report = reportStore.get(reportId);
+    if (!report) throw new Error(`Weekly report ${reportId} not found`);
+
+    // Rows absent from the payload were removed by the user.
+    const previous = new Map(
+      [...activityStore.values()]
+        .filter((a) => a.weeklyReportId === reportId)
+        .map((a) => [a.id, a])
+    );
+    for (const id of previous.keys()) activityStore.delete(id);
+
+    const saved: WeeklyActivity[] = activities.map((input, index) => {
+      const id = input.id ?? nextId("act");
+      const activity: WeeklyActivity = {
+        id,
+        weeklyReportId: reportId,
+        title: input.title,
+        departmentId: input.departmentId || undefined,
+        disciplineId: input.disciplineId || undefined,
+        ownerContactId: input.ownerContactId || undefined,
+        status: input.status,
+        progressPercent: input.progressPercent,
+        remarks: input.remarks || undefined,
+        // Array order is the authoring order.
+        sortOrder: index,
+        createdAt: previous.get(id)?.createdAt ?? nowIso(),
+        updatedAt: nowIso(),
+      };
+      activityStore.set(activity.id, activity);
+      return clone(activity);
+    });
+
+    reportStore.set(reportId, {
+      ...report,
+      activityIds: saved.map((a) => a.id),
       updatedAt: nowIso(),
     });
     return saved;

@@ -40,13 +40,20 @@ import { weeklyWorkflow, type WorkflowStatus } from "@/config/workflows";
 import { getContactById } from "@/features/master-data";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
-import type { Project, ReportStatus, WeeklyReport, WeeklySubmission } from "@/types";
+import type {
+  Project,
+  ReportStatus,
+  WeeklyActivity,
+  WeeklyReport,
+  WeeklySubmission,
+} from "@/types";
 import {
   countReceived,
   isEditableReport,
   spiTone,
   varianceTone,
 } from "@/features/weekly-reports/utils";
+import { ActivitiesTable } from "./activities-table";
 import { SubmissionStatusList } from "./submission-status-list";
 import { WeeklyStatusBadge } from "./weekly-status-badge";
 
@@ -124,6 +131,7 @@ export function WeeklyReportDetailView({ reportId }: WeeklyReportDetailViewProps
   const router = useRouter();
   const [report, setReport] = React.useState<WeeklyReport | null | undefined>();
   const [submissions, setSubmissions] = React.useState<WeeklySubmission[]>([]);
+  const [activities, setActivities] = React.useState<WeeklyActivity[]>([]);
   const [project, setProject] = React.useState<Project | null>(null);
   const [archiveOpen, setArchiveOpen] = React.useState(false);
   const [pendingStatus, setPendingStatus] = React.useState<string | null>(null);
@@ -135,13 +143,15 @@ export function WeeklyReportDetailView({ reportId }: WeeklyReportDetailViewProps
       if (cancelled) return;
       setReport(r);
       if (r) {
-        const [subs, proj] = await Promise.all([
+        const [subs, proj, acts] = await Promise.all([
           weeklyReportService.listSubmissions(r.id),
           projectService.getProjectById(r.projectId),
+          weeklyReportService.listActivities(r.id),
         ]);
         if (cancelled) return;
         setSubmissions(subs);
         setProject(proj);
+        setActivities(acts);
       }
     });
     return () => {
@@ -375,6 +385,13 @@ export function WeeklyReportDetailView({ reportId }: WeeklyReportDetailViewProps
                 {isEditableReport(report) && " Add one from the edit form."}
               </p>
             )}
+          </SectionCard>
+
+          <SectionCard
+            title="Major Activities Completed"
+            description="Significant activities delivered in this reporting week."
+          >
+            <ActivitiesTable activities={activities} />
           </SectionCard>
 
           <SectionCard
