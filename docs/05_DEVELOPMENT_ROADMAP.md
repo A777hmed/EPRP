@@ -179,9 +179,11 @@ Implement lifecycle transitions, role-based access/RLS, secure links, email noti
 
 **Done when:** the system enforces who can see, edit, review, approve, finalize, and lock each report.
 
-**Exists:** `config/workflows.ts` (transition rules) and `config/permissions.ts` (7 roles × 18 permissions), both documented in `engineering/`.
+**Exists:** `config/workflows.ts` (transition rules) and `config/permissions.ts` (**9 roles** × 18 permissions), both documented in `engineering/`. Phase **A1** added the `profiles` table, the nine-role foundation, and `current_user_role()` for future policies.
 
-**Nothing is enforced.** `hasPermission()` is called by zero components. There is no login, session, or role resolution. Two specification gaps must be reconciled here: the code's 10-state lifecycle versus the 6 states in `03_WORKFLOW.md`, and the code's role names versus §6 of the same file.
+**Authentication sub-phases:** A1 profiles + roles ✅ · A2 login, session, middleware, logout ❌ · A3 real identity in the shell ❌ · A4 admin user management ❌ (deferred).
+
+**Nothing is enforced yet.** `hasPermission()` is called by zero components, and every table still carries the temporary `for all to authenticated` policy — which is why the anon key cannot write. One specification gap remains for this phase: `03_WORKFLOW.md` §6 describes Reviewer as *recommending* approval, while `reviewer` currently holds `approve_weekly` / `approve_monthly` outright.
 
 ---
 

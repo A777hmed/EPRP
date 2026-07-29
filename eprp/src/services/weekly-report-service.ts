@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import type {
   ActivityStatus,
   CommentCategory,
+  SubmissionHealthStatus,
   EntryStatus,
   IsoDate,
   KpiRating,
@@ -94,6 +95,8 @@ export interface WeeklySubmissionInput {
   nextWeekPlan?: string;
   responsibleContactId?: string;
   targetDate?: IsoDate;
+  healthStatus?: SubmissionHealthStatus;
+  risksIssues?: string;
 }
 
 /** One comment / risk / issue / action row from the weekly form (Phase 6A.4). */
@@ -405,6 +408,8 @@ const mockWeeklyReportService: WeeklyReportService = {
         nextWeekPlan: update.nextWeekPlan,
         responsibleContactId: update.responsibleContactId,
         targetDate: update.targetDate,
+        healthStatus: update.healthStatus,
+        risksIssues: update.risksIssues || undefined,
         accomplishments: [],
         plannedNextWeek: [],
         blockers: [],

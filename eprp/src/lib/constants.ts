@@ -13,6 +13,7 @@ import type {
   ReportSource,
   ReportStatus,
   RiskSeverity,
+  SubmissionHealthStatus,
   SubmissionStatus,
   WeeklyEntryType,
 } from "@/types";
@@ -147,6 +148,20 @@ export const SCHEDULE_RECOMMENDATION_META: Record<
   on_schedule: { label: "On Schedule", tone: "success" },
   delayed: { label: "Delayed", tone: "warning" },
   critical: { label: "Critical", tone: "danger" },
+};
+
+/**
+ * Department verdict on its own work (spec section 7). Separate from
+ * {@link SUBMISSION_STATUS_META}, which labels the review lifecycle.
+ */
+export const SUBMISSION_HEALTH_META: Record<
+  SubmissionHealthStatus,
+  { label: string; tone: StatusTone }
+> = {
+  on_track: { label: "On Track", tone: "success" },
+  at_risk: { label: "At Risk", tone: "warning" },
+  delayed: { label: "Delayed", tone: "danger" },
+  blocked: { label: "Blocked", tone: "danger" },
 };
 
 /** Major activity lifecycle (spec section 6). */

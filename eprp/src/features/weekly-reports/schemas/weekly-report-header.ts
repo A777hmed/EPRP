@@ -96,6 +96,13 @@ const submissionStatuses = [
   "approved",
 ] as const;
 
+const healthStatuses = [
+  "on_track",
+  "at_risk",
+  "delayed",
+  "blocked",
+] as const;
+
 const optionalIsoDate = z
   .string()
   .refine(
@@ -109,6 +116,13 @@ export const departmentUpdateSchema = z.object({
   departmentId: z.string().trim().min(1, "Select a department"),
   disciplineId: z.string().trim(),
   status: z.enum(submissionStatuses),
+  healthStatus: z.enum(healthStatuses),
+  risksIssues: z.string().trim().max(1000).optional().or(z.literal("")),
+  /**
+   * No longer edited in the form (W3A replaced it with Key Update +
+   * Risks / Issues), but carried through so saving does not discard a
+   * narrative written before this phase — saveSubmissions replaces all rows.
+   */
   summary: z.string().trim().max(1000).optional().or(z.literal("")),
   progressPercent: looseNumber.superRefine((value, ctx) => {
     if (Number.isNaN(value)) return; // optional per row
@@ -136,6 +150,8 @@ export function emptyDepartmentUpdate(
     departmentId,
     disciplineId: "",
     status: "pending",
+    healthStatus: "on_track",
+    risksIssues: "",
     summary: "",
     progressPercent: Number.NaN,
     keyAchievement: "",
@@ -401,6 +417,9 @@ export function submissionsToDepartmentUpdates(
     departmentId: submission.departmentId,
     disciplineId: submission.disciplineId ?? "",
     status: submission.status,
+    healthStatus: submission.healthStatus ?? "on_track",
+    risksIssues: submission.risksIssues ?? "",
+    // Carried, not edited — see departmentUpdateSchema.
     summary: submission.summary ?? "",
     progressPercent: submission.progressPercent ?? Number.NaN,
     keyAchievement: submission.keyAchievement ?? "",

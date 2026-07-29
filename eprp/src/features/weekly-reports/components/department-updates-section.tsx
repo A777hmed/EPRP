@@ -27,8 +27,16 @@ import {
   useMasterData,
 } from "@/features/master-data";
 import { RhfField } from "@/features/projects/components/form-field";
-import { SUBMISSION_STATUS_META } from "@/lib/constants";
-import type { Discipline, MasterRecordBase, SubmissionStatus } from "@/types";
+import {
+  SUBMISSION_HEALTH_META,
+  SUBMISSION_STATUS_META,
+} from "@/lib/constants";
+import type {
+  Discipline,
+  MasterRecordBase,
+  SubmissionHealthStatus,
+  SubmissionStatus,
+} from "@/types";
 import {
   emptyDepartmentUpdate,
   type WeeklyReportHeaderValues,
@@ -208,19 +216,65 @@ function DepartmentUpdateRow({
               );
             }}
           </RhfField>
+
+          <RhfField
+            control={control}
+            name={`departmentUpdates.${index}.healthStatus`}
+            label="Current Status"
+            required
+            description="The department&rsquo;s verdict on this work."
+          >
+            {({ field, controlProps }) => {
+              const meta =
+                SUBMISSION_HEALTH_META[field.value as SubmissionHealthStatus];
+              return (
+                <div className="space-y-1.5">
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger
+                      {...controlProps}
+                      className="w-full"
+                      onBlur={field.onBlur}
+                    >
+                      <SelectValue placeholder="Select current status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(
+                        Object.keys(
+                          SUBMISSION_HEALTH_META
+                        ) as SubmissionHealthStatus[]
+                      ).map((health) => (
+                        <SelectItem key={health} value={health}>
+                          {SUBMISSION_HEALTH_META[health].label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {meta && (
+                    <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
+                  )}
+                </div>
+              );
+            }}
+          </RhfField>
         </div>
 
+        {/*
+          "Update Summary" was removed in W3A because it overlapped with Key
+          Update. The stored value is still carried through the form so an
+          existing narrative is not discarded on save — saveSubmissions
+          replaces every row.
+        */}
         <RhfField
           control={control}
-          name={`departmentUpdates.${index}.summary`}
-          label="Update Summary"
+          name={`departmentUpdates.${index}.risksIssues`}
+          label="Risks / Issues Summary"
           optional
         >
           {({ field, controlProps }) => (
             <Textarea
               {...controlProps}
               rows={2}
-              placeholder="What happened in this department this week?"
+              placeholder="Risks or issues affecting this department this week."
               value={field.value ?? ""}
               onChange={field.onChange}
               onBlur={field.onBlur}

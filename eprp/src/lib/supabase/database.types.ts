@@ -162,6 +162,19 @@ export interface ProjectDisciplineRow {
   updated_at: string;
 }
 
+/** Application identity for a Supabase auth user (Phase A1). */
+export interface ProfileRow {
+  /** Same id as the auth.users row. */
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  contact_id: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface WeeklyReportRow {
   id: string;
   report_number: string;
@@ -203,6 +216,13 @@ export interface WeeklySubmissionRow {
   next_week_plan: string | null;
   responsible_contact_id: string | null;
   target_date: string | null;
+  /** Department verdict on the work (spec section 7). */
+  health_status: string | null;
+  risks_issues: string | null;
+  /** Written by the review workflow in a later phase. */
+  return_reason: string | null;
+  reviewed_by_contact_id: string | null;
+  reviewed_at: string | null;
   accomplishments: string[];
   planned_next_week: string[];
   blockers: string[];
@@ -336,6 +356,7 @@ export interface Database {
       organization_charts: TableDef<OrganizationChartRow, Writable<OrganizationChartRow> & { project_id: string; name: string }, Writable<OrganizationChartRow>>;
       organization_positions: TableDef<OrganizationPositionRow, Writable<OrganizationPositionRow> & { chart_id: string; project_id: string; title: string }, Writable<OrganizationPositionRow>>;
       position_assignment_history: TableDef<PositionAssignmentHistoryRow, Omit<PositionAssignmentHistoryRow, "id" | "created_at">, Partial<PositionAssignmentHistoryRow>>;
+      profiles: TableDef<ProfileRow, Omit<ProfileRow, "created_at" | "updated_at">, Partial<ProfileRow>>;
       weekly_reports: TableDef<WeeklyReportRow, Writable<WeeklyReportRow> & { report_number: string; project_id: string; week_number: number; period_start: string; period_end: string }, Writable<WeeklyReportRow>>;
       weekly_submissions: TableDef<WeeklySubmissionRow, Omit<WeeklySubmissionRow, "id" | "created_at" | "updated_at">, Partial<WeeklySubmissionRow>>;
       weekly_entries: TableDef<WeeklyEntryRow, Omit<WeeklyEntryRow, "id" | "created_at" | "updated_at">, Partial<WeeklyEntryRow>>;

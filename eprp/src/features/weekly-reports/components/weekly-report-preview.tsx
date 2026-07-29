@@ -6,14 +6,6 @@ import { ArrowLeft, FileX, Printer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   EmptyState,
   LoadingState,
   StatusBadge,
@@ -22,17 +14,17 @@ import { siteConfig } from "@/config/site";
 import { REPORT_STATUS_META } from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
 import { scheduleVariance } from "@/lib/reporting";
-import { getContactById, getDepartmentById } from "@/features/master-data";
+import { getContactById } from "@/features/master-data";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
 import { ActivitiesTable } from "./activities-table";
+import { DepartmentUpdatesTable } from "./department-updates-table";
 import type {
   Project,
   WeeklyActivity,
   WeeklyReport,
   WeeklySubmission,
 } from "@/types";
-import { SubmissionStatusBadge } from "./weekly-status-badge";
 
 function Cell({ label, value }: { label: string; value: string }) {
   return (
@@ -186,49 +178,9 @@ export function WeeklyReportPreview({ reportId }: WeeklyReportPreviewProps) {
 
         <section>
           <h2 className="mb-2 text-sm font-semibold">
-            Department Submissions
+            Department and Discipline Updates
           </h2>
-          <div className="overflow-x-auto rounded-lg border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Summary</TableHead>
-                  <TableHead className="text-right">Δ</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {submissions.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
-                      No submissions.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  submissions.map((sub) => (
-                    <TableRow key={sub.id}>
-                      <TableCell className="font-medium">
-                        {getDepartmentById(sub.departmentId)?.name ??
-                          sub.departmentId}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-pretty">
-                        {sub.summary ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {typeof sub.progressDelta === "number"
-                          ? `+${sub.progressDelta}%`
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <SubmissionStatusBadge status={sub.status} />
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <DepartmentUpdatesTable submissions={submissions} />
         </section>
 
         <footer className="border-t pt-4 text-xs text-muted-foreground">

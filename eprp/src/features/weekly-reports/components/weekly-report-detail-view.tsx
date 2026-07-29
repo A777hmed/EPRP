@@ -54,7 +54,7 @@ import {
   varianceTone,
 } from "@/features/weekly-reports/utils";
 import { ActivitiesTable } from "./activities-table";
-import { SubmissionStatusList } from "./submission-status-list";
+import { DepartmentUpdatesTable } from "./department-updates-table";
 import { WeeklyStatusBadge } from "./weekly-status-badge";
 
 const toneClass = {
@@ -395,10 +395,10 @@ export function WeeklyReportDetailView({ reportId }: WeeklyReportDetailViewProps
           </SectionCard>
 
           <SectionCard
-            title="Submission Status by Department"
-            description="Department input for this reporting week."
+            title="Department and Discipline Updates"
+            description="Department input for this reporting week. A department may report several disciplines."
           >
-            <SubmissionStatusList submissions={submissions} />
+            <DepartmentUpdatesTable submissions={submissions} />
           </SectionCard>
         </div>
 

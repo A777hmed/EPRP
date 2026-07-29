@@ -67,6 +67,17 @@ export type ProgressStatus =
  */
 export type WeeklyEntryType = "comment" | "risk" | "issue" | "action";
 
+/**
+ * A department's verdict on its own work for the week (spec section 7).
+ * Deliberately separate from {@link SubmissionStatus}, which tracks the
+ * review lifecycle of the submission itself.
+ */
+export type SubmissionHealthStatus =
+  | "on_track"
+  | "at_risk"
+  | "delayed"
+  | "blocked";
+
 /** Lifecycle of a major activity on a weekly report (spec section 6). */
 export type ActivityStatus = "not_started" | "in_progress" | "completed";
 

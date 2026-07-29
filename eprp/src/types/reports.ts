@@ -9,6 +9,7 @@ import type {
   ProgressStatus,
   ReportSource,
   ReportStatus,
+  SubmissionHealthStatus,
   SubmissionStatus,
   WeeklyEntryType,
 } from "./core";
@@ -70,6 +71,14 @@ export interface WeeklySubmission {
   nextWeekPlan?: string;
   responsibleContactId?: string;
   targetDate?: IsoDate;
+  /** Department verdict on the work (spec section 7). */
+  healthStatus?: SubmissionHealthStatus;
+  /** Free-text risks / issues summary for this row. */
+  risksIssues?: string;
+  /** Set by the review workflow in a later phase. */
+  returnReason?: string;
+  reviewedByContactId?: string;
+  reviewedAt?: IsoDateTime;
   accomplishments: string[];
   plannedNextWeek: string[];
   blockers: string[];
