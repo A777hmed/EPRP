@@ -2,6 +2,7 @@
 
 import { Bell, ChevronDown, Mail, Search } from "lucide-react";
 
+import { SignOutMenuItem } from "@/features/auth/components/sign-out-menu-item";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -110,7 +111,7 @@ export function TopBar() {
             <DropdownMenuItem>Profile</DropdownMenuItem>
             <DropdownMenuItem>Preferences</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive">Sign out</DropdownMenuItem>
+            <SignOutMenuItem />
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
