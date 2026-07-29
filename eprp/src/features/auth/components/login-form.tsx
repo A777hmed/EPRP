@@ -3,11 +3,13 @@
 import * as React from "react";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import { AlertCircle, Eye, EyeOff, Loader2, LogIn } from "lucide-react";
+import Link from "next/link";
+import { AlertCircle, CheckCircle2, Loader2, LogIn } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "./password-input";
 import { signIn, type SignInState } from "../actions";
 
 /**
@@ -35,16 +37,42 @@ function SubmitButton() {
 export interface LoginFormProps {
   /** Path to return to after a successful sign-in. */
   next: string;
+  /** One-off notice from a redirect, e.g. after a password reset. */
+  notice?: { tone: "success" | "error"; message: string };
 }
 
-export function LoginForm({ next }: LoginFormProps) {
+export function LoginForm({ next, notice }: LoginFormProps) {
   const [state, formAction] = useActionState<SignInState, FormData>(signIn, {});
-  // Hidden by default; this boolean is the only state the toggle keeps.
-  const [showPassword, setShowPassword] = React.useState(false);
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
       <input type="hidden" name="next" value={next} />
+
+      {notice && !state.error && (
+        <div
+          role="status"
+          className={
+            notice.tone === "success"
+              ? "flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 p-3"
+              : "flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3"
+          }
+        >
+          {notice.tone === "success" ? (
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
+          ) : (
+            <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
+          )}
+          <p
+            className={
+              notice.tone === "success"
+                ? "text-sm text-success text-pretty"
+                : "text-sm text-destructive text-pretty"
+            }
+          >
+            {notice.message}
+          </p>
+        </div>
+      )}
 
       {state.error && (
         <div
@@ -75,41 +103,23 @@ export function LoginForm({ next }: LoginFormProps) {
       </Field>
 
       <Field>
-        <FieldLabel htmlFor="password">Password</FieldLabel>
-        <div className="relative">
-          <Input
-            id="password"
-            name="password"
-            /*
-              Only the input's `type` changes — the value is never copied,
-              stored, or read by the toggle, so nothing here can leak it.
-              `name` and `autoComplete` stay fixed so password managers keep
-              recognising the field in both states.
-            */
-            type={showPassword ? "text" : "password"}
-            autoComplete="current-password"
-            required
-            placeholder="••••••••"
-            aria-invalid={state.error ? true : undefined}
-            className="pe-9"
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword((shown) => !shown)}
-            // The label states the action; aria-pressed states the mode, so
-            // screen readers announce both without the label changing meaning.
-            aria-label={showPassword ? "Hide password" : "Show password"}
-            aria-pressed={showPassword}
-            aria-controls="password"
-            className="absolute inset-y-0 end-0 flex w-9 items-center justify-center rounded-e-lg text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        <div className="flex items-baseline justify-between gap-2">
+          <FieldLabel htmlFor="password">Password</FieldLabel>
+          <Link
+            href="/forgot-password"
+            className="text-xs font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 rounded-sm"
           >
-            {showPassword ? (
-              <EyeOff className="size-4" aria-hidden="true" />
-            ) : (
-              <Eye className="size-4" aria-hidden="true" />
-            )}
-          </button>
+            Forgot password?
+          </Link>
         </div>
+        <PasswordInput
+          id="password"
+          name="password"
+          autoComplete="current-password"
+          required
+          placeholder="••••••••"
+          aria-invalid={state.error ? true : undefined}
+        />
       </Field>
 
       <SubmitButton />

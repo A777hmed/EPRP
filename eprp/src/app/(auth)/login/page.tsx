@@ -26,6 +26,22 @@ export default async function LoginPage({
   const params = await searchParams;
   const next = readNext(params.next);
 
+  // One-off notices arrive as flags, never as free text from the URL.
+  const notice =
+    params.reset === "success"
+      ? {
+          tone: "success" as const,
+          message:
+            "Your password has been reset. Sign in with your new password.",
+        }
+      : params.error === "link_invalid"
+        ? {
+            tone: "error" as const,
+            message:
+              "That link is invalid or has expired. Request a new password reset link.",
+          }
+        : undefined;
+
   return (
     <main className="flex min-h-svh flex-col bg-muted/30">
       <div className="flex flex-1 items-center justify-center p-4 sm:p-6 lg:p-8">
@@ -56,7 +72,7 @@ export default async function LoginPage({
             entirely rather than merely shortening it.
           */}
           <div className="rounded-xl border bg-card p-5 shadow-soft motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 sm:p-6">
-            <LoginForm next={next} />
+            <LoginForm next={next} notice={notice} />
           </div>
 
           <p className="mt-5 flex items-start justify-center gap-1.5 text-center text-xs text-muted-foreground text-pretty">

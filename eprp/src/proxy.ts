@@ -18,10 +18,25 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/supabase/config";
  */
 
 /** Routes reachable without a session. Everything else requires one. */
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/forgot-password",
+  "/reset-password",
+  // Landing point for Supabase auth emails; it establishes the session.
+  "/auth",
+];
 
-function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some(
+/**
+ * Public routes a signed-in user should be bounced away from.
+ *
+ * Deliberately excludes /reset-password and /auth: a recovery link signs the
+ * user in first, so redirecting authenticated visitors would make the reset
+ * page unreachable exactly when it is needed.
+ */
+const REDIRECT_WHEN_AUTHENTICATED = ["/login", "/forgot-password"];
+
+function matches(paths: string[], pathname: string): boolean {
+  return paths.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`)
   );
 }
@@ -59,7 +74,7 @@ export async function proxy(request: NextRequest) {
 
   const { pathname, search } = request.nextUrl;
 
-  if (!user && !isPublicPath(pathname)) {
+  if (!user && !matches(PUBLIC_PATHS, pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
@@ -68,7 +83,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isPublicPath(pathname)) {
+  if (user && matches(REDIRECT_WHEN_AUTHENTICATED, pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     url.search = "";
