@@ -1,0 +1,73 @@
+import "server-only";
+
+import { cache } from "react";
+
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import type { ProfileRow } from "@/lib/supabase/database.types";
+import type { UserRole } from "@/types";
+import { ROLE_LABELS } from "@/config/permissions";
+import { getAuthenticatedUser } from "./session";
+
+/**
+ * The signed-in user's application identity, for display.
+ *
+ * Reads the `profiles` row created in Phase A1. This is a read only — it
+ * creates nothing and changes no policy; RLS already restricts each user to
+ * their own row.
+ */
+export interface CurrentUserIdentity {
+  fullName: string;
+  /** Localised role name, or undefined when no profile row exists yet. */
+  roleLabel?: string;
+  initials: string;
+  email: string;
+}
+
+function isKnownRole(value: string): value is UserRole {
+  return value in ROLE_LABELS;
+}
+
+/** "Ahmed Morsy" → "AM"; falls back to the first character available. */
+function initialsFrom(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+export const getCurrentUserIdentity = cache(
+  async (): Promise<CurrentUserIdentity | null> => {
+    if (!isSupabaseConfigured()) return null;
+
+    const user = await getAuthenticatedUser();
+    if (!user) return null;
+
+    const supabase = await createSupabaseServerClient();
+    const { data } = await supabase
+      .from("profiles")
+      .select("full_name, role, email")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const profile = data as Pick<
+      ProfileRow,
+      "full_name" | "role" | "email"
+    > | null;
+
+    // An account can exist in auth.users before the administrator creates its
+    // profile row, so fall back to the email local part rather than failing.
+    const email = profile?.email ?? user.email ?? "";
+    const fullName = profile?.full_name?.trim() || email.split("@")[0] || "there";
+
+    return {
+      fullName,
+      roleLabel:
+        profile?.role && isKnownRole(profile.role)
+          ? ROLE_LABELS[profile.role]
+          : undefined,
+      initials: initialsFrom(fullName),
+      email,
+    };
+  }
+);

@@ -1,5 +1,6 @@
 "use client";
 
+import type * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -47,7 +48,15 @@ const quickActions: { title: string; icon: LucideIcon }[] = [
  * showing the compact drop mark + EPR abbreviation; becomes an off-canvas
  * sheet on mobile (handled by the sidebar primitives).
  */
-export function AppSidebar() {
+export interface AppSidebarProps {
+  /**
+   * Welcome card, passed from the server layout so it can read the
+   * signed-in profile while this component stays client-side.
+   */
+  welcome?: React.ReactNode;
+}
+
+export function AppSidebar({ welcome }: AppSidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -95,6 +104,7 @@ export function AppSidebar() {
             {siteConfig.name}
           </span>
         </Link>
+        {welcome}
       </SidebarHeader>
       <SidebarContent>
         {mainNavigation.map((section) => (
