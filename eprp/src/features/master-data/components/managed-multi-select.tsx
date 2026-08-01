@@ -4,6 +4,7 @@ import * as React from "react";
 import { ChevronsUpDown, Plus, Settings2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ClearValueButton } from "@/components/shared/clear-value-button";
 import {
   Command,
   CommandEmpty,
@@ -36,6 +37,11 @@ export interface ManagedMultiSelectProps {
   filter?: (record: MasterRecordBase) => boolean;
   /** Text shown when the filter leaves nothing to choose from. */
   emptyLabel?: string;
+  /**
+   * Accessible name for the "×" button, e.g. "Clear all disciplines".
+   * Defaults to the master-data kind when the field has no distinct name.
+   */
+  clearLabel?: string;
   controlProps?: {
     id?: string;
     "aria-invalid"?: boolean;
@@ -45,7 +51,12 @@ export interface ManagedMultiSelectProps {
   onMutated?: () => void;
 }
 
-/** Searchable multi-select backed by the existing managed master-data store. */
+/**
+ * Searchable multi-select backed by the existing managed master-data store.
+ *
+ * A "×" appears once anything is selected and removes every assignment from
+ * this form; the master-data records themselves are never touched.
+ */
 export function ManagedMultiSelect({
   kind,
   value,
@@ -55,6 +66,7 @@ export function ManagedMultiSelect({
   disabled = false,
   filter,
   emptyLabel,
+  clearLabel,
   controlProps,
   onMutated,
 }: ManagedMultiSelectProps) {
@@ -108,6 +120,13 @@ export function ManagedMultiSelect({
   const openDialog = (mode: "list" | "create", initialName?: string) => {
     setOpen(false);
     setDialog({ open: true, mode, initialName });
+  };
+
+  const clearValue = () => {
+    onChange([]);
+    // Matches the form's onBlur validation mode, so a required field shows
+    // its existing "select at least one…" message immediately.
+    onBlur?.();
   };
 
   return (
@@ -198,6 +217,14 @@ export function ManagedMultiSelect({
             </Command>
           </PopoverContent>
         </Popover>
+
+        {value.length > 0 && (
+          <ClearValueButton
+            label={clearLabel ?? `Clear all ${config.plural.toLowerCase()}`}
+            onClear={clearValue}
+            disabled={disabled}
+          />
+        )}
 
         <Button
           type="button"

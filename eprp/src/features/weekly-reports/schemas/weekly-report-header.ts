@@ -364,6 +364,31 @@ export type WeeklyReportHeaderValues = z.infer<
   typeof weeklyReportHeaderSchema
 >;
 
+/**
+ * Save Draft contract.
+ *
+ * Any selector can be cleared with its "×" while the report is being written,
+ * so a required selector left empty must not block a draft. Only the required
+ * *selectors* are relaxed here — formats, ranges, duplicate rules, and the
+ * action-item rules all still apply, and `weeklyReportHeaderSchema` keeps
+ * enforcing the full set for submission.
+ *
+ * Two stay required even for a draft, because the row cannot exist without
+ * them: `projectId` (`weekly_reports.project_id` is `not null`, and the
+ * report number is derived from the project code) and each department row's
+ * `departmentId` (`weekly_submissions.department_id` is `not null` and part
+ * of the row's uniqueness rule). Both keep their existing messages.
+ */
+export const weeklyReportDraftSchema = weeklyReportHeaderSchema.extend({
+  preparedByContactId: z.string().trim(),
+  disciplineIds: z
+    .array(z.string().trim().min(1))
+    .refine(
+      (ids) => new Set(ids).size === ids.length,
+      "A discipline can only be selected once"
+    ),
+});
+
 /** Snap any selected date to the Sunday that starts its reporting week. */
 export function normalizeWeeklyPeriodStart(value: string): string {
   if (!isRealIsoDate(value)) return value;

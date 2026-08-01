@@ -200,6 +200,7 @@ function ManagedSelectField({
           onBlur={field.onBlur}
           placeholder={placeholder}
           allowClear={allowClear}
+          clearLabel={`Clear ${props.label}`}
           controlProps={controlProps}
           onMutated={onMutated}
         />
@@ -227,6 +228,7 @@ function PersonField({
           onBlur={field.onBlur}
           placeholder={placeholder}
           allowClear={allowClear}
+          clearLabel={`Clear ${props.label}`}
           controlProps={controlProps}
           onMutated={onMutated}
         />

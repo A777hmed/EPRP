@@ -16,6 +16,10 @@ export { EmptyState, type EmptyStateProps } from "./empty-state";
 export { LoadingState, type LoadingStateProps } from "./loading-state";
 export { ErrorState, type ErrorStateProps } from "./error-state";
 export { SearchInput, type SearchInputProps } from "./search-input";
+export {
+  ClearValueButton,
+  type ClearValueButtonProps,
+} from "./clear-value-button";
 export { FilterBar, type FilterBarProps } from "./filter-bar";
 export { ConfirmDialog, type ConfirmDialogProps } from "./confirm-dialog";
 export {

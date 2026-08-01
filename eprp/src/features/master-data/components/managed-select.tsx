@@ -4,6 +4,7 @@ import * as React from "react";
 import { Check, ChevronsUpDown, Plus, Settings2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ClearValueButton } from "@/components/shared/clear-value-button";
 import {
   Command,
   CommandEmpty,
@@ -32,8 +33,13 @@ export interface ManagedSelectProps {
   onChange: (id: string) => void;
   onBlur?: () => void;
   placeholder?: string;
-  /** Offer a "None" entry for optional fields. */
+  /** Offer a "Not assigned" entry inside the list for optional fields. */
   allowClear?: boolean;
+  /**
+   * Accessible name for the "×" button, e.g. "Clear Project Manager".
+   * Defaults to the master-data kind when the field has no distinct name.
+   */
+  clearLabel?: string;
   /** ARIA wiring from the form field wrapper. */
   controlProps?: {
     id?: string;
@@ -60,6 +66,11 @@ export interface ManagedSelectProps {
  * "+ Add new" creation (auto-selected afterwards) and a Manage surface
  * for edit / archive / restore / safe delete. Options refresh
  * automatically whenever the kind's store changes.
+ *
+ * Whenever a value is assigned — required field or not — a "×" appears that
+ * unassigns it in this form only. Master data is untouched; archiving and
+ * deleting stay behind the Manage surface. Required fields may sit empty
+ * while drafting; their schema still blocks final submission.
  */
 export function ManagedSelect({
   kind,
@@ -68,6 +79,7 @@ export function ManagedSelect({
   onBlur,
   placeholder,
   allowClear = false,
+  clearLabel,
   controlProps,
   onMutated,
   filter,
@@ -112,6 +124,16 @@ export function ManagedSelect({
   const openDialog = (mode: "list" | "create", initialName?: string) => {
     setOpen(false);
     setDialog({ open: true, mode, initialName });
+  };
+
+  // Offered whenever something is stored, including a selection the current
+  // filter now excludes — otherwise a stale assignment cannot be removed.
+  const showClear = value !== "";
+  const clearValue = () => {
+    onChange("");
+    // Keeps validation in step with the form's onBlur mode, so a required
+    // field surfaces its existing message straight away.
+    onBlur?.();
   };
 
   return (
@@ -235,6 +257,14 @@ export function ManagedSelect({
             </Command>
           </PopoverContent>
         </Popover>
+
+        {showClear && (
+          <ClearValueButton
+            label={clearLabel ?? `Clear ${config.singular.toLowerCase()}`}
+            onClear={clearValue}
+            disabled={disabled}
+          />
+        )}
 
         <Button
           type="button"

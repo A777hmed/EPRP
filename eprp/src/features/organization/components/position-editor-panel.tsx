@@ -223,6 +223,7 @@ export function PositionEditorPanel({
             }
             allowClear
             placeholder="Search people…"
+            clearLabel="Clear assigned person"
             controlProps={{ id: "pos-contact" }}
           />
           <div className="flex items-center justify-between gap-2">

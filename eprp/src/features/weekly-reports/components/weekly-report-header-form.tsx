@@ -4,10 +4,15 @@ import * as React from "react";
 import { format, isValid, parseISO } from "date-fns";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Save } from "lucide-react";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm, useWatch, type FieldPath } from "react-hook-form";
 import { toast } from "sonner";
 
-import { ConfirmDialog, SectionCard, StatusBadge } from "@/components/shared";
+import {
+  ClearValueButton,
+  ConfirmDialog,
+  SectionCard,
+  StatusBadge,
+} from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -60,6 +65,7 @@ import {
 import {
   emptyDepartmentUpdate,
   normalizeWeeklyPeriodStart,
+  weeklyReportDraftSchema,
   weeklyReportHeaderSchema,
   type WeeklyReportHeaderValues,
 } from "../schemas/weekly-report-header";
@@ -284,7 +290,7 @@ export function WeeklyReportHeaderForm({
     mode: "onBlur",
     shouldFocusError: false,
   });
-  const { control, handleSubmit, setValue, formState } = form;
+  const { control, setValue, formState } = form;
   const projectId = useWatch({ control, name: "projectId" });
   const periodStart = useWatch({ control, name: "periodStart" });
   const reportStatus = useWatch({ control, name: "status" });
@@ -377,6 +383,16 @@ export function WeeklyReportHeaderForm({
     }
   };
 
+  /**
+   * Unassigns the project in this report only. Deliberately does not cascade
+   * the way `handleProjectChange` does: clearing one field must not wipe the
+   * prepared-by, discipline, KPI, or department-update work already entered.
+   * No project record is touched.
+   */
+  const clearProject = () => {
+    setValue("projectId", "", { shouldDirty: true, shouldValidate: true });
+  };
+
   const updatePeriodStart = (value: string) => {
     setValue("periodStart", normalizeWeeklyPeriodStart(value), {
       shouldDirty: true,
@@ -384,15 +400,44 @@ export function WeeklyReportHeaderForm({
     });
   };
 
-  const saveDraft = handleSubmit(async (values) => {
+  const [savingDraft, setSavingDraft] = React.useState(false);
+
+  /**
+   * Validated against the draft contract rather than the full schema, so a
+   * required selector cleared with its "×" does not block saving. The form's
+   * resolver still holds the full schema, so those fields keep showing their
+   * own messages inline and remain enforced for submission.
+   */
+  const saveDraft = async (event: React.FormEvent) => {
+    event.preventDefault();
+    form.clearErrors();
+    const values = form.getValues();
+    const parsed = weeklyReportDraftSchema.safeParse(values);
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues) {
+        form.setError(
+          issue.path.join(".") as FieldPath<WeeklyReportHeaderValues>,
+          { type: "manual", message: issue.message }
+        );
+      }
+      toast.error(
+        `Fix ${parsed.error.issues.length} ${
+          parsed.error.issues.length === 1 ? "field" : "fields"
+        } before saving the draft`
+      );
+      return;
+    }
     try {
+      setSavingDraft(true);
       await onSaveDraft(values);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Could not save the draft"
       );
+    } finally {
+      setSavingDraft(false);
     }
-  });
+  };
 
   const [discardOpen, setDiscardOpen] = React.useState(false);
   const requestCancel = () => {
@@ -430,28 +475,36 @@ export function WeeklyReportHeaderForm({
                     className="bg-muted/50"
                   />
                 ) : (
-                  <Select
-                    value={field.value}
-                    onValueChange={handleProjectChange}
-                  >
-                    <SelectTrigger
-                      {...controlProps}
-                      className="w-full"
-                      onBlur={field.onBlur}
+                  <div className="flex gap-1.5">
+                    <Select
+                      value={field.value}
+                      onValueChange={handleProjectChange}
                     >
-                      <SelectValue placeholder="Select a project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {projects.map((project) => (
-                        <SelectItem key={project.id} value={project.id}>
-                          {project.shortName ?? project.name}
-                          <span className="ml-1 font-mono text-xs text-muted-foreground">
-                            {project.code}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                      <SelectTrigger
+                        {...controlProps}
+                        className="min-w-0 flex-1"
+                        onBlur={field.onBlur}
+                      >
+                        <SelectValue placeholder="Select a project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {projects.map((project) => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.shortName ?? project.name}
+                            <span className="ml-1 font-mono text-xs text-muted-foreground">
+                              {project.code}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {field.value !== "" && (
+                      <ClearValueButton
+                        label="Clear Project"
+                        onClear={clearProject}
+                      />
+                    )}
+                  </div>
                 )
               }
             </RhfField>
@@ -542,6 +595,7 @@ export function WeeklyReportHeaderForm({
                   }
                   onBlur={field.onBlur}
                   placeholder="Search or select person…"
+                  clearLabel="Clear Prepared By"
                   controlProps={controlProps}
                 />
               )}
@@ -583,6 +637,7 @@ export function WeeklyReportHeaderForm({
                   onBlur={field.onBlur}
                   disabled={!selectedProject}
                   placeholder="Select one or more disciplines…"
+                  clearLabel="Clear all selected disciplines"
                   controlProps={controlProps}
                 />
               )}
@@ -874,12 +929,12 @@ export function WeeklyReportHeaderForm({
             type="button"
             variant="outline"
             onClick={requestCancel}
-            disabled={formState.isSubmitting}
+            disabled={savingDraft}
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={formState.isSubmitting}>
-            {formState.isSubmitting ? (
+          <Button type="submit" disabled={savingDraft}>
+            {savingDraft ? (
               <Loader2
                 data-icon="inline-start"
                 className="animate-spin motion-reduce:animate-none"
