@@ -531,6 +531,40 @@ function numberOrZero(value: number): number {
   return Number.isNaN(value) ? 0 : value;
 }
 
+/**
+ * What a Project Info save is allowed to write: every Project Info scalar
+ * group, and **no linked scope records**.
+ *
+ * `departments`, `disciplines`, and `team` are owned by their own wizard
+ * steps. Excluding them at the type level means a Project Info save cannot
+ * replace, delete, or recreate project scope even by accident — the compiler
+ * rejects it rather than the database silently losing rows.
+ */
+export type ProjectInfoUpdate = Omit<
+  Project,
+  "id" | "createdAt" | "updatedAt" | "departments" | "disciplines" | "team"
+>;
+
+/**
+ * Map validated form values to the Project Info payload.
+ *
+ * Every key is always present — a field the user cleared arrives as an
+ * explicit `undefined`, which the service writes as NULL. That is what keeps
+ * "clear this field" working while relation-only updates (which omit these
+ * keys entirely) leave Project Info untouched.
+ */
+export function formValuesToProjectInfoUpdate(
+  values: ProjectFormValues,
+  options: { asDraft?: boolean } = {}
+): ProjectInfoUpdate {
+  const { departments: _departments, ...info } = formValuesToProjectInput(
+    values,
+    options
+  );
+  void _departments;
+  return info;
+}
+
 /** Map validated form values to the service input shape. */
 export function formValuesToProjectInput(
   values: ProjectFormValues,

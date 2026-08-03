@@ -67,72 +67,97 @@ const RESPONSIBILITY_ROLES: {
 
 /* ------------------------------- Mapping ---------------------------------- */
 
+/**
+ * Map a project payload to its `projects` row columns.
+ *
+ * **A column is written only when its key is actually present on `input`.**
+ * That distinction is the whole point: `Partial<ProjectInput>` is used for
+ * relation-only updates (`{ departments }`, `{ disciplines }`, `{ team }`)
+ * from the Departments / Systems / Disciplines / Contacts steps, and those
+ * must not touch a single Project Info column.
+ *
+ * The previous version guarded on the *value* (`if (value !== undefined)`)
+ * while passing `input.x ?? null`. Since `undefined ?? null` is `null` — not
+ * `undefined` — the guard never fired for optional fields, so every partial
+ * update silently wrote NULL into 25 columns, including `project_type_id`
+ * and `current_phase_id`. Saving the Departments step therefore wiped
+ * Project Info, dropping it to 6/8 and re-locking Systems and Disciplines.
+ *
+ * Key presence still allows an explicit clear: `formValuesToProjectInfoUpdate`
+ * always emits every Project Info key, so a field the user emptied arrives as
+ * a present-but-undefined key and is correctly written as NULL.
+ */
 function flattenProject(
   input: Partial<ProjectInput>
 ): Record<string, unknown> {
   const row: Record<string, unknown> = {};
-  const set = (col: string, value: unknown) => {
-    if (value !== undefined) row[col] = value;
+  /** Write `col` only if the caller mentioned `key` at all. */
+  const set = (col: string, key: keyof ProjectInput, value: unknown) => {
+    if (!(key in input)) return;
+    row[col] = value;
   };
 
-  set("code", input.code);
-  set("name", input.name);
-  set("short_name", input.shortName ?? null);
-  set("description", input.description ?? null);
-  set("project_type_id", input.projectTypeId ?? null);
-  set("client_id", input.clientId);
-  set("contract_number", input.contractNumber ?? null);
-  set("purchase_order_number", input.purchaseOrderNumber ?? null);
+  set("code", "code", input.code);
+  set("name", "name", input.name);
+  set("short_name", "shortName", input.shortName ?? null);
+  set("description", "description", input.description ?? null);
+  set("project_type_id", "projectTypeId", input.projectTypeId ?? null);
+  set("client_id", "clientId", input.clientId);
+  set("contract_number", "contractNumber", input.contractNumber ?? null);
+  set("purchase_order_number", "purchaseOrderNumber", input.purchaseOrderNumber ?? null);
 
-  set("contract_start_date", input.contractStartDate ?? null);
-  set("planned_start_date", input.plannedStartDate);
-  set("actual_start_date", input.actualStartDate ?? null);
-  set("planned_finish_date", input.plannedFinishDate);
-  set("forecast_finish_date", input.forecastFinishDate ?? null);
-  set("actual_finish_date", input.actualFinishDate ?? null);
+  set("contract_start_date", "contractStartDate", input.contractStartDate ?? null);
+  set("planned_start_date", "plannedStartDate", input.plannedStartDate);
+  set("actual_start_date", "actualStartDate", input.actualStartDate ?? null);
+  set("planned_finish_date", "plannedFinishDate", input.plannedFinishDate);
+  set("forecast_finish_date", "forecastFinishDate", input.forecastFinishDate ?? null);
+  set("actual_finish_date", "actualFinishDate", input.actualFinishDate ?? null);
 
-  set("project_manager_id", input.projectManagerId);
-  set("project_control_manager_id", input.projectControlManagerId ?? null);
-  set("client_representative_id", input.clientRepresentativeId ?? null);
-  set("reporting_coordinator_id", input.reportingCoordinatorId ?? null);
-  set("project_sponsor_id", input.projectSponsorId ?? null);
+  set("project_manager_id", "projectManagerId", input.projectManagerId);
+  set("project_control_manager_id", "projectControlManagerId", input.projectControlManagerId ?? null);
+  set("client_representative_id", "clientRepresentativeId", input.clientRepresentativeId ?? null);
+  set("reporting_coordinator_id", "reportingCoordinatorId", input.reportingCoordinatorId ?? null);
+  set("project_sponsor_id", "projectSponsorId", input.projectSponsorId ?? null);
 
-  set("status", input.status);
-  set("overall_status", input.overallStatus);
-  set("planned_progress", input.plannedProgress);
-  set("actual_progress", input.actualProgress);
-  set("current_phase_id", input.currentPhaseId ?? null);
-  set("priority", input.priority);
+  set("status", "status", input.status);
+  set("overall_status", "overallStatus", input.overallStatus);
+  set("planned_progress", "plannedProgress", input.plannedProgress);
+  set("actual_progress", "actualProgress", input.actualProgress);
+  set("current_phase_id", "currentPhaseId", input.currentPhaseId ?? null);
+  set("priority", "priority", input.priority);
 
+  // The nested groups carry their own presence guard: the key is either
+  // absent (relation-only update — write nothing) or fully supplied by
+  // Project Info, so these assign directly rather than re-checking presence.
   if (input.reporting) {
-    set("weekly_enabled", input.reporting.weeklyEnabled);
-    set("monthly_enabled", input.reporting.monthlyEnabled);
-    set("executive_enabled", input.reporting.executiveEnabled);
-    set("weekly_reporting_day", input.reporting.weeklyReportingDay);
-    set("monthly_cutoff_day", input.reporting.monthlyCutoffDay);
-    set("currency", input.reporting.currency);
-    set("working_week", input.reporting.workingWeek);
-    set("time_zone", input.reporting.timeZone);
+    row.weekly_enabled = input.reporting.weeklyEnabled;
+    row.monthly_enabled = input.reporting.monthlyEnabled;
+    row.executive_enabled = input.reporting.executiveEnabled;
+    row.weekly_reporting_day = input.reporting.weeklyReportingDay;
+    row.monthly_cutoff_day = input.reporting.monthlyCutoffDay;
+    row.currency = input.reporting.currency;
+    row.working_week = input.reporting.workingWeek;
+    row.time_zone = input.reporting.timeZone;
   }
   if (input.location) {
-    set("site", input.location.site ?? null);
-    set("country", input.location.country ?? null);
-    set("city", input.location.city ?? null);
+    row.site = input.location.site ?? null;
+    row.country = input.location.country ?? null;
+    row.city = input.location.city ?? null;
   }
   if (input.clientContact) {
-    set("client_contact_name", input.clientContact.name ?? null);
-    set("client_contact_email", input.clientContact.email ?? null);
-    set("client_contact_phone", input.clientContact.phone ?? null);
+    row.client_contact_name = input.clientContact.name ?? null;
+    row.client_contact_email = input.clientContact.email ?? null;
+    row.client_contact_phone = input.clientContact.phone ?? null;
   }
   if (input.branding) {
-    set("project_logo_ref", input.branding.projectLogoRef ?? null);
-    set("client_logo_ref", input.branding.clientLogoRef ?? null);
-    set("report_header_title", input.branding.reportHeaderTitle ?? null);
-    set("report_footer_text", input.branding.reportFooterText ?? null);
-    set("report_reference_prefix", input.branding.reportReferencePrefix ?? null);
-    set("default_language", input.branding.defaultLanguage);
-    set("include_qr_code", input.branding.includeQrCode);
-    set("include_signature_section", input.branding.includeSignatureSection);
+    row.project_logo_ref = input.branding.projectLogoRef ?? null;
+    row.client_logo_ref = input.branding.clientLogoRef ?? null;
+    row.report_header_title = input.branding.reportHeaderTitle ?? null;
+    row.report_footer_text = input.branding.reportFooterText ?? null;
+    row.report_reference_prefix = input.branding.reportReferencePrefix ?? null;
+    row.default_language = input.branding.defaultLanguage;
+    row.include_qr_code = input.branding.includeQrCode;
+    row.include_signature_section = input.branding.includeSignatureSection;
   }
   return row;
 }
@@ -449,17 +474,35 @@ export const supabaseProjectService: ProjectService = {
   },
 
   async updateProject(id, input) {
-    const { error } = await client()
-      .from("projects")
-      .update(flattenProject(input))
-      .eq("id", id);
-    if (error) throw new Error(error.message);
-    if (input.departments) await replaceDepartments(id, input.departments);
-    if (input.projectManagerId !== undefined) {
+    const columns = flattenProject(input);
+    // A relation-only update maps to zero columns; skip the no-op UPDATE
+    // rather than issuing an empty PATCH.
+    if (Object.keys(columns).length > 0) {
+      const { error } = await client()
+        .from("projects")
+        .update(columns)
+        .eq("id", id);
+      if (error) throw new Error(error.message);
+    }
+
+    // Each relation is replaced only when the caller explicitly supplied it.
+    // `in` rather than truthiness so an intentional `[]` (clear them all,
+    // from that relation's own step) is honoured instead of ignored.
+    if ("departments" in input && input.departments) {
+      await replaceDepartments(id, input.departments);
+    }
+    if ("disciplines" in input && input.disciplines) {
+      await replaceDisciplineLinks(id, input.disciplines);
+    }
+    if ("team" in input && input.team) {
+      await replaceTeam(id, input.team);
+    }
+    // Responsibility contacts are Project Info fields, so they follow the
+    // Project Info payload — never a relation-only update.
+    if ("projectManagerId" in input) {
       await replaceContacts(id, input as ProjectInput);
     }
-    if (input.disciplines) await replaceDisciplineLinks(id, input.disciplines);
-    if (input.team) await replaceTeam(id, input.team);
+
     const updated = await supabaseProjectService.getProjectById(id);
     if (!updated) throw new Error(`Project ${id} not found`);
     return updated;

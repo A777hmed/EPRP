@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   EmptyState,
+  ErrorState,
   LoadingState,
   PageHeader,
   SectionCard,
@@ -24,6 +25,7 @@ import {
 import { projectService } from "@/services/project-service";
 import {
   emptyProjectFormValues,
+  formValuesToProjectInfoUpdate,
   formValuesToProjectInput,
   projectToFormValues,
   type ProjectFormValues,
@@ -66,11 +68,44 @@ export function ProjectSetupView({ projectId, step }: ProjectSetupViewProps) {
     []
   );
   const [usedCodes, setUsedCodes] = React.useState<string[] | null>(null);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [reloadKey, setReloadKey] = React.useState(0);
 
   React.useEffect(() => {
-    projectService.getUsedCodes(projectId).then(setUsedCodes);
-    if (projectId) projectService.getProjectById(projectId).then(setProject);
-  }, [projectId]);
+    let cancelled = false;
+    Promise.all([
+      projectService.getUsedCodes(projectId),
+      projectId ? projectService.getProjectById(projectId) : Promise.resolve(null),
+    ])
+      .then(([codes, loaded]) => {
+        if (cancelled) return;
+        setLoadError(null);
+        setUsedCodes(codes);
+        setProject(loaded);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        // A failed or timed-out fetch must not strand the user on a spinner
+        // or bounce them to another step — surface it with a Retry and stay
+        // exactly where they are.
+        setLoadError(
+          error instanceof Error ? error.message : "Could not load this project."
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, reloadKey]);
+
+  if (loadError !== null) {
+    return (
+      <ErrorState
+        title="Project setup could not be loaded"
+        description={`${loadError} Your unsaved edits on this step are kept — retry without leaving the page.`}
+        onRetry={() => setReloadKey((key) => key + 1)}
+      />
+    );
+  }
 
   if (usedCodes === null || project === undefined) {
     return <LoadingState variant="page" label="Loading project setup…" />;
@@ -164,37 +199,31 @@ function SetupShell({
 
   if (step === "info") {
     const handleSubmit = async (values: ProjectFormValues) => {
-      const input = formValuesToProjectInput(values);
       if (project) {
-        // Project Info never edits departments — `ProjectScopeSummary` only
-        // links out to Step 2 / the Departments pages. `values.departments`
-        // is whatever this form loaded at mount, so sending it back would
-        // silently overwrite anything saved on Step 2 since then. Omitting
-        // the key (rather than sending `[]`) tells the service "unchanged".
-        const { departments: _departments, ...updateInput } = input;
-        void _departments;
+        // Project Info payload only — `ProjectInfoUpdate` excludes
+        // departments, disciplines, and team at the type level, so this save
+        // can never replace scope owned by Steps 2-5.
         const updated = await projectService.updateProject(
           project.id,
-          updateInput
+          formValuesToProjectInfoUpdate(values)
         );
         onInfoSaved(updated);
         toast.success("Project info saved");
         router.push(projectWorkflowHref(project.id, "departments"));
       } else {
-        const created = await projectService.createProject(input);
+        const created = await projectService.createProject(
+          formValuesToProjectInput(values)
+        );
         toast.success(`${created.code} created`);
         router.push(projectWorkflowHref(created.id, "departments"));
       }
     };
 
     const handleSaveDraft = async (values: ProjectFormValues) => {
-      const input = formValuesToProjectInput(values, { asDraft: !project });
       if (project) {
-        const { departments: _departments, ...updateInput } = input;
-        void _departments;
         const updated = await projectService.updateProject(
           project.id,
-          updateInput
+          formValuesToProjectInfoUpdate(values)
         );
         // Refresh the stepper immediately — otherwise it keeps showing the
         // pre-save completion count until the page is left and reopened.
@@ -202,7 +231,9 @@ function SetupShell({
         // ProjectForm's own handleSaveDraft already toasts "Draft saved" on
         // success; toasting again here just doubled it.
       } else {
-        const created = await projectService.createProject(input);
+        const created = await projectService.createProject(
+          formValuesToProjectInput(values, { asDraft: true })
+        );
         // Keep editing the stored draft so the id carries forward.
         router.replace(projectWorkflowHref(created.id, "info"));
       }
