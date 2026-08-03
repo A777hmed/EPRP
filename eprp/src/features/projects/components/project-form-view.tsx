@@ -64,7 +64,14 @@ export function ProjectFormView({ projectId }: ProjectFormViewProps) {
   const handleSubmit = async (values: ProjectFormValues) => {
     const input = formValuesToProjectInput(values);
     if (isEdit && project) {
-      await projectService.updateProject(project.id, input);
+      // This form never edits departments — `ProjectScopeSummary` only links
+      // out to the setup wizard / department pages. `values.departments` is
+      // whatever was loaded when the form mounted, so sending it back would
+      // silently overwrite anything saved there since. Omitting the key
+      // (rather than sending `[]`) tells the service "leave it alone".
+      const { departments: _departments, ...updateInput } = input;
+      void _departments;
+      await projectService.updateProject(project.id, updateInput);
       router.push(`/projects/${project.id}`);
     } else {
       const created = await projectService.createProject(input);
@@ -75,10 +82,10 @@ export function ProjectFormView({ projectId }: ProjectFormViewProps) {
   const handleSaveDraft = async (values: ProjectFormValues) => {
     if (isEdit && project) {
       // Keep the chosen status when the project already exists.
-      await projectService.updateProject(
-        project.id,
-        formValuesToProjectInput(values)
-      );
+      const { departments: _departments, ...updateInput } =
+        formValuesToProjectInput(values);
+      void _departments;
+      await projectService.updateProject(project.id, updateInput);
     } else {
       const created = await projectService.createProject(
         formValuesToProjectInput(values, { asDraft: true })

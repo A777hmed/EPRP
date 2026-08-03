@@ -57,6 +57,14 @@ export function ProjectSetupView({ projectId, step }: ProjectSetupViewProps) {
   const [project, setProject] = React.useState<Project | null | undefined>(
     projectId ? undefined : null
   );
+  // Step 1 writes straight through this rather than through `draft` below —
+  // it saves before any per-step edit state exists, and the workflow stepper
+  // (rendered from `project`, not `draft`) must reflect that save immediately
+  // instead of waiting for a navigation to refetch.
+  const handleInfoSaved = React.useCallback(
+    (updated: Project) => setProject(updated),
+    []
+  );
   const [usedCodes, setUsedCodes] = React.useState<string[] | null>(null);
 
   React.useEffect(() => {
@@ -89,6 +97,7 @@ export function ProjectSetupView({ projectId, step }: ProjectSetupViewProps) {
       project={project}
       usedCodes={usedCodes}
       step={step}
+      onInfoSaved={handleInfoSaved}
     />
   );
 }
@@ -98,10 +107,12 @@ function SetupShell({
   project,
   usedCodes,
   step,
+  onInfoSaved,
 }: {
   project: Project | null;
   usedCodes: string[];
   step: ProjectWorkflowStepId;
+  onInfoSaved: (updated: Project) => void;
 }) {
   const router = useRouter();
   // Edits accumulate here and are written on save, so a half-finished step
@@ -155,7 +166,18 @@ function SetupShell({
     const handleSubmit = async (values: ProjectFormValues) => {
       const input = formValuesToProjectInput(values);
       if (project) {
-        await projectService.updateProject(project.id, input);
+        // Project Info never edits departments — `ProjectScopeSummary` only
+        // links out to Step 2 / the Departments pages. `values.departments`
+        // is whatever this form loaded at mount, so sending it back would
+        // silently overwrite anything saved on Step 2 since then. Omitting
+        // the key (rather than sending `[]`) tells the service "unchanged".
+        const { departments: _departments, ...updateInput } = input;
+        void _departments;
+        const updated = await projectService.updateProject(
+          project.id,
+          updateInput
+        );
+        onInfoSaved(updated);
         toast.success("Project info saved");
         router.push(projectWorkflowHref(project.id, "departments"));
       } else {
@@ -168,11 +190,19 @@ function SetupShell({
     const handleSaveDraft = async (values: ProjectFormValues) => {
       const input = formValuesToProjectInput(values, { asDraft: !project });
       if (project) {
-        await projectService.updateProject(project.id, input);
-        toast.success("Draft saved");
+        const { departments: _departments, ...updateInput } = input;
+        void _departments;
+        const updated = await projectService.updateProject(
+          project.id,
+          updateInput
+        );
+        // Refresh the stepper immediately — otherwise it keeps showing the
+        // pre-save completion count until the page is left and reopened.
+        onInfoSaved(updated);
+        // ProjectForm's own handleSaveDraft already toasts "Draft saved" on
+        // success; toasting again here just doubled it.
       } else {
         const created = await projectService.createProject(input);
-        toast.success("Draft saved");
         // Keep editing the stored draft so the id carries forward.
         router.replace(projectWorkflowHref(created.id, "info"));
       }
