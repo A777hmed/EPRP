@@ -6,6 +6,7 @@ import {
   Contact,
   FolderKanban,
   FolderOpen,
+  IdCard,
   Layers,
   LayoutDashboard,
   MessageSquareWarning,
@@ -62,10 +63,10 @@ export const mainNavigation: NavSection[] = [
         description: "Plant and facility systems by department",
       },
       {
-        title: "Disciplines",
+        title: "Programs & Studies",
         href: "/disciplines",
         icon: Wrench,
-        description: "Engineering disciplines by department",
+        description: "Programs and studies by department",
       },
       {
         title: "Contacts",
@@ -129,6 +130,12 @@ export const mainNavigation: NavSection[] = [
         href: "/administration",
         icon: ShieldCheck,
         description: "Departments, users, and permissions",
+      },
+      {
+        title: "Job Titles",
+        href: "/administration/job-titles",
+        icon: IdCard,
+        description: "Admin-managed job titles used across the directory",
       },
       {
         title: "Settings",

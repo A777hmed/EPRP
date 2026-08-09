@@ -28,6 +28,7 @@ import { weeklyReportService } from "@/services/weekly-report-service";
 import type { Project, WeeklyReport } from "@/types";
 import {
   getProjectSection,
+  localizeProjectSection,
   projectSectionHref,
   type ProjectSectionId,
 } from "@/config/project-sections";
@@ -36,6 +37,7 @@ import { formatVariance, projectSpi, projectVariance } from "../../utils";
 import { ProgressComparison } from "../progress-comparison";
 import { ProjectDetailsView } from "../project-details-view";
 import { OrganizationChartSection } from "./organization-chart-section";
+import { useHierarchyTerms } from "../../use-hierarchy-terms";
 import { ProjectScopeSection } from "./project-scope-section";
 import { ProjectSectionLayout } from "./project-section-layout";
 
@@ -57,6 +59,9 @@ export function ProjectSectionView({
 }: ProjectSectionViewProps) {
   const [project, setProject] = React.useState<Project | null | undefined>();
   const [weeklyReports, setWeeklyReports] = React.useState<WeeklyReport[]>([]);
+  // Called before the early returns below — hooks cannot run conditionally.
+  // Handles null/undefined by falling back to the default wording.
+  const terms = useHierarchyTerms(project);
 
   React.useEffect(() => {
     projectService.getProjectById(projectId).then(setProject);
@@ -94,7 +99,7 @@ export function ProjectSectionView({
     );
   }
 
-  const definition = getProjectSection(section);
+  const definition = localizeProjectSection(getProjectSection(section), terms);
 
   return (
     <div className="space-y-6">
@@ -137,7 +142,8 @@ function SectionBody({
   section: ProjectSectionId;
   weeklyReports: WeeklyReport[];
 }) {
-  const definition = getProjectSection(section);
+  const terms = useHierarchyTerms(project);
+  const definition = localizeProjectSection(getProjectSection(section), terms);
 
   switch (section) {
     case "setup":
@@ -179,6 +185,7 @@ function SectionBody({
 /* ------------------------------- Sections -------------------------------- */
 
 function SetupSection({ project }: { project: Project }) {
+  const terms = useHierarchyTerms(project);
   return (
     <ProjectSectionLayout
       title="Guided setup"
@@ -192,8 +199,8 @@ function SetupSection({ project }: { project: Project }) {
       }
     >
       <p className="text-sm text-muted-foreground">
-        The wizard walks through Project Info, Departments, Systems,
-        Disciplines, Contacts, and Review — each step saving before it
+        The wizard walks through Project Info, Departments, Systems,{" "}
+        {terms.plural}, Contacts, and Review — each step saving before it
         advances and unlocking the next one.
       </p>
     </ProjectSectionLayout>
@@ -432,6 +439,8 @@ function MonthlyReportsSection({ project }: { project: Project }) {
 }
 
 function RecordsPlaceholder({ section }: { section: ProjectSectionId }) {
+  // Documents / attachments only — never the hierarchy section, so no
+  // project-specific wording is needed here.
   const definition = getProjectSection(section);
   return (
     <ProjectSectionLayout

@@ -10,6 +10,14 @@ import { supabaseProjectService } from "./supabase-project-service";
  * contract the Supabase implementation must satisfy later — UI code never
  * touches the store directly.
  */
+/** Which parts of the assignment feature the database can currently store. */
+export interface AssignmentSupport {
+  /** project_contacts.assignment_role / functional_title / reports_to_contact_id */
+  assignmentColumns: boolean;
+  /** project_delegations table */
+  delegations: boolean;
+}
+
 export interface ProjectService {
   getProjects(): Promise<Project[]>;
   getProjectById(id: string): Promise<Project | null>;
@@ -24,6 +32,11 @@ export interface ProjectService {
   archiveProject(id: string): Promise<Project>;
   /** Codes in use, for uniqueness validation (excluding one project id). */
   getUsedCodes(excludeId?: string): Promise<string[]>;
+  /**
+   * Whether the additive assignment migration is applied, so the UI can
+   * disable just the affected editors instead of letting a save fail.
+   */
+  getAssignmentSupport(): Promise<AssignmentSupport>;
 }
 
 /** Deep-clone so callers can't mutate the store. */
@@ -127,6 +140,11 @@ const mockProjectService: ProjectService = {
   async archiveProject(id) {
     await delay();
     return mockProjectService.updateProject(id, { status: "archived" });
+  },
+
+  async getAssignmentSupport() {
+    // The in-memory store has no schema to lag behind.
+    return { assignmentColumns: true, delegations: true };
   },
 
   async getUsedCodes(excludeId) {

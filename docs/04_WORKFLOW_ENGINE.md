@@ -1,4 +1,8 @@
-# Reporting Workflow
+# Workflow Engine
+
+> Report states, department submission, review, approval, and revisions. This is
+> the operating detail beneath [`03_REPORTING_ARCHITECTURE.md`](03_REPORTING_ARCHITECTURE.md)
+> §8–§12, which is authoritative on the canonical lifecycle.
 
 ## 1. Weekly lifecycle
 

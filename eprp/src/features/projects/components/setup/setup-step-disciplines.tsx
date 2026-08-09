@@ -26,9 +26,12 @@ import {
   withProjectContext,
   type ProjectLinkContext,
 } from "../../project-link-context";
+import type { HierarchyTerms } from "@/config/project-terminology";
 import { LinkedRecordRow } from "./linked-record-row";
 
 export interface SetupStepDisciplinesProps {
+  /** Hierarchy wording — display only. */
+  terms: HierarchyTerms;
   project: Project;
   context: ProjectLinkContext;
   disciplines: Discipline[];
@@ -49,6 +52,7 @@ export function SetupStepDisciplines({
   disciplines,
   departmentName,
   onDraftChange,
+  terms,
 }: SetupStepDisciplinesProps) {
   const links = project.disciplines ?? [];
   const assignments = project.departments;
@@ -84,10 +88,10 @@ export function SetupStepDisciplines({
 
   if (projectSystems.length === 0) {
     return (
-      <SectionCard title="Disciplines">
+      <SectionCard title={terms.plural}>
         <EmptyState
           title="No systems yet"
-          description="Assign systems to departments before linking disciplines."
+          description={`Assign systems to departments before linking ${terms.pluralLower}.`}
           className="py-8"
         />
       </SectionCard>
@@ -97,8 +101,8 @@ export function SetupStepDisciplines({
   return (
     <div className="space-y-4">
       <SectionCard
-        title="Link disciplines to a system"
-        description="Disciplines are offered from the department that owns the selected system."
+        title={`Link ${terms.pluralLower} to a system`}
+        description={`${terms.plural} are offered from the department that owns the selected system.`}
         action={
           <Button variant="outline" size="sm" asChild>
             <Link
@@ -109,7 +113,7 @@ export function SetupStepDisciplines({
               })}
             >
               <Plus data-icon="inline-start" aria-hidden="true" />
-              Add Discipline
+              Add {terms.singular}
             </Link>
           </Button>
         }
@@ -135,7 +139,7 @@ export function SetupStepDisciplines({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="setup-disciplines">Disciplines</Label>
+            <Label htmlFor="setup-disciplines">{terms.plural}</Label>
             <ManagedMultiSelect
               kind="discipline"
               value={linksForSystem.map((link) => link.disciplineId)}
@@ -143,8 +147,8 @@ export function SetupStepDisciplines({
               filter={(record: MasterRecordBase) =>
                 (record as Discipline).departmentId === activeDepartmentId
               }
-              emptyLabel="No disciplines belong to this system's department."
-              placeholder="Select disciplines…"
+              emptyLabel={`No ${terms.pluralLower} belong to this system's department.`}
+              placeholder={`Select ${terms.pluralLower}…`}
               controlProps={{ id: "setup-disciplines" }}
             />
           </div>
@@ -152,13 +156,13 @@ export function SetupStepDisciplines({
       </SectionCard>
 
       <SectionCard
-        title="Linked disciplines"
-        description="Every discipline linked on this project, grouped by system."
+        title={`Linked ${terms.pluralLower}`}
+        description={`Every ${terms.singularLower} linked on this project, grouped by system.`}
       >
         {links.length === 0 ? (
           <EmptyState
-            title="No disciplines linked yet"
-            description="Pick a system above, then choose the disciplines covering it."
+            title={`No ${terms.pluralLower} linked yet`}
+            description={`Pick a system above, then choose the ${terms.pluralLower} covering it.`}
             className="py-8"
           />
         ) : (

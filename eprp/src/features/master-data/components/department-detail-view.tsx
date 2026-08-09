@@ -187,7 +187,7 @@ export function DepartmentDetailView({
               {department.active ? "Active" : "Archived"}
             </DetailRow>
             <DetailRow label="Systems">{relatedSystems.length}</DetailRow>
-            <DetailRow label="Disciplines">
+            <DetailRow label="Programs & Studies">
               {relatedDisciplines.length}
             </DetailRow>
             <DetailRow label="Contacts">{relatedContacts.length}</DetailRow>
@@ -264,8 +264,8 @@ export function DepartmentDetailView({
           </SectionCard>
 
           <SectionCard
-            title="Disciplines"
-            description="Disciplines owned by this department."
+            title="Programs & Studies"
+            description="Programs and studies owned by this department."
             action={
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/disciplines">Manage</Link>

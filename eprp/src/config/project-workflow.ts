@@ -6,6 +6,10 @@ import type {
   ProjectTeamMember,
   System,
 } from "@/types";
+import {
+  DEFAULT_HIERARCHY_TERMS,
+  type HierarchyTerms,
+} from "./project-terminology";
 
 /**
  * The guided project setup wizard.
@@ -52,9 +56,9 @@ export const projectWorkflowSteps: ProjectWorkflowStep[] = [
   },
   {
     id: "disciplines",
-    label: "Disciplines",
+    label: "Programs & Studies",
     description:
-      "Engineering disciplines, linked to the systems and departments they cover.",
+      "Programs and studies, linked to the systems and departments they cover.",
   },
   {
     id: "contacts",
@@ -83,6 +87,48 @@ export function getProjectWorkflowStep(
   const step = projectWorkflowSteps.find((candidate) => candidate.id === id);
   if (!step) throw new Error(`Unknown project workflow step: ${id}`);
   return step;
+}
+
+/**
+ * The same step, relabelled for the project's hierarchy terminology.
+ *
+ * Only the `disciplines` step has alternate wording; every other step is
+ * returned untouched. The step **id, order, gating, and completion rules are
+ * unchanged** — this is display text only, so `projectWorkflowSteps` stays the
+ * single source of sequence.
+ */
+export function localizeProjectWorkflowStep(
+  step: ProjectWorkflowStep,
+  terms: HierarchyTerms
+): ProjectWorkflowStep {
+  // Default terminology returns the step exactly as configured, so a
+  // non-PSM project keeps its original wording verbatim — including phrasing
+  // that is not derived from the terms ("Engineering disciplines, …").
+  if (terms.plural === DEFAULT_HIERARCHY_TERMS.plural) return step;
+
+  if (step.id === "disciplines") {
+    return {
+      ...step,
+      label: terms.plural,
+      description: `${terms.plural}, linked to the systems and departments they cover.`,
+    };
+  }
+  // Contacts keeps its own label but its description names the hierarchy level.
+  if (step.id === "contacts") {
+    return {
+      ...step,
+      description: `The project team, scoped to the department and ${terms.singularLower} they work in.`,
+    };
+  }
+  return step;
+}
+
+/** Convenience: look the step up and relabel it in one call. */
+export function getLocalizedProjectWorkflowStep(
+  id: ProjectWorkflowStepId,
+  terms: HierarchyTerms
+): ProjectWorkflowStep {
+  return localizeProjectWorkflowStep(getProjectWorkflowStep(id), terms);
 }
 
 /** Wizard step URL. Step 1 has no project yet when creating from scratch. */
@@ -202,7 +248,8 @@ function systemChecks(
  */
 function disciplineChecks(
   project: Project,
-  departmentName: (id: string) => string
+  departmentName: (id: string) => string,
+  terms: HierarchyTerms
 ): WorkflowCheck[] {
   const links = project.disciplines ?? [];
   if (project.departments.length === 0) {
@@ -210,9 +257,9 @@ function disciplineChecks(
   }
   return project.departments.map((assignment) =>
     check(
-      `${departmentName(assignment.departmentId)} has a discipline`,
+      `${departmentName(assignment.departmentId)} has a ${terms.singularLower}`,
       links.some((link) => link.departmentId === assignment.departmentId),
-      `Link a discipline to ${departmentName(assignment.departmentId)}.`
+      `Link a ${terms.singularLower} to ${departmentName(assignment.departmentId)}.`
     )
   );
 }
@@ -269,7 +316,9 @@ function reviewChecks(earlier: ProjectStepStatus[]): WorkflowCheck[] {
 export function evaluateProjectWorkflow(
   project: Project,
   data: WorkflowMasterData,
-  departmentName: (id: string) => string = (id) => id
+  departmentName: (id: string) => string = (id) => id,
+  /** Display wording only — never changes which checks run or their outcome. */
+  terms: HierarchyTerms = DEFAULT_HIERARCHY_TERMS
 ): ProjectStepStatus[] {
   void data; // Reserved: all checks now read project-scoped links.
 
@@ -307,7 +356,7 @@ export function evaluateProjectWorkflow(
       case "systems":
         return systemChecks(project, departmentName);
       case "disciplines":
-        return disciplineChecks(project, departmentName);
+        return disciplineChecks(project, departmentName, terms);
       case "contacts":
         return contactChecks(project, departmentName);
       case "review":

@@ -1,4 +1,8 @@
-# Collaboration and Approvals — Operating Model
+# Permission Model — Collaboration and Approvals
+
+> Role definitions, scope, responsibility, and delegation. This is the operating
+> detail beneath [`02_PLATFORM_ARCHITECTURE.md`](02_PLATFORM_ARCHITECTURE.md)
+> §8–§9, which is authoritative on the permission architecture.
 
 Status: **approved operating model** · Created: 2026-08-01
 Owner: Project Control / System Administrator
@@ -9,13 +13,13 @@ coordinator assignment, approval authority, comment governance, and the
 notification events that follow from them.
 
 It governs roadmap **Phases 6, 7, 9, and 10** in
-[`05_DEVELOPMENT_ROADMAP.md`](05_DEVELOPMENT_ROADMAP.md). It sits alongside
-[`06_WEEKLY_REPORT_SPEC.md`](06_WEEKLY_REPORT_SPEC.md), which defines the
+[`15_DEVELOPMENT_ROADMAP.md`](15_DEVELOPMENT_ROADMAP.md). It sits alongside
+[`specs/weekly-report.md`](specs/weekly-report.md), which defines the
 Weekly Report's *content*; this document defines its *people and permissions*.
 
 Where this document and an engineering reference or the current code disagree,
 **this document wins** (see `CLAUDE.md`). It also **supersedes parts of
-[`03_WORKFLOW.md`](03_WORKFLOW.md) §6** — the differences are listed in
+[`04_WORKFLOW_ENGINE.md`](04_WORKFLOW_ENGINE.md) §6** — the differences are listed in
 §7 *Reconciliation* rather than applied silently, so each one is changed
 deliberately.
 
@@ -331,7 +335,7 @@ history rather than overwrite it — both existing `CLAUDE.md` rules.
 ```
 
 The report-level lifecycle is unchanged from
-[`03_WORKFLOW.md`](03_WORKFLOW.md) §1:
+[`04_WORKFLOW_ENGINE.md`](04_WORKFLOW_ENGINE.md) §1:
 
 ```text
 Draft → Collecting → Under Review → Approved → Finalized → Locked
@@ -406,7 +410,7 @@ is fixed by this document**; each is work for the phase that implements it.
 
 | # | Existing statement | This document requires |
 |---|---|---|
-| 1 | [`03_WORKFLOW.md`](03_WORKFLOW.md) §6 and [`engineering/permissions-matrix.md`](engineering/permissions-matrix.md) treat "Department Lead/User" as **one** access level with no approval authority | Department Lead is a **distinct** level that approves the department submission (§1.2). The permissions matrix note that `department_lead` "carries the same permissions as `department_user`" is superseded |
+| 1 | [`04_WORKFLOW_ENGINE.md`](04_WORKFLOW_ENGINE.md) §6 and [`engineering/permissions-matrix.md`](engineering/permissions-matrix.md) treat "Department Lead/User" as **one** access level with no approval authority | Department Lead is a **distinct** level that approves the department submission (§1.2). The permissions matrix note that `department_lead` "carries the same permissions as `department_user`" is superseded |
 | 2 | `config/permissions.ts` grants `project_manager` **`approve_weekly`** and withholds `approve_monthly` | Exactly inverted: the Project Manager is a Weekly **observer** (§1.6) and the **Monthly approver** (§2) |
 | 3 | `config/permissions.ts` grants `executive` **`create/edit/finalize_executive_report`** | Executive access is **read-only by default** (§2). Authoring belongs to Project Control |
 | 4 | `reportingCoordinatorId` is a single contact column on the project | Coordinator is a **many-to-many assignment** controlled by Project Control Admin (§1.4). The existing column remains the *named* coordinator for report output |
@@ -419,7 +423,7 @@ is fixed by this document**; each is work for the phase that implements it.
 
 ## 9. Phased implementation order
 
-Roadmap phase numbers from [`05_DEVELOPMENT_ROADMAP.md`](05_DEVELOPMENT_ROADMAP.md).
+Roadmap phase numbers from [`15_DEVELOPMENT_ROADMAP.md`](15_DEVELOPMENT_ROADMAP.md).
 **No parallel numbering scheme** (`CLAUDE.md`). Each step is a separate
 approval; none starts automatically.
 
@@ -489,7 +493,7 @@ None of these may be started automatically:
   exchange (Phase 8).
 - **Approval signatures, QR codes, and printed sign-off blocks** (Phases 11–12).
 - **Comment mentions (`@user`), attachments on comments, and threaded replies**
-  beyond what [`02_REPORTING_ARCHITECTURE.md`](02_REPORTING_ARCHITECTURE.md)
+  beyond what [`archive/reporting-architecture-v1.md`](archive/reporting-architecture-v1.md)
   §6 already specifies — these belong to the Comment Register work in Phase 6
   and are tracked there, not here.
 - **The Comment Register itself** — the cross-report persistent master record

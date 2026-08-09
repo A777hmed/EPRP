@@ -5,9 +5,9 @@ Owner: Project Control / System Administrator
 
 This document records the approved rules for the Weekly Report. It resolves
 the open questions raised in
-[`references/weekly-report/README.md`](../references/weekly-report/README.md)
+[`references/weekly-report/README.md`](../../references/weekly-report/README.md)
 and governs roadmap **Phases 4–6** in
-[`05_DEVELOPMENT_ROADMAP.md`](05_DEVELOPMENT_ROADMAP.md).
+[`15_DEVELOPMENT_ROADMAP.md`](../15_DEVELOPMENT_ROADMAP.md).
 
 Where this specification and an engineering doc or the current code disagree,
 **this specification wins** (see `CLAUDE.md`). The **Gap analysis** at the end
@@ -54,7 +54,7 @@ Notes:
 - Section 2 displays linked project master data by `projectId` — it never
   duplicates it into the report (`CLAUDE.md` rule).
 - Section 10 Look Ahead horizons: next week, 2 weeks, 4 weeks, month, quarter
-  (`02_REPORTING_ARCHITECTURE.md` §3).
+  (`archive/reporting-architecture-v1.md` §3).
 - Sections 6, 8, 9, 10 are repeatable lists with add / edit / delete and
   validation.
 
@@ -64,13 +64,13 @@ Notes:
 Draft → Collecting → Under Review → Approved → Finalized → Locked
 ```
 
-- Semantics per `03_WORKFLOW.md` §1: department tasks open in `Collecting`;
+- Semantics per `04_WORKFLOW_ENGINE.md` §1: department tasks open in `Collecting`;
   a reviewer may **return** a report or submission (reason required);
   `Finalized` creates the snapshot Monthly compiles from; `Locked` is
   read-only and corrections require a **new revision** linked to the locked
   original.
 - Department submissions use: `Pending | Draft | Submitted | Returned |
-  Accepted` (`03_WORKFLOW.md` §2).
+  Accepted` (`04_WORKFLOW_ENGINE.md` §2).
 
 ## 4. Projects, departments, and disciplines
 
@@ -159,7 +159,7 @@ they fall short (see Gap analysis).
 - Every comment supports: **status, priority, owner, due date, attachments,
   history, resolve/reopen, Executive flag, Carry Forward flag, Include in
   Monthly flag.**
-- Comment status lifecycle per `03_WORKFLOW.md` §5
+- Comment status lifecycle per `04_WORKFLOW_ENGINE.md` §5
   (`New → Open → Under Review → Action Required → In Progress → Resolved →
   Closed`, plus supporting states).
 - **Original comment text is immutable** — later reports and updates link to
@@ -180,7 +180,7 @@ they fall short (see Gap analysis).
 - **No Admin PIN gate.** The PIN control shown in the printable reference is
   rejected (resolves reference open question 2).
 - Authorization becomes **role-based after Login and permissions are
-  implemented** (`03_WORKFLOW.md` §6: UI checks are not enough; server-side
+  implemented** (`04_WORKFLOW_ENGINE.md` §6: UI checks are not enough; server-side
   authorization/RLS must enforce access). Until then the workspace records
   who is named in each role without enforcing identity.
 
@@ -228,7 +228,7 @@ to applied ones.
 
 | # | Area | As-built today | This spec requires |
 |---|---|---|---|
-| 1 | Report status values | **The approved six-state main workflow already exists.** `weeklyWorkflow.mainPath` in `config/workflows.ts` is exactly `draft → collecting → under_review → approved → finalized → locked`, and `canTransition` is enforced in both the mock and Supabase `changeStatus`. The additional `ReportStatus` values (`submitted`, `returned`, `rejected`, `archived`) are the **supporting states** `03_WORKFLOW.md` §2–3 requires — not a competing lifecycle | **No replacement needed.** The only outstanding item is that `weekly_reports.status` has no database `CHECK` constraint; adding one is optional hardening for a later phase, via a new migration |
+| 1 | Report status values | **The approved six-state main workflow already exists.** `weeklyWorkflow.mainPath` in `config/workflows.ts` is exactly `draft → collecting → under_review → approved → finalized → locked`, and `canTransition` is enforced in both the mock and Supabase `changeStatus`. The additional `ReportStatus` values (`submitted`, `returned`, `rejected`, `archived`) are the **supporting states** `04_WORKFLOW_ENGINE.md` §2–3 requires — not a competing lifecycle | **No replacement needed.** The only outstanding item is that `weekly_reports.status` has no database `CHECK` constraint; adding one is optional hardening for a later phase, via a new migration |
 | 2 | Workspace sections | Sections 1–4, 7 (department-level), 8 partially (entries), submission status list | All 13 sections; missing: Executive Summary, Major Activities, Next Week Plan Gantt, Look Ahead, threaded Comments, Attachments, Approval UI |
 | 3 | Comments | Single `weekly_entries` table: flat rows, `include_in_monthly` only; no replies, no owner history, no attachments, no Executive/Carry-Forward flags, no resolve/reopen trail | Threaded comments per §6 with all flags and history. Needs new tables; `weekly_entries` stays for risks/issues/actions |
 | 4 | Overall status values | `overall_progress_status` CHECK allows `ahead/on_track/at_risk/behind/critical`; no derivation, no override tracking | Recommended-status derivation per §5, manual override restricted by role, reason captured, audit later. Vocabulary mapping to be decided in the implementing phase (new migration) |

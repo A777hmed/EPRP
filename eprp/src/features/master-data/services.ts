@@ -3,6 +3,7 @@ import type {
   Contact,
   Department,
   Discipline,
+  JobTitle,
   MasterRecordBase,
   ProjectPhase,
   ProjectType,
@@ -13,6 +14,7 @@ import {
   mockContacts,
   mockDepartments,
   mockDisciplines,
+  mockJobTitles,
   mockProjectPhases,
   mockProjectTypes,
   mockSystems,
@@ -282,6 +284,17 @@ const mockDisciplineService: MasterDataService<Discipline> =
     usedBy: () => [],
   });
 
+const mockJobTitleService: MasterDataService<JobTitle> =
+  createMasterDataService({
+    idPrefix: "jt",
+    seed: mockJobTitles,
+    usedBy: (id) =>
+      mockContactService
+        .getAllSync()
+        .filter((contact) => contact.jobTitleId === id)
+        .map((contact) => `Contact: ${contact.name}`),
+  });
+
 /* ------------------------- Active service selection ----------------------- */
 
 const supabaseClientService = createSupabaseMasterDataService<Client>({
@@ -353,6 +366,18 @@ const supabaseDepartmentService =
       { table: "systems", column: "department_id", label: "system" },
       { table: "disciplines", column: "department_id", label: "discipline" },
       { table: "contacts", column: "department_id", label: "contact" },
+      // Project-level links, also `on delete set null` — see the note above
+      // the system service below.
+      {
+        table: "project_disciplines",
+        column: "department_id",
+        label: "project scope link",
+      },
+      {
+        table: "project_contacts",
+        column: "department_id",
+        label: "project role",
+      },
       {
         table: "weekly_submissions",
         column: "department_id",
@@ -361,9 +386,23 @@ const supabaseDepartmentService =
     ],
   });
 
+/*
+ * Systems and disciplines gained project-level links in the setup-links
+ * migration, but their reference checks were never updated — a system had
+ * none at all. Because those foreign keys are `on delete set null`, deleting
+ * a system or discipline that a project actually used was allowed and
+ * silently blanked the link instead of being refused.
+ */
 const supabaseSystemService = createSupabaseMasterDataService<System>({
   table: "systems",
-  references: [],
+  references: [
+    {
+      table: "project_disciplines",
+      column: "system_id",
+      label: "project scope link",
+    },
+    { table: "project_contacts", column: "system_id", label: "project role" },
+  ],
 });
 
 const supabaseDisciplineService =
@@ -371,12 +410,27 @@ const supabaseDisciplineService =
     table: "disciplines",
     references: [
       {
+        table: "project_disciplines",
+        column: "discipline_id",
+        label: "project scope link",
+      },
+      {
+        table: "project_contacts",
+        column: "discipline_id",
+        label: "project role",
+      },
+      {
         table: "weekly_submissions",
         column: "discipline_id",
         label: "department update",
       },
     ],
   });
+
+const supabaseJobTitleService = createSupabaseMasterDataService<JobTitle>({
+  table: "job_titles",
+  references: [{ table: "contacts", column: "job_title_id", label: "contact" }],
+});
 
 /** Managed selectors use Supabase whenever configured; local development
  * keeps the in-memory stores as the offline fallback. */
@@ -409,6 +463,10 @@ export const systemService: MasterDataService<System> = useSupabase
 export const disciplineService: MasterDataService<Discipline> = useSupabase
   ? supabaseDisciplineService
   : mockDisciplineService;
+
+export const jobTitleService: MasterDataService<JobTitle> = useSupabase
+  ? supabaseJobTitleService
+  : mockJobTitleService;
 
 /* ------------------------------- Kind registry ---------------------------- */
 
@@ -457,7 +515,16 @@ export const MASTER_KIND_CONFIG: Record<MasterKind, MasterKindConfig> = {
     plural: "People",
     fields: [
       { key: "name", label: "Full Name", type: "text", required: true },
-      { key: "position", label: "Job Title", type: "text", required: true },
+      // Phase C1 adds the managed title beside the free-text one rather than
+      // replacing it: existing contacts keep working, and a title that is not
+      // in the managed list yet can still be typed.
+      { key: "position", label: "Job Title (free text)", type: "text", required: true },
+      {
+        key: "jobTitleId",
+        label: "Managed Job Title",
+        type: "reference",
+        refKind: "jobTitle",
+      },
       { key: "role", label: "Role", type: "text" },
       { key: "organization", label: "Organization", type: "text" },
       { key: "email", label: "Email", type: "email" },
@@ -505,19 +572,48 @@ export const MASTER_KIND_CONFIG: Record<MasterKind, MasterKindConfig> = {
   },
   discipline: {
     kind: "discipline",
-    singular: "Discipline",
-    plural: "Disciplines",
+    // User-facing terminology. The table, type and kind keep the legacy
+    // "discipline" name deliberately — renaming them is migration risk with
+    // no user-visible benefit.
+    singular: "Program & Study",
+    plural: "Programs & Studies",
     fields: [
-      { key: "name", label: "Discipline Name", type: "text", required: true },
-      { key: "code", label: "Discipline Code", type: "text", required: true },
+      { key: "name", label: "Program / Study Name", type: "text", required: true },
+      { key: "code", label: "Program / Study Code", type: "text", required: true },
       {
         key: "departmentId",
-        label: "Related Department",
+        label: "Department",
         type: "reference",
         refKind: "department",
+        required: true,
+      },
+      {
+        // Only Systems belonging to the chosen Department are offered, so an
+        // invalid pair cannot be selected. Required: the hierarchy
+        // Project → Department → System → Program & Study is mandatory.
+        // Legacy rows may still hold NULL where the mapping was ambiguous;
+        // those are flagged in the list and must be mapped by hand, but no
+        // new or edited record can be saved without a System.
+        key: "systemId",
+        label: "System",
+        type: "reference",
+        refKind: "system",
+        required: true,
+        scopeBy: { field: "departmentId", recordKey: "departmentId" },
       },
       { key: "description", label: "Description", type: "textarea" },
     ],
+  },
+  jobTitle: {
+    kind: "jobTitle",
+    singular: "Job Title",
+    plural: "Job Titles",
+    fields: [
+      { key: "name", label: "Job Title", type: "text", required: true },
+      { key: "code", label: "Short Code", type: "text" },
+      { key: "description", label: "Description", type: "textarea" },
+    ],
+    optionSublabel: (record) => record.code,
   },
 };
 
@@ -529,6 +625,7 @@ const services: Record<MasterKind, MasterDataService<MasterRecordBase>> = {
   department: departmentService,
   system: systemService,
   discipline: disciplineService,
+  jobTitle: jobTitleService,
 };
 
 export function getMasterService(
@@ -573,4 +670,8 @@ export function getDisciplineById(
   id: string | undefined
 ): Discipline | undefined {
   return disciplineService.getByIdSync(id);
+}
+
+export function getJobTitleById(id: string | undefined): JobTitle | undefined {
+  return jobTitleService.getByIdSync(id);
 }

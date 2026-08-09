@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { isSupabaseUnreachable } from "@/lib/supabase/network";
 
 /**
  * Sign-in / sign-out server actions (Phase A2).
@@ -50,6 +51,18 @@ export async function signIn(
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
+    /*
+     * A connectivity failure is not a wrong password. Reporting it as one
+     * sent people round in circles retyping a password that was correct all
+     * along, so the two are separated here. This says nothing about whether
+     * the account exists, so it does not weaken the generic reply below.
+     */
+    if (isSupabaseUnreachable(error)) {
+      return {
+        error:
+          "Could not reach the authentication service. Check your connection and try again.",
+      };
+    }
     // Deliberately generic: never reveal whether the address has an account.
     return { error: "Incorrect email address or password." };
   }

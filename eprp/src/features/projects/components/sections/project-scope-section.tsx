@@ -40,7 +40,9 @@ import {
   type ProjectSectionId,
 } from "@/config/project-sections";
 import { projectWorkflowHref } from "@/config/project-workflow";
+import { ASSIGNMENT_ROLE_META } from "@/lib/constants";
 import { withProjectContext } from "../../project-link-context";
+import { useHierarchyTerms } from "../../use-hierarchy-terms";
 import { ProjectSectionLayout } from "./project-section-layout";
 
 type ScopeKind = "departments" | "systems" | "disciplines" | "contacts";
@@ -62,6 +64,8 @@ const KIND_META: Record<
   ScopeKind,
   {
     singular: string;
+    /** Stored rather than derived: "Program & Study" does not pluralise with "s". */
+    plural: string;
     basePath: string;
     icon: typeof Building2;
     setupStep: "departments" | "systems" | "disciplines" | "contacts";
@@ -69,24 +73,28 @@ const KIND_META: Record<
 > = {
   departments: {
     singular: "Department",
+    plural: "Departments",
     basePath: "/departments",
     icon: Building2,
     setupStep: "departments",
   },
   systems: {
     singular: "System",
+    plural: "Systems",
     basePath: "/systems",
     icon: Layers,
     setupStep: "systems",
   },
   disciplines: {
-    singular: "Discipline",
+    singular: "Program & Study",
+    plural: "Disciplines",
     basePath: "/disciplines",
     icon: Wrench,
     setupStep: "disciplines",
   },
   contacts: {
     singular: "Contact",
+    plural: "Contacts",
     basePath: "/contacts",
     icon: Contact,
     setupStep: "contacts",
@@ -128,7 +136,15 @@ export function ProjectScopeSection({
   const [systemId, setSystemId] = React.useState("");
   const [disciplineId, setDisciplineId] = React.useState("");
 
-  const meta = KIND_META[kind];
+  const terms = useHierarchyTerms(project);
+  // Display only — basePath, setupStep, icon and kind are untouched.
+  const base = KIND_META[kind];
+  const meta =
+    kind === "disciplines"
+      ? { ...base, singular: terms.singular, plural: terms.plural }
+      : base;
+  const pluralLower = meta.plural.toLowerCase();
+  const singularLower = meta.singular.toLowerCase();
   const nameOf = (list: { id: string; name: string }[], id?: string) =>
     list.find((record) => record.id === id)?.name ?? "—";
 
@@ -234,6 +250,18 @@ export function ProjectScopeSection({
             systemId: member.systemId,
             meta: [
               nameOf(departments, member.departmentId),
+              // Project-specific responsibility structure, shown alongside the
+              // person's own (global) job title rather than replacing it.
+              member.functionalTitle,
+              member.assignmentRole
+                ? ASSIGNMENT_ROLE_META[member.assignmentRole].label
+                : undefined,
+              member.reportsToContactId
+                ? `→ ${
+                    contacts.find((c) => c.id === member.reportsToContactId)
+                      ?.name ?? member.reportsToContactId
+                  }`
+                : undefined,
               record?.position,
               record?.email,
             ]
@@ -288,7 +316,7 @@ export function ProjectScopeSection({
 
   const unresolved = rows.filter((row) => !row.resolved).length;
   const stats: StatCardProps[] = [
-    { label: `${meta.singular}s linked`, value: String(rows.length), icon: meta.icon },
+    { label: `${meta.plural} linked`, value: String(rows.length), icon: meta.icon },
     { label: "Shown", value: String(visible.length) },
     {
       label: "Departments in scope",
@@ -340,7 +368,7 @@ export function ProjectScopeSection({
   return (
     <ProjectSectionLayout
       stats={stats}
-      title={`${meta.singular}s on this project`}
+      title={`${meta.plural} on this project`}
       description={description}
       action={
         <Button variant="outline" size="sm" asChild>
@@ -355,8 +383,8 @@ export function ProjectScopeSection({
           <SearchInput
             value={query}
             onValueChange={setQuery}
-            placeholder={`Search ${meta.singular.toLowerCase()}s…`}
-            aria-label={`Search ${meta.singular.toLowerCase()}s`}
+            placeholder={`Search ${pluralLower}…`}
+            aria-label={`Search ${pluralLower}`}
             className="sm:w-64"
           />
 
@@ -415,11 +443,14 @@ export function ProjectScopeSection({
                 setDisciplineId(value === "all" ? "" : value)
               }
             >
-              <SelectTrigger className="w-full sm:w-52" aria-label="Discipline">
-                <SelectValue placeholder="All disciplines" />
+              <SelectTrigger
+                className="w-full sm:w-52"
+                aria-label={terms.singular}
+              >
+                <SelectValue placeholder={`All ${terms.pluralLower}`} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All disciplines</SelectItem>
+                <SelectItem value="all">All {terms.pluralLower}</SelectItem>
                 {projectDisciplines
                   .filter(
                     (discipline) =>
@@ -449,7 +480,7 @@ export function ProjectScopeSection({
             </Link>
           </Button>
           <Button variant="outline" size="sm" asChild>
-            <Link href={meta.basePath}>All {meta.singular.toLowerCase()}s</Link>
+            <Link href={meta.basePath}>All {pluralLower}</Link>
           </Button>
         </>
       }
@@ -459,12 +490,12 @@ export function ProjectScopeSection({
           icon={meta.icon}
           title={
             rows.length === 0
-              ? `No ${meta.singular.toLowerCase()}s linked`
+              ? `No ${pluralLower} linked`
               : "Nothing matches those filters"
           }
           description={
             rows.length === 0
-              ? `Add a ${meta.singular.toLowerCase()} or link one in the setup wizard.`
+              ? `Add a ${singularLower} or link one in the setup wizard.`
               : "Clear the filters to see everything in scope."
           }
           className="py-8"

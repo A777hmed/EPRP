@@ -1,4 +1,19 @@
-# Reporting Architecture
+# Reporting Architecture (v1 — SUPERSEDED)
+
+> **This document is superseded and is not authoritative.**
+>
+> It has been replaced by [`03_REPORTING_ARCHITECTURE.md`](../03_REPORTING_ARCHITECTURE.md),
+> which covers the same subject at full resolution. It is retained here only as a
+> record of the earlier formulation.
+>
+> Do not implement from this document. Where it differs from
+> `03_REPORTING_ARCHITECTURE.md`, that document governs.
+>
+> **Content not yet fully carried forward:** §6 describes a *Comment Register* —
+> a master record persisting across Weekly and Monthly reports, with status,
+> owner, priority, due date, history, and `includeInMonthly` / `executive` /
+> `carryForward` flags. That concept should be absorbed into the canonical set
+> before this file is deleted.
 
 ## 1. Core rule
 

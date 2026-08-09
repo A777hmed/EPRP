@@ -27,9 +27,14 @@ import {
   withProjectContext,
   type ProjectLinkContext,
 } from "../../project-link-context";
+import type { HierarchyTerms } from "@/config/project-terminology";
+import { departmentManager } from "../../assignment-rules";
+import { DepartmentTeamAssignments } from "./department-team-assignments";
 import { LinkedRecordRow } from "./linked-record-row";
 
 export interface SetupStepContactsProps {
+  /** Hierarchy wording — display only. */
+  terms: HierarchyTerms;
   project: Project;
   context: ProjectLinkContext;
   contacts: Contact[];
@@ -51,8 +56,9 @@ export function SetupStepContacts({
   disciplines,
   departmentName,
   onDraftChange,
+  terms,
 }: SetupStepContactsProps) {
-  const team = project.team ?? [];
+  const team = React.useMemo(() => project.team ?? [], [project.team]);
 
   // Disciplines actually linked to this project, with their department.
   const projectDisciplines = React.useMemo(() => {
@@ -82,11 +88,39 @@ export function SetupStepContacts({
 
   const setForDiscipline = (ids: string[]) => {
     const others = team.filter((member) => member.disciplineId !== disciplineId);
-    const next: ProjectTeamMember[] = ids.map((contactId) => ({
-      contactId,
-      disciplineId,
-      departmentId: activeDepartmentId,
-    }));
+
+    // Rebuilding every row from the picker used to discard the assignment role,
+    // functional title and reporting line of people who were already selected,
+    // so an unrelated tick in this list silently wiped their assignment.
+    const existing = new Map(
+      team
+        .filter((member) => member.disciplineId === disciplineId)
+        .map((member) => [member.contactId, member])
+    );
+    // The same person may already be assigned in this department under another
+    // discipline; a second row has to carry the same assignment, not a blank one.
+    const inDepartment = new Map(
+      team
+        .filter((member) => member.departmentId === activeDepartmentId)
+        .map((member) => [member.contactId, member])
+    );
+    const manager = departmentManager(project, activeDepartmentId);
+
+    const next: ProjectTeamMember[] = ids.map((contactId) => {
+      const kept = existing.get(contactId);
+      if (kept) return kept;
+      const sibling = inDepartment.get(contactId);
+      return {
+        contactId,
+        disciplineId,
+        departmentId: activeDepartmentId,
+        assignmentRole: sibling?.assignmentRole,
+        functionalTitle: sibling?.functionalTitle,
+        // Reports To is required for everyone below the manager, so default to
+        // the department's manager rather than adding an invalid assignment.
+        reportsToContactId: sibling?.reportsToContactId ?? manager?.contactId,
+      };
+    });
     onDraftChange({ team: [...others, ...next] });
   };
 
@@ -99,12 +133,25 @@ export function SetupStepContacts({
   const disciplineName = (id: string) =>
     disciplines.find((discipline) => discipline.id === id)?.name ?? id;
 
+  // Departments that actually have people on them — assignment roles are per
+  // department, while the picker above works per discipline.
+  const staffedDepartmentIds = React.useMemo(
+    () => [
+      ...new Set(
+        team
+          .map((member) => member.departmentId)
+          .filter((id): id is string => Boolean(id))
+      ),
+    ],
+    [team]
+  );
+
   if (projectDisciplines.length === 0) {
     return (
       <SectionCard title="Contacts">
         <EmptyState
-          title="No disciplines yet"
-          description="Link disciplines to systems before assigning the team."
+          title={`No ${terms.pluralLower} yet`}
+          description={`Link ${terms.pluralLower} to systems before assigning the team.`}
           className="py-8"
         />
       </SectionCard>
@@ -115,7 +162,7 @@ export function SetupStepContacts({
     <div className="space-y-4">
       <SectionCard
         title="Assign the project team"
-        description="Contacts are offered from the department behind the selected discipline."
+        description={`Contacts are offered from the department behind the selected ${terms.singularLower}.`}
         action={
           <Button variant="outline" size="sm" asChild>
             <Link
@@ -133,10 +180,10 @@ export function SetupStepContacts({
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="setup-discipline">Discipline</Label>
+            <Label htmlFor="setup-discipline">{terms.singular}</Label>
             <Select value={disciplineId} onValueChange={setDisciplineId}>
               <SelectTrigger id="setup-discipline" className="w-full">
-                <SelectValue placeholder="Select a discipline" />
+                <SelectValue placeholder={`Select a ${terms.singularLower}`} />
               </SelectTrigger>
               <SelectContent>
                 {projectDisciplines.map((discipline) => (
@@ -160,7 +207,7 @@ export function SetupStepContacts({
               filter={(record: MasterRecordBase) =>
                 (record as Contact).departmentId === activeDepartmentId
               }
-              emptyLabel="No contacts belong to this discipline's department."
+              emptyLabel={`No contacts belong to this ${terms.singularLower}'s department.`}
               placeholder="Select people…"
               controlProps={{ id: "setup-contacts" }}
             />
@@ -170,12 +217,12 @@ export function SetupStepContacts({
 
       <SectionCard
         title="Project team"
-        description="Everyone linked to this project, grouped by discipline."
+        description={`Everyone linked to this project, grouped by ${terms.singularLower}.`}
       >
         {team.length === 0 ? (
           <EmptyState
             title="No team members yet"
-            description="Pick a discipline above, then choose the people working on it."
+            description={`Pick a ${terms.singularLower} above, then choose the people working on it.`}
             className="py-8"
           />
         ) : (
@@ -222,6 +269,19 @@ export function SetupStepContacts({
           </ul>
         )}
       </SectionCard>
+
+      {/* Assignment roles, reporting line and Weekly delegation are per
+          department, so they follow the discipline-scoped picker above. */}
+      {staffedDepartmentIds.map((id) => (
+        <DepartmentTeamAssignments
+          key={id}
+          project={project}
+          departmentId={id}
+          departmentName={departmentName(id)}
+          contactName={contactName}
+          onDraftChange={onDraftChange}
+        />
+      ))}
     </div>
   );
 }

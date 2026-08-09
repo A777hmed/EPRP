@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { DisciplinesListView } from "@/features/master-data";
 
 export const metadata: Metadata = {
-  title: "Disciplines",
+  title: "Programs & Studies",
 };
 
 /**

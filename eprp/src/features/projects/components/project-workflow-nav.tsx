@@ -6,7 +6,8 @@ import { Check, Lock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import {
-  getProjectWorkflowStep,
+  getLocalizedProjectWorkflowStep,
+  localizeProjectWorkflowStep,
   projectWorkflowHref,
   projectWorkflowSteps,
   type ProjectStepStatus,
@@ -45,7 +46,7 @@ export function ProjectWorkflowNav({
   activeStep,
   className,
 }: ProjectWorkflowNavProps) {
-  const { statuses, percent } = useProjectWorkflow(project);
+  const { statuses, percent, terms } = useProjectWorkflow(project);
 
   return (
     <section
@@ -94,7 +95,9 @@ export function ProjectWorkflowNav({
                     index + 1
                   )}
                 </span>
-                <span className="whitespace-nowrap">{step.label}</span>
+                <span className="whitespace-nowrap">
+                  {localizeProjectWorkflowStep(step, terms).label}
+                </span>
               </span>
               <span className="mt-2 block space-y-1">
                 <Progress
@@ -137,13 +140,13 @@ export function ProjectWorkflowNav({
                   className={cn(shared, "cursor-not-allowed opacity-60")}
                   aria-disabled="true"
                   title={`Complete ${
-                    getProjectWorkflowStep(status.blockedBy ?? "info").label
+                    getLocalizedProjectWorkflowStep(status.blockedBy ?? "info", terms).label
                   } first`}
                 >
                   {body}
                   <span className="sr-only">
                     Locked until{" "}
-                    {getProjectWorkflowStep(status.blockedBy ?? "info").label}{" "}
+                    {getLocalizedProjectWorkflowStep(status.blockedBy ?? "info", terms).label}{" "}
                     is complete
                   </span>
                 </span>

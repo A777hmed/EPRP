@@ -42,6 +42,13 @@ export interface MasterDataListViewProps {
   columns: MasterDataColumn<MasterRecordBase>[];
   /** When set, Add / View / Edit navigate to pages instead of dialogs. */
   pageBasePath?: string;
+  /**
+   * How Edit behaves when `pageBasePath` is set. "page" (the default, and
+   * what every kind with a dedicated edit route uses) navigates to
+   * `${pageBasePath}/${id}/edit`; "dialog" edits in place, for kinds that
+   * have a list and a detail page but no separate edit route.
+   */
+  editMode?: "page" | "dialog";
   /** Record to open on arrival, from a deep link elsewhere in the app. */
   focusId?: string;
   /** Whether the focused record opens straight into edit mode. */
@@ -66,6 +73,7 @@ export function MasterDataListView({
   description,
   columns,
   pageBasePath,
+  editMode = "page",
   focusId,
   focusMode = "view",
   returnTo,
@@ -105,6 +113,10 @@ export function MasterDataListView({
     );
   });
 
+  // Editing falls back to the in-place dialog whenever there is no dedicated
+  // edit route to navigate to.
+  const editsInDialog = !pageBasePath || editMode === "dialog";
+
   const handleAdd = () => {
     if (pageBasePath) router.push(`${pageBasePath}/new`);
     else setDialog({ mode: "create" });
@@ -113,8 +125,8 @@ export function MasterDataListView({
     ? (record: MasterRecordBase) => router.push(`${pageBasePath}/${record.id}`)
     : undefined;
   const handleEdit = (record: MasterRecordBase) => {
-    if (pageBasePath) router.push(`${pageBasePath}/${record.id}/edit`);
-    else setDialog({ mode: "edit", record });
+    if (editsInDialog) setDialog({ mode: "edit", record });
+    else router.push(`${pageBasePath}/${record.id}/edit`);
   };
 
   const activeFilterCount =
@@ -191,8 +203,8 @@ export function MasterDataListView({
 
       {actions.element}
 
-      {/* Inline create/edit for kinds without dedicated pages */}
-      {!pageBasePath && (
+      {/* Inline create/edit for kinds without a dedicated edit route */}
+      {editsInDialog && (
         <Dialog
           open={dialog.mode !== "closed"}
           onOpenChange={(o) => !o && setDialog({ mode: "closed" })}

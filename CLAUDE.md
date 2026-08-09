@@ -10,7 +10,7 @@ EPRP (EPROM Progress Report) is an internal, multi-project engineering progress 
 .                            ← you are here; this file is the canonical CLAUDE.md
 ├── CLAUDE.md
 ├── docs/                    ← canonical documentation. The only docs location.
-│   ├── 00_README.md … 05_DEVELOPMENT_ROADMAP.md
+│   ├── 00_README.md … 15_DEVELOPMENT_ROADMAP.md
 │   └── engineering/         ← as-built references (see note below)
 └── eprp/                    ← the Next.js application
     ├── AGENTS.md            ← stack constraint, read before writing code
@@ -27,10 +27,12 @@ Before changing application code, read, in order:
 
 1. `docs/00_README.md`
 2. `docs/01_PROJECT_VISION.md`
-3. `docs/02_REPORTING_ARCHITECTURE.md`
-4. `docs/03_WORKFLOW.md`
-5. `docs/04_EXECUTIVE_REPORT.md`
-6. `docs/05_DEVELOPMENT_ROADMAP.md` — start here for current status and the next phase
+3. `docs/02_PLATFORM_ARCHITECTURE.md`
+4. `docs/03_REPORTING_ARCHITECTURE.md`
+5. `docs/04_WORKFLOW_ENGINE.md`
+6. `docs/05_PERMISSION_MODEL.md`
+7. `docs/12_REPORT_GENERATION.md`
+8. `docs/15_DEVELOPMENT_ROADMAP.md` — start here for current status and the next phase
 7. `eprp/AGENTS.md` — the installed Next.js differs from training data; check
    `eprp/node_modules/next/dist/docs/` before using an unfamiliar API
 
@@ -58,7 +60,7 @@ Also inspect the existing code, routes, components, database migrations, and ref
 - Ask before making a business assumption that changes the documented workflow or data ownership.
 - Keep documentation in `docs/` only. Do not start a second documentation set
   elsewhere in the tree.
-- Use the phase numbering in `docs/05_DEVELOPMENT_ROADMAP.md`. Do not invent a
+- Use the phase numbering in `docs/15_DEVELOPMENT_ROADMAP.md`. Do not invent a
   parallel scheme; earlier work used ad-hoc labels (`5A`, `6A.4`, `OC-6`) and
   the mismatch caused real confusion.
 
@@ -83,7 +85,7 @@ From `eprp/`:
 - List changed files.
 - List completed and deferred requirements.
 - Mention errors, warnings, or assumptions.
-- Update the status table in `docs/05_DEVELOPMENT_ROADMAP.md`.
+- Update the status table in `docs/15_DEVELOPMENT_ROADMAP.md`.
 - Stop at the requested phase.
 
 A green lint/type-check/build proves the code compiles. It does **not** prove

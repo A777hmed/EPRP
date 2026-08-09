@@ -16,9 +16,12 @@ import { findNavItem } from "@/config/navigation";
 import {
   activeProjectId,
   getProjectSection,
+  localizeProjectSection,
   isProjectSection,
 } from "@/config/project-sections";
 import { siteConfig } from "@/config/site";
+import type { HierarchyTerms } from "@/config/project-terminology";
+import { useHierarchyTermsByProjectId } from "@/features/projects/use-hierarchy-terms";
 import { listProjectsSync } from "@/services/project-service";
 
 /** A single crumb; the last one in the list renders as the current page. */
@@ -32,7 +35,10 @@ interface Crumb {
  * viewed — `Projects › Storage Tank Rehabilitation › Organization Chart` —
  * rather than stopping at the portfolio list.
  */
-function projectCrumbs(pathname: string): Crumb[] | null {
+function projectCrumbs(
+  pathname: string,
+  terms: HierarchyTerms
+): Crumb[] | null {
   const projectId = activeProjectId(pathname);
   if (!projectId) return null;
 
@@ -50,7 +56,9 @@ function projectCrumbs(pathname: string): Crumb[] | null {
 
   const segment = pathname.split("/")[3];
   if (segment && isProjectSection(segment)) {
-    crumbs.push({ label: getProjectSection(segment).label });
+    crumbs.push({
+      label: localizeProjectSection(getProjectSection(segment), terms).label,
+    });
   } else if (segment === "edit") {
     crumbs.push({ label: "Edit" });
   } else if (segment === "setup") {
@@ -67,7 +75,8 @@ function projectCrumbs(pathname: string): Crumb[] | null {
  */
 export function Breadcrumbs() {
   const pathname = usePathname();
-  const projectTrail = projectCrumbs(pathname);
+  const terms = useHierarchyTermsByProjectId(activeProjectId(pathname));
+  const projectTrail = projectCrumbs(pathname, terms);
   const item = projectTrail ? null : findNavItem(pathname);
 
   if (!projectTrail && !item) return null;

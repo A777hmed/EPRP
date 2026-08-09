@@ -5,7 +5,7 @@ Internal EPROM platform (Next.js App Router). Single company, no SaaS, no public
 > **As-built engineering reference.** Written at Phase 4C and updated for the
 > current route states below. The product specification lives in
 > [`../01_PROJECT_VISION.md`](../01_PROJECT_VISION.md) and
-> [`../02_REPORTING_ARCHITECTURE.md`](../02_REPORTING_ARCHITECTURE.md); where
+> [`../archive/reporting-architecture-v1.md`](../archive/reporting-architecture-v1.md); where
 > the two disagree, the specification wins. Paths below are relative to
 > `eprp/`.
 

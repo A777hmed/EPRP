@@ -10,6 +10,7 @@ import {
   type ProjectStepStatus,
   type ProjectWorkflowStepId,
 } from "@/config/project-workflow";
+import type { HierarchyTerms } from "@/config/project-terminology";
 import type {
   Contact,
   Department,
@@ -17,10 +18,13 @@ import type {
   Project,
   System,
 } from "@/types";
+import { useHierarchyTerms } from "./use-hierarchy-terms";
 
 export interface ProjectWorkflowState {
   statuses: ProjectStepStatus[];
   byId: Record<ProjectWorkflowStepId, ProjectStepStatus>;
+  /** Hierarchy wording for this project — display only. */
+  terms: HierarchyTerms;
   /** Overall completion across all steps, 0–100. */
   percent: number;
   next?: ProjectStepStatus;
@@ -54,14 +58,17 @@ export function useProjectWorkflow(project: Project): ProjectWorkflowState {
     [departments]
   );
 
+  const terms = useHierarchyTerms(project);
+
   const statuses = React.useMemo(
     () =>
       evaluateProjectWorkflow(
         project,
         { systems, disciplines, contacts },
-        departmentName
+        departmentName,
+        terms
       ),
-    [project, systems, disciplines, contacts, departmentName]
+    [project, systems, disciplines, contacts, departmentName, terms]
   );
 
   const byId = React.useMemo(
@@ -75,6 +82,7 @@ export function useProjectWorkflow(project: Project): ProjectWorkflowState {
   return {
     statuses,
     byId,
+    terms,
     percent: projectWorkflowPercent(statuses),
     next: nextIncompleteStep(statuses),
     departments,

@@ -138,7 +138,7 @@ Implement the Weekly design as a project workspace: header, workflow, KPIs, summ
 
 **Delivered:** report header with project linkage, workflow status display, progress and KPI section with auto-calculated variance and SPI, department updates with discipline auto-linking, narrative entries (key comments, risks, issues, actions) with priority/status/owner/due date and an `includeInMonthly` flag, submission status by department, and detail plus preview views.
 
-**Still missing, from `02_REPORTING_ARCHITECTURE.md` §3:**
+**Still missing, from `archive/reporting-architecture-v1.md` §3:**
 
 - Executive Summary section
 - Major Activities Completed section
@@ -169,7 +169,7 @@ Add unlimited local threads, free-text comments, replies, mentions, attachments,
 
 **Delivered:** flat narrative entries with category, priority, status, owner, due date, and an `includeInMonthly` flag.
 
-**Missing:** threads, replies, mentions, attachments, resolve/reopen, the Executive flag, and the entire **Comment Register** — the persistent cross-report master record with history and carry-forward described in `02_REPORTING_ARCHITECTURE.md` §6. Phase 9 depends on this: Monthly compilation needs carried-forward comments.
+**Missing:** threads, replies, mentions, attachments, resolve/reopen, the Executive flag, and the entire **Comment Register** — the persistent cross-report master record with history and carry-forward described in `archive/reporting-architecture-v1.md` §6. Phase 9 depends on this: Monthly compilation needs carried-forward comments.
 
 ---
 
@@ -183,7 +183,7 @@ Implement lifecycle transitions, role-based access/RLS, secure links, email noti
 
 **Authentication sub-phases:** A1 profiles + roles ✅ · A2 login, session, middleware, logout ❌ · A3 real identity in the shell ❌ · A4 admin user management ❌ (deferred).
 
-**Nothing is enforced yet.** `hasPermission()` is called by zero components, and every table still carries the temporary `for all to authenticated` policy — which is why the anon key cannot write. One specification gap remains for this phase: `03_WORKFLOW.md` §6 describes Reviewer as *recommending* approval, while `reviewer` currently holds `approve_weekly` / `approve_monthly` outright.
+**Nothing is enforced yet.** `hasPermission()` is called by zero components, and every table still carries the temporary `for all to authenticated` policy — which is why the anon key cannot write. One specification gap remains for this phase: `04_WORKFLOW_ENGINE.md` §6 describes Reviewer as *recommending* approval, while `reviewer` currently holds `approve_weekly` / `approve_monthly` outright.
 
 ---
 
@@ -227,7 +227,7 @@ Create print views and PDF export for Weekly, Monthly, Project Executive, and Po
 
 **Done when:** the one-page Executive output is readable and print-safe.
 
-**Current state:** `export-service.ts` is two stubs; there are no print views or print CSS. Requirements are detailed in `04_EXECUTIVE_REPORT.md` §7.
+**Current state:** `export-service.ts` is two stubs; there are no print views or print CSS. Requirements are detailed in `12_REPORT_GENERATION.md` §7.
 
 ---
 

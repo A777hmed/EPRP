@@ -24,6 +24,11 @@ import {
  * under the collapsible "Projects" item in the sidebar.
  */
 
+import {
+  DEFAULT_HIERARCHY_TERMS,
+  type HierarchyTerms,
+} from "./project-terminology";
+
 export type ProjectSectionId =
   | "overview"
   | "setup"
@@ -90,10 +95,10 @@ export const projectSections: ProjectSection[] = [
   },
   {
     id: "disciplines",
-    label: "Disciplines",
+    label: "Programs & Studies",
     icon: Wrench,
     group: "Master Data",
-    description: "Disciplines linked to this project's systems.",
+    description: "Programs and studies linked to this project's systems.",
   },
   {
     id: "contacts",
@@ -188,6 +193,28 @@ export function groupedProjectSections(): {
  * The project id currently being viewed, read from the pathname.
  * Returns undefined on `/projects` and `/projects/new`.
  */
+/**
+ * The same section, relabelled for the project's hierarchy terminology.
+ *
+ * Only the `disciplines` section has alternate wording; everything else is
+ * returned untouched. The section **id, href, icon, group, and order are
+ * unchanged** — display text only.
+ */
+export function localizeProjectSection(
+  section: ProjectSection,
+  terms: HierarchyTerms
+): ProjectSection {
+  // Default terminology is a no-op, so non-PSM projects keep the configured
+  // wording verbatim.
+  if (terms.plural === DEFAULT_HIERARCHY_TERMS.plural) return section;
+  if (section.id !== "disciplines") return section;
+  return {
+    ...section,
+    label: terms.plural,
+    description: `${terms.plural} linked to this project's systems.`,
+  };
+}
+
 export function activeProjectId(pathname: string): string | undefined {
   const match = /^\/projects\/([^/]+)/.exec(pathname);
   const id = match?.[1];

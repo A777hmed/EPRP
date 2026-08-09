@@ -130,6 +130,40 @@ export function createSupabaseMasterDataService<T extends MasterRecordBase>(
     );
   };
 
+  /**
+   * Reject a duplicate name or code before writing.
+   *
+   * The database only constrains some of these tables, and only
+   * case-sensitively: `departments` and `job_titles` are unique on name, the
+   * rest are not, so "Piping" and "piping" — or two identical client names —
+   * were accepted here while the mock service rejected them. Checking in the
+   * service keeps both implementations behaving identically.
+   *
+   * This is a read-then-write check, so two simultaneous inserts could still
+   * both pass. The unique-violation mapping below remains the backstop, and a
+   * case-insensitive unique index is the durable fix (see the sprint report).
+   */
+  const assertNoDuplicate = async (
+    input: Partial<T>,
+    excludeId?: string
+  ): Promise<void> => {
+    const matches = (a: string | undefined, b: string | undefined) =>
+      Boolean(a) && Boolean(b) && a!.trim().toLowerCase() === b!.trim().toLowerCase();
+
+    if (!("name" in input) && !("code" in input)) return;
+    await ensureLoaded();
+
+    for (const record of cache.values()) {
+      if (record.id === excludeId) continue;
+      if ("name" in input && matches(input.name, record.name)) {
+        throw new DuplicateRecordError("name", "This name already exists");
+      }
+      if ("code" in input && matches(input.code, record.code)) {
+        throw new DuplicateRecordError("code", "This code already exists");
+      }
+    }
+  };
+
   return {
     async getAll() {
       await ensureLoaded();
@@ -153,6 +187,7 @@ export function createSupabaseMasterDataService<T extends MasterRecordBase>(
       return model;
     },
     async create(input) {
+      await assertNoDuplicate(input as Partial<T>);
       const { data, error } = await client()
         .from(table)
         .insert(modelToRow(input as Record<string, unknown>))
@@ -168,6 +203,7 @@ export function createSupabaseMasterDataService<T extends MasterRecordBase>(
       return model;
     },
     async update(id, input) {
+      await assertNoDuplicate(input as Partial<T>, id);
       const { data, error } = await client()
         .from(table)
         .update(modelToRow(input as Record<string, unknown>))

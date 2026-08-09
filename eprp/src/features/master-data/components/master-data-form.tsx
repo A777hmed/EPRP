@@ -42,6 +42,26 @@ function buildSchema(fields: MasterFieldConfig[]) {
       if (field.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
         ctx.addIssue({ code: "custom", message: "Enter a valid email address" });
       }
+      /*
+       * Phone was accepted unvalidated, so "n/a" or a stray sentence saved as
+       * a contact number. Deliberately permissive — international numbers vary
+       * too much to pattern-match — it only requires enough digits to be a
+       * real number and rejects characters no phone number contains.
+       */
+      if (field.type === "tel") {
+        const digits = value.replace(/\D/g, "");
+        if (!/^\+?[\d\s()./-]+$/.test(value)) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Use digits, spaces, and + ( ) - . only",
+          });
+        } else if (digits.length < 7 || digits.length > 15) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Enter a valid phone number (7–15 digits)",
+          });
+        }
+      }
       if (field.type === "number" && Number.isNaN(Number(value))) {
         ctx.addIssue({ code: "custom", message: "Enter a number" });
       }
@@ -58,19 +78,56 @@ function ReferenceSelect({
   onChange,
   required,
   controlProps,
+  scopeKey,
+  scopeValue,
 }: {
   refKind: MasterKind;
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
   controlProps: Record<string, unknown>;
+  /**
+   * Narrows the options to records whose `scopeKey` equals `scopeValue` — the
+   * System list is filtered by the chosen Department, so an invalid
+   * Department/System pair cannot be selected in the first place.
+   */
+  scopeKey?: string;
+  scopeValue?: string;
 }) {
   const { records, activeRecords } = useMasterData(refKind);
   const config = MASTER_KIND_CONFIG[refKind];
   const selected = records.find((r) => r.id === value);
+
+  const inScope = (record: MasterRecordBase) =>
+    !scopeKey ||
+    (record as unknown as Record<string, unknown>)[scopeKey] === scopeValue;
+
   // Show active options plus the current value even if archived.
-  const options =
+  const base =
     selected && !selected.active ? [selected, ...activeRecords] : activeRecords;
+  const options = base.filter(inScope);
+
+  /*
+   * Changing the Department must not leave a System from the previous one
+   * selected. Clearing here keeps the form honest without the parent needing
+   * to know about the relationship.
+   */
+  React.useEffect(() => {
+    if (!scopeKey || !value) return;
+    if (selected && !inScope(selected)) onChange("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeValue]);
+
+  if (scopeKey && !scopeValue) {
+    return (
+      <Select value={undefined} disabled>
+        <SelectTrigger {...controlProps} className="w-full">
+          <SelectValue placeholder="Select a department first…" />
+        </SelectTrigger>
+        <SelectContent />
+      </Select>
+    );
+  }
 
   return (
     <Select
@@ -250,6 +307,12 @@ export function MasterDataForm({
                   onChange={(v) => setValue(field.key, v)}
                   required={field.required}
                   controlProps={controlProps}
+                  scopeKey={field.scopeBy?.recordKey}
+                  scopeValue={
+                    field.scopeBy
+                      ? (values[field.scopeBy.field] ?? "")
+                      : undefined
+                  }
                 />
               ) : field.type === "textarea" ? (
                 <Textarea

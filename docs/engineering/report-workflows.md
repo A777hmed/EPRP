@@ -4,7 +4,7 @@ Defined in [`eprp/src/config/workflows.ts`](../../eprp/src/config/workflows.ts).
 
 > **As-built reference.** This records the 10-state lifecycle in the code
 > today. The intended business lifecycle is in
-> [`../03_WORKFLOW.md`](../03_WORKFLOW.md) and is shorter (6 states for
+> [`../04_WORKFLOW_ENGINE.md`](../04_WORKFLOW_ENGINE.md) and is shorter (6 states for
 > Weekly) — reconcile them in Phase 7.
 
 ## Shared status vocabulary

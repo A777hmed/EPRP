@@ -21,6 +21,7 @@ import {
   groupedProjectSections,
   projectSectionHref,
 } from "@/config/project-sections";
+import { useHierarchyTermsByProjectId } from "@/features/projects/use-hierarchy-terms";
 import { cn } from "@/lib/utils";
 
 /**
@@ -33,6 +34,10 @@ import { cn } from "@/lib/utils";
  */
 export function ProjectNavGroup({ pathname }: { pathname: string }) {
   const projectId = activeProjectId(pathname);
+  const terms = useHierarchyTermsByProjectId(projectId);
+  // Display only: the section id, href, order, and grouping are untouched.
+  const sectionLabel = (section: { id: string; label: string }) =>
+    section.id === "disciplines" ? terms.plural : section.label;
   const inProjects = pathname === "/projects" || pathname.startsWith("/projects/");
 
   const listActive = pathname === "/projects";
@@ -111,7 +116,7 @@ export function ProjectNavGroup({ pathname }: { pathname: string }) {
                             aria-current={active ? "page" : undefined}
                           >
                             <section.icon aria-hidden="true" />
-                            <span>{section.label}</span>
+                            <span>{sectionLabel(section)}</span>
                           </Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>

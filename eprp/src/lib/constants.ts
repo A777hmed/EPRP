@@ -1,4 +1,5 @@
 import type {
+  AssignmentRole,
   ActivityStatus,
   CommentCategory,
   EmploymentType,
@@ -253,3 +254,24 @@ export const EMPLOYMENT_TYPE_META: Record<EmploymentType, { label: string }> = {
   secondment: { label: "Secondment" },
   agency: { label: "Agency" },
 };
+
+/** Project-specific assignment roles inside a department team (labels only). */
+export const ASSIGNMENT_ROLE_META: Record<AssignmentRole, { label: string }> = {
+  department_manager: { label: "Department Manager" },
+  team_member_lead: { label: "Team Member Lead" },
+  team_member: { label: "Team Member" },
+};
+
+/**
+ * Weekly responsibilities a Department Manager may delegate. Keys are stored
+ * on the delegation; labels are display-only. These mirror the existing
+ * Weekly review actions — no new weekly workflow is introduced.
+ */
+export const WEEKLY_DELEGABLE_RESPONSIBILITIES: {
+  key: string;
+  label: string;
+}[] = [
+  { key: "review_submissions", label: "Review team weekly inputs" },
+  { key: "return_submissions", label: "Return inputs for correction" },
+  { key: "complete_department", label: "Mark department weekly input complete" },
+];

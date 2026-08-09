@@ -9,8 +9,14 @@ import type {
   MasterRecordBase,
   System,
 } from "@/types";
+import { StatusBadge } from "@/components/shared";
 import { useMasterData } from "../use-master-data";
-import { getContactById, getDepartmentById } from "../services";
+import {
+  getContactById,
+  getDepartmentById,
+  getJobTitleById,
+  getSystemById,
+} from "../services";
 import { MasterDataListView } from "./master-data-list-view";
 import type { MasterDataColumn } from "./master-data-table";
 
@@ -70,7 +76,11 @@ export function SystemsListView(props: MasterListViewProps = {}) {
   const columns: MasterDataColumn<MasterRecordBase>[] = [
     {
       header: "System Name",
-      render: (r) => <span className="font-medium">{r.name}</span>,
+      render: (r) => (
+        <Link href={`/systems/${r.id}`} className="font-medium hover:underline">
+          {r.name}
+        </Link>
+      ),
     },
     codeColumn,
     {
@@ -93,12 +103,38 @@ export function SystemsListView(props: MasterListViewProps = {}) {
 /** /disciplines — related department shown, inline add/edit dialogs. */
 export function DisciplinesListView(props: MasterListViewProps = {}) {
   useMasterData("department");
+  useMasterData("system");
   const columns: MasterDataColumn<MasterRecordBase>[] = [
     {
-      header: "Discipline Name",
-      render: (r) => <span className="font-medium">{r.name}</span>,
+      header: "Program / Study Name",
+      render: (r) => (
+        <Link
+          href={`/disciplines/${r.id}`}
+          className="font-medium hover:underline"
+        >
+          {r.name}
+        </Link>
+      ),
     },
     codeColumn,
+    {
+      header: "System",
+      /*
+       * System is mandatory for anything created or edited from now on. Legacy
+       * rows can still hold NULL where the backfill could not determine the
+       * mapping without guessing — those are flagged here so they are visible
+       * and can be mapped by hand, rather than sitting silently incomplete.
+       */
+      render: (r) => {
+        const systemId = (r as Discipline).systemId;
+        if (systemId) return getSystemById(systemId)?.name ?? "—";
+        return (
+          <StatusBadge tone="warning">
+            Requires manual System mapping
+          </StatusBadge>
+        );
+      },
+    },
     {
       header: "Related Department",
       render: (r) => departmentName((r as Discipline).departmentId),
@@ -116,17 +152,64 @@ export function DisciplinesListView(props: MasterListViewProps = {}) {
   );
 }
 
+/** /administration/job-titles — flexible, admin-managed job titles. */
+export function JobTitlesListView(props: MasterListViewProps = {}) {
+  const columns: MasterDataColumn<MasterRecordBase>[] = [
+    {
+      header: "Job Title",
+      render: (r) => (
+        <Link
+          href={`/administration/job-titles/${r.id}`}
+          className="font-medium hover:underline"
+        >
+          {r.name}
+        </Link>
+      ),
+    },
+    codeColumn,
+    {
+      header: "Description",
+      className: "text-muted-foreground",
+      render: (r) => r.description ?? "—",
+    },
+  ];
+  return (
+    <MasterDataListView
+      {...props}
+      kind="jobTitle"
+      pageBasePath="/administration/job-titles"
+      // Detail page, no separate edit route — edits happen in place.
+      editMode="dialog"
+      eyebrow="Administration"
+      description="Job titles used across the people directory. A title is a label, never a permission — platform access comes from roles."
+      columns={columns}
+    />
+  );
+}
+
 /** /contacts — people directory, inline add/edit dialogs. */
 export function ContactsListView(props: MasterListViewProps = {}) {
   useMasterData("department");
+  useMasterData("jobTitle");
   const columns: MasterDataColumn<MasterRecordBase>[] = [
     {
       header: "Full Name",
-      render: (r) => <span className="font-medium">{r.name}</span>,
+      render: (r) => (
+        <Link href={`/contacts/${r.id}`} className="font-medium hover:underline">
+          {r.name}
+        </Link>
+      ),
     },
     {
       header: "Job Title",
-      render: (r) => (r as Contact).position || "—",
+      render: (r) => {
+        const contact = r as Contact;
+        const managed = getJobTitleById(contact.jobTitleId);
+        if (managed) {
+          return managed.active ? managed.name : `${managed.name} (archived)`;
+        }
+        return contact.position || "—";
+      },
     },
     {
       header: "Organization",

@@ -50,10 +50,20 @@ export interface DepartmentRow extends Timestamps {
   lead_contact_id: string | null;
 }
 
+/** Collaboration Phase C1 — admin-managed job titles. */
+export interface JobTitleRow extends Timestamps {
+  id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+}
+
 export interface ContactRow extends Timestamps {
   id: string;
   name: string;
   position: string | null;
+  /** Phase C1. Nullable; `position` is retained alongside it. */
+  job_title_id: string | null;
   role: string | null;
   organization: string | null;
   email: string | null;
@@ -148,6 +158,27 @@ export interface ProjectContactRow {
   department_id: string | null;
   system_id: string | null;
   discipline_id: string | null;
+  /** Project-specific team role; null on responsibility rows. */
+  assignment_role: string | null;
+  /** Free-text functional responsibility for this assignment. */
+  functional_title: string | null;
+  reports_to_contact_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Temporary weekly-responsibility delegation inside one project department. */
+export interface ProjectDelegationRow {
+  id: string;
+  project_id: string;
+  department_id: string;
+  delegate_contact_id: string;
+  responsibilities: string[];
+  start_date: string;
+  end_date: string;
+  note: string | null;
+  active: boolean;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -347,11 +378,13 @@ export interface Database {
       project_phases: TableDef<ProjectPhaseRow, Writable<ProjectPhaseRow> & { name: string }, Writable<ProjectPhaseRow>>;
       departments: TableDef<DepartmentRow, Writable<DepartmentRow> & { name: string; code: string }, Writable<DepartmentRow>>;
       contacts: TableDef<ContactRow, Writable<ContactRow> & { name: string }, Writable<ContactRow>>;
+      job_titles: TableDef<JobTitleRow, Writable<JobTitleRow> & { name: string }, Writable<JobTitleRow>>;
       systems: TableDef<SystemRow, Writable<SystemRow> & { name: string; code: string }, Writable<SystemRow>>;
       disciplines: TableDef<DisciplineRow, Writable<DisciplineRow> & { name: string; code: string }, Writable<DisciplineRow>>;
       projects: TableDef<ProjectRow, Writable<ProjectRow>, Writable<ProjectRow>>;
       project_departments: TableDef<ProjectDepartmentRow, Omit<ProjectDepartmentRow, "id" | "created_at" | "updated_at">, Partial<ProjectDepartmentRow>>;
       project_contacts: TableDef<ProjectContactRow, Omit<ProjectContactRow, "id" | "created_at" | "updated_at">, Partial<ProjectContactRow>>;
+      project_delegations: TableDef<ProjectDelegationRow, Omit<ProjectDelegationRow, "id" | "created_at" | "updated_at" | "created_by">, Partial<ProjectDelegationRow>>;
       project_disciplines: TableDef<ProjectDisciplineRow, Omit<ProjectDisciplineRow, "id" | "created_at" | "updated_at">, Partial<ProjectDisciplineRow>>;
       organization_charts: TableDef<OrganizationChartRow, Writable<OrganizationChartRow> & { project_id: string; name: string }, Writable<OrganizationChartRow>>;
       organization_positions: TableDef<OrganizationPositionRow, Writable<OrganizationPositionRow> & { chart_id: string; project_id: string; title: string }, Writable<OrganizationPositionRow>>;

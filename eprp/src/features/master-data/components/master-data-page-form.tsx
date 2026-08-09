@@ -24,6 +24,7 @@ import {
   projectWorkflowHref,
 } from "@/config/project-workflow";
 import { ProjectReturnBar } from "./project-return-bar";
+import { useMasterDataActions } from "./use-master-data-actions";
 import {
   getDisciplineById,
   getMasterService,
@@ -108,6 +109,19 @@ export function MasterDataPageForm({
   // Bumping this remounts the form, which is how "Save & Add Another"
   // clears it without duplicating the form state logic here.
   const [formKey, setFormKey] = React.useState(0);
+
+  /*
+   * Lifecycle actions on the edit page.
+   *
+   * Editing previously offered only Cancel and Save, so an administrator could
+   * reach a record but never retire it — Contacts had no delete route at all.
+   * This reuses the same hook the list view uses, so archive, restore and the
+   * blocked-delete flow ("Cannot delete — used by …", with Archive offered
+   * instead) behave identically here and there. No second implementation.
+   */
+  const lifecycle = useMasterDataActions(kind, {
+    onMutated: () => router.push(basePath),
+  });
 
   const nextStep = context.currentStep
     ? nextStepId(context.currentStep)
@@ -208,6 +222,34 @@ export function MasterDataPageForm({
             ? `Update this ${config.singular.toLowerCase()}.`
             : `Create a new ${config.singular.toLowerCase()}.`
         }
+        actions={
+          isEdit && record ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {record.active === false ? (
+                <Button
+                  variant="outline"
+                  onClick={() => lifecycle.requestRestore(record)}
+                >
+                  Restore
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => lifecycle.requestArchive(record)}
+                >
+                  Archive
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                className="text-destructive hover:text-destructive"
+                onClick={() => lifecycle.requestDelete(record)}
+              >
+                Delete
+              </Button>
+            </div>
+          ) : undefined
+        }
       />
       <ProjectReturnBar
         context={{ ...context, returnTo: effectiveReturn }}
@@ -231,6 +273,7 @@ export function MasterDataPageForm({
           onCancel={() => router.push(backTo)}
         />
       </SectionCard>
+      {lifecycle.element}
     </div>
   );
 }

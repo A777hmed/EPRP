@@ -1,4 +1,11 @@
-# Executive / Company-President Report
+# Report Generation — Executive Report and A4 Output
+
+> The composition and print output of the Executive / Company-President report.
+> This is the operating detail beneath
+> [`03_REPORTING_ARCHITECTURE.md`](03_REPORTING_ARCHITECTURE.md) §6, §17 and §18,
+> which is authoritative on generation rules. Its portfolio-dashboard sections
+> (§2, §3, §5) belong to `08_DASHBOARD_ARCHITECTURE.md` and should move there
+> when that document is written.
 
 ## 1. Purpose
 

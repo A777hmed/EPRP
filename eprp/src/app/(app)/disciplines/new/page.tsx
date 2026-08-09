@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { MasterDataPageForm } from "@/features/master-data";
 import { readProjectContext } from "@/features/projects/project-link-context";
 
-export const metadata: Metadata = { title: "New Discipline" };
+export const metadata: Metadata = { title: "New Program & Study" };
 
 export default async function NewDisciplinePage({
   searchParams,

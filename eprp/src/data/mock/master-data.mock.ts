@@ -3,6 +3,7 @@ import type {
   Contact,
   Department,
   Discipline,
+  JobTitle,
   ProjectPhase,
   ProjectType,
   System,
@@ -133,3 +134,13 @@ export const mockDisciplines: Discipline[] = [
   { id: "di-control", name: "Process Control", code: "PCS", departmentId: "dp-inst", description: "DCS, PLC, and control loops.", active: true },
   { id: "di-welding", name: "Welding & NDT", code: "WELD", departmentId: "dp-qc", description: "Welding and non-destructive testing.", active: true },
 ];
+
+/**
+ * Job titles (Collaboration Phase C1) start empty on purpose.
+ *
+ * Titles are organisation-specific and must not be hardcoded — the System
+ * Administrator creates them. Seeding examples here would put sample data in
+ * front of the first real user. The offline store therefore begins with the
+ * empty state, which is the correct state for a fresh install.
+ */
+export const mockJobTitles: JobTitle[] = [];

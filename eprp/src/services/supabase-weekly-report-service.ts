@@ -22,6 +22,7 @@ import {
   getWeekNumber,
 } from "@/lib/reporting";
 import { canTransition } from "@/config/workflows";
+import { checkWeeklyTransition } from "@/features/weekly-reports/lifecycle-guards";
 import { projectService } from "./project-service";
 import type {
   WeeklyReportCreateInput,
@@ -398,6 +399,26 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
       throw new Error(
         `Cannot move a weekly report from ${current.status} to ${to}.`
       );
+    }
+
+    /*
+     * Shape is not sufficient. `canTransition` only says the step is allowed in
+     * sequence; it never asked whether the report earned it, which is how a
+     * real report reached Locked with no reviewer, no approver and 1 of 2
+     * submissions. Check the stage's actual conditions here, in the service, so
+     * no UI or script can bypass them.
+     */
+    if (to !== "archived") {
+      const submissions = await supabaseWeeklyReportService.listSubmissions(id);
+      const guard = checkWeeklyTransition(to, {
+        report: current,
+        submissions,
+      });
+      if (!guard.allowed) {
+        throw new Error(
+          `Cannot move this weekly report to ${to}:\n• ${guard.reasons.join("\n• ")}`
+        );
+      }
     }
     const { error } = await client()
       .from("weekly_reports")

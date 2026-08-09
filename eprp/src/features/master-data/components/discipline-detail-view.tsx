@@ -78,7 +78,7 @@ export function DisciplineDetailView({
     return (
       <EmptyState
         icon={FolderX}
-        title="Discipline not found"
+        title="Program & Study not found"
         description={`No discipline exists with id “${disciplineId}”.`}
         action={
           <div className="flex flex-wrap justify-center gap-2">
@@ -88,7 +88,7 @@ export function DisciplineDetailView({
               </Button>
             )}
             <Button variant="outline" asChild>
-              <Link href="/disciplines">Back to Disciplines</Link>
+              <Link href="/disciplines">Back to Programs & Studies</Link>
             </Button>
           </div>
         }
@@ -118,7 +118,7 @@ export function DisciplineDetailView({
       <PageHeader
         eyebrow="Master Data"
         title={discipline.name}
-        description={discipline.description ?? "Discipline master data."}
+        description={discipline.description ?? "Program & Study master data."}
         actions={
           <>
             <Button variant="outline" asChild>

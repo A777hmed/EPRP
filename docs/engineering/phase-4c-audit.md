@@ -6,7 +6,7 @@ Date: 2026-07-17 · Scope: audit, cleanup, and workflow preparation ahead of Pha
 > and is kept for the decisions and rationale it documents. It is *not* a
 > current description of the system: much of what it lists as placeholder has
 > since been built. For current status see
-> [`../05_DEVELOPMENT_ROADMAP.md`](../05_DEVELOPMENT_ROADMAP.md). Note that
+> [`../15_DEVELOPMENT_ROADMAP.md`](../15_DEVELOPMENT_ROADMAP.md). Note that
 > "Phase 4C" here belongs to an older ad-hoc numbering, unrelated to Phase 4
 > in the roadmap.
 

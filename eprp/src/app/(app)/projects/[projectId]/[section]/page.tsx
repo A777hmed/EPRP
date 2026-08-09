@@ -5,7 +5,6 @@ import { ProjectSectionView } from "@/features/projects";
 import {
   getProjectSection,
   isProjectSection,
-  projectSections,
 } from "@/config/project-sections";
 
 export async function generateMetadata({
@@ -18,13 +17,16 @@ export async function generateMetadata({
   return { title: getProjectSection(section).label };
 }
 
-export function generateStaticParams() {
-  return projectSections.map((section) => ({ section: section.id }));
-}
-
 /**
  * One project section in the main content area. Static sibling routes such as
  * `edit` and `setup` take precedence over this dynamic segment.
+ *
+ * No `generateStaticParams` here on purpose — see the sibling
+ * `setup/[step]/page.tsx` for the full reasoning. In short: this route has two
+ * dynamic segments (`[projectId]` and `[section]`) and returning only
+ * `{ section }` left `projectId` undefined, poisoning route resolution for the
+ * whole `/projects/[projectId]` subtree. Project ids are database values and
+ * cannot be enumerated at build time.
  */
 export default async function ProjectSectionPage({
   params,

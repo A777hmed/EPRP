@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/supabase/config";
+import {
+  createRetryingFetch,
+  isSupabaseUnreachable,
+} from "@/lib/supabase/network";
 
 /**
  * Session refresh and coarse route gating (Phase A2).
@@ -41,6 +45,21 @@ function matches(paths: string[], pathname: string): boolean {
   );
 }
 
+/**
+ * Whether the request carries a Supabase session cookie at all.
+ *
+ * Supabase stores the session in `sb-<project-ref>-auth-token`, splitting it
+ * into `.0`, `.1`, … chunks when it is large. A visitor with no such cookie is
+ * known to be signed out without asking the network, which keeps the
+ * "could not verify" path below reachable only by someone who already
+ * presented a session.
+ */
+function hasSessionCookie(request: NextRequest): boolean {
+  return request.cookies
+    .getAll()
+    .some(({ name }) => /^sb-.+-auth-token(\.\d+)?$/.test(name));
+}
+
 export async function proxy(request: NextRequest) {
   // Without Supabase env vars the app runs on mock data; gating every route
   // would make it unusable, so pass straight through.
@@ -50,6 +69,9 @@ export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    // This runs on every request, so a single failed DNS lookup used to be
+    // enough to sign somebody out. Retry before believing it.
+    global: { fetch: createRetryingFetch() },
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -70,11 +92,28 @@ export async function proxy(request: NextRequest) {
   // Never getSession() here — it trusts the cookie without verifying it.
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
 
   const { pathname, search } = request.nextUrl;
 
-  if (!user && !matches(PUBLIC_PATHS, pathname)) {
+  /*
+   * `user` is null both when the visitor is signed out and when the request
+   * never reached Supabase, and acting on that alone was a real bug: one
+   * failed DNS lookup logged people out mid-session, and because an
+   * authenticated visitor on /login is sent back to /dashboard, a flapping
+   * connection bounced them between the two pages.
+   *
+   * So only treat somebody as signed out when Supabase actually answered. If
+   * it could not be reached and a session cookie is present, the session is
+   * left intact and the request continues — this file is not the
+   * authorization boundary, and Row Level Security still refuses every row to
+   * an unverified token, so the worst case is an empty shell rather than a
+   * lost session.
+   */
+  const unverified = isSupabaseUnreachable(error) && hasSessionCookie(request);
+
+  if (!user && !unverified && !matches(PUBLIC_PATHS, pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";

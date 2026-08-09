@@ -15,7 +15,9 @@ import {
   SectionCard,
 } from "@/components/shared";
 import {
+  getLocalizedProjectWorkflowStep,
   getProjectWorkflowStep,
+  localizeProjectWorkflowStep,
   nextStepId,
   projectStepIndex,
   projectWorkflowHref,
@@ -30,9 +32,12 @@ import {
   projectToFormValues,
   type ProjectFormValues,
 } from "../../schemas/project-form";
+import { validateAssignments } from "../../assignment-rules";
+import { useHierarchyTerms } from "../../use-hierarchy-terms";
 import { useProjectWorkflow } from "../../use-project-workflow";
 import { ProjectForm } from "../project-form";
 import { ProjectWorkflowNav } from "../project-workflow-nav";
+import { ProjectInfoWorkspace } from "./project-info-workspace";
 import { SetupChecklist } from "./setup-checklist";
 import { SetupStepContacts } from "./setup-step-contacts";
 import { SetupStepDepartments } from "./setup-step-departments";
@@ -156,7 +161,11 @@ function SetupShell({
   const [saving, setSaving] = React.useState(false);
 
   const current = draft ?? project;
-  const definition = getProjectWorkflowStep(step);
+  const terms = useHierarchyTerms(current);
+  const definition = localizeProjectWorkflowStep(
+    getProjectWorkflowStep(step),
+    terms
+  );
   const index = projectStepIndex(step);
   const next = nextStepId(step);
   const previous = projectWorkflowSteps[index - 1];
@@ -259,6 +268,17 @@ function SetupShell({
             router.push(project ? `/projects/${project.id}` : "/projects")
           }
         />
+        {/* Scope management, available once the project exists. Keyed on
+            `updatedAt` so a save re-seeds its draft from the reloaded record
+            instead of holding stale rows. */}
+        {project && (
+          <ProjectInfoWorkspace
+            key={project.updatedAt}
+            project={project}
+            context={context}
+            onSaved={onInfoSaved}
+          />
+        )}
       </div>
     );
   }
@@ -337,16 +357,55 @@ function LoadedSteps({
   const workflow = useProjectWorkflow(current);
   const status = workflow.byId[step];
 
+  /*
+   * Every step's Save writes the whole scope, team included, so the reporting
+   * lines are checked here rather than only on the Contacts step.
+   *
+   * Only an *edited* team is blocked. Data saved before these rules existed can
+   * be invalid, and refusing every save would lock the user out of unrelated
+   * work on departments or systems — while still never letting a new invalid
+   * assignment be written.
+   */
+  const teamEdited = current.team !== project.team;
+  const assignmentIssues = teamEdited ? validateAssignments(current) : [];
+
   const save = async (): Promise<boolean> => {
+    if (assignmentIssues.length > 0) {
+      toast.error(
+        `Fix ${assignmentIssues.length} assignment problem(s) on the Contacts step before saving.`
+      );
+      return false;
+    }
     setSaving(true);
     try {
-      const saved = await projectService.updateProject(project.id, {
+      /*
+       * NOT LOADED IS NOT EMPTY.
+       *
+       * This previously sent `team: current.team ?? []`. When the team had not
+       * hydrated — or had been read back empty while the assignment columns
+       * were still missing — that coerced "unknown" into "empty", and
+       * `replaceTeam` deletes every team row before inserting, so an empty
+       * array wipes the project's team. That is how PSM-001 lost its members
+       * while its five project-responsibility rows survived (the delete is
+       * scoped to the team role).
+       *
+       * `updateProject` uses key-presence semantics, so omitting a key leaves
+       * that relation untouched. Only send a relation we actually hold.
+       */
+      const payload: Parameters<typeof projectService.updateProject>[1] = {
         departments: current.departments,
-        disciplines: current.disciplines ?? [],
-        team: current.team ?? [],
-      });
+      };
+      if (current.disciplines !== undefined) {
+        payload.disciplines = current.disciplines;
+      }
+      if (current.team !== undefined) payload.team = current.team;
+      if (current.delegations !== undefined) {
+        payload.delegations = current.delegations;
+      }
+
+      const saved = await projectService.updateProject(project.id, payload);
       setDraft(saved);
-      toast.success(`${getProjectWorkflowStep(step).label} saved`);
+      toast.success(`${getLocalizedProjectWorkflowStep(step, workflow.terms).label} saved`);
       return true;
     } catch (error) {
       toast.error(
@@ -370,7 +429,7 @@ function LoadedSteps({
 
   // A locked step is unreachable until everything before it is done.
   if (!status.unlocked) {
-    const blocker = getProjectWorkflowStep(status.blockedBy ?? "info");
+    const blocker = getLocalizedProjectWorkflowStep(status.blockedBy ?? "info", workflow.terms);
     return (
       <div className="space-y-6">
         {header}
@@ -380,7 +439,7 @@ function LoadedSteps({
             icon={Lock}
             title={`Complete ${blocker.label} first`}
             description={`${
-              getProjectWorkflowStep(step).label
+              getLocalizedProjectWorkflowStep(step, workflow.terms).label
             } unlocks once every earlier step is finished.`}
             action={
               <Button asChild>
@@ -425,6 +484,7 @@ function LoadedSteps({
           disciplines={workflow.disciplines}
           departmentName={workflow.departmentName}
           onDraftChange={applyDraft}
+          terms={workflow.terms}
         />
       )}
       {step === "contacts" && (
@@ -435,6 +495,7 @@ function LoadedSteps({
           disciplines={workflow.disciplines}
           departmentName={workflow.departmentName}
           onDraftChange={applyDraft}
+          terms={workflow.terms}
         />
       )}
       {step === "review" && (
@@ -445,6 +506,7 @@ function LoadedSteps({
           contacts={workflow.contacts}
           disciplines={workflow.disciplines}
           departmentName={workflow.departmentName}
+          terms={workflow.terms}
         />
       )}
 

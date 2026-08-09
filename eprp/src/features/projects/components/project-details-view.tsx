@@ -38,6 +38,7 @@ import type { Discipline, Project, WeeklyReport } from "@/types";
 import { formatVariance, projectSpi, projectVariance } from "../utils";
 import { ProgressComparison } from "./progress-comparison";
 import { ProjectSummaryHeader } from "./project-summary-header";
+import { useHierarchyTerms } from "../use-hierarchy-terms";
 import { ProjectWorkflowNav } from "./project-workflow-nav";
 import { ProjectSectionNav } from "./project-section-nav";
 import { ConfirmArchiveDialog } from "./confirm-archive-dialog";
@@ -105,6 +106,7 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
   const [weeklyReports, setWeeklyReports] = React.useState<WeeklyReport[]>([]);
   const [archiveOpen, setArchiveOpen] = React.useState(false);
   const { records: disciplineRecords } = useMasterData("discipline");
+  const terms = useHierarchyTerms(project);
 
   React.useEffect(() => {
     projectService.getProjectById(projectId).then(setProject);
@@ -431,8 +433,8 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
 
           <Section id="disciplines">
             <SectionCard
-              title="Disciplines"
-              description="Disciplines in scope, derived from the assigned departments."
+              title={terms.plural}
+              description={`${terms.plural} in scope, derived from the assigned departments.`}
             >
               {disciplines.length === 0 ? (
                 <p className="text-sm text-muted-foreground">

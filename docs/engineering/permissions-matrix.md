@@ -41,7 +41,7 @@ Use `hasPermission(role, permission)`; `ROLE_LABELS` provides display names.
 ## Notes on the two roles added in A1
 
 - **`department_lead`** carries the same permissions as `department_user`.
-  [`../03_WORKFLOW.md`](../03_WORKFLOW.md) §6 treats "Department Lead/User" as
+  [`../04_WORKFLOW_ENGINE.md`](../04_WORKFLOW_ENGINE.md) §6 treats "Department Lead/User" as
   one access level — assigned project/department updates only. If a lead
   should later approve on behalf of their department, that is a deliberate
   change, not an oversight.

@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
+  AssignmentRole,
   DepartmentAssignment,
   OverallStatus,
   Priority,
   Project,
+  ProjectDelegation,
   ProjectDisciplineLink,
   ProjectLifecycleStatus,
   ProjectTeamMember,
@@ -13,6 +15,7 @@ import type {
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   ProjectContactRow,
+  ProjectDelegationRow,
   ProjectDepartmentRow,
   ProjectDisciplineRow,
   ProjectRow,
@@ -169,7 +172,8 @@ function rowToProject(
   row: ProjectRow,
   deptRows: ProjectDepartmentRow[],
   disciplineRows: ProjectDisciplineRow[] = [],
-  teamRows: ProjectContactRow[] = []
+  teamRows: ProjectContactRow[] = [],
+  delegationRows: ProjectDelegationRow[] = []
 ): Project {
   const departments: DepartmentAssignment[] = deptRows.map((d) => ({
     departmentId: d.department_id,
@@ -241,6 +245,21 @@ function rowToProject(
       departmentId: t.department_id ?? undefined,
       systemId: t.system_id ?? undefined,
       disciplineId: t.discipline_id ?? undefined,
+      assignmentRole: (t.assignment_role ?? undefined) as
+        | AssignmentRole
+        | undefined,
+      functionalTitle: t.functional_title ?? undefined,
+      reportsToContactId: t.reports_to_contact_id ?? undefined,
+    })),
+    delegations: delegationRows.map((d) => ({
+      id: d.id,
+      departmentId: d.department_id,
+      delegateContactId: d.delegate_contact_id,
+      responsibilities: d.responsibilities ?? [],
+      startDate: d.start_date,
+      endDate: d.end_date,
+      note: d.note ?? undefined,
+      active: d.active,
     })),
     branding: {
       projectLogoRef: row.project_logo_ref ?? undefined,
@@ -335,20 +354,130 @@ async function replaceTeam(
   team: ProjectTeamMember[]
 ): Promise<void> {
   const sb = client();
+
+  /*
+   * Clearing a team is destructive and irreversible: the delete below removes
+   * every team row, and an empty array inserts nothing back. A caller that had
+   * not finished loading — or that read the team back empty while the
+   * assignment columns were missing — used to reach here with `[]` and silently
+   * wipe the project's team.
+   *
+   * Callers now omit the key when they do not hold the data, so an empty array
+   * here should only ever mean "the user removed everyone". This confirms that
+   * intent against the database before destroying anything: if rows exist and
+   * the caller is asking to clear them, refuse rather than guess. Removing the
+   * last member through the UI removes rows one at a time, so this never
+   * blocks a legitimate edit.
+   */
+  if (team.length === 0) {
+    const { count, error } = await sb
+      .from("project_contacts")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", projectId)
+      .eq("role", TEAM_ROLE);
+    if (error) throw new Error(error.message);
+    if (count && count > 0) {
+      throw new Error(
+        "Refusing to clear this project's team: an empty team was submitted while " +
+          `${count} member(s) exist. Reload the project and try again — no data was changed.`
+      );
+    }
+    return;
+  }
+
   await sb
     .from("project_contacts")
     .delete()
     .eq("project_id", projectId)
     .eq("role", TEAM_ROLE);
-  if (team.length === 0) return;
-  const { error } = await sb.from("project_contacts").insert(
-    team.map((member) => ({
+  const base = team.map((member) => ({
+    project_id: projectId,
+    contact_id: member.contactId,
+    role: TEAM_ROLE,
+    department_id: member.departmentId ?? null,
+    system_id: member.systemId ?? null,
+    discipline_id: member.disciplineId ?? null,
+  }));
+  const withAssignment = team.map((member, index) => ({
+    ...base[index],
+    assignment_role: member.assignmentRole ?? null,
+    functional_title: member.functionalTitle ?? null,
+    reports_to_contact_id: member.reportsToContactId ?? null,
+  }));
+
+  // Does this save actually carry assignment data? If not, the base columns
+  // are the complete picture and falling back loses nothing.
+  const carriesAssignmentData = team.some(
+    (member) =>
+      member.assignmentRole !== undefined ||
+      member.functionalTitle !== undefined ||
+      member.reportsToContactId !== undefined
+  );
+
+  const { error } = await sb.from("project_contacts").insert(withAssignment);
+  if (!error) return;
+  if (!isMissingColumn(error)) throw new Error(error.message);
+
+  // Columns are missing. Silently dropping real assignment data would lose the
+  // user's work, so refuse loudly and say exactly what to do. Only a save that
+  // carries no assignment data may fall back.
+  if (carriesAssignmentData) {
+    throw new Error(
+      "Assignment roles, functional titles, reporting lines and delegations " +
+        "cannot be saved yet — the pending migration " +
+        "20260804000001_project_contact_assignments.sql has not been applied. " +
+        "Apply it, then save again. No data was changed."
+    );
+  }
+  const { error: fallbackError } = await sb
+    .from("project_contacts")
+    .insert(base);
+  if (fallbackError) throw new Error(fallbackError.message);
+}
+
+/** PostgREST/Postgres "column not found" — the additive migration is pending. */
+function isMissingColumn(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  return (
+    error.code === "PGRST204" ||
+    error.code === "42703" ||
+    /schema cache|does not exist/i.test(error.message ?? "")
+  );
+}
+
+async function replaceDelegations(
+  projectId: string,
+  delegations: ProjectDelegation[]
+): Promise<void> {
+  const sb = client();
+  const { error: clearError } = await sb
+    .from("project_delegations")
+    .delete()
+    .eq("project_id", projectId);
+  if (clearError && !isMissingTable(clearError)) {
+    throw new Error(clearError.message);
+  }
+  if (isMissingTable(clearError)) {
+    // Nothing to store: the absent table changes nothing.
+    if (delegations.length === 0) return;
+    // Real delegations would be lost — refuse rather than drop them.
+    throw new Error(
+      "Delegations cannot be saved yet — the pending migration " +
+        "20260804000001_project_contact_assignments.sql has not been applied. " +
+        "Apply it, then save again. No data was changed."
+    );
+  }
+  if (delegations.length === 0) return;
+  const { error } = await sb.from("project_delegations").insert(
+    delegations.map((delegation) => ({
       project_id: projectId,
-      contact_id: member.contactId,
-      role: TEAM_ROLE,
-      department_id: member.departmentId ?? null,
-      system_id: member.systemId ?? null,
-      discipline_id: member.disciplineId ?? null,
+      department_id: delegation.departmentId,
+      delegate_contact_id: delegation.delegateContactId,
+      responsibilities: delegation.responsibilities,
+      start_date: delegation.startDate,
+      end_date: delegation.endDate,
+      note: delegation.note ?? null,
+      active: delegation.active,
     }))
   );
   if (error) throw new Error(error.message);
@@ -407,6 +536,39 @@ async function fetchTeamRows(
   return grouped;
 }
 
+/**
+ * True when the failure is simply that the delegations table has not been
+ * created yet. The migration for it is additive and may not be applied, so a
+ * read must degrade to "no delegations" rather than break every project page.
+ * Any other error still propagates.
+ */
+function isMissingTable(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  // PostgREST schema-cache miss, or Postgres undefined_table.
+  return (
+    error.code === "PGRST205" ||
+    error.code === "42P01" ||
+    /schema cache|does not exist/i.test(error.message ?? "")
+  );
+}
+
+async function fetchDelegationRows(
+  projectIds: string[]
+): Promise<Map<string, ProjectDelegationRow[]>> {
+  const grouped = new Map<string, ProjectDelegationRow[]>();
+  if (projectIds.length === 0) return grouped;
+  const { data, error } = await client()
+    .from("project_delegations")
+    .select("*")
+    .in("project_id", projectIds);
+  if (isMissingTable(error)) return grouped;
+  if (error) throw new Error(error.message);
+  for (const row of (data ?? []) as ProjectDelegationRow[]) {
+    grouped.set(row.project_id, [...(grouped.get(row.project_id) ?? []), row]);
+  }
+  return grouped;
+}
+
 /* ------------------------------- Service ---------------------------------- */
 
 export const supabaseProjectService: ProjectService = {
@@ -418,17 +580,20 @@ export const supabaseProjectService: ProjectService = {
     if (error) throw new Error(error.message);
     const rows = (data ?? []) as ProjectRow[];
     const ids = rows.map((r) => r.id);
-    const [deptRows, disciplineRows, teamRows] = await Promise.all([
-      fetchDepartmentRows(ids),
-      fetchDisciplineRows(ids),
-      fetchTeamRows(ids),
-    ]);
+    const [deptRows, disciplineRows, teamRows, delegationRows] =
+      await Promise.all([
+        fetchDepartmentRows(ids),
+        fetchDisciplineRows(ids),
+        fetchTeamRows(ids),
+        fetchDelegationRows(ids),
+      ]);
     return rows.map((row) =>
       rowToProject(
         row,
         deptRows.get(row.id) ?? [],
         disciplineRows.get(row.id) ?? [],
-        teamRows.get(row.id) ?? []
+        teamRows.get(row.id) ?? [],
+        delegationRows.get(row.id) ?? []
       )
     );
   },
@@ -443,16 +608,19 @@ export const supabaseProjectService: ProjectService = {
     if (error) throw new Error(error.message);
     if (!data) return null;
     const row = data as ProjectRow;
-    const [deptRows, disciplineRows, teamRows] = await Promise.all([
-      fetchDepartmentRows([row.id]),
-      fetchDisciplineRows([row.id]),
-      fetchTeamRows([row.id]),
-    ]);
+    const [deptRows, disciplineRows, teamRows, delegationRows] =
+      await Promise.all([
+        fetchDepartmentRows([row.id]),
+        fetchDisciplineRows([row.id]),
+        fetchTeamRows([row.id]),
+        fetchDelegationRows([row.id]),
+      ]);
     return rowToProject(
       row,
       deptRows.get(row.id) ?? [],
       disciplineRows.get(row.id) ?? [],
-      teamRows.get(row.id) ?? []
+      teamRows.get(row.id) ?? [],
+      delegationRows.get(row.id) ?? []
     );
   },
 
@@ -468,6 +636,7 @@ export const supabaseProjectService: ProjectService = {
     await replaceContacts(row.id, input);
     await replaceDisciplineLinks(row.id, input.disciplines ?? []);
     await replaceTeam(row.id, input.team ?? []);
+    await replaceDelegations(row.id, input.delegations ?? []);
     const created = await supabaseProjectService.getProjectById(row.id);
     if (!created) throw new Error("Project was created but could not be read back.");
     return created;
@@ -496,6 +665,9 @@ export const supabaseProjectService: ProjectService = {
     }
     if ("team" in input && input.team) {
       await replaceTeam(id, input.team);
+    }
+    if ("delegations" in input && input.delegations) {
+      await replaceDelegations(id, input.delegations);
     }
     // Responsibility contacts are Project Info fields, so they follow the
     // Project Info payload — never a relation-only update.
@@ -541,6 +713,23 @@ export const supabaseProjectService: ProjectService = {
     const archived = await supabaseProjectService.getProjectById(id);
     if (!archived) throw new Error(`Project ${id} not found`);
     return archived;
+  },
+
+  /**
+   * Probe the two additive schema objects with zero-row selects. Cheap, and
+   * it lets the UI disable the affected editors up front instead of letting a
+   * save fail after the user has typed.
+   */
+  async getAssignmentSupport() {
+    const sb = client();
+    const [columns, delegations] = await Promise.all([
+      sb.from("project_contacts").select("assignment_role").limit(0),
+      sb.from("project_delegations").select("id").limit(0),
+    ]);
+    return {
+      assignmentColumns: !isMissingColumn(columns.error),
+      delegations: !isMissingTable(delegations.error),
+    };
   },
 
   async getUsedCodes(excludeId) {

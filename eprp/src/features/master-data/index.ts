@@ -7,6 +7,7 @@ export {
   departmentService,
   systemService,
   disciplineService,
+  jobTitleService,
   getMasterService,
   getClientById,
   getProjectTypeById,
@@ -15,6 +16,7 @@ export {
   getDepartmentById,
   getSystemById,
   getDisciplineById,
+  getJobTitleById,
   MASTER_KIND_CONFIG,
 } from "./services";
 export { useMasterData } from "./use-master-data";
@@ -74,7 +76,12 @@ export {
   SystemsListView,
   DisciplinesListView,
   ContactsListView,
+  JobTitlesListView,
 } from "./components/master-data-views";
+export {
+  JobTitleDetailView,
+  type JobTitleDetailViewProps,
+} from "./components/job-title-detail-view";
 export {
   ConfirmArchiveDialog,
   ConfirmRestoreDialog,

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { DisciplineDetailView } from "@/features/master-data";
 import { readProjectContext } from "@/features/projects/project-link-context";
 
-export const metadata: Metadata = { title: "Discipline Details" };
+export const metadata: Metadata = { title: "Program & Study Details" };
 
 export default async function DisciplineDetailPage({
   params,

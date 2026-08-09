@@ -3,6 +3,7 @@ import type {
   Contact,
   Department,
   Discipline,
+  JobTitle,
   MasterRecordBase,
   ProjectPhase,
   ProjectType,
@@ -13,6 +14,7 @@ import type {
  * Admin-managed master-data kinds.
  * Phase 5A: client, project type, phase, contact.
  * Phase 5B: department, system, discipline.
+ * Collaboration Phase C1: job title.
  */
 export type MasterKind =
   | "client"
@@ -21,7 +23,8 @@ export type MasterKind =
   | "contact"
   | "department"
   | "system"
-  | "discipline";
+  | "discipline"
+  | "jobTitle";
 
 export interface MasterRecordMap {
   client: Client;
@@ -31,6 +34,7 @@ export interface MasterRecordMap {
   department: Department;
   system: System;
   discipline: Discipline;
+  jobTitle: JobTitle;
 }
 
 export interface MasterFieldConfig {
@@ -42,6 +46,15 @@ export interface MasterFieldConfig {
   placeholder?: string;
   /** For `type: "reference"` — the master-data kind this field points to. */
   refKind?: MasterKind;
+  /**
+   * For `type: "reference"` — narrow the options to records that sit under
+   * another field's value. Used so a Program & Study only offers Systems
+   * belonging to the Department already chosen on the same form.
+   *
+   * `field`     — the form field holding the parent id (e.g. "departmentId")
+   * `recordKey` — the property on the referenced record to match it against
+   */
+  scopeBy?: { field: string; recordKey: string };
 }
 
 export interface CanDeleteResult {

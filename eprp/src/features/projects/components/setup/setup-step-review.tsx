@@ -8,15 +8,23 @@ import { Progress } from "@/components/ui/progress";
 import { EmptyState, SectionCard, StatusBadge } from "@/components/shared";
 import {
   allMissing,
-  getProjectWorkflowStep,
+  getLocalizedProjectWorkflowStep,
   projectWorkflowHref,
   type ProjectStepStatus,
 } from "@/config/project-workflow";
 import { getClientById, getContactById } from "@/features/master-data";
+import { ASSIGNMENT_ROLE_META } from "@/lib/constants";
+import {
+  activeDelegations,
+  departmentAssignments,
+} from "../../assignment-rules";
 import { formatDate } from "@/lib/formatters";
+import type { HierarchyTerms } from "@/config/project-terminology";
 import type { Contact, Discipline, Project } from "@/types";
 
 export interface SetupStepReviewProps {
+  /** Hierarchy wording — display only. */
+  terms: HierarchyTerms;
   project: Project;
   statuses: ProjectStepStatus[];
   percent: number;
@@ -46,8 +54,10 @@ export function SetupStepReview({
   contacts,
   disciplines,
   departmentName,
+  terms,
 }: SetupStepReviewProps) {
   const missing = allMissing(statuses);
+  const today = new Date().toISOString().slice(0, 10);
   const links = project.disciplines ?? [];
   const team = project.team ?? [];
   const systemCount = project.departments.reduce(
@@ -91,7 +101,7 @@ export function SetupStepReview({
                 </span>
                 <Button variant="outline" size="sm" asChild>
                   <Link href={projectWorkflowHref(project.id, item.step)}>
-                    Fix in {getProjectWorkflowStep(item.step).label}
+                    Fix in {getLocalizedProjectWorkflowStep(item.step, terms).label}
                   </Link>
                 </Button>
               </li>
@@ -117,7 +127,7 @@ export function SetupStepReview({
           />
           <Summary label="Departments" value={project.departments.length} />
           <Summary label="Systems" value={systemCount} />
-          <Summary label="Disciplines" value={uniqueDisciplines.size} />
+          <Summary label={terms.plural} value={uniqueDisciplines.size} />
           <Summary label="Team members" value={uniqueTeam.size} />
         </dl>
       </SectionCard>
@@ -158,10 +168,9 @@ export function SetupStepReview({
                     {assignment.systems.length} system
                     {assignment.systems.length === 1 ? "" : "s"} ·{" "}
                     {new Set(deptLinks.map((l) => l.disciplineId)).size}{" "}
-                    discipline
                     {new Set(deptLinks.map((l) => l.disciplineId)).size === 1
-                      ? ""
-                      : "s"}{" "}
+                      ? terms.singularLower
+                      : terms.pluralLower}{" "}
                     · {new Set(deptTeam.map((m) => m.contactId)).size} member
                     {new Set(deptTeam.map((m) => m.contactId)).size === 1
                       ? ""
@@ -182,19 +191,67 @@ export function SetupStepReview({
                     </ul>
                   )}
                   {deptTeam.length > 0 && (
-                    <ul className="mt-1.5 flex flex-wrap gap-1.5">
-                      {[...new Set(deptTeam.map((m) => m.contactId))].map(
-                        (id) => (
+                    <ul className="mt-1.5 space-y-1">
+                      {departmentAssignments(
+                        project,
+                        assignment.departmentId
+                      ).map((entry) => {
+                        const reportsTo = entry.reportsToContactId
+                          ? (contacts.find(
+                              (c) => c.id === entry.reportsToContactId
+                            )?.name ?? entry.reportsToContactId)
+                          : undefined;
+                        return (
                           <li
-                            key={id}
-                            className="rounded-md bg-muted px-2 py-0.5 text-xs"
+                            key={entry.contactId}
+                            className="flex flex-wrap items-center gap-1.5 text-xs"
                           >
-                            {contacts.find((c) => c.id === id)?.name ?? id}
+                            <span className="rounded-md bg-muted px-2 py-0.5">
+                              {contacts.find((c) => c.id === entry.contactId)
+                                ?.name ?? entry.contactId}
+                            </span>
+                            {entry.functionalTitle && (
+                              <span className="text-muted-foreground">
+                                {entry.functionalTitle}
+                              </span>
+                            )}
+                            <StatusBadge
+                              tone={
+                                entry.assignmentRole === "department_manager"
+                                  ? "info"
+                                  : "neutral"
+                              }
+                            >
+                              {ASSIGNMENT_ROLE_META[entry.assignmentRole].label}
+                            </StatusBadge>
+                            {reportsTo && (
+                              <span className="text-muted-foreground">
+                                → {reportsTo}
+                              </span>
+                            )}
                           </li>
-                        )
-                      )}
+                        );
+                      })}
                     </ul>
                   )}
+                  {activeDelegations(
+                    project,
+                    assignment.departmentId,
+                    today
+                  ).map((delegation, index) => (
+                    <p
+                      key={delegation.id ?? index}
+                      className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"
+                    >
+                      <StatusBadge tone="success">
+                        Acting / Delegated Manager
+                      </StatusBadge>
+                      {contacts.find(
+                        (c) => c.id === delegation.delegateContactId
+                      )?.name ?? delegation.delegateContactId}
+                      <span>· until {delegation.endDate}</span>
+                    </p>
+                  ))}
                 </li>
               );
             })}
