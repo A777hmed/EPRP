@@ -170,6 +170,30 @@ export function overrideAuditEntry(
 }
 
 /**
+ * Statuses whose CONTENT is immutable.
+ *
+ * Distinct from `weeklyEditability`, which also weighs who is asking: this is
+ * the rule no role escapes, because a locked or finalized report is history
+ * and a change to it requires a new revision. Enforced in the service so no
+ * form, import, or script can write past it.
+ */
+const IMMUTABLE_CONTENT_STATUSES: ReportStatus[] = [
+  "finalized",
+  "locked",
+  "archived",
+];
+
+/** The reason a report's content is frozen, or undefined when it is not. */
+export function contentFrozenReason(
+  status: ReportStatus
+): string | undefined {
+  if (!IMMUTABLE_CONTENT_STATUSES.includes(status)) return undefined;
+  return status === "archived"
+    ? "This report is archived and cannot be edited."
+    : "This report is locked. Changes require a new revision — locked reports stay immutable.";
+}
+
+/**
  * Is this report's stored state self-consistent?
  *
  * Used to detect records that reached an impossible state before these guards

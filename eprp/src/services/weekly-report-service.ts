@@ -24,6 +24,7 @@ import {
   getWeekNumber,
 } from "@/lib/reporting";
 import { canTransition } from "@/config/workflows";
+import { contentFrozenReason } from "@/features/weekly-reports/lifecycle-guards";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   mockWeeklyReports,
@@ -99,6 +100,45 @@ export interface WeeklySubmissionInput {
   risksIssues?: string;
 }
 
+/**
+ * ONE department-owned Weekly row — either the General Department Update
+ * (scope item NULL) or one Program & Study / Discipline update beneath it.
+ *
+ * Both are the same kind of record: the specification makes the department the
+ * owner of the row and the scope item a structured field ON it, not a second
+ * owner. One input and one save path therefore serve both, rather than two
+ * that could drift apart.
+ *
+ * Deliberately separate from {@link WeeklySubmissionInput}: that one belongs to
+ * the whole-report edit form and is saved replace-all, which is correct there
+ * and catastrophic in the workspace, where a Department Manager saving their
+ * own department would delete every other department's rows. This input names
+ * ONE row and is saved in place.
+ */
+export interface WeeklyDepartmentUpdateInput {
+  /**
+   * The row being edited, when the caller already knows it. Optional because
+   * the save also matches on department and scope item, so a client that never
+   * loaded the id still updates rather than inserts.
+   */
+  id?: string;
+  departmentId: string;
+  /**
+   * The scope item this update belongs to. Stored as `discipline_id` whatever
+   * the project type calls it on screen. Omitted for the General Department
+   * Update, whose column stays NULL — the recorded meaning of "department
+   * level", not a missing value.
+   */
+  disciplineId?: string;
+  status: SubmissionStatus;
+  progressPercent?: number;
+  summary?: string;
+  keyAchievement?: string;
+  delayConstraint?: string;
+  nextWeekPlan?: string;
+  healthStatus?: SubmissionHealthStatus;
+}
+
 /** One comment / risk / issue / action row from the weekly form (Phase 6A.4). */
 export interface WeeklyEntryInput {
   id?: string;
@@ -129,6 +169,19 @@ export interface WeeklyReportService {
     reportId: string,
     updates: WeeklySubmissionInput[]
   ): Promise<WeeklySubmission[]>;
+  /**
+   * Save ONE department-owned row — the General Department Update, or one
+   * scope item's update — in place.
+   *
+   * Touches only the row identified by (report, department, scope item): an
+   * existing row is updated and keeps its id, so saving twice cannot produce a
+   * duplicate, and no other department's or scope item's input is read,
+   * rewritten, or deleted.
+   */
+  saveDepartmentUpdate(
+    reportId: string,
+    input: WeeklyDepartmentUpdateInput
+  ): Promise<WeeklySubmission>;
   listActivities(reportId: string): Promise<WeeklyActivity[]>;
   /** Replace-all: rows missing from the payload are deleted. */
   saveActivities(
@@ -141,6 +194,16 @@ export interface WeeklyReportService {
     reportId: string,
     entries: WeeklyEntryInput[]
   ): Promise<WeeklyEntry[]>;
+  /**
+   * Insert or update ONE narrative row, in place.
+   *
+   * The workspace edits entries a scope item at a time, where the replace-all
+   * `saveEntries` would delete every other department's rows as a side effect
+   * of saving one item's. This touches only the row it names.
+   */
+  saveEntry(reportId: string, input: WeeklyEntryInput): Promise<WeeklyEntry>;
+  /** Remove ONE narrative row, leaving the rest of the report alone. */
+  deleteEntry(reportId: string, entryId: string): Promise<void>;
 }
 
 /* --------------------------------- Helpers -------------------------------- */
@@ -426,6 +489,67 @@ const mockWeeklyReportService: WeeklyReportService = {
     return saved;
   },
 
+  async saveDepartmentUpdate(reportId, input) {
+    await delay();
+    const report = reportStore.get(reportId);
+    if (!report) throw new Error(`Weekly report ${reportId} not found`);
+
+    const frozen = contentFrozenReason(report.status);
+    if (frozen) throw new Error(frozen);
+
+    /*
+     * The row is identified by (report, department, scope item) — the same key
+     * the database's unique index uses. Matching on it rather than only on the
+     * id the client happens to hold is what makes a repeated save idempotent:
+     * a client that saved before it had ever read the row back would otherwise
+     * insert a second update for the same scope.
+     */
+    const scopeItemId = input.disciplineId ?? undefined;
+    const sameRow = (s: WeeklySubmission) =>
+      s.weeklyReportId === reportId &&
+      s.departmentId === input.departmentId &&
+      (s.disciplineId ?? undefined) === scopeItemId;
+
+    const byId = input.id ? submissionStore.get(input.id) : undefined;
+    const existing =
+      byId && sameRow(byId)
+        ? byId
+        : [...submissionStore.values()].find(sameRow);
+
+    const saved: WeeklySubmission = {
+      // Everything not part of this form — review marks, submission stamps,
+      // the detailed arrays — is carried through untouched.
+      ...(existing ?? {
+        id: nextId("sub"),
+        weeklyReportId: reportId,
+        departmentId: input.departmentId,
+        accomplishments: [],
+        plannedNextWeek: [],
+        blockers: [],
+      }),
+      // Taken from the input, never from the row being replaced: the scope a
+      // save was aimed at cannot be changed by the row it happens to land on.
+      disciplineId: scopeItemId,
+      status: input.status,
+      progressPercent: input.progressPercent,
+      summary: input.summary || undefined,
+      keyAchievement: input.keyAchievement || undefined,
+      delayConstraint: input.delayConstraint || undefined,
+      nextWeekPlan: input.nextWeekPlan || undefined,
+      healthStatus: input.healthStatus,
+    };
+
+    submissionStore.set(saved.id, saved);
+    reportStore.set(reportId, {
+      ...report,
+      submissionIds: report.submissionIds.includes(saved.id)
+        ? report.submissionIds
+        : [...report.submissionIds, saved.id],
+      updatedAt: nowIso(),
+    });
+    return clone(saved);
+  },
+
   async listActivities(reportId) {
     await delay(120);
     return [...activityStore.values()]
@@ -524,6 +648,68 @@ const mockWeeklyReportService: WeeklyReportService = {
       updatedAt: nowIso(),
     });
     return saved;
+  },
+
+  async saveEntry(reportId, input) {
+    await delay();
+    const report = reportStore.get(reportId);
+    if (!report) throw new Error(`Weekly report ${reportId} not found`);
+
+    const frozen = contentFrozenReason(report.status);
+    if (frozen) throw new Error(frozen);
+
+    // An id from another report is never followed: it would move a row
+    // between reports rather than edit this one's.
+    const existing = input.id ? entryStore.get(input.id) : undefined;
+    const target =
+      existing && existing.weeklyReportId === reportId ? existing : undefined;
+
+    const entry: WeeklyEntry = {
+      id: target?.id ?? nextId("entry"),
+      weeklyReportId: reportId,
+      entryType: input.entryType,
+      category: input.category,
+      description: input.description,
+      priority: input.priority,
+      status: input.status,
+      ownerContactId: input.ownerContactId,
+      dueDate: input.dueDate,
+      departmentId: input.departmentId,
+      systemId: input.systemId,
+      disciplineId: input.disciplineId,
+      includeInMonthly: input.includeInMonthly,
+      // Creation time belongs to the row, not to the edit that touched it.
+      createdAt: target?.createdAt ?? nowIso(),
+    };
+
+    entryStore.set(entry.id, entry);
+    reportStore.set(reportId, {
+      ...report,
+      entryIds: report.entryIds.includes(entry.id)
+        ? report.entryIds
+        : [...report.entryIds, entry.id],
+      updatedAt: nowIso(),
+    });
+    return clone(entry);
+  },
+
+  async deleteEntry(reportId, entryId) {
+    await delay();
+    const report = reportStore.get(reportId);
+    if (!report) throw new Error(`Weekly report ${reportId} not found`);
+
+    const frozen = contentFrozenReason(report.status);
+    if (frozen) throw new Error(frozen);
+
+    const existing = entryStore.get(entryId);
+    if (!existing || existing.weeklyReportId !== reportId) return;
+
+    entryStore.delete(entryId);
+    reportStore.set(reportId, {
+      ...report,
+      entryIds: report.entryIds.filter((id) => id !== entryId),
+      updatedAt: nowIso(),
+    });
   },
 };
 

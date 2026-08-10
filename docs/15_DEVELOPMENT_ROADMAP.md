@@ -10,7 +10,10 @@ This file is the single source of truth for **where the project actually is**. U
 
 ## Status at a glance
 
-Last verified: **2026-07-25** (lint, type-check, and production build all green; no database reachable).
+Last verified: **2026-08-10** (lint, type-check, and production build all green;
+the Weekly workspace exercised in the browser against the live Supabase project
+— department and scope-item rows read back, and one scope-item update saved,
+reloaded, and restored).
 
 | # | Phase | Status |
 |---|---|---|
@@ -20,8 +23,8 @@ Last verified: **2026-07-25** (lint, type-check, and production build all green;
 | 2A | Organization Chart *(added — see note)* | ✅ Complete |
 | 2B | Configurable hierarchy and scoped assignments *(added — see note)* | ✅ Complete |
 | 3 | Data foundation | ✅ Complete — all 32 migrations applied |
-| 4 | Weekly Workspace UI | ⚠️ Partial (~60%) |
-| 5 | Weekly data and department submission | ⚠️ Partial |
+| 4 | Weekly Workspace UI | ⚠️ Partial (~80%) — workspace rendered down to the scope-item level |
+| 5 | Weekly data and department submission | ⚠️ Partial — department ownership now enforced in the UI |
 | 6 | Comments and collaboration | ⚠️ Partial |
 | 7 | Workflow, permissions, notifications | ❌ Config only, nothing enforced |
 | 8 | Excel exchange | ❌ Not started |
@@ -30,7 +33,9 @@ Last verified: **2026-07-25** (lint, type-check, and production build all green;
 | 11 | A4/PDF output | ❌ Not started |
 | 12 | Hardening and future integrations | ❌ Not started |
 
-**Current phase: 3 complete. Recommended next: Phase 4 (Weekly Workspace).**
+**Current phase: 4 (Weekly Workspace), in progress. Next increment: Look Ahead
+and milestones — the remaining Phase 4 sections are listed in order under
+Phase 4 below.**
 
 The two standing facts that used to gate every estimate below are **no longer true** and are recorded here so the change is visible rather than silently edited away:
 
@@ -152,7 +157,7 @@ Connect the existing application to the chosen database/storage architecture. Ad
 
 ---
 
-## Phase 4 — Weekly Workspace UI ⚠️ PARTIAL (~60%)
+## Phase 4 — Weekly Workspace UI ⚠️ PARTIAL (~80%)
 
 Implement the Weekly design as a project workspace: header, workflow, KPIs, summary, activities, department updates, risks/issues, Next Week Plan, Look Ahead, comments, attachments, approval, and history.
 
@@ -160,10 +165,37 @@ Implement the Weekly design as a project workspace: header, workflow, KPIs, summ
 
 **Delivered:** report header with project linkage, workflow status display, progress and KPI section with auto-calculated variance and SPI, department updates with discipline auto-linking, narrative entries (key comments, risks, issues, actions) with priority/status/owner/due date and an `includeInMonthly` flag, submission status by department, and detail plus preview views.
 
+**Added in the Weekly workspace pass:** the detail route now renders the real
+workspace — a professional document header (project, code, client, week,
+period, lifecycle status, prepared by, last updated), a Project Progress
+summary (planned / actual / variance / health / Executive Summary), and a
+Project → Departments panel where every department assigned to the project
+appears as a collapsible section with its derived completion state, a
+missing-input flag, and an editable or read-only **General Department Update**.
+Viewer scope is resolved on the server and passed down as props, so the client
+never re-derives authority.
+
+**Added in the scope-item pass:** each department now opens onto the level
+below it — the **Programs & Studies** (PSM/PSAIM) or **Disciplines** (every
+other project type) the project put in that department, named from the project
+type by `hierarchyTermsFor()`. The list is the project's own scope, not the
+submissions, so an item nobody has filled in still appears and reads "Not
+reported"; each row carries its System, its status and progress, and expands
+to the same update form the department level uses. The viewer's scope filters
+the expected items exactly as it filters the submitted ones, so a scoped member
+never learns what else exists. An item whose scope has since left the project
+keeps its row, read-only, rather than dropping the history.
+
+One save path serves both levels: `saveDepartmentUpdate` writes the single row
+identified by (report, department, scope item) — the same triple the
+`weekly_submissions` unique index enforces — matching on that key rather than
+on a client-held id, so a repeated save updates in place instead of inserting a
+second row, and a stale id cannot steer a write onto another department's or
+another item's input. No migration was needed: the table, its unique index, and
+the scoped RLS policies already cover the scope-item level.
+
 **Still missing, from `archive/reporting-architecture-v1.md` §3:**
 
-- Executive Summary section
-- Major Activities Completed section
 - Look Ahead (next week, 2 weeks, 4 weeks, month, quarter)
 - Documents and attachments
 - Approval actions
@@ -177,9 +209,37 @@ Create Weekly records, department submissions, project-scoped filtering, departm
 
 **Done when:** each department can submit only its authorized section and Project Control can track all submissions.
 
-**Delivered:** weekly records with department submissions, project-scoped filtering, submission status tracking, and save-draft behaviour.
+**Delivered:** weekly records with department submissions, project-scoped
+filtering, submission status tracking, and save-draft behaviour.
 
-**Missing:** department *ownership* — there is no authentication, so no user is scoped to a department and every user sees everything. Return-with-reason and resubmit are not implemented. Depends on Phase 7.
+Department *ownership* now reaches the screen: the workspace resolves the
+signed-in viewer's scope on the server and renders only the departments that
+scope covers — every department for Project Control and administrators, the
+managed department for a Department Manager, the assigned scope for a member,
+and nothing for someone with no assignment on the project. Departments outside
+the viewer's access are acknowledged by count and never by content.
+
+Saving is scoped to match: `saveDepartmentUpdate` writes one department's
+NULL-scope row in place, so a repeated save cannot duplicate it and one
+department's save cannot touch another's. The whole-report replace-all save
+remains only on the report edit form, where replacing everything is what the
+user asked for.
+
+**The Weekly scoping is now a security boundary, not just a rendering rule.**
+`20260810000002_weekly_rls.sql` replaced the blanket `using (true)` policies on
+the four Weekly tables with the same predicates the resolver applies, and
+`20260810000004_weekly_entry_scope_rls.sql` closed the last gap: the
+`weekly_entries` policies were passing a literal NULL as the scope item, so a
+scoped member could read and write another member's Program & Study /
+Discipline entries in the same department. They now pass `discipline_id` —
+policy change only, no schema change, since the column has existed since
+`20260719000007`. Verified at database level as the `authenticated` role: 19
+assertions across scoped member, multi-scope member, Department Manager,
+Project Control, System Administrator and an unassigned user, including
+cross-department, cross-project and direct-write attempts.
+
+**Missing:** return-with-reason and resubmit. The blanket `using (true)`
+policies still stand on the **non-Weekly** tables — see Phase 12.
 
 ---
 
@@ -261,7 +321,8 @@ Add DOCX output, branding management, signatures, QR codes, advanced audit/revis
 
 **Carry into this phase:**
 
-- Replace the temporary `using (true)` RLS policies with real per-role rules.
+- Replace the temporary `using (true)` RLS policies with real per-role rules on
+  the **non-Weekly** tables. The four Weekly tables are done — see Phase 5.
 - `xlsx@0.18.5` carries a high-severity advisory with no registry fix available; `next@16.2.10` has one fixed in 16.2.11. Eight advisories total (5 high, 3 moderate).
 - There is no test runner. Assertions written for the tree helpers, chart templates, locking rules, and the Excel importer (87 in total, all passing) live in a scratch directory outside the repository and are lost between sessions. They should be moved into `eprp/src` under a real runner.
 

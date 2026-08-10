@@ -1,13 +1,17 @@
 import type {
+  AssignmentRole,
   Project,
+  WeeklyEntry,
   WeeklyReport,
   WeeklySubmission,
 } from "@/types";
+import { scopedAssignments } from "@/features/projects/assignment-rules";
 import {
   ALL_ITEMS,
   canAccessDepartment,
   visibleScopeItems,
   weeklyDepartments,
+  type ScopeItemAccess,
   type WeeklyScope,
 } from "./scope";
 
@@ -132,6 +136,161 @@ function hasAnyContent(submissions: WeeklySubmission[]): boolean {
   );
 }
 
+/* ------------------------------- Scope items ------------------------------- */
+
+/**
+ * One Program & Study / Discipline under a department, with its Weekly input.
+ *
+ * The item comes from the project's own scope links and the submission from
+ * the report, paired here so the workspace can show what is expected as well
+ * as what has arrived — an item nobody has filled in still has a row, which is
+ * exactly the gap a submission-derived list would hide.
+ */
+/**
+ * Who holds a scope item, and in what capacity.
+ *
+ * Read from the project's own scoped assignments — nothing about
+ * responsibility is copied into a Weekly table, so a change made in Project
+ * Setup shows up here on the next render rather than needing a backfill. One
+ * record per (person, Assignment Role): the Core treats two roles on the same
+ * item as two genuine assignments, not a duplicate to collapse.
+ */
+export interface ScopeItemResponsibility {
+  contactId: string;
+  assignmentRole: AssignmentRole;
+  functionalTitle?: string;
+}
+
+export interface ScopeItemRow {
+  /** Master-data id. Stored as `discipline_id` whatever the project calls it. */
+  scopeItemId: string;
+  /** The System this item sits under on this project, when the link records one. */
+  systemId?: string;
+  /** This item's own submission row. Undefined until someone saves one. */
+  submission?: WeeklySubmission;
+  /** The people assigned to this item on this project. Display only. */
+  responsible: ScopeItemResponsibility[];
+  /**
+   * Narrative rows tagged to this item — the Required Action / Support list,
+   * and the only place `includeInMonthly` is recorded. Weekly submissions
+   * deliberately carry no such flag.
+   */
+  entries: WeeklyEntry[];
+  /** Whether this item has been reported on — see {@link isReported}. */
+  reported: boolean;
+  /**
+   * Carries Weekly input but is no longer linked to the project — a scope item
+   * removed from the project after it was reported on. Shown read-only rather
+   * than dropped: history stays visible (`CLAUDE.md`), and re-editing a row
+   * whose item has left the project would be re-opening a closed decision.
+   */
+  detached: boolean;
+}
+
+/**
+ * Whether a scope item has actually been reported on.
+ *
+ * A row alone is not enough — one can exist carrying nothing — but a status
+ * someone deliberately moved off `pending` counts even with no narrative yet,
+ * because marking an item submitted IS a report about it.
+ */
+function isReported(submission: WeeklySubmission | undefined): boolean {
+  if (!submission) return false;
+  return submission.status !== "pending" || hasAnyContent([submission]);
+}
+
+/**
+ * Pair a department's scope items with their submissions.
+ *
+ * Detached rows always come last — everything still in the project's scope is
+ * what someone is being asked to fill in. Ordering within each group is left
+ * to the renderer, which can resolve the names this module deliberately does
+ * not know about.
+ */
+function buildScopeItems(
+  project: Project,
+  departmentId: string,
+  visible: ScopeItemAccess,
+  submissions: WeeklySubmission[],
+  entries: WeeklyEntry[]
+): ScopeItemRow[] {
+  const byItem = new Map<string, WeeklySubmission>();
+  for (const submission of submissions) {
+    if (submission.disciplineId) byItem.set(submission.disciplineId, submission);
+  }
+
+  /*
+   * Responsibility is resolved once per department and indexed, rather than
+   * re-scanned for every item: `scopedAssignments` walks the whole team list,
+   * and a department with a dozen items would otherwise walk it a dozen times.
+   */
+  const responsibleByItem = new Map<string, ScopeItemResponsibility[]>();
+  for (const assignment of scopedAssignments(project, departmentId)) {
+    if (!assignment.disciplineId) continue;
+    const held = responsibleByItem.get(assignment.disciplineId) ?? [];
+    const already = held.some(
+      (entry) =>
+        entry.contactId === assignment.contactId &&
+        entry.assignmentRole === assignment.assignmentRole
+    );
+    if (already) continue;
+    held.push({
+      contactId: assignment.contactId,
+      assignmentRole: assignment.assignmentRole,
+      functionalTitle: assignment.functionalTitle,
+    });
+    responsibleByItem.set(assignment.disciplineId, held);
+  }
+
+  const entriesByItem = new Map<string, WeeklyEntry[]>();
+  for (const entry of entries) {
+    if (entry.departmentId !== departmentId || !entry.disciplineId) continue;
+    entriesByItem.set(entry.disciplineId, [
+      ...(entriesByItem.get(entry.disciplineId) ?? []),
+      entry,
+    ]);
+  }
+
+  const rowFor = (
+    scopeItemId: string,
+    systemId: string | undefined,
+    detached: boolean
+  ): ScopeItemRow => {
+    const submission = byItem.get(scopeItemId);
+    return {
+      scopeItemId,
+      systemId,
+      submission,
+      responsible: responsibleByItem.get(scopeItemId) ?? [],
+      entries: entriesByItem.get(scopeItemId) ?? [],
+      reported: isReported(submission),
+      detached,
+    };
+  };
+
+  const rows: ScopeItemRow[] = [];
+  const placed = new Set<string>();
+
+  for (const link of project.disciplines ?? []) {
+    if (link.departmentId !== departmentId) continue;
+    if (!link.disciplineId || placed.has(link.disciplineId)) continue;
+    // The same filter the submissions went through, applied to the expected
+    // items too — a scoped member must not learn what else exists.
+    if (visible !== ALL_ITEMS && !visible.includes(link.disciplineId)) continue;
+
+    placed.add(link.disciplineId);
+    rows.push(rowFor(link.disciplineId, link.systemId, false));
+  }
+
+  for (const scopeItemId of byItem.keys()) {
+    if (placed.has(scopeItemId)) continue;
+    placed.add(scopeItemId);
+    rows.push(rowFor(scopeItemId, undefined, true));
+  }
+
+  return rows;
+}
+
 /* ------------------------------ Department view --------------------------- */
 
 export interface DepartmentSection {
@@ -145,6 +304,10 @@ export interface DepartmentSection {
   generalUpdate?: WeeklySubmission;
   /** Submissions scoped to an item below the System. */
   scopedUpdates: WeeklySubmission[];
+  /** The scope items this department owes input on, with what has arrived. */
+  scopeItems: ScopeItemRow[];
+  /** Scope items carrying content, out of those in scope for the viewer. */
+  scopeItemsReported: number;
   state: DepartmentState;
   stateLabel: string;
   /** Nothing entered yet — what Project Control is chasing. */
@@ -182,7 +345,9 @@ export function buildWeeklyWorkspace(
   project: Project,
   report: WeeklyReport,
   submissions: WeeklySubmission[],
-  scope: WeeklyScope
+  scope: WeeklyScope,
+  /** The report's narrative rows. Optional: callers that show none pass none. */
+  entries: WeeklyEntry[] = []
 ): WeeklyWorkspace {
   const all = weeklyDepartments(project);
   const visible = all.filter((id) => canAccessDepartment(scope, id));
@@ -201,12 +366,21 @@ export function buildWeeklyWorkspace(
     });
 
     const state = deriveDepartmentState(mine);
+    const scopeItems = buildScopeItems(
+      project,
+      departmentId,
+      items,
+      mine,
+      entries
+    );
 
     return {
       departmentId,
       submissions: mine,
       generalUpdate: mine.find((s) => !s.disciplineId),
       scopedUpdates: mine.filter((s) => Boolean(s.disciplineId)),
+      scopeItems,
+      scopeItemsReported: scopeItems.filter((item) => item.reported).length,
       state,
       stateLabel: DEPARTMENT_STATE_LABELS[state],
       missingInput: state === "not_started",

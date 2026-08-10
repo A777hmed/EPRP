@@ -168,7 +168,15 @@ function flattenProject(
 /** Wizard-added team rows are told apart from responsibility rows by role. */
 const TEAM_ROLE = "team_member";
 
-function rowToProject(
+/**
+ * Map the project row set onto the domain model.
+ *
+ * Exported because the Weekly workspace resolves the signed-in viewer's scope
+ * on the server, where the browser client this module otherwise uses does not
+ * exist. The mapper itself touches no client, so the server can run its own
+ * queries and reuse this — one mapping, not a second one that could drift.
+ */
+export function rowToProject(
   row: ProjectRow,
   deptRows: ProjectDepartmentRow[],
   disciplineRows: ProjectDisciplineRow[] = [],

@@ -7,6 +7,11 @@ export {
   SubmissionStatusBadge,
 } from "./components/weekly-status-badge";
 export { SubmissionStatusList } from "./components/submission-status-list";
+export { WeeklyWorkspaceHeader } from "./components/weekly-workspace-header";
+export { WeeklyProgressSummary } from "./components/weekly-progress-summary";
+export { WeeklyDepartmentsPanel } from "./components/weekly-departments-panel";
+export { WeeklyDepartmentSection } from "./components/weekly-department-section";
 export * from "./utils";
 export * from "./scope";
 export * from "./workspace";
+export * from "./lifecycle-guards";

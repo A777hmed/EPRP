@@ -22,7 +22,10 @@ import {
   getWeekNumber,
 } from "@/lib/reporting";
 import { canTransition } from "@/config/workflows";
-import { checkWeeklyTransition } from "@/features/weekly-reports/lifecycle-guards";
+import {
+  checkWeeklyTransition,
+  contentFrozenReason,
+} from "@/features/weekly-reports/lifecycle-guards";
 import { projectService } from "./project-service";
 import type {
   WeeklyReportCreateInput,
@@ -42,6 +45,31 @@ function client(): SupabaseClient {
 
 function toIsoDate(date: Date): string {
   return format(date, "yyyy-MM-dd");
+}
+
+/**
+ * Refuse to write a report whose content is frozen.
+ *
+ * Read from the database rather than trusted from the caller: a client holding
+ * a stale copy of the report may believe it is still open long after it was
+ * finalized. Shared by every in-place write so one rule covers them all.
+ */
+async function assertContentEditable(
+  sb: SupabaseClient,
+  reportId: string
+): Promise<void> {
+  const { data, error } = await sb
+    .from("weekly_reports")
+    .select("status")
+    .eq("id", reportId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error(`Weekly report ${reportId} not found`);
+
+  const frozen = contentFrozenReason(
+    (data as { status: string }).status as ReportStatus
+  );
+  if (frozen) throw new Error(frozen);
 }
 
 function rowToSubmission(row: WeeklySubmissionRow): WeeklySubmission {
@@ -478,6 +506,102 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
     return ((data ?? []) as WeeklySubmissionRow[]).map(rowToSubmission);
   },
 
+  async saveDepartmentUpdate(reportId, input) {
+    const sb = client();
+    await assertContentEditable(sb, reportId);
+
+    /*
+     * The row this save is aimed at is identified by the triple (report,
+     * department, scope item) — exactly the key the
+     * `weekly_submissions_report_department_discipline_unique` index enforces,
+     * so it matches at most one row. A NULL `discipline_id` is the stored
+     * meaning of "department-level", not a missing value, which is why the
+     * general update is matched with `is(…, null)` and can never be confused
+     * with a scope item's own row.
+     */
+    const scopeItemId = input.disciplineId ?? null;
+
+    /*
+     * Look the row up before writing. Matching on the key — not only on the id
+     * the client happens to hold — is what makes a repeated save idempotent: a
+     * client that saved before it had read the row back would otherwise insert
+     * a second update for the same scope. Oldest first, so the match is
+     * deterministic if historical data already holds more than one.
+     */
+    const lookup = sb
+      .from("weekly_submissions")
+      .select("id")
+      .eq("weekly_report_id", reportId)
+      .eq("department_id", input.departmentId);
+
+    const { data: existingData, error: existingError } = await (scopeItemId
+      ? lookup.eq("discipline_id", scopeItemId)
+      : lookup.is("discipline_id", null)
+    )
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (existingError) throw new Error(existingError.message);
+
+    const existingId = (existingData as { id: string } | null)?.id ?? input.id;
+
+    const fields = {
+      status: input.status,
+      progress_percent: input.progressPercent ?? null,
+      summary: input.summary || null,
+      key_achievement: input.keyAchievement || null,
+      delay_constraint: input.delayConstraint || null,
+      next_week_plan: input.nextWeekPlan || null,
+      health_status: input.healthStatus ?? null,
+    };
+
+    /*
+     * The update carries the full scope predicate as well as the id, so a
+     * stale or borrowed id cannot steer the write onto another report,
+     * department, or scope item — it simply matches nothing. RLS is still the
+     * boundary: an update the viewer may not perform also matches no row,
+     * which is why a missing result below is reported as refused rather than
+     * assumed to be a success.
+     */
+    const target = existingId
+      ? sb
+          .from("weekly_submissions")
+          .update(fields)
+          .eq("id", existingId)
+          .eq("weekly_report_id", reportId)
+          .eq("department_id", input.departmentId)
+      : null;
+
+    const { data, error } = target
+      ? await (scopeItemId
+          ? target.eq("discipline_id", scopeItemId)
+          : target.is("discipline_id", null)
+        )
+          .select("*")
+          .maybeSingle()
+      : await sb
+          .from("weekly_submissions")
+          .insert({
+            ...fields,
+            weekly_report_id: reportId,
+            department_id: input.departmentId,
+            discipline_id: scopeItemId,
+            accomplishments: [],
+            planned_next_week: [],
+            blockers: [],
+          })
+          .select("*")
+          .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    if (!data) {
+      throw new Error(
+        "This update was not saved. You may not have permission to change this department's input."
+      );
+    }
+    return rowToSubmission(data as WeeklySubmissionRow);
+  },
+
   async listActivities(reportId) {
     const { data, error } = await client()
       .from("weekly_activities")
@@ -568,5 +692,65 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
       .select("*");
     if (error) throw new Error(error.message);
     return ((data ?? []) as WeeklyEntryRow[]).map(rowToEntry);
+  },
+
+  async saveEntry(reportId, input) {
+    const sb = client();
+    await assertContentEditable(sb, reportId);
+
+    const fields = {
+      entry_type: input.entryType,
+      category: input.category,
+      description: input.description,
+      priority: input.priority,
+      status: input.status,
+      owner_contact_id: input.ownerContactId ?? null,
+      due_date: input.dueDate ?? null,
+      department_id: input.departmentId ?? null,
+      system_id: input.systemId ?? null,
+      discipline_id: input.disciplineId ?? null,
+      include_in_monthly: input.includeInMonthly,
+    };
+
+    /*
+     * Updates are pinned to this report as well as to the id, so an id from
+     * another report matches nothing instead of being edited into this one.
+     * RLS decides whether the row may be written at all; a refusal matches no
+     * row, which is why an empty result is reported rather than assumed to be
+     * a success.
+     */
+    const { data, error } = input.id
+      ? await sb
+          .from("weekly_entries")
+          .update(fields)
+          .eq("id", input.id)
+          .eq("weekly_report_id", reportId)
+          .select("*")
+          .maybeSingle()
+      : await sb
+          .from("weekly_entries")
+          .insert({ ...fields, weekly_report_id: reportId })
+          .select("*")
+          .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    if (!data) {
+      throw new Error(
+        "This entry was not saved. You may not have permission to change this department's input."
+      );
+    }
+    return rowToEntry(data as WeeklyEntryRow);
+  },
+
+  async deleteEntry(reportId, entryId) {
+    const sb = client();
+    await assertContentEditable(sb, reportId);
+
+    const { error } = await sb
+      .from("weekly_entries")
+      .delete()
+      .eq("id", entryId)
+      .eq("weekly_report_id", reportId);
+    if (error) throw new Error(error.message);
   },
 };

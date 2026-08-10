@@ -282,6 +282,16 @@ export function departmentsAwaitingInput(scope: WeeklyScope): string[] {
 }
 
 /**
+ * The verdict on editing, and why. Named so the server page and the client
+ * workspace pass the same shape around instead of restating it.
+ */
+export interface WeeklyEditability {
+  canEdit: boolean;
+  /** Present whenever `canEdit` is false, so the UI never hides the reason. */
+  reason?: string;
+}
+
+/**
  * Whether the viewer may edit Weekly content at all.
  *
  * Read-only is the default: a lifecycle state past collection, or a scope
@@ -291,7 +301,7 @@ export function departmentsAwaitingInput(scope: WeeklyScope): string[] {
 export function weeklyEditability(
   scope: WeeklyScope,
   reportStatus: string
-): { canEdit: boolean; reason?: string } {
+): WeeklyEditability {
   if (scope.capability === "none") {
     return {
       canEdit: false,
