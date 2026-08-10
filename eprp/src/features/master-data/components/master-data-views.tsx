@@ -106,7 +106,7 @@ export function DisciplinesListView(props: MasterListViewProps = {}) {
   useMasterData("system");
   const columns: MasterDataColumn<MasterRecordBase>[] = [
     {
-      header: "Program / Study Name",
+      header: "Name",
       render: (r) => (
         <Link
           href={`/disciplines/${r.id}`}

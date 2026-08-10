@@ -40,7 +40,11 @@ import { ProgressComparison } from "./progress-comparison";
 import { ProjectSummaryHeader } from "./project-summary-header";
 import { useHierarchyTerms } from "../use-hierarchy-terms";
 import { ProjectWorkflowNav } from "./project-workflow-nav";
-import { ProjectSectionNav } from "./project-section-nav";
+import {
+  localizeProjectSections,
+  projectSections,
+  ProjectSectionNav,
+} from "./project-section-nav";
 import { ConfirmArchiveDialog } from "./confirm-archive-dialog";
 
 function ContactRow({ label, contactId }: { label: string; contactId?: string }) {
@@ -215,7 +219,9 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
       <ProjectWorkflowNav project={project} />
 
       <div className="gap-6 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)]">
-        <ProjectSectionNav />
+        <ProjectSectionNav
+          sections={localizeProjectSections(projectSections, terms)}
+        />
 
         <div className="mt-4 space-y-6 lg:mt-0">
           <Section id="overview">

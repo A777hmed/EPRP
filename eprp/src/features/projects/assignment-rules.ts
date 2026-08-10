@@ -38,9 +38,69 @@ function teamOf(project: Project): ProjectTeamMember[] {
 }
 
 /**
- * Unique people assigned to a department, collapsed from their per-discipline
- * rows. The first row wins for the assignment fields; `setAssignment` keeps
- * them identical, so any row is representative.
+ * Authority order, used to pick the role that represents a person whose
+ * scope items carry different Assignment Roles. Higher wins.
+ */
+const ROLE_RANK: Record<AssignmentRole, number> = {
+  department_manager: 3,
+  team_member_lead: 2,
+  team_member: 1,
+};
+
+const roleOf = (member: ProjectTeamMember): AssignmentRole =>
+  member.assignmentRole ?? DEFAULT_ROLE;
+
+/**
+ * One entry per scoped assignment — the row as the business means it:
+ * a person, on one scope item, with their own Assignment Role.
+ *
+ * A person may hold several of these in the same department. They are
+ * genuinely separate assignments, not duplicates of each other.
+ */
+export interface ScopedAssignment {
+  contactId: string;
+  departmentId: string;
+  systemId?: string;
+  /** The scope item: Program & Study on PSM/PSAIM, Discipline elsewhere. */
+  disciplineId?: string;
+  assignmentRole: AssignmentRole;
+  functionalTitle?: string;
+  reportsToContactId?: string;
+}
+
+/** Every scoped assignment in a department, one per scope item per person. */
+export function scopedAssignments(
+  project: Project,
+  departmentId: string,
+  contactId?: string
+): ScopedAssignment[] {
+  return teamOf(project)
+    .filter(
+      (member) =>
+        member.departmentId === departmentId &&
+        (contactId === undefined || member.contactId === contactId)
+    )
+    .map((member) => ({
+      contactId: member.contactId,
+      departmentId,
+      systemId: member.systemId,
+      disciplineId: member.disciplineId,
+      assignmentRole: roleOf(member),
+      functionalTitle: member.functionalTitle,
+      reportsToContactId: member.reportsToContactId,
+    }));
+}
+
+/**
+ * Unique PEOPLE assigned to a department, collapsed from their scoped rows.
+ *
+ * Collapsing by person is what makes "one Department Manager per department"
+ * mean one *person*: someone who manages five scope items is one manager, not
+ * five. Where their rows disagree on Assignment Role — which is now allowed,
+ * since each scope item carries its own — the highest-authority role
+ * represents them, so the reporting-line rules judge them by the most senior
+ * hat they wear. `rows` keeps every underlying assignment for callers that
+ * need the per-scope-item detail.
  */
 export function departmentAssignments(
   project: Project,
@@ -52,18 +112,53 @@ export function departmentAssignments(
     const existing = grouped.get(member.contactId);
     if (existing) {
       existing.rows.push(member);
+      if (ROLE_RANK[roleOf(member)] > ROLE_RANK[existing.assignmentRole]) {
+        existing.assignmentRole = roleOf(member);
+        // The reporting line belongs to the role that represents them.
+        existing.reportsToContactId = member.reportsToContactId;
+        existing.functionalTitle = member.functionalTitle;
+      }
       continue;
     }
     grouped.set(member.contactId, {
       contactId: member.contactId,
       departmentId,
-      assignmentRole: member.assignmentRole ?? DEFAULT_ROLE,
+      assignmentRole: roleOf(member),
       functionalTitle: member.functionalTitle,
       reportsToContactId: member.reportsToContactId,
       rows: [member],
     });
   }
   return [...grouped.values()];
+}
+
+/**
+ * Same person, same department, same scope item, same Assignment Role — the
+ * only combination ever refused.
+ *
+ * `systemId` is deliberately NOT part of the comparison. It is derived from
+ * the scope item's own project link, not chosen independently, so treating it
+ * as part of the identity would let the same person hold the same scope item
+ * twice in the same role merely because one row had the System filled in and
+ * the other did not. The database constraint still carries it as a backstop.
+ */
+export function isDuplicateScopedAssignment(
+  project: Project,
+  candidate: {
+    departmentId: string;
+    contactId: string;
+    disciplineId?: string;
+    assignmentRole: AssignmentRole;
+  }
+): boolean {
+  return teamOf(project).some(
+    (member) =>
+      member.departmentId === candidate.departmentId &&
+      member.contactId === candidate.contactId &&
+      (member.disciplineId ?? undefined) ===
+        (candidate.disciplineId ?? undefined) &&
+      roleOf(member) === candidate.assignmentRole
+  );
 }
 
 /** The single Department Manager for a department, if one is assigned. */
@@ -445,6 +540,174 @@ export function removeAssignment(
     (member) =>
       !(member.departmentId === departmentId && member.contactId === contactId)
   );
+}
+
+/* --------------------------- Scoped assignments ---------------------------- */
+
+const sameScope = (
+  member: ProjectTeamMember,
+  departmentId: string,
+  contactId: string,
+  disciplineId: string | undefined
+) =>
+  member.departmentId === departmentId &&
+  member.contactId === contactId &&
+  (member.disciplineId ?? undefined) === (disciplineId ?? undefined);
+
+/**
+ * Edit ONE scoped assignment — its Assignment Role, functional title,
+ * reporting line, or the scope item itself.
+ *
+ * Unlike `setAssignment`, which applies a person-level change across every row
+ * they hold in the department, this touches a single assignment and leaves
+ * their others exactly as they are. That is what lets the same person carry
+ * different Assignment Roles on different scope items.
+ */
+export function setScopedAssignment(
+  project: Project,
+  departmentId: string,
+  contactId: string,
+  disciplineId: string | undefined,
+  patch: {
+    assignmentRole?: AssignmentRole;
+    functionalTitle?: string;
+    reportsToContactId?: string;
+    disciplineId?: string;
+    systemId?: string;
+  }
+): ProjectTeamMember[] {
+  const team = teamOf(project);
+
+  // Moving an assignment onto a scope item the person already holds in the
+  // same role would be an exact duplicate; nothing else about it is invalid.
+  if ("disciplineId" in patch) {
+    const target = patch.disciplineId ?? undefined;
+    const current = team.find((m) => sameScope(m, departmentId, contactId, disciplineId));
+    const nextRole = patch.assignmentRole ?? (current ? roleOf(current) : DEFAULT_ROLE);
+    const collides = team.some(
+      (member) =>
+        !sameScope(member, departmentId, contactId, disciplineId) &&
+        sameScope(member, departmentId, contactId, target) &&
+        roleOf(member) === nextRole
+    );
+    if (collides) return team;
+  }
+
+  return team.map((member) =>
+    sameScope(member, departmentId, contactId, disciplineId)
+      ? {
+          ...member,
+          ...patch,
+          assignmentRole: patch.assignmentRole ?? member.assignmentRole,
+          // A manager has no one to report to inside their own department.
+          reportsToContactId:
+            (patch.assignmentRole ?? roleOf(member)) === "department_manager"
+              ? undefined
+              : patch.reportsToContactId ?? member.reportsToContactId,
+        }
+      : member
+  );
+}
+
+/**
+ * Remove ONE scoped assignment.
+ *
+ * The contact master record, the person's other assignments, and every
+ * unrelated project row are left untouched. Reporting lines are only repaired
+ * when this was the person's LAST assignment in the department — while they
+ * still hold another, they remain a valid target and nothing is orphaned.
+ */
+export function removeScopedAssignment(
+  project: Project,
+  departmentId: string,
+  contactId: string,
+  disciplineId: string | undefined
+): ProjectTeamMember[] {
+  const team = teamOf(project);
+  const remaining = team.filter(
+    (member) => !sameScope(member, departmentId, contactId, disciplineId)
+  );
+
+  const stillPresent = remaining.some(
+    (member) =>
+      member.departmentId === departmentId && member.contactId === contactId
+  );
+  if (stillPresent) return remaining;
+
+  return reassignReports(remaining, project, departmentId, contactId);
+}
+
+/**
+ * Add a person to several scope items at once, all with the same Assignment
+ * Role — the bulk path for "this person covers these five items".
+ *
+ * Scope items they already hold in that role are skipped rather than
+ * duplicated, so the operation is safe to repeat.
+ */
+export function addScopedAssignments(
+  project: Project,
+  departmentId: string,
+  contactId: string,
+  disciplineIds: string[],
+  options: {
+    assignmentRole?: AssignmentRole;
+    functionalTitle?: string;
+    reportsToContactId?: string;
+    systemIdFor?: (disciplineId: string) => string | undefined;
+  } = {}
+): ProjectTeamMember[] {
+  const assignmentRole = options.assignmentRole ?? DEFAULT_ROLE;
+  const team = teamOf(project);
+  const additions: ProjectTeamMember[] = [];
+
+  for (const disciplineId of disciplineIds) {
+    const candidate = {
+      departmentId,
+      contactId,
+      disciplineId,
+      systemId: options.systemIdFor?.(disciplineId),
+      assignmentRole,
+    };
+    if (isDuplicateScopedAssignment({ ...project, team: [...team, ...additions] }, candidate)) {
+      continue;
+    }
+    additions.push({
+      contactId,
+      departmentId,
+      disciplineId,
+      systemId: candidate.systemId,
+      assignmentRole,
+      functionalTitle: options.functionalTitle,
+      reportsToContactId:
+        assignmentRole === "department_manager"
+          ? undefined
+          : options.reportsToContactId,
+    });
+  }
+
+  return [...team, ...additions];
+}
+
+/**
+ * The scope items a person covers in a department, with the Assignment Role
+ * they hold on each.
+ *
+ * This is the lookup Weekly will resolve against — user → project →
+ * department → scope item(s) → Assignment Role — so a user can be shown only
+ * the Weekly scope their assignments cover. Nothing in Weekly is changed yet;
+ * this just makes the question answerable from the model as it now stands.
+ */
+export function assignedScopeItems(
+  project: Project,
+  departmentId: string,
+  contactId: string
+): { disciplineId: string; assignmentRole: AssignmentRole }[] {
+  return scopedAssignments(project, departmentId, contactId)
+    .filter((assignment) => Boolean(assignment.disciplineId))
+    .map((assignment) => ({
+      disciplineId: assignment.disciplineId!,
+      assignmentRole: assignment.assignmentRole,
+    }));
 }
 
 /* ------------------------------ Delegation -------------------------------- */

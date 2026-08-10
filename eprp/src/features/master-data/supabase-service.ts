@@ -63,6 +63,50 @@ export interface SupabaseServiceConfig {
   references: ReferenceCheck[];
   /** Default ordering column (snake_case). */
   orderBy?: string;
+  /**
+   * Runs before an update is written. Throw to block the change.
+   *
+   * Used for cross-table invariants a column constraint cannot express —
+   * moving a System to a different Department, for example, would leave its
+   * dependent records pointing at a System their own Department no longer
+   * owns. Blocking with a message that names the dependants is the safe
+   * behaviour: nothing is silently reassigned and nothing is destroyed.
+   */
+  guardUpdate?: (
+    id: string,
+    input: Record<string, unknown>
+  ) => Promise<void>;
+  /**
+   * Fields that cannot be written as a plain column update because changing
+   * them has to move rows in another table at the same time.
+   *
+   * A PostgREST update is one statement over HTTP, so writing the master row
+   * and then its dependent links is two round trips with a window between
+   * them — exactly the partial state the move must not produce. When any
+   * listed field changes, the update is routed through a database function
+   * instead, where both writes share one transaction.
+   */
+  atomicMove?: {
+    /** Camel-case fields whose change routes the update through the RPC. */
+    fields: string[];
+    /** Postgres function name. */
+    rpc: string;
+    /**
+     * Builds the RPC arguments.
+     *
+     * `target` is the merged record the Save is aiming at; `rest` is the
+     * remaining patch — the fields that are NOT in `fields` — carrying only
+     * the keys the form actually submitted, so the function can tell "absent"
+     * from "set to null". Both go to the database in one call: writing the
+     * scalars separately first would make a refused move leave the record
+     * half-saved.
+     */
+    args: (
+      id: string,
+      target: Record<string, unknown>,
+      rest: Record<string, unknown>
+    ) => Record<string, unknown>;
+  };
 }
 
 /* ------------------------------- Adapter ---------------------------------- */
@@ -84,7 +128,13 @@ function pluralize(label: string, count: number): string {
 export function createSupabaseMasterDataService<T extends MasterRecordBase>(
   config: SupabaseServiceConfig
 ): MasterDataService<T> {
-  const { table, references, orderBy = "name" } = config;
+  const {
+    table,
+    references,
+    orderBy = "name",
+    guardUpdate,
+    atomicMove,
+  } = config;
 
   const cache = new Map<string, T>();
   const listeners = new Set<() => void>();
@@ -204,17 +254,80 @@ export function createSupabaseMasterDataService<T extends MasterRecordBase>(
     },
     async update(id, input) {
       await assertNoDuplicate(input as Partial<T>, id);
-      const { data, error } = await client()
-        .from(table)
-        .update(modelToRow(input as Record<string, unknown>))
-        .eq("id", id)
-        .select("*")
-        .single();
-      if (error) {
-        if (isUniqueViolation(error)) throw mapUniqueError(error);
-        throw new Error(error.message);
+      await guardUpdate?.(id, input as Record<string, unknown>);
+
+      const patch = input as Record<string, unknown>;
+      // The move is decided by comparing against the current record, and its
+      // arguments are merged from it, so the cache has to be populated first.
+      if (atomicMove) await ensureLoaded();
+      const moving =
+        atomicMove !== undefined &&
+        atomicMove.fields.some(
+          (field) =>
+            field in patch &&
+            patch[field] !==
+              (cache.get(id) as Record<string, unknown> | undefined)?.[field]
+        );
+
+      let row: Record<string, unknown> | null = null;
+
+      if (moving) {
+        // The ENTIRE Save goes in one call — edited scalars included. Writing
+        // them here first and moving afterwards would be two transactions, so
+        // a refused move could leave the record renamed but not moved. The
+        // function validates everything before it writes anything.
+        const target = { ...(cache.get(id) as object), ...patch };
+        const rest = Object.fromEntries(
+          Object.entries(patch).filter(
+            ([key]) => !atomicMove!.fields.includes(key)
+          )
+        );
+        const { data, error } = await client().rpc(
+          atomicMove!.rpc,
+          atomicMove!.args(id, target as Record<string, unknown>, rest)
+        );
+        if (error) {
+          if (isUniqueViolation(error)) throw mapUniqueError(error);
+          // Duplicate name/code is raised by the function as unique_violation
+          // so it reaches the form field rather than a generic banner.
+          if (/already exists/i.test(error.message ?? "")) {
+            throw mapUniqueError(error);
+          }
+          // Otherwise the message already names the conflicting projects.
+          throw new Error(error.message);
+        }
+        // `returns <table>` yields the row itself, not an array.
+        row = (Array.isArray(data) ? data[0] : data) as Record<
+          string,
+          unknown
+        > | null;
+        if (!row) {
+          throw new Error(
+            "The move did not return the updated record. Reload the page and check the current hierarchy before retrying."
+          );
+        }
+      } else if (Object.keys(patch).length > 0) {
+        const { data, error } = await client()
+          .from(table)
+          .update(modelToRow(patch))
+          .eq("id", id)
+          .select("*")
+          .single();
+        if (error) {
+          if (isUniqueViolation(error)) throw mapUniqueError(error);
+          throw new Error(error.message);
+        }
+        row = data;
       }
-      const model = rowToModel<T>(data);
+
+      // Nothing was sent, so nothing changed — hand back what is cached.
+      if (!row) {
+        const cached = cache.get(id);
+        if (!cached) throw new Error("Record " + id + " not found");
+        return cached;
+      }
+
+      const model = rowToModel<T>(row);
       cache.set(model.id, model);
       notify();
       return model;

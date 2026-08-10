@@ -63,10 +63,10 @@ export const mainNavigation: NavSection[] = [
         description: "Plant and facility systems by department",
       },
       {
-        title: "Programs & Studies",
+        title: "Disciplines",
         href: "/disciplines",
         icon: Wrench,
-        description: "Programs and studies by department",
+        description: "Engineering disciplines by department",
       },
       {
         title: "Contacts",

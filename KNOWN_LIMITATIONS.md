@@ -61,13 +61,43 @@ Two simultaneous inserts could both pass. The database unique-violation mapping 
 
 It is a jsonb array. Deleting a system can still leave a dangling id there, and no reference check can see it. Needs normalization — a schema change.
 
+**Now load-bearing.** `move_discipline_system()` reads this array to decide
+whether a project has the target System in scope. A dangling or missing id
+there makes a legitimate move look out-of-scope and get refused. The refusal
+is the safe direction — it blocks rather than corrupts — but it means a
+stale jsonb entry now produces a confusing "System is not assigned to this
+project" error. Normalizing this table is the fix.
+
 ### 3.4 Mock/Supabase drift, now in the opposite direction
 
 Sprint 1 added reference checks to the Supabase service; the mock service still returns none for systems and disciplines. Mock mode now permits a delete Supabase refuses.
 
+**Widened by the atomic-move work.** The synchronization that keeps
+`project_disciplines` and `project_contacts` consistent when a Program/Study
+moves lives in a Postgres function, so the mock path does not have it: in mock
+mode the master record moves and the project links keep the old System. The
+scoped-assignment duplicate rule is likewise enforced in the domain layer for
+both paths but by a database constraint only for Supabase.
+
+This is dev-only — `isSupabaseConfigured()` is true in every real deployment —
+but it means mock mode is no longer a faithful rehearsal of production
+behaviour and should not be used to validate hierarchy changes.
+
 ### 3.5 Junk and near-duplicate master data in production
 
 Departments `sfdg / dfg`; systems `adgfd / fdg`, `sfgh / sfgh`; near-duplicates "Asset Integrity" / "Asset Integrity System" and "Process Safety" / "Process Safety Studies". **The platform provides no admin path to merge or clean these** — an administrator must edit the database directly.
+
+**Largely resolved.** The misclassified records were archived
+(`20260806000006`), the duplicate project links and the `SIL` / `SIL study`
+pair were consolidated (`20260809000002`), and Administration now has working
+Archive / Restore / Delete on all master-data kinds plus an atomic
+Department/System move. An admin no longer needs database access for ordinary
+cleanup.
+
+Two gaps remain: there is still **no merge** operation — consolidating two
+records into one requires a migration, as `20260809000002` did — and
+`Asset Integrity Study` and `Inspection` are still unmapped to a System
+(`refs=0`), deliberately kept pending a decision.
 
 ### 3.6 No test runner
 

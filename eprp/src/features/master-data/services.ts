@@ -395,7 +395,15 @@ const supabaseDepartmentService =
  */
 const supabaseSystemService = createSupabaseMasterDataService<System>({
   table: "systems",
+  // A System owning records below it must not be deletable — the level below
+  // is listed first so the blocked-delete message leads with the cause the
+  // admin can act on (reassign or archive those records first).
   references: [
+    {
+      table: "disciplines",
+      column: "system_id",
+      label: "record in the level below",
+    },
     {
       table: "project_disciplines",
       column: "system_id",
@@ -403,6 +411,40 @@ const supabaseSystemService = createSupabaseMasterDataService<System>({
     },
     { table: "project_contacts", column: "system_id", label: "project role" },
   ],
+  // Moving a System to a different Department is allowed, but only once
+  // nothing below it would be stranded. The records in the level below carry
+  // their own department_id and a database trigger requires the two to agree,
+  // so a silent move would either fail opaquely later or leave the hierarchy
+  // inconsistent. Block it here with the dependants named so the admin can
+  // reassign them first. No record is ever moved or deleted on their behalf.
+  guardUpdate: async (id, input) => {
+    if (!("departmentId" in input)) return;
+    const next = input.departmentId as string | null | undefined;
+    const current = supabaseSystemService.getByIdSync(id);
+    if (!current || current.departmentId === next) return;
+
+    const dependants = getMasterService("discipline")
+      .getAllSync()
+      .filter((record) => (record as Discipline).systemId === id);
+    if (dependants.length === 0) return;
+
+    const names = dependants.map((d) => d.name).sort();
+    const count = names.length;
+    const shown = names.slice(0, 5).join(", ");
+    const rest = count > 5 ? ", and " + (count - 5) + " more" : "";
+    throw new Error(
+      "Cannot move this System to another Department while " +
+        count +
+        " record" +
+        (count === 1 ? "" : "s") +
+        " below it still belong" +
+        (count === 1 ? "s" : "") +
+        " to the current one: " +
+        shown +
+        rest +
+        ". Reassign or archive them first, then move the System."
+    );
+  },
 });
 
 const supabaseDisciplineService =
@@ -425,6 +467,30 @@ const supabaseDisciplineService =
         label: "department update",
       },
     ],
+    // Changing the Department or System has to move this record AND every
+    // project link that points at it. Two PostgREST calls cannot do that
+    // without a window where the master says one System and the links say
+    // another, so the whole move runs inside one database transaction.
+    // The function validates the target and reports every project that
+    // cannot accept it; a refused move changes nothing at all.
+    atomicMove: {
+      fields: ["departmentId", "systemId"],
+      rpc: "move_discipline_system",
+      // The edited scalars ride along in `p_fields` so the rename and the
+      // move share one transaction. Only the keys the form submitted are
+      // sent, so an absent field keeps its stored value while an explicitly
+      // cleared one is still written as null.
+      args: (id, target, rest) => ({
+        p_discipline_id: id,
+        p_department_id: target.departmentId ?? null,
+        p_system_id: target.systemId ?? null,
+        p_fields: Object.fromEntries(
+          (["name", "code", "description"] as const)
+            .filter((key) => key in rest)
+            .map((key) => [key, rest[key] ?? null])
+        ),
+      }),
+    },
   });
 
 const supabaseJobTitleService = createSupabaseMasterDataService<JobTitle>({
@@ -572,14 +638,15 @@ export const MASTER_KIND_CONFIG: Record<MasterKind, MasterKindConfig> = {
   },
   discipline: {
     kind: "discipline",
-    // User-facing terminology. The table, type and kind keep the legacy
-    // "discipline" name deliberately — renaming them is migration risk with
-    // no user-visible benefit.
-    singular: "Program & Study",
-    plural: "Programs & Studies",
+    // GLOBAL master data keeps the entity name. Project-scoped screens
+    // resolve the label from the project type via hierarchyTermsFor() —
+    // "Programs & Studies" on PSM/PSAIM, "Disciplines" elsewhere. The global
+    // list must not be renamed for one project type.
+    singular: "Discipline",
+    plural: "Disciplines",
     fields: [
-      { key: "name", label: "Program / Study Name", type: "text", required: true },
-      { key: "code", label: "Program / Study Code", type: "text", required: true },
+      { key: "name", label: "Name", type: "text", required: true },
+      { key: "code", label: "Code", type: "text", required: true },
       {
         key: "departmentId",
         label: "Department",

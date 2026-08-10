@@ -3,6 +3,10 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_HIERARCHY_TERMS,
+  type HierarchyTerms,
+} from "@/config/project-terminology";
 
 export interface ProjectSection {
   id: string;
@@ -15,7 +19,7 @@ export const projectSections: ProjectSection[] = [
   { id: "project-information", label: "Project Information" },
   { id: "team", label: "Team & Responsibilities" },
   { id: "departments", label: "Departments" },
-  { id: "disciplines", label: "Programs & Studies" },
+  { id: "disciplines", label: "Disciplines" },
   { id: "systems", label: "Systems" },
   { id: "kpis", label: "KPIs" },
   { id: "weekly-reports", label: "Weekly Reports" },
@@ -94,6 +98,23 @@ export function useActiveSection(
   }, [sections]);
 
   return [activeId, setActiveId];
+}
+
+/**
+ * The same sections, relabelled for the project's hierarchy terminology.
+ *
+ * Only the `disciplines` entry has alternate wording — PSM/PSAIM projects
+ * call that level "Programs & Studies". Ids and order are untouched, so the
+ * scroll anchors and highlighting are unaffected.
+ */
+export function localizeProjectSections(
+  sections: ProjectSection[],
+  terms: HierarchyTerms
+): ProjectSection[] {
+  if (terms.plural === DEFAULT_HIERARCHY_TERMS.plural) return sections;
+  return sections.map((section) =>
+    section.id === "disciplines" ? { ...section, label: terms.plural } : section
+  );
 }
 
 export interface ProjectSectionNavProps {

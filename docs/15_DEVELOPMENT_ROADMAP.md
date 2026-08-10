@@ -18,7 +18,8 @@ Last verified: **2026-07-25** (lint, type-check, and production build all green;
 | 1 | Existing foundation | ✅ Complete |
 | 2 | Project master data | ✅ Complete |
 | 2A | Organization Chart *(added — see note)* | ✅ Complete |
-| 3 | Data foundation | ⚠️ **Partial — migrations written, never executed** |
+| 2B | Configurable hierarchy and scoped assignments *(added — see note)* | ✅ Complete |
+| 3 | Data foundation | ✅ Complete — all 32 migrations applied |
 | 4 | Weekly Workspace UI | ⚠️ Partial (~60%) |
 | 5 | Weekly data and department submission | ⚠️ Partial |
 | 6 | Comments and collaboration | ⚠️ Partial |
@@ -29,19 +30,40 @@ Last verified: **2026-07-25** (lint, type-check, and production build all green;
 | 11 | A4/PDF output | ❌ Not started |
 | 12 | Hardening and future integrations | ❌ Not started |
 
-**Current phase: 3 (blocked on database provisioning).**
-**Recommended next: finish Phase 3, then Phase 4.**
+**Current phase: 3 complete. Recommended next: Phase 4 (Weekly Workspace).**
 
-Two standing facts that affect every estimate below:
+The two standing facts that used to gate every estimate below are **no longer true** and are recorded here so the change is visible rather than silently edited away:
 
-- **No database has ever been provisioned.** There is no `.env.local`, the Supabase CLI is not authenticated, and Docker is not installed. The application runs entirely on in-memory mock data. All 13 migrations are unexecuted SQL.
-- **The repository has no version control history.** `.git` exists but is empty. There is no way to revert a bad change.
+- **The database is provisioned and current.** All 32 migrations are applied to the remote Supabase project via the CLI. The application runs on real data; the in-memory mock service is now only the fallback for an unconfigured environment. *(Was: "no database has ever been provisioned … all 13 migrations are unexecuted SQL.")*
+- **Version control history exists** — 17 commits, with `4fe5dae` as the pre-release stabilization checkpoint. A verified restore path also exists: `EPR_Full_Backup_2026-08-09.dump` and `EPR_Schema_Backup_2026-08-09.sql`, the former checked with `pg_restore -l`. *(Was: "`.git` exists but is empty. There is no way to revert a bad change.")*
+
+Docker is still not installed, so `supabase db dump` is unavailable locally; backups are taken outside the CLI.
 
 ### A note on phase numbering
 
 Earlier sessions used ad-hoc labels — `5A`, `5B`, `5C`, `6A.1`–`6A.4`, `OC-1`–`OC-6` — that do **not** correspond to the phases here. That mismatch caused real confusion (an "OC-2" request meant one thing to the requester and another in the code). Those labels are retired. Use the numbers in this file only.
 
 Phase 2A did not exist in the original plan. The Organization Chart was built across six sessions and is substantial and working, so it is recorded here rather than left undocumented.
+
+Phase 2B is recorded on the same basis. It covers work that was not in the
+original plan but is now load-bearing for Weekly:
+
+- **Hierarchy terminology is project-type driven, not global.** PSM/PSAIM
+  projects say "Programs & Studies"; every other project type says
+  "Disciplines". Resolved at render time by `hierarchyTermsFor()` in
+  `src/config/project-terminology.ts`. Global Administration keeps the entity
+  name and must not bend to one project type.
+- **Business names are database records, not code.** Departments, Systems and
+  the level below are admin-managed through the existing master-data screens.
+  No department, system, program or study name is hardcoded.
+- **Moving a record is atomic.** `public.move_discipline_system()` applies the
+  whole edit — name, code, description, Department, System — and synchronizes
+  every `project_disciplines` link and every scoped `project_contacts` row in
+  one transaction. It validates the target against each affected project and
+  refuses the entire move, naming the conflicts, rather than half-applying.
+- **A person may hold many scoped assignments,** each with its own Assignment
+  Role. `assignedScopeItems()` resolves user → project → department → scope
+  item(s) → role, which is the lookup Phase 4 needs to scope Weekly per user.
 
 ---
 

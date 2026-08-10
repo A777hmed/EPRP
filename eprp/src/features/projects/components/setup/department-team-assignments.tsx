@@ -35,6 +35,7 @@ import {
   setAssignment,
   validateDepartmentAssignments,
 } from "../../assignment-rules";
+import { ScopedAssignments } from "./scoped-assignments";
 
 const ASSIGNMENT_ROLES = Object.keys(ASSIGNMENT_ROLE_META) as AssignmentRole[];
 
@@ -205,10 +206,26 @@ export function DepartmentTeamAssignments({
                   </div>
                 </div>
 
+                <ScopedAssignments
+                  project={project}
+                  departmentId={departmentId}
+                  contactId={entry.contactId}
+                  contactLabel={contactName(entry.contactId)}
+                  onDraftChange={onDraftChange}
+                />
+
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="space-y-1.5">
+                    {/* Person-level: setAssignment writes across every scope
+                        item they hold, and carries the manager-demotion and
+                        reporting-line repair rules. The per-scope-item selects
+                        above override it individually, so the label has to say
+                        which one this is. */}
                     <Label htmlFor={`role-${entry.contactId}`}>
-                      Assignment Role
+                      Overall Role
+                      <span className="ml-1 font-normal text-muted-foreground">
+                        (sets every scope item)
+                      </span>
                     </Label>
                     <Select
                       value={entry.assignmentRole}

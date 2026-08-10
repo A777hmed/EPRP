@@ -86,7 +86,7 @@ const KIND_META: Record<
     setupStep: "systems",
   },
   disciplines: {
-    singular: "Program & Study",
+    singular: "Discipline",
     plural: "Disciplines",
     basePath: "/disciplines",
     icon: Wrench,

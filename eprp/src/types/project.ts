@@ -57,10 +57,15 @@ export interface System extends MasterRecordBase {
 
 /** Engineering discipline used for progress breakdowns (admin-managed). */
 /**
- * A Program & Study (legacy table/type name: Discipline — kept to avoid
- * pointless migration risk; the UI says "Programs & Studies").
+ * The level below a System.
  *
- * Canonical hierarchy: Project → Department → System → Program & Study.
+ * Canonical hierarchy: Project → Department → System → this level.
+ *
+ * The user-facing name depends on the PROJECT TYPE and is resolved at render
+ * time by hierarchyTermsFor() in config/project-terminology.ts:
+ * PSM / PSAIM projects say "Programs & Studies", every other project type
+ * says "Disciplines". The table, type and column names stay `discipline`
+ * deliberately — they are storage identifiers, not labels.
  */
 export interface Discipline extends MasterRecordBase {
   /** Owning department (Department id). */

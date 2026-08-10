@@ -95,10 +95,10 @@ export const projectSections: ProjectSection[] = [
   },
   {
     id: "disciplines",
-    label: "Programs & Studies",
+    label: "Disciplines",
     icon: Wrench,
     group: "Master Data",
-    description: "Programs and studies linked to this project's systems.",
+    description: "Disciplines linked to this project's systems.",
   },
   {
     id: "contacts",

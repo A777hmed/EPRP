@@ -46,3 +46,4 @@ npm-debug.log*
 
 # Claude Code local overrides (may contain machine-specific paths).
 .claude/settings.local.json
+/backups/

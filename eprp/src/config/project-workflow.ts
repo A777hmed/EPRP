@@ -56,9 +56,9 @@ export const projectWorkflowSteps: ProjectWorkflowStep[] = [
   },
   {
     id: "disciplines",
-    label: "Programs & Studies",
+    label: "Disciplines",
     description:
-      "Programs and studies, linked to the systems and departments they cover.",
+      "Engineering disciplines, linked to the systems and departments they cover.",
   },
   {
     id: "contacts",
