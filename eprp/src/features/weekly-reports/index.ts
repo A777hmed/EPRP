@@ -8,3 +8,4 @@ export {
 } from "./components/weekly-status-badge";
 export { SubmissionStatusList } from "./components/submission-status-list";
 export * from "./utils";
+export * from "./scope";

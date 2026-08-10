@@ -97,7 +97,7 @@ export function LoginForm({ next, notice }: LoginFormProps) {
           autoComplete="username"
           autoFocus
           required
-          placeholder="name@eprom.com.eg"
+          placeholder="you@example.com"
           aria-invalid={state.error ? true : undefined}
         />
       </Field>
