@@ -9,3 +9,4 @@ export {
 export { SubmissionStatusList } from "./components/submission-status-list";
 export * from "./utils";
 export * from "./scope";
+export * from "./workspace";

@@ -21,7 +21,25 @@ export interface CurrentUserIdentity {
   /** Localised role name, or undefined when no profile row exists yet. */
   roleLabel?: string;
   initials: string;
+  /** Login credential address. Any provider; never used for authorization. */
   email: string;
+  /**
+   * The raw role, as opposed to `roleLabel` which is for display.
+   *
+   * Needed because scope resolution asks "is this a system administrator?",
+   * a question a translated label cannot answer.
+   */
+  role?: UserRole;
+  /**
+   * The `contacts` row this account is linked to, or null when the
+   * administrator has not linked it yet.
+   *
+   * This is the join that makes project scope resolvable: assignments hang
+   * off a contact, not off a login. A null here means the account has no
+   * scoped access at all — which is correct, and is why it is surfaced
+   * rather than defaulted.
+   */
+  contactId: string | null;
 }
 
 function isKnownRole(value: string): value is UserRole {
@@ -46,13 +64,13 @@ export const getCurrentUserIdentity = cache(
     const supabase = await createSupabaseServerClient();
     const { data } = await supabase
       .from("profiles")
-      .select("full_name, role, email")
+      .select("full_name, role, email, contact_id")
       .eq("id", user.id)
       .maybeSingle();
 
     const profile = data as Pick<
       ProfileRow,
-      "full_name" | "role" | "email"
+      "full_name" | "role" | "email" | "contact_id"
     > | null;
 
     // An account can exist in auth.users before the administrator creates its
@@ -60,14 +78,16 @@ export const getCurrentUserIdentity = cache(
     const email = profile?.email ?? user.email ?? "";
     const fullName = profile?.full_name?.trim() || email.split("@")[0] || "there";
 
+    const role =
+      profile?.role && isKnownRole(profile.role) ? profile.role : undefined;
+
     return {
       fullName,
-      roleLabel:
-        profile?.role && isKnownRole(profile.role)
-          ? ROLE_LABELS[profile.role]
-          : undefined,
+      roleLabel: role ? ROLE_LABELS[role] : undefined,
       initials: initialsFrom(fullName),
       email,
+      role,
+      contactId: profile?.contact_id ?? null,
     };
   }
 );

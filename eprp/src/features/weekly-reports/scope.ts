@@ -280,3 +280,40 @@ export function departmentsAwaitingInput(scope: WeeklyScope): string[] {
   }
   return scope.departmentIds;
 }
+
+/**
+ * Whether the viewer may edit Weekly content at all.
+ *
+ * Read-only is the default: a lifecycle state past collection, or a scope
+ * that reaches nothing, both mean the UI must render disabled controls with
+ * a visible reason rather than inputs that fail on save.
+ */
+export function weeklyEditability(
+  scope: WeeklyScope,
+  reportStatus: string
+): { canEdit: boolean; reason?: string } {
+  if (scope.capability === "none") {
+    return {
+      canEdit: false,
+      reason:
+        "You have no assignments on this project, so this report is read-only for you.",
+    };
+  }
+  if (reportStatus === "locked" || reportStatus === "finalized") {
+    return {
+      canEdit: false,
+      reason:
+        "This report is locked. Changes require a new revision — locked reports stay immutable.",
+    };
+  }
+  if (reportStatus === "approved") {
+    return {
+      canEdit: scope.capability === "all_projects",
+      reason:
+        scope.capability === "all_projects"
+          ? undefined
+          : "This report is approved. Only an administrator can still change it.",
+    };
+  }
+  return { canEdit: true };
+}
