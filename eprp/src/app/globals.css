@@ -55,6 +55,14 @@
 }
 
 :root {
+  /*
+   * Production-safe local font stacks. Segoe UI/system-ui closely preserve
+   * Geist's neutral interface proportions without a build-time Google request.
+   */
+  --font-sans: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system,
+    BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-geist-mono: "Cascadia Mono", "Segoe UI Mono", Consolas,
+    "Liberation Mono", monospace;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);

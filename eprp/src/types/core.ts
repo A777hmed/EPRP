@@ -61,11 +61,21 @@ export type ProgressStatus =
   | "critical";
 
 /**
- * The four kinds of narrative entry captured on a report. They share one
- * field set, so they are stored in a single table discriminated by type
- * rather than four near-identical structures.
+ * What a Weekly management item IS.
+ *
+ * They share one field set, so they are stored in a single table
+ * discriminated by type rather than five near-identical structures.
+ *
+ * `decision` means management support or a decision is required. It replaces
+ * the old habit of filing such an item under the *category* `escalation`,
+ * which conflated "what kind of item is this" with "what is it about".
  */
-export type WeeklyEntryType = "comment" | "risk" | "issue" | "action";
+export type WeeklyEntryType =
+  | "comment"
+  | "risk"
+  | "issue"
+  | "action"
+  | "decision";
 
 /**
  * A department's verdict on its own work for the week (spec section 7).
@@ -123,16 +133,29 @@ export type ReportSource =
   | "docx_import"
   | "secure_link";
 
-/** Classification of flagged report comments. */
+/**
+ * What business area a Weekly management item RELATES TO.
+ *
+ * Deliberately disjoint from {@link WeeklyEntryType}: a Risk is a type, not a
+ * business area, and "needs a management decision" is a type too. The first
+ * seven values are the ones offered.
+ *
+ * `risk`, `issue` and `escalation` are RETAINED, and remain legal in the
+ * database, purely so historical rows written by the old form stay valid and
+ * readable. Nothing offers them and nothing rewrites them — see
+ * `LEGACY_COMMENT_CATEGORIES`.
+ */
 export type CommentCategory =
   | "progress"
-  | "risk"
-  | "issue"
+  | "technical"
   | "hse"
   | "quality"
   | "financial"
-  | "escalation"
-  | "general";
+  | "client_contractual"
+  | "general"
+  | "risk"
+  | "issue"
+  | "escalation";
 
 export type RiskSeverity = "high" | "medium" | "low";
 

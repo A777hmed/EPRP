@@ -10,12 +10,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState, PageHeader } from "@/components/shared";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
-import type {
-  Project,
-  WeeklyActivity,
-  WeeklyEntry,
-  WeeklyReport,
-} from "@/types";
+import type { Project, WeeklyActivity, WeeklyReport } from "@/types";
 import {
   emptyWeeklyReportHeaderValues,
   weeklyReportToHeaderValues,
@@ -33,30 +28,27 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
   const isEdit = reportId !== undefined;
   const [projects, setProjects] = React.useState<Project[] | null>(null);
   /**
-   * Report, submissions, and entries land in one state update: the form
-   * captures its default values on mount, so a later arrival would leave the
-   * repeatable rows empty.
+   * The report and its activities land in one state update: the form captures
+   * its default values on mount, so a later arrival would leave the repeatable
+   * rows empty.
    */
   const [loaded, setLoaded] = React.useState<{
     report: WeeklyReport | null;
-    entries: WeeklyEntry[];
     activities: WeeklyActivity[];
-  } | null>(isEdit ? null : { report: null, entries: [], activities: [] });
+  } | null>(isEdit ? null : { report: null, activities: [] });
 
   React.useEffect(() => {
     projectService.getProjects().then(setProjects);
     if (!reportId) return;
     weeklyReportService.getById(reportId).then(async (found) => {
       if (!found) {
-        setLoaded({ report: null, entries: [], activities: [] });
+        setLoaded({ report: null, activities: [] });
         return;
       }
-      // Submissions are no longer loaded here: this form does not edit them.
-      const [entries, activities] = await Promise.all([
-        weeklyReportService.listEntries(found.id),
-        weeklyReportService.listActivities(found.id),
-      ]);
-      setLoaded({ report: found, entries, activities });
+      // Neither submissions nor management items are loaded here: this form
+      // edits neither. Both belong to the workspace.
+      const activities = await weeklyReportService.listActivities(found.id);
+      setLoaded({ report: found, activities });
     });
   }, [reportId]);
 
@@ -64,7 +56,7 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
     return <LoadingState variant="page" label="Loading weekly report header…" />;
   }
 
-  const { report, entries, activities } = loaded;
+  const { report, activities } = loaded;
 
   if (isEdit && report === null) {
     return (
@@ -87,7 +79,7 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
       project.id === report?.projectId
   );
   const initialValues = report
-    ? weeklyReportToHeaderValues(report, entries, activities)
+    ? weeklyReportToHeaderValues(report, activities)
     : emptyWeeklyReportHeaderValues();
 
   const handleSaveDraft = async (values: WeeklyReportHeaderValues) => {
@@ -110,29 +102,16 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
     const blank = (value?: string) => (value ? value : undefined);
 
     /*
-     * `saveSubmissions` is deliberately NOT called from here any more.
+     * Neither `saveSubmissions` nor `saveEntries` is called from here any
+     * more.
      *
-     * It deletes every `weekly_submissions` row on the report and re-inserts
-     * the form's set. This form no longer edits those rows — the workspace
-     * does, one row at a time — so calling it would delete department input
-     * this form never showed and reissue the ids of the rest. Nothing about
-     * the stored rows changed; this form simply stops rewriting them.
+     * Both delete every row of their kind on the report and re-insert the
+     * form's set — `saveEntries` without ids, so surviving rows came back with
+     * new uuids and new `created_at` values. This form edits neither: the
+     * workspace does, one row at a time. Calling them would delete input this
+     * form never showed and reissue the ids of the rest. Nothing about the
+     * stored rows changed; this form simply stops rewriting them.
      */
-
-    const entryRows = values.entries.map((row) => ({
-      id: row.id,
-      entryType: row.entryType,
-      category: row.category,
-      description: row.description,
-      priority: row.priority,
-      status: row.status,
-      ownerContactId: blank(row.ownerContactId),
-      dueDate: blank(row.dueDate),
-      departmentId: blank(row.departmentId),
-      systemId: blank(row.systemId),
-      disciplineId: blank(row.disciplineId),
-      includeInMonthly: row.includeInMonthly,
-    }));
 
     const activityRows = values.activities.map((row) => ({
       id: row.id,
@@ -155,7 +134,6 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
         ...kpis,
       });
       await weeklyReportService.saveActivities(updated.id, activityRows);
-      await weeklyReportService.saveEntries(updated.id, entryRows);
       toast.success(`Draft ${updated.reportNumber} saved`);
       router.push(`/weekly-reports/${updated.id}`);
       return;
@@ -173,7 +151,6 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
      * left exactly as created. They are the workspace's starting point.
      */
     await weeklyReportService.saveActivities(created.id, activityRows);
-    await weeklyReportService.saveEntries(created.id, entryRows);
     toast.success(`Draft ${created.reportNumber} saved`);
     router.push(`/weekly-reports/${created.id}`);
   };
@@ -183,7 +160,7 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
       <PageHeader
         eyebrow="Reporting"
         title={isEdit ? `Edit ${report?.reportNumber}` : "New Weekly Report"}
-        description="Complete the weekly header, progress KPIs, major activities, and any comments, risks, issues, or actions, then save the report as a draft. Department input is collected in the report workspace."
+        description="Complete the weekly header, progress KPIs, Executive Summary and Major Activities, then save the report as a draft. Department input and management items are collected in the report workspace."
       />
       <WeeklyReportHeaderForm
         projects={availableProjects}

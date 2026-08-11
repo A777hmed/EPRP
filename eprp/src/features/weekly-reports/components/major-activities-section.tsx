@@ -29,7 +29,17 @@ import {
 import { RhfField } from "@/features/projects/components/form-field";
 import { ACTIVITY_STATUS_META } from "@/lib/constants";
 import type { HierarchyTerms } from "@/config/project-terminology";
-import type { ActivityStatus, Discipline, MasterRecordBase } from "@/types";
+import type {
+  ActivityStatus,
+  Discipline,
+  MasterRecordBase,
+  Project,
+} from "@/types";
+import {
+  eligibleOwners,
+  projectDepartmentIds,
+  projectScopeItemIds,
+} from "../project-scope";
 import {
   emptyWeeklyActivity,
   type WeeklyActivityValues,
@@ -43,6 +53,7 @@ function ActivityRow({
   index,
   position,
   total,
+  project,
   terms,
   onRemove,
   onMove,
@@ -52,6 +63,7 @@ function ActivityRow({
   index: number;
   position: number;
   total: number;
+  project: Project | null;
   /** The project's wording for the level below a System. */
   terms: HierarchyTerms;
   onRemove: () => void;
@@ -61,21 +73,32 @@ function ActivityRow({
     control,
     name: `activities.${index}.departmentId`,
   });
+  const disciplineId = useWatch({
+    control,
+    name: `activities.${index}.disciplineId`,
+  });
   const { records: disciplineRecords } = useMasterData("discipline");
   const disciplines = disciplineRecords as Discipline[];
 
   // Auto-link: only disciplines belonging to the chosen department.
   const disciplineFilter = React.useCallback(
     (record: MasterRecordBase) =>
-      !departmentId || (record as Discipline).departmentId === departmentId,
-    [departmentId]
+      projectScopeItemIds(project, departmentId || undefined).includes(record.id),
+    [departmentId, project]
   );
   const matchingCount = departmentId
-    ? disciplines.filter(
-        (discipline) =>
-          discipline.active && discipline.departmentId === departmentId
+    ? projectScopeItemIds(project, departmentId).filter((id) =>
+        disciplines.some((discipline) => discipline.id === id && discipline.active)
       ).length
     : 0;
+  const ownerFilter = React.useCallback(
+    (record: MasterRecordBase) =>
+      eligibleOwners(project, {
+        departmentId: departmentId || undefined,
+        disciplineId: disciplineId || undefined,
+      }).some((owner) => owner.contactId === record.id),
+    [departmentId, disciplineId, project]
+  );
 
   return (
     <Card
@@ -161,6 +184,11 @@ function ActivityRow({
                 }}
                 onBlur={field.onBlur}
                 controlProps={controlProps}
+                filter={(record) =>
+                  projectDepartmentIds(project).includes(record.id)
+                }
+                enforceFilter
+                emptyLabel="No departments assigned to this project."
               />
             )}
           </RhfField>
@@ -184,6 +212,7 @@ function ActivityRow({
                 onBlur={field.onBlur}
                 controlProps={controlProps}
                 filter={disciplineFilter}
+                enforceFilter
                 placeholder={`Select ${terms.singularLower}…`}
                 emptyLabel={`No ${terms.pluralLower} for this department.`}
                 searchPlaceholder={`Search ${terms.pluralLower}…`}
@@ -204,6 +233,9 @@ function ActivityRow({
                 onChange={field.onChange}
                 onBlur={field.onBlur}
                 controlProps={controlProps}
+                filter={ownerFilter}
+                enforceFilter
+                emptyLabel="No project-assigned people are available."
               />
             )}
           </RhfField>
@@ -317,6 +349,8 @@ function ActivityRow({
 export interface MajorActivitiesSectionProps {
   control: Control<WeeklyReportHeaderValues>;
   setValue: UseFormSetValue<WeeklyReportHeaderValues>;
+  /** Scopes the Department and scope-item pickers to the project. */
+  project: Project | null;
   /** The project's wording for the level below a System. */
   terms: HierarchyTerms;
   disabled: boolean;
@@ -330,6 +364,7 @@ export interface MajorActivitiesSectionProps {
 export function MajorActivitiesSection({
   control,
   setValue,
+  project,
   terms,
   disabled,
 }: MajorActivitiesSectionProps) {
@@ -373,6 +408,7 @@ export function MajorActivitiesSection({
               index={index}
               position={index + 1}
               total={activities.fields.length}
+              project={project}
               terms={terms}
               onRemove={() => activities.remove(index)}
               onMove={(direction) =>

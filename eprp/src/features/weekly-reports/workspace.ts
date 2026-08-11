@@ -445,10 +445,18 @@ export interface WeeklyWorkspace {
   /** Wording for the scope-item level, from the project type. */
   scopeItemLabel: string;
   scopeItemLabelPlural: string;
-  /** Project-level risks and issues still live — see {@link projectEntries}. */
+  /** Live Risk and Issue items — see {@link projectEntries}. */
   criticalItems: WeeklyEntry[];
-  /** Project-level escalations: what management is being asked to decide. */
+  /** Live Decision / Management Support items. */
   decisionItems: WeeklyEntry[];
+  /** Live Action items. */
+  actionItems: WeeklyEntry[];
+  /** Live Key Comment items. */
+  commentItems: WeeklyEntry[];
+  /** Items not tied to a scope item: the consolidated section edits these. */
+  projectLevelItems: WeeklyEntry[];
+  /** How many items are recorded against individual scope items. */
+  scopeItemLevelCount: number;
   /** Next week, gathered from the Weekly input that already records it. */
   lookahead: LookaheadLine[];
   /** Every row the viewer can see that is flagged for Monthly compilation. */
@@ -463,41 +471,68 @@ function isLive(entry: WeeklyEntry): boolean {
 }
 
 /**
- * Split the report's narrative rows into the two project-level lists.
+ * Split the report's management items into the report's rollups.
  *
- * Both read `weekly_entries` — the table that already carries description,
- * owner, due date, priority, status and the Include in Monthly flag — so this
- * adds no storage and nothing to migrate. The split is by the taxonomy the
- * rows already carry, and the two lists cannot overlap:
+ * Every list reads the SAME `weekly_entries` rows the workspace edits — one
+ * entry, several presentations. No rollup has an editor of its own, so the
+ * report cannot disagree with what was typed, and nothing is entered twice to
+ * appear in two places.
  *
- * - **Decisions / management support** is `category = escalation`, whatever
- *   the entry type. Escalation IS the request for a decision.
- * - **Critical issues / risks** is `entryType` risk or issue, minus anything
- *   already claimed as an escalation.
+ * The split is on `entryType` alone, which is now the only thing that says
+ * what an item IS:
  *
- * Neither can repeat a scope item's Required Action / Support list, which
- * writes `action` rows with category `general` and is therefore matched by
- * neither rule.
+ * - **Critical issues / risks** — Risk and Issue.
+ * - **Decisions / management support** — Decision.
+ * - **Key actions** — Action.
+ * - **Key comments** — Key Comment.
+ *
+ * The lists are disjoint by construction. They used to overlap: Decisions was
+ * `category = escalation` and Critical was `entryType risk|issue` minus
+ * escalations, so one row's classification depended on two columns that could
+ * contradict each other.
+ *
+ * Rows written before the taxonomy split may still carry `category =
+ * escalation`. They are read as decisions too, so a historical item is not
+ * lost from the report — and nothing rewrites the stored value.
  */
 function projectEntries(entries: WeeklyEntry[]): {
   criticalItems: WeeklyEntry[];
   decisionItems: WeeklyEntry[];
+  actionItems: WeeklyEntry[];
+  commentItems: WeeklyEntry[];
 } {
   const live = entries.filter(isLive);
-  const decisionItems = live.filter((entry) => entry.category === "escalation");
-  const criticalItems = live.filter(
-    (entry) =>
-      entry.category !== "escalation" &&
-      (entry.entryType === "risk" || entry.entryType === "issue")
-  );
+  const isLegacyEscalation = (entry: WeeklyEntry) =>
+    entry.entryType !== "decision" && entry.category === "escalation";
 
   // Most pressing first, so the top of a compact list is the part that matters.
   const byPriority = (a: WeeklyEntry, b: WeeklyEntry) =>
     PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority);
+  const sorted = (rows: WeeklyEntry[]) => [...rows].sort(byPriority);
 
   return {
-    criticalItems: [...criticalItems].sort(byPriority),
-    decisionItems: [...decisionItems].sort(byPriority),
+    criticalItems: sorted(
+      live.filter(
+        (entry) =>
+          (entry.entryType === "risk" || entry.entryType === "issue") &&
+          !isLegacyEscalation(entry)
+      )
+    ),
+    decisionItems: sorted(
+      live.filter(
+        (entry) => entry.entryType === "decision" || isLegacyEscalation(entry)
+      )
+    ),
+    actionItems: sorted(
+      live.filter(
+        (entry) => entry.entryType === "action" && !isLegacyEscalation(entry)
+      )
+    ),
+    commentItems: sorted(
+      live.filter(
+        (entry) => entry.entryType === "comment" && !isLegacyEscalation(entry)
+      )
+    ),
   };
 }
 
@@ -577,7 +612,8 @@ export function buildWeeklyWorkspace(
    * sections must not become the back door to the whole report.
    */
   const reachableEntries = filterWeeklyRows(scope, entries);
-  const { criticalItems, decisionItems } = projectEntries(reachableEntries);
+  const { criticalItems, decisionItems, actionItems, commentItems } =
+    projectEntries(reachableEntries);
 
   const lookahead: LookaheadLine[] = [];
   for (const section of departments) {
@@ -605,6 +641,13 @@ export function buildWeeklyWorkspace(
     scopeItemLabelPlural: scope.terms.plural,
     criticalItems,
     decisionItems,
+    actionItems,
+    commentItems,
+    // Split on the row's own scope, not on where it was typed, so one item is
+    // never shown both on a scope item and in the consolidated list.
+    projectLevelItems: reachableEntries.filter((entry) => !entry.disciplineId),
+    scopeItemLevelCount: reachableEntries.filter((entry) => entry.disciplineId)
+      .length,
     lookahead,
     markedForMonthly: reachableEntries.filter((entry) => entry.includeInMonthly)
       .length,

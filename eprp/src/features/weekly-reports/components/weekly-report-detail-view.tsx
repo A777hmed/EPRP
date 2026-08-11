@@ -44,6 +44,7 @@ import {
 } from "../scope";
 import { buildWeeklyWorkspace } from "../workspace";
 import { countReceived, isEditableReport } from "../utils";
+import { useHierarchyTerms } from "../use-hierarchy-terms";
 import { ActivitiesTable } from "./activities-table";
 import { useWeeklyNameLookup } from "./weekly-department-section";
 import { WeeklyDepartmentsPanel } from "./weekly-departments-panel";
@@ -142,6 +143,7 @@ export function WeeklyReportDetailView({
    * Called before the early returns below — it is a hook.
    */
   const names = useWeeklyNameLookup();
+  const terms = useHierarchyTerms(project);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -382,6 +384,8 @@ export function WeeklyReportDetailView({
         <WeeklyDepartmentsPanel
           reportId={report.id}
           workspace={workspace}
+          project={project}
+          terms={terms}
           canEdit={editability.canEdit}
           onSaved={handleSaved}
           onEntrySaved={handleEntrySaved}

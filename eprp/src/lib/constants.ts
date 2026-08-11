@@ -175,30 +175,103 @@ export const ACTIVITY_STATUS_META: Record<
   completed: { label: "Completed", tone: "success" },
 };
 
-/** The four narrative entry kinds captured on a report (Phase 6A.4). */
+/** What a Weekly management item IS. */
 export const WEEKLY_ENTRY_TYPE_META: Record<
   WeeklyEntryType,
-  { singular: string; plural: string; description: string }
+  { singular: string; plural: string; description: string; tone: StatusTone }
 > = {
   comment: {
     singular: "Key Comment",
     plural: "Key Comments",
     description: "Noteworthy remarks for this reporting week.",
+    tone: "neutral",
   },
   risk: {
     singular: "Risk",
     plural: "Risks",
     description: "Potential events that could affect delivery.",
+    tone: "warning",
   },
   issue: {
     singular: "Issue",
     plural: "Issues",
     description: "Problems already affecting the work.",
+    tone: "danger",
   },
   action: {
-    singular: "Action Item",
-    plural: "Action Items",
+    singular: "Action",
+    plural: "Actions",
     description: "Committed follow-up actions with an owner and due date.",
+    tone: "info",
+  },
+  decision: {
+    singular: "Decision / Management Support",
+    plural: "Decisions / Management Support",
+    description: "Items needing a decision or support from management.",
+    tone: "warning",
+  },
+};
+
+/** The order management items are offered and listed in. */
+export const WEEKLY_ENTRY_TYPES: WeeklyEntryType[] = [
+  "action",
+  "risk",
+  "issue",
+  "decision",
+  "comment",
+];
+
+/**
+ * Which fields each type actually requires.
+ *
+ * Driven by what the item MEANS, not by what the shared table can hold: an
+ * Action without an owner and a date is not an action, while a Key Comment
+ * needs neither. Showing every field as required on every type — because the
+ * column exists — is what made one form serve five purposes badly.
+ */
+export interface EntryFieldRules {
+  owner: boolean;
+  dueDate: boolean;
+  priority: boolean;
+  status: boolean;
+  category: boolean;
+}
+
+export const WEEKLY_ENTRY_REQUIRED: Record<WeeklyEntryType, EntryFieldRules> = {
+  action: {
+    owner: true,
+    dueDate: true,
+    priority: false,
+    status: false,
+    category: false,
+  },
+  risk: {
+    owner: false,
+    dueDate: false,
+    priority: true,
+    status: true,
+    category: false,
+  },
+  issue: {
+    owner: false,
+    dueDate: false,
+    priority: true,
+    status: true,
+    category: false,
+  },
+  decision: {
+    owner: false,
+    dueDate: false,
+    priority: true,
+    status: false,
+    category: false,
+  },
+  comment: {
+    owner: false,
+    dueDate: false,
+    priority: false,
+    status: false,
+    category: true,
   },
 };
 
@@ -213,19 +286,44 @@ export const ENTRY_STATUS_META: Record<
   escalated: { label: "Escalated", tone: "danger" },
 };
 
+/**
+ * What business area an item relates to.
+ *
+ * The last three are legacy: they were offered by the old form, where
+ * `category` was doubling as a second type field. They keep labels so a
+ * historical row still reads sensibly, and they are never offered — see
+ * {@link MANAGEMENT_CATEGORIES}.
+ */
 export const COMMENT_CATEGORY_META: Record<
   CommentCategory,
-  { label: string }
+  { label: string; legacy?: true }
 > = {
-  progress: { label: "Progress" },
-  risk: { label: "Risk" },
-  issue: { label: "Issue" },
+  progress: { label: "Progress / Schedule" },
+  technical: { label: "Technical" },
   hse: { label: "HSE" },
   quality: { label: "Quality" },
-  financial: { label: "Financial" },
-  escalation: { label: "Escalation" },
+  financial: { label: "Financial / Cost" },
+  client_contractual: { label: "Client / Contractual" },
   general: { label: "General" },
+  risk: { label: "Risk (legacy)", legacy: true },
+  issue: { label: "Issue (legacy)", legacy: true },
+  escalation: { label: "Escalation (legacy)", legacy: true },
 };
+
+/**
+ * The categories the application offers, in order.
+ *
+ * Derived from the meta above rather than restated, so a category can never
+ * be offered without a label or labelled without being offered.
+ */
+export const MANAGEMENT_CATEGORIES = (
+  Object.keys(COMMENT_CATEGORY_META) as CommentCategory[]
+).filter((category) => !COMMENT_CATEGORY_META[category].legacy);
+
+/** Whether a stored category came from the retired taxonomy. */
+export function isLegacyCategory(category: CommentCategory): boolean {
+  return COMMENT_CATEGORY_META[category]?.legacy === true;
+}
 
 export const RISK_SEVERITY_META: Record<
   RiskSeverity,

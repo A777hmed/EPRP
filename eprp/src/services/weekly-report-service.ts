@@ -137,6 +137,16 @@ export interface WeeklyDepartmentUpdateInput {
   delayConstraint?: string;
   nextWeekPlan?: string;
   healthStatus?: SubmissionHealthStatus;
+  /**
+   * Who owns this scope item's work this week, and by when.
+   *
+   * Both columns already existed and already held data — `target_date` was
+   * populated on live rows — but no editor wrote them, so the values could be
+   * read and never corrected. They belong on the scope item, which is where
+   * the work is.
+   */
+  responsibleContactId?: string;
+  targetDate?: IsoDate;
 }
 
 /** One comment / risk / issue / action row from the weekly form (Phase 6A.4). */
@@ -536,6 +546,8 @@ const mockWeeklyReportService: WeeklyReportService = {
       keyAchievement: input.keyAchievement || undefined,
       delayConstraint: input.delayConstraint || undefined,
       nextWeekPlan: input.nextWeekPlan || undefined,
+      responsibleContactId: input.responsibleContactId || undefined,
+      targetDate: input.targetDate || undefined,
       /*
        * Only written when the caller actually supplies one. The workspace does
        * not edit this field, so assigning `input.healthStatus` unconditionally

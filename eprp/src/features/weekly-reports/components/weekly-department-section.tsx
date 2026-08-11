@@ -7,13 +7,11 @@ import {
   Loader2,
   Plus,
   Save,
-  Trash2,
   Unlink,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Collapsible,
   CollapsibleContent,
@@ -21,7 +19,6 @@ import {
 } from "@/components/ui/collapsible";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -34,26 +31,36 @@ import { StatusBadge, type StatusTone } from "@/components/shared";
 import { useMasterData } from "@/features/master-data";
 import {
   ASSIGNMENT_ROLE_META,
+  COMMENT_CATEGORY_META,
   ENTRY_STATUS_META,
   PRIORITY_META,
   SUBMISSION_STATUS_META,
+  WEEKLY_ENTRY_TYPE_META,
 } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { weeklyReportService } from "@/services/weekly-report-service";
+import type { HierarchyTerms } from "@/config/project-terminology";
 import type {
-  EntryStatus,
   MasterRecordBase,
-  Priority,
+  Project,
   SubmissionStatus,
   WeeklyEntry,
   WeeklySubmission,
 } from "@/types";
+import {
+  managementItemErrors,
+  newManagementItemDraft,
+  toEntryInput,
+  toManagementItemDraft,
+  type ManagementItemDraft,
+} from "../management-item";
 import type {
   DepartmentSection,
   DepartmentState,
   ScopeItemResponsibility,
   ScopeItemRow,
 } from "../workspace";
+import { ManagementItemFields } from "./management-item-fields";
 import { ScopedPersonSelect } from "./scoped-person-select";
 
 /** Badge tone per completion state. Neutral until work actually starts. */
@@ -127,6 +134,9 @@ interface Draft {
   keyAchievement: string;
   delayConstraint: string;
   nextWeekPlan: string;
+  /** Who owns this item's work, and by when. Scope-item level only. */
+  responsibleContactId: string;
+  targetDate: string;
 }
 
 function toDraft(submission: WeeklySubmission | undefined): Draft {
@@ -140,6 +150,8 @@ function toDraft(submission: WeeklySubmission | undefined): Draft {
     keyAchievement: submission?.keyAchievement ?? "",
     delayConstraint: submission?.delayConstraint ?? "",
     nextWeekPlan: submission?.nextWeekPlan ?? "",
+    responsibleContactId: submission?.responsibleContactId ?? "",
+    targetDate: submission?.targetDate ?? "",
   };
 }
 
@@ -262,54 +274,6 @@ function ReadOnlyUpdate({
   );
 }
 
-/* -------------------------- Required action / support ---------------------- */
-
-/**
- * One editable Required Action / Support row.
- *
- * Backed by `weekly_entries`, which already carries description, owner, due
- * date, status, priority and the Include in Monthly flag — so nothing new is
- * stored and Monthly compilation can later read these rows unchanged.
- */
-interface ActionDraft {
-  /** Stable across renders, including before the row has an id. */
-  key: string;
-  id?: string;
-  description: string;
-  priority: Priority;
-  status: EntryStatus;
-  ownerContactId: string;
-  dueDate: string;
-  includeInMonthly: boolean;
-}
-
-function toActionDraft(entry: WeeklyEntry): ActionDraft {
-  return {
-    key: entry.id,
-    id: entry.id,
-    description: entry.description,
-    priority: entry.priority,
-    status: entry.status,
-    ownerContactId: entry.ownerContactId ?? "",
-    dueDate: entry.dueDate ?? "",
-    includeInMonthly: entry.includeInMonthly,
-  };
-}
-
-/**
- * The kind and classification every row created here carries.
- *
- * Fixed rather than chosen: this block is one purpose — the support or action
- * a scope item needs — and offering the full entry taxonomy would turn a
- * lightweight list into the action-management surface this is explicitly not.
- * It also keeps these rows out of the project-level Critical Issues and
- * Decisions lists, which select on `entryType` and on the `escalation`
- * category, so nothing is reported twice. The report-level form still writes
- * every type.
- */
-const ACTION_ENTRY_TYPE = "action" as const;
-const ACTION_ENTRY_CATEGORY = "general" as const;
-
 /* ------------------------------ Responsibility ----------------------------- */
 
 /**
@@ -364,15 +328,15 @@ function ResponsibilityLine({
 
 /* --------------------------------- Editor --------------------------------- */
 
-interface ActionsConfig {
+interface ItemsConfig {
   disciplineId: string;
   systemId?: string;
   entries: WeeklyEntry[];
-  /** Who holds this scope item. Offered first in the owner picker. */
+  /** Who holds this scope item. The owner candidates for its items. */
   responsible: ScopeItemResponsibility[];
-  /** Everyone else the project assigned to this department. */
-  departmentPeople: ScopeItemResponsibility[];
+  project: Project | null;
   names: WeeklyNameLookup;
+  terms: HierarchyTerms;
   onEntrySaved: (entry: WeeklyEntry) => void;
   onEntryDeleted: (entryId: string) => void;
 }
@@ -383,25 +347,32 @@ interface UpdateEditorProps {
   /** Chooses the wording. The stored row is the same either way. */
   level: UpdateLevel;
   existing: WeeklySubmission | undefined;
+  /** Owner candidates for the scope-item Responsible Person field. */
+  responsible?: ScopeItemResponsibility[];
+  names?: WeeklyNameLookup;
   onSaved: (submission: WeeklySubmission) => void;
   /**
-   * Present only at the scope-item level. When given, the Required Action /
-   * Support list is edited here too and committed by the same button.
+   * Present only at the scope-item level. When given, this scope item's
+   * management items are edited here too and committed by the same button.
    */
-  actions?: ActionsConfig;
+  items?: ItemsConfig;
 }
 
 /**
  * One department-owned Weekly update, and — at the scope-item level — the
- * Required Action / Support rows that belong with it, behind ONE Save.
+ * management items that belong to it, behind ONE Save.
  *
  * The two used to be separate forms with separate buttons, which read as two
  * unrelated obligations on a screen where they are plainly one. They are still
  * two writes to two tables, because that is what they are: `saveDepartmentUpdate`
  * updates the single row identified by (report, department, scope item), and
- * each action row is a `weekly_entries` upsert. Nothing about that changed —
+ * each item is a `weekly_entries` upsert. Nothing about that changed —
  * only that one press performs both, and each part is skipped when it is not
  * dirty, so pressing Save never rewrites what the user did not touch.
+ *
+ * The item rows use the same fields component as the project-level Project
+ * Management Items section — one editor over one table, mounted twice with a
+ * different pre-set scope, rather than two forms that could drift.
  *
  * Ids are folded back the moment a row returns, one row at a time. That is
  * what makes a retry after a mid-way failure update the rows that already
@@ -415,19 +386,21 @@ function UpdateEditor({
   departmentId,
   level,
   existing,
+  responsible = [],
+  names,
   onSaved,
-  actions,
+  items,
 }: UpdateEditorProps) {
   const copy = LEVEL_COPY[level];
   const [submissionId, setSubmissionId] = React.useState(existing?.id);
   const [draft, setDraft] = React.useState<Draft>(() => toDraft(existing));
   const [pristine, setPristine] = React.useState<Draft>(() => toDraft(existing));
 
-  const [rows, setRows] = React.useState<ActionDraft[]>(() =>
-    (actions?.entries ?? []).map(toActionDraft)
+  const [rows, setRows] = React.useState<ManagementItemDraft[]>(() =>
+    (items?.entries ?? []).map(toManagementItemDraft)
   );
   const [rowsPristine, setRowsPristine] = React.useState(() =>
-    JSON.stringify((actions?.entries ?? []).map(toActionDraft))
+    JSON.stringify((items?.entries ?? []).map(toManagementItemDraft))
   );
   const [removed, setRemoved] = React.useState<string[]>([]);
 
@@ -443,17 +416,17 @@ function UpdateEditor({
       ),
     [draft, pristine]
   );
-  const actionsDirty =
+  const itemsDirty =
     JSON.stringify(rows) !== rowsPristine || removed.length > 0;
-  const dirty = updateDirty || actionsDirty;
+  const dirty = updateDirty || itemsDirty;
 
   const progress =
     draft.progressPercent === "" ? undefined : Number(draft.progressPercent);
   const progressInvalid =
     progress !== undefined &&
     (!Number.isFinite(progress) || progress < 0 || progress > 100);
-  const actionIncomplete = rows.some((row) => !row.description.trim());
-  const blocked = progressInvalid || actionIncomplete;
+  const itemProblems = rows.flatMap(managementItemErrors);
+  const blocked = progressInvalid || itemProblems.length > 0;
 
   const markedForMonthly = rows.filter((row) => row.includeInMonthly).length;
 
@@ -462,7 +435,7 @@ function UpdateEditor({
     setSavedAt(null);
   };
 
-  const patchRow = (key: string, change: Partial<ActionDraft>) => {
+  const patchRow = (key: string, change: Partial<ManagementItemDraft>) => {
     setRows((current) =>
       current.map((row) => (row.key === key ? { ...row, ...change } : row))
     );
@@ -473,15 +446,13 @@ function UpdateEditor({
     nextKey.current += 1;
     setRows((current) => [
       ...current,
-      {
-        key: `new-${nextKey.current}`,
-        description: "",
-        priority: "medium",
-        status: "open",
-        ownerContactId: "",
-        dueDate: "",
-        includeInMonthly: false,
-      },
+      // Pre-scoped to the item being edited: the department, System and scope
+      // item are already known here, so the row never asks for them again.
+      newManagementItemDraft(`new-${nextKey.current}`, {
+        departmentId,
+        systemId: items?.systemId ?? "",
+        disciplineId: items?.disciplineId ?? "",
+      }),
     ]);
     setSavedAt(null);
   };
@@ -504,46 +475,46 @@ function UpdateEditor({
         const saved = await weeklyReportService.saveDepartmentUpdate(reportId, {
           id: submissionId,
           departmentId,
-          disciplineId: actions?.disciplineId,
+          disciplineId: items?.disciplineId,
           status: draft.status,
           progressPercent: progress,
           summary: draft.summary,
           keyAchievement: draft.keyAchievement,
           delayConstraint: draft.delayConstraint,
           nextWeekPlan: draft.nextWeekPlan,
+          responsibleContactId: draft.responsibleContactId,
+          targetDate: draft.targetDate,
         });
         setSubmissionId(saved.id);
         setPristine(draft);
         onSaved(saved);
       }
 
-      if (actions && actionsDirty) {
+      if (items && itemsDirty) {
         for (const entryId of removed) {
           await weeklyReportService.deleteEntry(reportId, entryId);
-          actions.onEntryDeleted(entryId);
+          items.onEntryDeleted(entryId);
           // Dropped from the pending list as it lands, so a retry after a
           // later failure does not delete it a second time.
           setRemoved((current) => current.filter((id) => id !== entryId));
         }
 
-        const saved: ActionDraft[] = [];
+        const saved: ManagementItemDraft[] = [];
         for (const row of rows) {
-          const entry = await weeklyReportService.saveEntry(reportId, {
-            id: row.id,
-            entryType: ACTION_ENTRY_TYPE,
-            category: ACTION_ENTRY_CATEGORY,
-            description: row.description.trim(),
-            priority: row.priority,
-            status: row.status,
-            ownerContactId: row.ownerContactId || undefined,
-            dueDate: row.dueDate || undefined,
-            departmentId,
-            systemId: actions.systemId,
-            disciplineId: actions.disciplineId,
-            includeInMonthly: row.includeInMonthly,
-          });
-          actions.onEntrySaved(entry);
-          const next = { ...toActionDraft(entry), key: row.key };
+          const entry = await weeklyReportService.saveEntry(
+            reportId,
+            // The scope is taken from where the row lives, not from the row's
+            // own fields, so an item added inside a scope item can never be
+            // saved against a different one.
+            toEntryInput({
+              ...row,
+              departmentId,
+              systemId: items.systemId ?? "",
+              disciplineId: items.disciplineId,
+            })
+          );
+          items.onEntrySaved(entry);
+          const next = { ...toManagementItemDraft(entry), key: row.key };
           saved.push(next);
           // Keep the row's identity as soon as it exists, so a second save
           // updates rather than inserts.
@@ -660,16 +631,59 @@ function UpdateEditor({
         )}
       </div>
 
-      {actions && (
+      {/*
+        Responsible Person and Target Date belong to the scope item, which is
+        where the work is. Both columns already held data — `target_date` was
+        populated on live rows — but no editor wrote them, so a value could be
+        read and never corrected.
+      */}
+      {items && names && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor={`${fieldId}-responsible`}>
+              Responsible Person
+              <span className="text-xs font-normal text-muted-foreground">
+                Optional
+              </span>
+            </FieldLabel>
+            <ScopedPersonSelect
+              value={draft.responsibleContactId}
+              onChange={(id) => set("responsibleContactId", id)}
+              responsible={responsible}
+              department={[]}
+              names={names}
+              disabled={saving}
+              label="Responsible person"
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${fieldId}-target`}>
+              Target Date
+              <span className="text-xs font-normal text-muted-foreground">
+                Optional
+              </span>
+            </FieldLabel>
+            <Input
+              id={`${fieldId}-target`}
+              type="date"
+              disabled={saving}
+              value={draft.targetDate}
+              onChange={(event) => set("targetDate", event.target.value)}
+            />
+          </Field>
+        </div>
+      )}
+
+      {items && (
         <div className="space-y-2 border-t pt-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h5 className="text-xs font-semibold">Required Action / Support</h5>
+            <h5 className="text-xs font-semibold">Management Items</h5>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">
-                {markedForMonthly > 0
-                  ? `${markedForMonthly} marked for Monthly`
-                  : "None marked for Monthly"}
-              </span>
+              {markedForMonthly > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  {markedForMonthly} for Monthly
+                </span>
+              )}
               <Button
                 type="button"
                 size="sm"
@@ -678,7 +692,7 @@ function UpdateEditor({
                 onClick={addRow}
               >
                 <Plus data-icon="inline-start" aria-hidden="true" />
-                Add
+                Add Item
               </Button>
             </div>
           </div>
@@ -690,113 +704,22 @@ function UpdateEditor({
           ) : (
             <div className="space-y-2">
               {rows.map((row) => (
-                <div key={row.key} className="space-y-2 rounded-md border p-2.5">
-                  <Textarea
-                    rows={2}
-                    disabled={saving}
-                    aria-label="Required action or support needed"
-                    placeholder="What is needed, and from whom."
-                    value={row.description}
-                    onChange={(event) =>
-                      patchRow(row.key, { description: event.target.value })
-                    }
-                  />
-
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                    <Select
-                      value={row.priority}
-                      onValueChange={(value) =>
-                        patchRow(row.key, { priority: value as Priority })
-                      }
-                    >
-                      <SelectTrigger
-                        className="w-full"
-                        disabled={saving}
-                        aria-label="Priority"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(PRIORITY_META) as Priority[]).map((p) => (
-                          <SelectItem key={p} value={p}>
-                            {PRIORITY_META[p].label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    <Select
-                      value={row.status}
-                      onValueChange={(value) =>
-                        patchRow(row.key, { status: value as EntryStatus })
-                      }
-                    >
-                      <SelectTrigger
-                        className="w-full"
-                        disabled={saving}
-                        aria-label="Action status"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(ENTRY_STATUS_META) as EntryStatus[]).map(
-                          (s) => (
-                            <SelectItem key={s} value={s}>
-                              {ENTRY_STATUS_META[s].label}
-                            </SelectItem>
-                          )
-                        )}
-                      </SelectContent>
-                    </Select>
-
-                    {/*
-                      Scoped to the project's own assignments — see
-                      ScopedPersonSelect. An owner here is someone accountable
-                      on this project, not any contact in master data.
-                    */}
-                    <ScopedPersonSelect
-                      value={row.ownerContactId}
-                      onChange={(id) => patchRow(row.key, { ownerContactId: id })}
-                      responsible={actions.responsible}
-                      department={actions.departmentPeople}
-                      names={actions.names}
-                      disabled={saving}
-                    />
-
-                    <Input
-                      type="date"
-                      disabled={saving}
-                      aria-label="Target date"
-                      value={row.dueDate}
-                      onChange={(event) =>
-                        patchRow(row.key, { dueDate: event.target.value })
-                      }
-                    />
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Label className="flex items-center gap-2 text-xs font-normal">
-                      <Checkbox
-                        checked={row.includeInMonthly}
-                        disabled={saving}
-                        onCheckedChange={(checked) =>
-                          patchRow(row.key, { includeInMonthly: checked === true })
-                        }
-                      />
-                      Include in Monthly report
-                    </Label>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      disabled={saving}
-                      onClick={() => removeRow(row.key)}
-                    >
-                      <Trash2 data-icon="inline-start" aria-hidden="true" />
-                      Remove
-                    </Button>
-                  </div>
-                </div>
+                /*
+                 * The same fields component the project-level section uses,
+                 * with the scope selectors hidden: this row's department,
+                 * System and scope item are fixed by where it lives.
+                 */
+                <ManagementItemFields
+                  key={row.key}
+                  row={row}
+                  project={items.project}
+                  names={items.names}
+                  terms={items.terms}
+                  disabled={saving}
+                  showScopeSelectors={false}
+                  onChange={(change) => patchRow(row.key, change)}
+                  onRemove={() => removeRow(row.key)}
+                />
               ))}
             </div>
           )}
@@ -813,10 +736,8 @@ function UpdateEditor({
       )}
 
       <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-3">
-        {actionIncomplete && (
-          <span className="text-xs text-destructive">
-            Every action row needs a description.
-          </span>
+        {itemProblems.length > 0 && (
+          <span className="text-xs text-destructive">{itemProblems[0]}</span>
         )}
         {savedAt !== null && !dirty && (
           <span className="text-xs text-success" role="status">
@@ -841,28 +762,23 @@ function UpdateEditor({
           ) : (
             <Save data-icon="inline-start" aria-hidden="true" />
           )}
-          {saving
-            ? "Saving…"
-            : actions
-              ? "Save update and actions"
-              : "Save overall update"}
+          {saving ? "Saving…" : items ? "Save this item" : "Save overall update"}
         </Button>
       </div>
       {/* Named so the single button's reach is never in doubt. */}
-      {actions && (
+      {items && (
         <p className="text-right text-xs text-muted-foreground">
-          Saves the weekly update and the Required Action / Support rows
-          together.
+          Saves the weekly update and this item’s management items together.
         </p>
       )}
     </div>
   );
 }
 
-/* --------------------------- Read-only action list ------------------------- */
+/* ---------------------------- Read-only item list -------------------------- */
 
-/** The Required Action / Support rows, for a viewer who may not change them. */
-function ReadOnlyActions({
+/** This scope item's management items, for a viewer who may not change them. */
+function ReadOnlyItems({
   entries,
   names,
 }: {
@@ -875,15 +791,25 @@ function ReadOnlyActions({
   return (
     <div className="space-y-2 border-t pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h5 className="text-xs font-semibold">Required Action / Support</h5>
-        <span className="text-xs text-muted-foreground">
-          {marked > 0 ? `${marked} marked for Monthly` : "None marked for Monthly"}
-        </span>
+        <h5 className="text-xs font-semibold">Management Items</h5>
+        {marked > 0 && (
+          <span className="text-xs text-muted-foreground">
+            {marked} for Monthly
+          </span>
+        )}
       </div>
       <ul className="space-y-2">
         {entries.map((entry) => (
           <li key={entry.id} className="rounded-md border p-2.5">
-            <p className="text-sm whitespace-pre-wrap text-pretty">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge tone={WEEKLY_ENTRY_TYPE_META[entry.entryType].tone}>
+                {WEEKLY_ENTRY_TYPE_META[entry.entryType].singular}
+              </StatusBadge>
+              <span className="text-xs text-muted-foreground">
+                {COMMENT_CATEGORY_META[entry.category]?.label}
+              </span>
+            </div>
+            <p className="mt-1 text-sm whitespace-pre-wrap text-pretty">
               {entry.description}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -907,8 +833,9 @@ interface ScopeItemCardProps {
   reportId: string;
   departmentId: string;
   row: ScopeItemRow;
-  /** The department's assigned people, for owner selection. */
-  eligiblePeople: ScopeItemResponsibility[];
+  /** Needed for cascading and owner candidates on this item's management items. */
+  project: Project | null;
+  terms: HierarchyTerms;
   names: WeeklyNameLookup;
   canEdit: boolean;
   onSaved: (submission: WeeklySubmission) => void;
@@ -928,7 +855,8 @@ function ScopeItemCard({
   reportId,
   departmentId,
   row,
-  eligiblePeople,
+  project,
+  terms,
   names,
   canEdit,
   onSaved,
@@ -1038,14 +966,17 @@ function ScopeItemCard({
             departmentId={departmentId}
             level="scope_item"
             existing={submission}
+            responsible={row.responsible}
+            names={names}
             onSaved={onSaved}
-            actions={{
+            items={{
               disciplineId: row.scopeItemId,
               systemId: row.systemId,
               entries: row.entries,
               responsible: row.responsible,
-              departmentPeople: eligiblePeople,
+              project,
               names,
+              terms,
               onEntrySaved,
               onEntryDeleted,
             }}
@@ -1053,7 +984,7 @@ function ScopeItemCard({
         ) : (
           <>
             <ReadOnlyUpdate submission={submission} level="scope_item" />
-            <ReadOnlyActions entries={row.entries} names={names} />
+            <ReadOnlyItems entries={row.entries} names={names} />
           </>
         )}
       </CollapsibleContent>
@@ -1066,6 +997,8 @@ interface ScopeItemsBlockProps {
   section: DepartmentSection;
   scopeItemLabel: string;
   scopeItemLabelPlural: string;
+  project: Project | null;
+  terms: HierarchyTerms;
   names: WeeklyNameLookup;
   canEdit: boolean;
   onSaved: (submission: WeeklySubmission) => void;
@@ -1086,6 +1019,8 @@ function ScopeItemsBlock({
   section,
   scopeItemLabel,
   scopeItemLabelPlural,
+  project,
+  terms,
   names,
   canEdit,
   onSaved,
@@ -1129,7 +1064,8 @@ function ScopeItemsBlock({
               reportId={reportId}
               departmentId={section.departmentId}
               row={row}
-              eligiblePeople={section.eligiblePeople}
+              project={project}
+              terms={terms}
               names={names}
               canEdit={canEdit}
               onSaved={onSaved}
@@ -1256,6 +1192,9 @@ export interface WeeklyDepartmentSectionProps {
   /** Wording for the level below the department, from the project type. */
   scopeItemLabel: string;
   scopeItemLabelPlural: string;
+  /** The project, for cascading and owner candidates on management items. */
+  project: Project | null;
+  terms: HierarchyTerms;
   /** Master-data names, resolved once for the whole panel. */
   names: WeeklyNameLookup;
   /**
@@ -1284,6 +1223,8 @@ export function WeeklyDepartmentSection({
   section,
   scopeItemLabel,
   scopeItemLabelPlural,
+  project,
+  terms,
   names,
   canEdit,
   defaultOpen = false,
@@ -1379,6 +1320,8 @@ export function WeeklyDepartmentSection({
           section={section}
           scopeItemLabel={scopeItemLabel}
           scopeItemLabelPlural={scopeItemLabelPlural}
+          project={project}
+          terms={terms}
           names={names}
           canEdit={canEdit}
           onSaved={onSaved}

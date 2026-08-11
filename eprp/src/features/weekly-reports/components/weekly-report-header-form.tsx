@@ -66,7 +66,6 @@ import {
   type WeeklyReportHeaderValues,
 } from "../schemas/weekly-report-header";
 import { MajorActivitiesSection } from "./major-activities-section";
-import { WeeklyEntriesSection } from "./weekly-entries-section";
 import { WeeklyWorkspacePointer } from "./weekly-workspace-pointer";
 
 interface WeeklyReportHeaderFormProps {
@@ -919,6 +918,7 @@ export function WeeklyReportHeaderForm({
         <MajorActivitiesSection
           control={control}
           setValue={setValue}
+          project={selectedProject}
           terms={terms}
           disabled={!selectedProject}
         />
@@ -931,12 +931,6 @@ export function WeeklyReportHeaderForm({
           reportId={existingReportId}
           terms={terms}
           departmentCount={selectedProject?.departments.length ?? 0}
-        />
-
-        <WeeklyEntriesSection
-          control={control}
-          terms={terms}
-          disabled={!selectedProject}
         />
 
         <div className="flex flex-wrap items-center justify-end gap-2 rounded-xl bg-card p-3 ring-1 ring-foreground/10">

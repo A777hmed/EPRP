@@ -552,6 +552,8 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
       key_achievement: input.keyAchievement || null,
       delay_constraint: input.delayConstraint || null,
       next_week_plan: input.nextWeekPlan || null,
+      responsible_contact_id: input.responsibleContactId || null,
+      target_date: input.targetDate || null,
       /*
        * Included ONLY when the caller supplies one. The workspace does not
        * edit this field, so sending `null` for it cleared any verdict recorded
