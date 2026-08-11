@@ -43,6 +43,10 @@ export function WeeklyDepartmentsPanel({
     (d) => d.state === "complete"
   ).length;
   const awaiting = workspace.awaitingInput.length;
+  const outstanding = workspace.departments.reduce(
+    (count, section) => count + section.scopeItemsOutstanding,
+    0
+  );
 
   return (
     <SectionCard
@@ -53,10 +57,11 @@ export function WeeklyDepartmentsPanel({
           <span className="text-xs tabular-nums text-muted-foreground">
             {complete}/{total} complete
             {awaiting > 0 && ` · ${awaiting} awaiting input`}
+            {outstanding > 0 && ` · ${outstanding} items outstanding`}
           </span>
         ) : undefined
       }
-      contentClassName="space-y-3"
+      contentClassName="space-y-2"
     >
       {total === 0 ? (
         <p className="text-sm text-muted-foreground">

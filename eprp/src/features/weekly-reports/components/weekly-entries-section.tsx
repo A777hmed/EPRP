@@ -31,6 +31,7 @@ import {
   PRIORITY_META,
   WEEKLY_ENTRY_TYPE_META,
 } from "@/lib/constants";
+import type { HierarchyTerms } from "@/config/project-terminology";
 import type {
   CommentCategory,
   Discipline,
@@ -64,6 +65,8 @@ const SORT_LABELS: Record<EntrySort, string> = {
 
 interface WeeklyEntriesSectionProps {
   control: Control<WeeklyReportHeaderValues>;
+  /** The project's wording for the level below a System. */
+  terms: HierarchyTerms;
   disabled?: boolean;
 }
 
@@ -73,6 +76,7 @@ function WeeklyEntryRow({
   index,
   position,
   entryType,
+  terms,
   onRemove,
 }: {
   control: Control<WeeklyReportHeaderValues>;
@@ -81,6 +85,7 @@ function WeeklyEntryRow({
   /** 1-based position within its own section, for labels. */
   position: number;
   entryType: WeeklyEntryType;
+  terms: HierarchyTerms;
   onRemove: () => void;
 }) {
   const label = WEEKLY_ENTRY_TYPE_META[entryType].singular;
@@ -319,7 +324,7 @@ function WeeklyEntryRow({
           <RhfField
             control={control}
             name={`entries.${index}.disciplineId`}
-            label="Related Discipline"
+            label={`Related ${terms.singular}`}
             optional
           >
             {({ field, controlProps }) => (
@@ -330,8 +335,10 @@ function WeeklyEntryRow({
                 onBlur={field.onBlur}
                 allowClear
                 filter={disciplineFilter}
-                emptyLabel="No disciplines for this department."
-                placeholder="Select discipline…"
+                emptyLabel={`No ${terms.pluralLower} for this department.`}
+                placeholder={`Select ${terms.singularLower}…`}
+                searchPlaceholder={`Search ${terms.pluralLower}…`}
+                clearLabel={`Clear ${terms.singularLower}`}
                 controlProps={controlProps}
               />
             )}
@@ -386,6 +393,7 @@ function EntryTypeSection({
   control,
   entryType,
   rows,
+  terms,
   onAdd,
   onRemove,
   disabled,
@@ -394,6 +402,7 @@ function EntryTypeSection({
   entryType: WeeklyEntryType;
   /** Field-array entries of this type, paired with their flat index. */
   rows: { key: string; index: number }[];
+  terms: HierarchyTerms;
   onAdd: () => void;
   onRemove: (index: number) => void;
   disabled: boolean;
@@ -482,6 +491,7 @@ function EntryTypeSection({
             index={row.index}
             position={position + 1}
             entryType={entryType}
+            terms={terms}
             onRemove={() => onRemove(row.index)}
           />
         ))
@@ -498,6 +508,7 @@ const ENTRY_TYPES: WeeklyEntryType[] = ["comment", "risk", "issue", "action"];
  */
 export function WeeklyEntriesSection({
   control,
+  terms,
   disabled = false,
 }: WeeklyEntriesSectionProps) {
   const entries = useFieldArray({ control, name: "entries" });
@@ -523,6 +534,7 @@ export function WeeklyEntriesSection({
           control={control}
           entryType={entryType}
           rows={rowsByType[entryType]}
+          terms={terms}
           disabled={disabled}
           onAdd={() => entries.append(emptyWeeklyEntry(entryType))}
           onRemove={(index) => entries.remove(index)}

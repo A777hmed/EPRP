@@ -1,14 +1,25 @@
 import type {
   AssignmentRole,
   Project,
+  ProgressStatus,
   WeeklyEntry,
   WeeklyReport,
   WeeklySubmission,
 } from "@/types";
-import { scopedAssignments } from "@/features/projects/assignment-rules";
+import {
+  departmentManager,
+  scopedAssignments,
+} from "@/features/projects/assignment-rules";
+import {
+  calculateSpi,
+  recommendScheduleStatus,
+  scheduleVariance,
+  type ScheduleRecommendation,
+} from "@/lib/reporting";
 import {
   ALL_ITEMS,
   canAccessDepartment,
+  filterWeeklyRows,
   visibleScopeItems,
   weeklyDepartments,
   type ScopeItemAccess,
@@ -31,44 +42,70 @@ import {
 
 /* ----------------------------- Progress summary --------------------------- */
 
-export type ProgressHealth = "ahead" | "on_track" | "at_risk" | "behind";
-
 export interface ProgressSummary {
   planned: number;
   actual: number;
-  /** actual − planned. Negative means behind plan. */
+  /** actual − planned, in percentage points. Negative means behind plan. */
   variance: number;
-  health: ProgressHealth;
-  /** The report's own overall status text, when it carries one. */
-  overallStatus?: string;
+  /** Earned / planned. Presented beside the variance, never coloured apart. */
+  spi: number;
+  /**
+   * The single arithmetic reading of the variance, from the thresholds in
+   * `docs/06_WEEKLY_REPORT_SPEC.md` §5 (`recommendScheduleStatus`).
+   */
+  reading: ScheduleRecommendation;
+  /** The report's own recorded verdict, when it carries one. */
+  overallStatus?: ProgressStatus;
+  /**
+   * Whether the recorded verdict and the arithmetic reading say the same
+   * thing. False is the ONLY case worth a remark on screen.
+   */
+  statusAgrees: boolean;
   executiveSummary?: string;
 }
 
 /**
- * Health from the plan/actual gap.
+ * Which arithmetic reading each recorded verdict corresponds to.
  *
- * Thresholds are deliberately gentle: a single percentage point behind is
- * noise, not a risk, and flagging it would train people to ignore the signal.
- * A report that carries its own `overallProgressStatus` keeps it — a human
- * judgement outranks an arithmetic one.
+ * The stored `ProgressStatus` has five values and the derived reading three,
+ * so "agreement" needs a stated mapping rather than a string comparison.
+ * Without one the screen reported a report as On Track and, on the same line,
+ * announced that its variance read At Risk — two different threshold sets
+ * asked the same question and were both believed.
+ */
+const READING_FOR_STATUS: Record<ProgressStatus, ScheduleRecommendation> = {
+  ahead: "on_schedule",
+  on_track: "on_schedule",
+  at_risk: "delayed",
+  behind: "delayed",
+  critical: "critical",
+};
+
+/**
+ * The week's progress, read ONE way.
+ *
+ * The variance is interpreted by the documented business rule and by nothing
+ * else, so the variance figure, the SPI, and the status badge cannot be
+ * coloured by three different opinions of the same number. A report that
+ * carries its own `overallProgressStatus` still leads with it — a human
+ * judgement outranks an arithmetic one — but the two are only ever remarked
+ * on when they genuinely disagree.
  */
 export function progressSummary(report: WeeklyReport): ProgressSummary {
   const planned = report.plannedProgress ?? 0;
   const actual = report.actualProgress ?? 0;
-  const variance = Math.round((actual - planned) * 100) / 100;
-
-  let health: ProgressHealth;
-  if (variance >= 1) health = "ahead";
-  else if (variance >= -1) health = "on_track";
-  else if (variance >= -5) health = "at_risk";
-  else health = "behind";
+  const variance = scheduleVariance(planned, actual);
+  const reading = recommendScheduleStatus(variance);
+  const overallStatus = report.overallProgressStatus ?? undefined;
 
   return {
     planned,
     actual,
     variance,
-    health,
-    overallStatus: report.overallProgressStatus ?? undefined,
+    spi: calculateSpi(planned, actual),
+    reading,
+    overallStatus,
+    statusAgrees: !overallStatus || READING_FOR_STATUS[overallStatus] === reading,
     // `summary` IS the Executive Summary narrative (spec section 5). Reused
     // rather than adding a second field that would store the same thing.
     executiveSummary: report.summary ?? undefined,
@@ -188,6 +225,52 @@ export interface ScopeItemRow {
 }
 
 /**
+ * Everyone the project assigned to a department, one entry per person.
+ *
+ * Collapsed by person and ranked so the most senior hat each of them wears is
+ * the one shown: someone holding five scope items is one candidate, not five.
+ * Used for owner selection, which is a question about people, not about the
+ * individual scope-item rows behind them.
+ */
+function departmentPeople(
+  project: Project,
+  departmentId: string,
+  visible: ScopeItemAccess
+): ScopeItemResponsibility[] {
+  const rank: Record<AssignmentRole, number> = {
+    department_manager: 3,
+    team_member_lead: 2,
+    team_member: 1,
+  };
+  const byPerson = new Map<string, ScopeItemResponsibility>();
+
+  for (const assignment of scopedAssignments(project, departmentId)) {
+    /*
+     * A scoped member must not learn the department's full roster through the
+     * owner picker. Someone assigned only to items outside this viewer's
+     * scope is not offered — the same filter the item list goes through.
+     */
+    if (
+      visible !== ALL_ITEMS &&
+      (!assignment.disciplineId || !visible.includes(assignment.disciplineId))
+    ) {
+      continue;
+    }
+    const held = byPerson.get(assignment.contactId);
+    if (held && rank[held.assignmentRole] >= rank[assignment.assignmentRole]) {
+      continue;
+    }
+    byPerson.set(assignment.contactId, {
+      contactId: assignment.contactId,
+      assignmentRole: assignment.assignmentRole,
+      functionalTitle: assignment.functionalTitle,
+    });
+  }
+
+  return [...byPerson.values()];
+}
+
+/**
  * Whether a scope item has actually been reported on.
  *
  * A row alone is not enough — one can exist carrying nothing — but a status
@@ -299,21 +382,55 @@ export interface DepartmentSection {
   submissions: WeeklySubmission[];
   /**
    * The department-level shared input: the submission with no scope item.
-   * Undefined when the department has not created one yet.
+   *
+   * This is the **Department Overall Update** — optional by design, for what
+   * applies to the department as a whole rather than to one scope item.
+   * Undefined when the department has not written one, which is a perfectly
+   * complete department: `deriveDepartmentState` reads the submissions that
+   * exist and never requires this one.
    */
-  generalUpdate?: WeeklySubmission;
+  overallUpdate?: WeeklySubmission;
   /** Submissions scoped to an item below the System. */
   scopedUpdates: WeeklySubmission[];
   /** The scope items this department owes input on, with what has arrived. */
   scopeItems: ScopeItemRow[];
   /** Scope items carrying content, out of those in scope for the viewer. */
   scopeItemsReported: number;
+  /** Scope items still in the project's scope — the denominator on screen. */
+  scopeItemsExpected: number;
+  /** Expected items with nothing reported yet. What is being chased. */
+  scopeItemsOutstanding: number;
+  /** The department's manager on this project, from its own assignments. */
+  managerContactId?: string;
+  /**
+   * Everyone the project has assigned to this department, de-duplicated by
+   * person. This is the candidate list for "who owns this?" — a Weekly owner
+   * must be someone the project actually put in the department, not any of
+   * the thousands of contacts in master data.
+   */
+  eligiblePeople: ScopeItemResponsibility[];
+  /** Required Action / Support rows in this department flagged for Monthly. */
+  markedForMonthly: number;
   state: DepartmentState;
   stateLabel: string;
   /** Nothing entered yet — what Project Control is chasing. */
   missingInput: boolean;
   /** The viewer may see every item here, not just their own. */
   seesWholeDepartment: boolean;
+}
+
+/**
+ * One line of the project-level Next Week Lookahead.
+ *
+ * A pointer into the Weekly data that already exists, not a second copy of
+ * it: the text is the `nextWeekPlan` on the submission it came from, so
+ * editing the department's own update is what changes the lookahead.
+ */
+export interface LookaheadLine {
+  departmentId: string;
+  /** Undefined for the Department Overall Update's plan. */
+  scopeItemId?: string;
+  plan: string;
 }
 
 export interface WeeklyWorkspace {
@@ -328,7 +445,63 @@ export interface WeeklyWorkspace {
   /** Wording for the scope-item level, from the project type. */
   scopeItemLabel: string;
   scopeItemLabelPlural: string;
+  /** Project-level risks and issues still live — see {@link projectEntries}. */
+  criticalItems: WeeklyEntry[];
+  /** Project-level escalations: what management is being asked to decide. */
+  decisionItems: WeeklyEntry[];
+  /** Next week, gathered from the Weekly input that already records it. */
+  lookahead: LookaheadLine[];
+  /** Every row the viewer can see that is flagged for Monthly compilation. */
+  markedForMonthly: number;
 }
+
+/** Entry statuses that mean the item is closed out and no longer live. */
+const SETTLED_ENTRY_STATUSES = ["resolved", "closed"] as const;
+
+function isLive(entry: WeeklyEntry): boolean {
+  return !(SETTLED_ENTRY_STATUSES as readonly string[]).includes(entry.status);
+}
+
+/**
+ * Split the report's narrative rows into the two project-level lists.
+ *
+ * Both read `weekly_entries` — the table that already carries description,
+ * owner, due date, priority, status and the Include in Monthly flag — so this
+ * adds no storage and nothing to migrate. The split is by the taxonomy the
+ * rows already carry, and the two lists cannot overlap:
+ *
+ * - **Decisions / management support** is `category = escalation`, whatever
+ *   the entry type. Escalation IS the request for a decision.
+ * - **Critical issues / risks** is `entryType` risk or issue, minus anything
+ *   already claimed as an escalation.
+ *
+ * Neither can repeat a scope item's Required Action / Support list, which
+ * writes `action` rows with category `general` and is therefore matched by
+ * neither rule.
+ */
+function projectEntries(entries: WeeklyEntry[]): {
+  criticalItems: WeeklyEntry[];
+  decisionItems: WeeklyEntry[];
+} {
+  const live = entries.filter(isLive);
+  const decisionItems = live.filter((entry) => entry.category === "escalation");
+  const criticalItems = live.filter(
+    (entry) =>
+      entry.category !== "escalation" &&
+      (entry.entryType === "risk" || entry.entryType === "issue")
+  );
+
+  // Most pressing first, so the top of a compact list is the part that matters.
+  const byPriority = (a: WeeklyEntry, b: WeeklyEntry) =>
+    PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority);
+
+  return {
+    criticalItems: [...criticalItems].sort(byPriority),
+    decisionItems: [...decisionItems].sort(byPriority),
+  };
+}
+
+const PRIORITY_ORDER = ["critical", "high", "medium", "low"] as const;
 
 /**
  * Build the workspace for one viewer.
@@ -373,20 +546,51 @@ export function buildWeeklyWorkspace(
       mine,
       entries
     );
+    const expected = scopeItems.filter((item) => !item.detached);
 
     return {
       departmentId,
       submissions: mine,
-      generalUpdate: mine.find((s) => !s.disciplineId),
+      overallUpdate: mine.find((s) => !s.disciplineId),
       scopedUpdates: mine.filter((s) => Boolean(s.disciplineId)),
       scopeItems,
       scopeItemsReported: scopeItems.filter((item) => item.reported).length,
+      scopeItemsExpected: expected.length,
+      scopeItemsOutstanding: expected.filter((item) => !item.reported).length,
+      managerContactId: departmentManager(project, departmentId)?.contactId,
+      eligiblePeople: departmentPeople(project, departmentId, items),
+      markedForMonthly: scopeItems.reduce(
+        (count, item) =>
+          count + item.entries.filter((entry) => entry.includeInMonthly).length,
+        0
+      ),
       state,
       stateLabel: DEPARTMENT_STATE_LABELS[state],
       missingInput: state === "not_started",
       seesWholeDepartment,
     };
   });
+
+  /*
+   * Project-level lists are built from the rows this viewer may reach, using
+   * the same filter the submissions go through — a scoped member's project
+   * sections must not become the back door to the whole report.
+   */
+  const reachableEntries = filterWeeklyRows(scope, entries);
+  const { criticalItems, decisionItems } = projectEntries(reachableEntries);
+
+  const lookahead: LookaheadLine[] = [];
+  for (const section of departments) {
+    for (const submission of section.submissions) {
+      const plan = submission.nextWeekPlan?.trim();
+      if (!plan) continue;
+      lookahead.push({
+        departmentId: section.departmentId,
+        scopeItemId: submission.disciplineId ?? undefined,
+        plan,
+      });
+    }
+  }
 
   return {
     reportId: report.id,
@@ -399,18 +603,23 @@ export function buildWeeklyWorkspace(
       .map((d) => d.departmentId),
     scopeItemLabel: scope.terms.singular,
     scopeItemLabelPlural: scope.terms.plural,
+    criticalItems,
+    decisionItems,
+    lookahead,
+    markedForMonthly: reachableEntries.filter((entry) => entry.includeInMonthly)
+      .length,
   };
 }
 
 /**
- * The department-level shared submission, or the shape to create one from.
+ * The Department Overall Update row, or the shape to create one from.
  *
  * Returning the existing row's id when there is one is what stops a repeated
- * save from inserting a second general update: the caller updates in place
+ * save from inserting a second overall update: the caller updates in place
  * rather than appending. `discipline_id` stays NULL, which is the recorded
- * meaning of "general department input" — not a missing value.
+ * meaning of "applies to the department as a whole" — not a missing value.
  */
-export function generalUpdateDraft(
+export function overallUpdateDraft(
   reportId: string,
   departmentId: string,
   existing: WeeklySubmission | undefined

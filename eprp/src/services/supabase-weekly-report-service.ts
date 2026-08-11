@@ -552,7 +552,15 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
       key_achievement: input.keyAchievement || null,
       delay_constraint: input.delayConstraint || null,
       next_week_plan: input.nextWeekPlan || null,
-      health_status: input.healthStatus ?? null,
+      /*
+       * Included ONLY when the caller supplies one. The workspace does not
+       * edit this field, so sending `null` for it cleared any verdict recorded
+       * earlier — a save wiping a column its own form never showed. Omitting
+       * the key leaves the stored value untouched.
+       */
+      ...(input.healthStatus !== undefined
+        ? { health_status: input.healthStatus }
+        : {}),
     };
 
     /*

@@ -15,28 +15,16 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import {
   ConfirmDialog,
   EmptyState,
   LoadingState,
   SectionCard,
-  StatusBadge,
 } from "@/components/shared";
-import {
-  KPI_RATING_META,
-  REPORT_STATUS_META,
-  SCHEDULE_RECOMMENDATION_META,
-} from "@/lib/constants";
+import { REPORT_STATUS_META } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { formatDate, formatNumber } from "@/lib/formatters";
-import {
-  calculateSpi,
-  recommendScheduleStatus,
-  scheduleVariance,
-} from "@/lib/reporting";
 import { weeklyWorkflow, type WorkflowStatus } from "@/config/workflows";
-import { getContactById, getProjectTypeById } from "@/features/master-data";
+import { getProjectTypeById } from "@/features/master-data";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
 import type {
@@ -55,46 +43,15 @@ import {
   type WeeklyScope,
 } from "../scope";
 import { buildWeeklyWorkspace } from "../workspace";
-import { countReceived, isEditableReport, spiTone } from "../utils";
+import { countReceived, isEditableReport } from "../utils";
 import { ActivitiesTable } from "./activities-table";
+import { useWeeklyNameLookup } from "./weekly-department-section";
 import { WeeklyDepartmentsPanel } from "./weekly-departments-panel";
+import { WeeklyLookahead } from "./weekly-lookahead";
 import { WeeklyProgressSummary } from "./weekly-progress-summary";
+import { WeeklyProjectEntries } from "./weekly-project-entries";
+import { WeeklyReportInformation } from "./weekly-report-information";
 import { WeeklyWorkspaceHeader } from "./weekly-workspace-header";
-
-const toneClass = {
-  success: "text-success",
-  warning: "text-warning",
-  danger: "text-destructive",
-} as const;
-
-function Metric({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: string;
-}) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={cn("text-lg font-semibold tracking-tight tabular-nums", tone)}>
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function ContactRow({ label, contactId }: { label: string; contactId?: string }) {
-  const contact = getContactById(contactId);
-  return (
-    <div className="flex items-baseline justify-between gap-2 border-b border-dashed pb-1.5 last:border-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-sm font-medium">{contact?.name ?? "—"}</dd>
-    </div>
-  );
-}
 
 /** Horizontal workflow stepper for the weekly main path. */
 function WorkflowStepper({ status }: { status: ReportStatus }) {
@@ -177,6 +134,14 @@ export function WeeklyReportDetailView({
   const [archiveOpen, setArchiveOpen] = React.useState(false);
   const [pendingStatus, setPendingStatus] = React.useState<string | null>(null);
   const [reloadKey, setReloadKey] = React.useState(0);
+
+  /*
+   * Master-data names for the project-level sections. Resolved here, beside
+   * the panel's own lookup, because both subscribe to the same lazily
+   * hydrated stores and a name resolved twice is still one subscription set.
+   * Called before the early returns below — it is a hook.
+   */
+  const names = useWeeklyNameLookup();
 
   React.useEffect(() => {
     let cancelled = false;
@@ -292,8 +257,6 @@ export function WeeklyReportDetailView({
     );
   }
 
-  const variance = scheduleVariance(report.plannedProgress, report.actualProgress);
-  const spi = calculateSpi(report.plannedProgress, report.actualProgress);
   const received = countReceived(submissions);
   const allowedTransitions = (
     weeklyWorkflow.transitions[report.status as WorkflowStatus] ?? []
@@ -367,158 +330,123 @@ export function WeeklyReportDetailView({
         </p>
       )}
 
+      {/*
+        The report reads top to bottom the way a printed one does: what the
+        week achieved, then who reported it, then what it needs. The old
+        two-thirds/one-third split put the KPI card beside the departments and
+        the sign-off in a sidebar, which is a dashboard shape — and it is not
+        the shape the Print sprint has to walk.
+      */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3">
+        <WorkflowStepper status={report.status} />
+        <div className="flex flex-wrap items-center gap-3">
+          {/*
+            The Monthly roll-up, counted from `include_in_monthly` on the rows
+            this viewer can reach. Monthly compilation is not built; this only
+            says how much has been flagged for it.
+          */}
+          {workspace && workspace.markedForMonthly > 0 && (
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {workspace.markedForMonthly} item
+              {workspace.markedForMonthly === 1 ? "" : "s"} marked for Monthly
+            </span>
+          )}
+          {allowedTransitions.map((to) => (
+            <Button
+              key={to}
+              size="sm"
+              variant={
+                to === "rejected" || to === "returned" ? "outline" : "default"
+              }
+              disabled={pendingStatus !== null}
+              onClick={() => changeStatus(to)}
+            >
+              Move to {REPORT_STATUS_META[to as ReportStatus].label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {workspace && (
+        <WeeklyProgressSummary
+          summary={workspace.summary}
+          manHoursToDate={report.manHoursToDate}
+          hseStatus={report.hseStatus}
+          qualityStatus={report.qualityStatus}
+          submissionsReceived={received}
+          submissionsTotal={submissions.length}
+        />
+      )}
+
+      {workspace ? (
+        <WeeklyDepartmentsPanel
+          reportId={report.id}
+          workspace={workspace}
+          canEdit={editability.canEdit}
+          onSaved={handleSaved}
+          onEntrySaved={handleEntrySaved}
+          onEntryDeleted={handleEntryDeleted}
+        />
+      ) : (
+        <SectionCard
+          title="Departments"
+          description="Department input for this reporting week."
+        >
+          <p className="text-sm text-muted-foreground">
+            {project
+              ? "Department input cannot be shown until your access to this project is resolved."
+              : "Loading the project this report belongs to…"}
+          </p>
+        </SectionCard>
+      )}
+
       <SectionCard
-        title="Workflow"
-        description="Weekly report lifecycle."
+        title="Major Activities Completed"
+        description="Significant activities delivered in this reporting week."
         action={
-          allowedTransitions.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {allowedTransitions.map((to) => (
-                <Button
-                  key={to}
-                  size="sm"
-                  variant={
-                    to === "rejected" || to === "returned" ? "outline" : "default"
-                  }
-                  disabled={pendingStatus !== null}
-                  onClick={() => changeStatus(to)}
-                >
-                  Move to {REPORT_STATUS_META[to as ReportStatus].label}
-                </Button>
-              ))}
-            </div>
+          activities.length > 0 ? (
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {activities.length} recorded
+            </span>
           ) : undefined
         }
       >
-        <WorkflowStepper status={report.status} />
+        <ActivitiesTable
+          activities={activities}
+          emptyMessage="No major activities recorded for this week. They are added on the report edit form."
+        />
       </SectionCard>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <div className="space-y-4 xl:col-span-2">
-          {workspace && <WeeklyProgressSummary summary={workspace.summary} />}
-
-          {workspace ? (
-            <WeeklyDepartmentsPanel
-              reportId={report.id}
-              workspace={workspace}
-              canEdit={editability.canEdit}
-              onSaved={handleSaved}
-              onEntrySaved={handleEntrySaved}
-              onEntryDeleted={handleEntryDeleted}
+      {workspace && (
+        <>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <WeeklyProjectEntries
+              variant="critical"
+              title="Critical Issues / Risks"
+              description="Open risks and issues raised on this report."
+              entries={workspace.criticalItems}
+              names={names}
+              emptyMessage="No open risks or issues on this report."
             />
-          ) : (
-            <SectionCard
-              title="Departments"
-              description="Department input for this reporting week."
-            >
-              <p className="text-sm text-muted-foreground">
-                {project
-                  ? "Department input cannot be shown until your access to this project is resolved."
-                  : "Loading the project this report belongs to…"}
-              </p>
-            </SectionCard>
-          )}
+            <WeeklyProjectEntries
+              variant="decision"
+              title="Required Decisions / Management Support"
+              description="Items escalated for a decision at project level."
+              entries={workspace.decisionItems}
+              names={names}
+              emptyMessage="Nothing is currently escalated for a decision."
+            />
+          </div>
 
-          <SectionCard
-            title="Major Activities Completed"
-            description="Significant activities delivered in this reporting week."
-          >
-            <ActivitiesTable activities={activities} />
-          </SectionCard>
-        </div>
+          <WeeklyLookahead
+            lines={workspace.lookahead}
+            names={names}
+            scopeItemLabel={workspace.scopeItemLabel}
+          />
+        </>
+      )}
 
-        <div className="space-y-4">
-          <SectionCard
-            title="Key Indicators"
-            description="Derived from planned against actual progress."
-            contentClassName="space-y-4"
-          >
-            <div className="grid grid-cols-2 gap-4">
-              <Metric label="SPI" value={spi.toFixed(2)} tone={toneClass[spiTone(spi)]} />
-              <Metric
-                label="Man-hours"
-                value={
-                  typeof report.manHoursToDate === "number"
-                    ? formatNumber(report.manHoursToDate)
-                    : "—"
-                }
-              />
-              <Metric label="Submissions" value={`${received}/${submissions.length}`} />
-              <div>
-                <p className="text-xs text-muted-foreground">Recommendation</p>
-                <div className="mt-1">
-                  <StatusBadge
-                    tone={
-                      SCHEDULE_RECOMMENDATION_META[recommendScheduleStatus(variance)]
-                        .tone
-                    }
-                  >
-                    {
-                      SCHEDULE_RECOMMENDATION_META[recommendScheduleStatus(variance)]
-                        .label
-                    }
-                  </StatusBadge>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t pt-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">HSE</span>
-                {report.hseStatus ? (
-                  <StatusBadge tone={KPI_RATING_META[report.hseStatus].tone}>
-                    {KPI_RATING_META[report.hseStatus].label}
-                  </StatusBadge>
-                ) : (
-                  <span className="text-sm text-muted-foreground">—</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Quality</span>
-                {report.qualityStatus ? (
-                  <StatusBadge tone={KPI_RATING_META[report.qualityStatus].tone}>
-                    {KPI_RATING_META[report.qualityStatus].label}
-                  </StatusBadge>
-                ) : (
-                  <span className="text-sm text-muted-foreground">—</span>
-                )}
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Report Information">
-            <dl className="space-y-2">
-              <ContactRow label="Prepared by" contactId={report.preparedByContactId} />
-              <ContactRow label="Reviewed by" contactId={report.reviewedByContactId} />
-              <ContactRow label="Approved by" contactId={report.approvedByContactId} />
-            </dl>
-            <Separator className="my-3" />
-            <p className="text-xs tabular-nums text-muted-foreground">
-              Created {formatDate(report.createdAt)} · Updated{" "}
-              {formatDate(report.updatedAt)} · Source{" "}
-              {report.source.replace("_", " ")}
-            </p>
-          </SectionCard>
-
-          {project && (
-            <SectionCard title="Project" description="Linked project master data.">
-              <p className="text-sm font-medium">
-                <Link href={`/projects/${project.id}`} className="hover:underline">
-                  {project.name}
-                </Link>
-              </p>
-              <p className="font-mono text-xs text-muted-foreground">
-                {project.code}
-              </p>
-              <div className="mt-2">
-                <StatusBadge tone="info">
-                  {project.departments.length} departments
-                </StatusBadge>
-              </div>
-            </SectionCard>
-          )}
-        </div>
-      </div>
+      <WeeklyReportInformation report={report} />
 
       <ConfirmDialog
         open={archiveOpen}

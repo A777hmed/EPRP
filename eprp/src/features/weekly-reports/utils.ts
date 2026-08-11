@@ -1,3 +1,5 @@
+import { recommendScheduleStatus } from "@/lib/reporting";
+import { SCHEDULE_RECOMMENDATION_META } from "@/lib/constants";
 import type {
   ProgressStatus,
   ReportStatus,
@@ -32,30 +34,33 @@ export function isEditableReport(report: WeeklyReport): boolean {
   return ["draft", "collecting", "returned"].includes(report.status);
 }
 
-/** Tone for a schedule-variance reading (percentage points). */
+/**
+ * Tone for every figure derived from the schedule variance.
+ *
+ * Deliberately delegates to `recommendScheduleStatus` rather than carrying
+ * thresholds of its own. It used to hold a second set (0 / −5), so a −2 point
+ * variance was painted amber beside a status badge the documented rule called
+ * On Schedule. One rule, one colour: the variance, the SPI and the status
+ * reading now cannot contradict each other.
+ */
 export function varianceTone(
   variance: number
 ): "success" | "warning" | "danger" {
-  if (variance >= 0) return "success";
-  if (variance >= -5) return "warning";
-  return "danger";
-}
-
-/** Tone for an SPI reading (1.0 = on plan). */
-export function spiTone(spi: number): "success" | "warning" | "danger" {
-  if (spi >= 1) return "success";
-  if (spi >= 0.95) return "warning";
-  return "danger";
+  return SCHEDULE_RECOMMENDATION_META[recommendScheduleStatus(variance)].tone;
 }
 
 /**
- * Overall progress verdict suggested by the schedule variance. The user can
- * always override it — this only pre-selects a sensible default.
+ * Overall progress verdict suggested by the schedule variance.
+ *
+ * The user can always override it — this only pre-selects a sensible default.
+ * Every band lands inside the arithmetic reading its own variance produces
+ * (`>= -3` on schedule, `>= -7` delayed, below that critical), so accepting
+ * the suggestion can never create a report that disagrees with itself.
  */
 export function suggestProgressStatus(variance: number): ProgressStatus {
   if (variance > 0) return "ahead";
-  if (variance === 0) return "on_track";
+  if (variance >= -3) return "on_track";
   if (variance >= -5) return "at_risk";
-  if (variance >= -10) return "behind";
+  if (variance >= -7) return "behind";
   return "critical";
 }

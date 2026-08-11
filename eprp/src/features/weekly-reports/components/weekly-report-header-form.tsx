@@ -57,26 +57,24 @@ import type {
   ProgressStatus,
   Project,
 } from "@/types";
+import { suggestProgressStatus, varianceTone } from "../utils";
+import { useHierarchyTerms } from "../use-hierarchy-terms";
 import {
-  spiTone,
-  suggestProgressStatus,
-  varianceTone,
-} from "../utils";
-import {
-  emptyDepartmentUpdate,
   normalizeWeeklyPeriodStart,
   weeklyReportDraftSchema,
   weeklyReportHeaderSchema,
   type WeeklyReportHeaderValues,
 } from "../schemas/weekly-report-header";
-import { DepartmentUpdatesSection } from "./department-updates-section";
 import { MajorActivitiesSection } from "./major-activities-section";
 import { WeeklyEntriesSection } from "./weekly-entries-section";
+import { WeeklyWorkspacePointer } from "./weekly-workspace-pointer";
 
 interface WeeklyReportHeaderFormProps {
   projects: Project[];
   initialValues: WeeklyReportHeaderValues;
   existingReportNumber?: string;
+  /** Present when editing. Lets the form link to the report's workspace. */
+  existingReportId?: string;
   projectLocked?: boolean;
   onSaveDraft: (values: WeeklyReportHeaderValues) => Promise<void>;
   onCancel: () => void;
@@ -276,6 +274,7 @@ export function WeeklyReportHeaderForm({
   projects,
   initialValues,
   existingReportNumber,
+  existingReportId,
   projectLocked = false,
   onSaveDraft,
   onCancel,
@@ -301,6 +300,12 @@ export function WeeklyReportHeaderForm({
   const selectedClient = selectedProject
     ? clientRecords.find((client) => client.id === selectedProject.clientId)
     : undefined;
+  /*
+   * The project's own wording for the level below a System. PSM/PSAIM says
+   * "Programs & Studies"; everything else says "Disciplines". Resolved from
+   * the selected project, so switching projects re-labels the form.
+   */
+  const terms = useHierarchyTerms(selectedProject);
   const period = derivePeriod(periodStart);
 
   const identityUnchanged =
@@ -368,26 +373,19 @@ export function WeeklyReportHeaderForm({
         suggestProgressStatus(scheduleVariance(planned, actual)),
         { shouldDirty: true, shouldValidate: true }
       );
-      // Pre-fill one department update row per reporting department.
-      const reporting = nextProject.departments.filter(
-        (assignment) => assignment.reportingRequired
-      );
-      const seed = reporting.length > 0 ? reporting : nextProject.departments;
-      setValue(
-        "departmentUpdates",
-        seed.map((assignment) =>
-          emptyDepartmentUpdate(assignment.departmentId)
-        ),
-        { shouldDirty: true, shouldValidate: true }
-      );
     }
+    /*
+     * Department rows are deliberately NOT seeded here any more. They are
+     * created by the workspace, one row at a time, against the project's own
+     * scope — seeding them from this form was half of the double-entry path.
+     */
   };
 
   /**
    * Unassigns the project in this report only. Deliberately does not cascade
    * the way `handleProjectChange` does: clearing one field must not wipe the
-   * prepared-by, discipline, KPI, or department-update work already entered.
-   * No project record is touched.
+   * prepared-by, scope, or KPI work already entered. No project record is
+   * touched.
    */
   const clearProject = () => {
     setValue("projectId", "", { shouldDirty: true, shouldValidate: true });
@@ -601,28 +599,35 @@ export function WeeklyReportHeaderForm({
               )}
             </RhfField>
 
+            {/*
+              Three different statuses appear on this form. They are named for
+              what each one is ABOUT — this report's place in the workflow, the
+              project's standing health, and the verdict on this week — because
+              "Status", "Current Project Status" and "Overall Progress Status"
+              read as three opinions of one thing.
+            */}
             <AutoStatusField
-              label="Report Status"
+              label="Report Lifecycle Status"
               statusLabel={reportStatusMeta.label}
               tone={reportStatusMeta.tone}
               placeholder="Draft"
-              description="Workflow status changes are managed from the report workspace."
+              description="Where this report sits in the workflow. Changed from the report workspace."
             />
             <AutoStatusField
-              label="Current Project Status"
+              label="Project Overall Status"
               statusLabel={projectStatusMeta?.label}
               tone={projectStatusMeta?.tone}
               placeholder="Select a project"
-              description="Auto-filled from the project's overall health status."
+              description="The project's standing health, across all weeks. Read-only here."
             />
 
             <RhfField
               control={control}
               name="disciplineIds"
-              label="Discipline(s)"
+              label={`${terms.plural} in Scope`}
               required
               className="sm:col-span-2 xl:col-span-3"
-              description="Preselected from the project’s assigned departments; edit this report’s scope as needed."
+              description={`Preselected from the project’s assigned departments; edit this report’s ${terms.pluralLower} as needed.`}
             >
               {({ field, controlProps }) => (
                 <ManagedMultiSelect
@@ -636,8 +641,11 @@ export function WeeklyReportHeaderForm({
                   }
                   onBlur={field.onBlur}
                   disabled={!selectedProject}
-                  placeholder="Select one or more disciplines…"
-                  clearLabel="Clear all selected disciplines"
+                  placeholder={`Select one or more ${terms.pluralLower}…`}
+                  clearLabel={`Clear all selected ${terms.pluralLower}`}
+                  searchPlaceholder={`Search ${terms.pluralLower}…`}
+                  emptyLabel={`No ${terms.pluralLower} found.`}
+                  optionsHeading={terms.plural}
                   controlProps={controlProps}
                 />
               )}
@@ -732,7 +740,10 @@ export function WeeklyReportHeaderForm({
             <AutoMetricField
               label="SPI"
               value={spi === null ? undefined : spi.toFixed(2)}
-              tone={spi === null ? undefined : spiTone(spi)}
+              // Coloured by the variance, not by a threshold of its own: the
+              // SPI and the variance are the same fact in two notations and
+              // must never be painted different colours.
+              tone={variance === null ? undefined : varianceTone(variance)}
               placeholder={
                 progressEntered && plannedProgress === 0
                   ? "N/A when plan is 0%"
@@ -852,12 +863,12 @@ export function WeeklyReportHeaderForm({
             <RhfField
               control={control}
               name="overallProgressStatus"
-              label="Overall Progress Status"
+              label="Weekly Progress Status"
               required
               description={
                 variance === null
-                  ? "Reported verdict for the week."
-                  : "Reported verdict for the week. See System Recommendation above."
+                  ? "The reported verdict for THIS WEEK. Distinct from the project's overall status."
+                  : "The reported verdict for THIS WEEK. See System Recommendation above."
               }
             >
               {({ field, controlProps }) => (
@@ -908,16 +919,25 @@ export function WeeklyReportHeaderForm({
         <MajorActivitiesSection
           control={control}
           setValue={setValue}
+          terms={terms}
           disabled={!selectedProject}
         />
 
-        <DepartmentUpdatesSection
+        {/*
+          Department and scope-item input has ONE editor, and it is not this
+          one. See `weekly-report-header.ts` for what was removed and why.
+        */}
+        <WeeklyWorkspacePointer
+          reportId={existingReportId}
+          terms={terms}
+          departmentCount={selectedProject?.departments.length ?? 0}
+        />
+
+        <WeeklyEntriesSection
           control={control}
-          setValue={setValue}
+          terms={terms}
           disabled={!selectedProject}
         />
-
-        <WeeklyEntriesSection control={control} disabled={!selectedProject} />
 
         <div className="flex flex-wrap items-center justify-end gap-2 rounded-xl bg-card p-3 ring-1 ring-foreground/10">
           {formState.isDirty && (

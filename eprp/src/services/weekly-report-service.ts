@@ -536,7 +536,13 @@ const mockWeeklyReportService: WeeklyReportService = {
       keyAchievement: input.keyAchievement || undefined,
       delayConstraint: input.delayConstraint || undefined,
       nextWeekPlan: input.nextWeekPlan || undefined,
-      healthStatus: input.healthStatus,
+      /*
+       * Only written when the caller actually supplies one. The workspace does
+       * not edit this field, so assigning `input.healthStatus` unconditionally
+       * cleared any verdict recorded earlier — a save wiping a value its own
+       * form never showed. Absent means "leave it alone", not "set it to null".
+       */
+      healthStatus: input.healthStatus ?? existing?.healthStatus,
     };
 
     submissionStore.set(saved.id, saved);

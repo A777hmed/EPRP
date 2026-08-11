@@ -56,6 +56,16 @@ export interface ManagedSelectProps {
   filter?: (record: MasterRecordBase) => boolean;
   /** Message shown when the filter leaves no options. */
   emptyLabel?: string;
+  /**
+   * Wording for the search box, when the caller's screen names this kind
+   * differently from Global Administration.
+   *
+   * The only caller is Weekly on a PSM/PSAIM project, where the level below a
+   * System is a "Program & Study" rather than a "Discipline". The entity is
+   * unchanged and the admin screens keep their own name — this overrides one
+   * string in one place rather than renaming the kind.
+   */
+  searchPlaceholder?: string;
   /** Hide a selected record when it no longer matches `filter`. */
   enforceFilter?: boolean;
   disabled?: boolean;
@@ -84,6 +94,7 @@ export function ManagedSelect({
   onMutated,
   filter,
   emptyLabel,
+  searchPlaceholder,
   enforceFilter = false,
   disabled = false,
 }: ManagedSelectProps) {
@@ -167,7 +178,10 @@ export function ManagedSelect({
           >
             <Command>
               <CommandInput
-                placeholder={`Search ${config.plural.toLowerCase()}…`}
+                placeholder={
+                  searchPlaceholder ??
+                  `Search ${config.plural.toLowerCase()}…`
+                }
                 value={query}
                 onValueChange={setQuery}
               />

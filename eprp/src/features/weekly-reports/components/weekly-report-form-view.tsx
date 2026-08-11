@@ -15,7 +15,6 @@ import type {
   WeeklyActivity,
   WeeklyEntry,
   WeeklyReport,
-  WeeklySubmission,
 } from "@/types";
 import {
   emptyWeeklyReportHeaderValues,
@@ -40,34 +39,24 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
    */
   const [loaded, setLoaded] = React.useState<{
     report: WeeklyReport | null;
-    submissions: WeeklySubmission[];
     entries: WeeklyEntry[];
     activities: WeeklyActivity[];
-  } | null>(
-    isEdit
-      ? null
-      : { report: null, submissions: [], entries: [], activities: [] }
-  );
+  } | null>(isEdit ? null : { report: null, entries: [], activities: [] });
 
   React.useEffect(() => {
     projectService.getProjects().then(setProjects);
     if (!reportId) return;
     weeklyReportService.getById(reportId).then(async (found) => {
       if (!found) {
-        setLoaded({
-          report: null,
-          submissions: [],
-          entries: [],
-          activities: [],
-        });
+        setLoaded({ report: null, entries: [], activities: [] });
         return;
       }
-      const [submissions, entries, activities] = await Promise.all([
-        weeklyReportService.listSubmissions(found.id),
+      // Submissions are no longer loaded here: this form does not edit them.
+      const [entries, activities] = await Promise.all([
         weeklyReportService.listEntries(found.id),
         weeklyReportService.listActivities(found.id),
       ]);
-      setLoaded({ report: found, submissions, entries, activities });
+      setLoaded({ report: found, entries, activities });
     });
   }, [reportId]);
 
@@ -75,7 +64,7 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
     return <LoadingState variant="page" label="Loading weekly report header…" />;
   }
 
-  const { report, submissions, entries, activities } = loaded;
+  const { report, entries, activities } = loaded;
 
   if (isEdit && report === null) {
     return (
@@ -98,7 +87,7 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
       project.id === report?.projectId
   );
   const initialValues = report
-    ? weeklyReportToHeaderValues(report, submissions, entries, activities)
+    ? weeklyReportToHeaderValues(report, entries, activities)
     : emptyWeeklyReportHeaderValues();
 
   const handleSaveDraft = async (values: WeeklyReportHeaderValues) => {
@@ -119,21 +108,16 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
 
     // Blank optional text/date/number fields are stored as "not set".
     const blank = (value?: string) => (value ? value : undefined);
-    const departmentUpdates = values.departmentUpdates.map((row) => ({
-      id: row.id,
-      departmentId: row.departmentId,
-      disciplineId: blank(row.disciplineId),
-      status: row.status,
-      progressPercent: Number.isNaN(row.progressPercent)
-        ? undefined
-        : row.progressPercent,
-      summary: blank(row.summary),
-      keyAchievement: blank(row.keyAchievement),
-      delayConstraint: blank(row.delayConstraint),
-      nextWeekPlan: blank(row.nextWeekPlan),
-      responsibleContactId: blank(row.responsibleContactId),
-      targetDate: blank(row.targetDate),
-    }));
+
+    /*
+     * `saveSubmissions` is deliberately NOT called from here any more.
+     *
+     * It deletes every `weekly_submissions` row on the report and re-inserts
+     * the form's set. This form no longer edits those rows — the workspace
+     * does, one row at a time — so calling it would delete department input
+     * this form never showed and reissue the ids of the rest. Nothing about
+     * the stored rows changed; this form simply stops rewriting them.
+     */
 
     const entryRows = values.entries.map((row) => ({
       id: row.id,
@@ -170,7 +154,6 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
         disciplineIds: values.disciplineIds,
         ...kpis,
       });
-      await weeklyReportService.saveSubmissions(updated.id, departmentUpdates);
       await weeklyReportService.saveActivities(updated.id, activityRows);
       await weeklyReportService.saveEntries(updated.id, entryRows);
       toast.success(`Draft ${updated.reportNumber} saved`);
@@ -185,8 +168,10 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
       disciplineIds: values.disciplineIds,
       ...kpis,
     });
-    // Replaces the rows auto-created from the project with the edited set.
-    await weeklyReportService.saveSubmissions(created.id, departmentUpdates);
+    /*
+     * The rows `create` seeds from the project's reporting departments are
+     * left exactly as created. They are the workspace's starting point.
+     */
     await weeklyReportService.saveActivities(created.id, activityRows);
     await weeklyReportService.saveEntries(created.id, entryRows);
     toast.success(`Draft ${created.reportNumber} saved`);
@@ -198,12 +183,13 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
       <PageHeader
         eyebrow="Reporting"
         title={isEdit ? `Edit ${report?.reportNumber}` : "New Weekly Report"}
-        description="Complete the weekly header, progress KPIs, department updates, and any comments, risks, issues, or actions, then save the report as a draft."
+        description="Complete the weekly header, progress KPIs, major activities, and any comments, risks, issues, or actions, then save the report as a draft. Department input is collected in the report workspace."
       />
       <WeeklyReportHeaderForm
         projects={availableProjects}
         initialValues={initialValues}
         existingReportNumber={report?.reportNumber}
+        existingReportId={report?.id}
         projectLocked={isEdit}
         onSaveDraft={handleSaveDraft}
         onCancel={() =>

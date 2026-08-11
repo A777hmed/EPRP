@@ -2,12 +2,7 @@ import { format, getISODay, isValid, parseISO } from "date-fns";
 import { z } from "zod";
 
 import { getReportingWeekRange } from "@/lib/reporting";
-import type {
-  WeeklyActivity,
-  WeeklyEntry,
-  WeeklyReport,
-  WeeklySubmission,
-} from "@/types";
+import type { WeeklyActivity, WeeklyEntry, WeeklyReport } from "@/types";
 
 const reportStatuses = [
   "draft",
@@ -88,21 +83,6 @@ const manHoursSchema = looseNumber.superRefine((value, ctx) => {
   }
 });
 
-const submissionStatuses = [
-  "pending",
-  "in_progress",
-  "submitted",
-  "returned",
-  "approved",
-] as const;
-
-const healthStatuses = [
-  "on_track",
-  "at_risk",
-  "delayed",
-  "blocked",
-] as const;
-
 const optionalIsoDate = z
   .string()
   .refine(
@@ -110,57 +90,20 @@ const optionalIsoDate = z
     "Enter a valid date"
   );
 
-/** One "Department Updates" row (Phase 6A.3). */
-export const departmentUpdateSchema = z.object({
-  id: z.string().optional(),
-  departmentId: z.string().trim().min(1, "Select a department"),
-  disciplineId: z.string().trim(),
-  status: z.enum(submissionStatuses),
-  healthStatus: z.enum(healthStatuses),
-  risksIssues: z.string().trim().max(1000).optional().or(z.literal("")),
-  /**
-   * No longer edited in the form (W3A replaced it with Key Update +
-   * Risks / Issues), but carried through so saving does not discard a
-   * narrative written before this phase — saveSubmissions replaces all rows.
-   */
-  summary: z.string().trim().max(1000).optional().or(z.literal("")),
-  progressPercent: looseNumber.superRefine((value, ctx) => {
-    if (Number.isNaN(value)) return; // optional per row
-    if (value < 0 || value > 100) {
-      ctx.addIssue({ code: "custom", message: "Must be between 0 and 100" });
-      return;
-    }
-    if (!Number.isInteger(value)) {
-      ctx.addIssue({ code: "custom", message: "Enter a whole percentage" });
-    }
-  }),
-  keyAchievement: z.string().trim().max(1000).optional().or(z.literal("")),
-  delayConstraint: z.string().trim().max(1000).optional().or(z.literal("")),
-  nextWeekPlan: z.string().trim().max(1000).optional().or(z.literal("")),
-  responsibleContactId: z.string().trim(),
-  targetDate: optionalIsoDate,
-});
-
-export type DepartmentUpdateValues = z.infer<typeof departmentUpdateSchema>;
-
-export function emptyDepartmentUpdate(
-  departmentId = ""
-): DepartmentUpdateValues {
-  return {
-    departmentId,
-    disciplineId: "",
-    status: "pending",
-    healthStatus: "on_track",
-    risksIssues: "",
-    summary: "",
-    progressPercent: Number.NaN,
-    keyAchievement: "",
-    delayConstraint: "",
-    nextWeekPlan: "",
-    responsibleContactId: "",
-    targetDate: "",
-  };
-}
+/*
+ * The "Department Updates" row schema that used to live here is gone.
+ *
+ * It backed a second editor for `weekly_submissions` — the same rows the
+ * Weekly workspace edits per (report, department, scope item) — and it saved
+ * through `saveSubmissions`, which DELETES every submission row on the report
+ * and re-inserts the form's set. A department update written in the workspace
+ * and then a Save Draft from this form would rewrite every row and reissue
+ * every id; removing a row here deleted the workspace's work outright.
+ *
+ * Department and scope-item input now has exactly one editor: the workspace.
+ * No stored data was dropped — the columns and every existing row are
+ * untouched, and the report edit form simply no longer writes them.
+ */
 
 const activityStatuses = ["not_started", "in_progress", "completed"] as const;
 
@@ -336,27 +279,6 @@ export const weeklyReportHeaderSchema = z.object({
     .trim()
     .max(5000, "Keep the executive summary under 5000 characters"),
   activities: z.array(weeklyActivitySchema),
-  departmentUpdates: z
-    .array(departmentUpdateSchema)
-    .superRefine((rows, ctx) => {
-      const seen = new Map<string, number>();
-      rows.forEach((row, index) => {
-        if (!row.departmentId) return;
-        // A department may appear once per discipline, not twice for the same one.
-        const key = `${row.departmentId}::${row.disciplineId}`;
-        const first = seen.get(key);
-        if (first !== undefined) {
-          ctx.addIssue({
-            code: "custom",
-            path: [index, "departmentId"],
-            message:
-              "This department and discipline combination is already listed",
-          });
-        } else {
-          seen.set(key, index);
-        }
-      });
-    }),
   entries: z.array(weeklyEntrySchema),
 });
 
@@ -373,11 +295,9 @@ export type WeeklyReportHeaderValues = z.infer<
  * action-item rules all still apply, and `weeklyReportHeaderSchema` keeps
  * enforcing the full set for submission.
  *
- * Two stay required even for a draft, because the row cannot exist without
- * them: `projectId` (`weekly_reports.project_id` is `not null`, and the
- * report number is derived from the project code) and each department row's
- * `departmentId` (`weekly_submissions.department_id` is `not null` and part
- * of the row's uniqueness rule). Both keep their existing messages.
+ * `projectId` stays required even for a draft, because the row cannot exist
+ * without it: `weekly_reports.project_id` is `not null` and the report number
+ * is derived from the project code. It keeps its existing message.
  */
 export const weeklyReportDraftSchema = weeklyReportHeaderSchema.extend({
   preparedByContactId: z.string().trim(),
@@ -410,7 +330,6 @@ export function emptyWeeklyReportHeaderValues(): WeeklyReportHeaderValues {
     overallProgressStatus: "on_track",
     executiveSummary: "",
     activities: [],
-    departmentUpdates: [],
     entries: [],
   };
 }
@@ -434,30 +353,8 @@ export function entriesToEntryValues(
   }));
 }
 
-export function submissionsToDepartmentUpdates(
-  submissions: WeeklySubmission[]
-): DepartmentUpdateValues[] {
-  return submissions.map((submission) => ({
-    id: submission.id,
-    departmentId: submission.departmentId,
-    disciplineId: submission.disciplineId ?? "",
-    status: submission.status,
-    healthStatus: submission.healthStatus ?? "on_track",
-    risksIssues: submission.risksIssues ?? "",
-    // Carried, not edited — see departmentUpdateSchema.
-    summary: submission.summary ?? "",
-    progressPercent: submission.progressPercent ?? Number.NaN,
-    keyAchievement: submission.keyAchievement ?? "",
-    delayConstraint: submission.delayConstraint ?? "",
-    nextWeekPlan: submission.nextWeekPlan ?? "",
-    responsibleContactId: submission.responsibleContactId ?? "",
-    targetDate: submission.targetDate ?? "",
-  }));
-}
-
 export function weeklyReportToHeaderValues(
   report: WeeklyReport,
-  submissions: WeeklySubmission[] = [],
   entries: WeeklyEntry[] = [],
   activities: WeeklyActivity[] = []
 ): WeeklyReportHeaderValues {
@@ -475,7 +372,6 @@ export function weeklyReportToHeaderValues(
     overallProgressStatus: report.overallProgressStatus ?? "on_track",
     executiveSummary: report.summary ?? "",
     activities: activitiesToValues(activities),
-    departmentUpdates: submissionsToDepartmentUpdates(submissions),
     entries: entriesToEntryValues(entries),
   };
 }

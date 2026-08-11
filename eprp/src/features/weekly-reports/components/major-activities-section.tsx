@@ -28,6 +28,7 @@ import {
 } from "@/features/master-data";
 import { RhfField } from "@/features/projects/components/form-field";
 import { ACTIVITY_STATUS_META } from "@/lib/constants";
+import type { HierarchyTerms } from "@/config/project-terminology";
 import type { ActivityStatus, Discipline, MasterRecordBase } from "@/types";
 import {
   emptyWeeklyActivity,
@@ -42,6 +43,7 @@ function ActivityRow({
   index,
   position,
   total,
+  terms,
   onRemove,
   onMove,
 }: {
@@ -50,6 +52,8 @@ function ActivityRow({
   index: number;
   position: number;
   total: number;
+  /** The project's wording for the level below a System. */
+  terms: HierarchyTerms;
   onRemove: () => void;
   onMove: (direction: -1 | 1) => void;
 }) {
@@ -164,7 +168,7 @@ function ActivityRow({
           <RhfField
             control={control}
             name={`activities.${index}.disciplineId`}
-            label="Discipline"
+            label={terms.singular}
             optional
             description={
               departmentId
@@ -180,6 +184,10 @@ function ActivityRow({
                 onBlur={field.onBlur}
                 controlProps={controlProps}
                 filter={disciplineFilter}
+                placeholder={`Select ${terms.singularLower}…`}
+                emptyLabel={`No ${terms.pluralLower} for this department.`}
+                searchPlaceholder={`Search ${terms.pluralLower}…`}
+                clearLabel={`Clear ${terms.singularLower}`}
               />
             )}
           </RhfField>
@@ -309,6 +317,8 @@ function ActivityRow({
 export interface MajorActivitiesSectionProps {
   control: Control<WeeklyReportHeaderValues>;
   setValue: UseFormSetValue<WeeklyReportHeaderValues>;
+  /** The project's wording for the level below a System. */
+  terms: HierarchyTerms;
   disabled: boolean;
 }
 
@@ -320,6 +330,7 @@ export interface MajorActivitiesSectionProps {
 export function MajorActivitiesSection({
   control,
   setValue,
+  terms,
   disabled,
 }: MajorActivitiesSectionProps) {
   const activities = useFieldArray({ control, name: "activities" });
@@ -362,6 +373,7 @@ export function MajorActivitiesSection({
               index={index}
               position={index + 1}
               total={activities.fields.length}
+              terms={terms}
               onRemove={() => activities.remove(index)}
               onMove={(direction) =>
                 activities.swap(index, index + direction)

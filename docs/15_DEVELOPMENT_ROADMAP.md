@@ -10,10 +10,12 @@ This file is the single source of truth for **where the project actually is**. U
 
 ## Status at a glance
 
-Last verified: **2026-08-10** (lint, type-check, and production build all green;
-the Weekly workspace exercised in the browser against the live Supabase project
-— department and scope-item rows read back, and one scope-item update saved,
-reloaded, and restored).
+Last verified: **2026-08-11** (lint, type-check, and production build all green;
+98 assertions over the pure Weekly derivation, terminology, scope and lifecycle
+modules all passing; the Weekly workspace, Edit form and Preview exercised in
+the browser against the live Supabase project — a scope-item update and a
+Required Action with a scoped owner saved by one press, reloaded, and restored,
+and a lifecycle transition correctly refused).
 
 | # | Phase | Status |
 |---|---|---|
@@ -23,7 +25,7 @@ reloaded, and restored).
 | 2A | Organization Chart *(added — see note)* | ✅ Complete |
 | 2B | Configurable hierarchy and scoped assignments *(added — see note)* | ✅ Complete |
 | 3 | Data foundation | ✅ Complete — all 32 migrations applied |
-| 4 | Weekly Workspace UI | ⚠️ Partial (~80%) — workspace rendered down to the scope-item level |
+| 4 | Weekly Workspace UI | ⚠️ Partial (~90%) — content complete and print-ready; attachments and history outstanding |
 | 5 | Weekly data and department submission | ⚠️ Partial — department ownership now enforced in the UI |
 | 6 | Comments and collaboration | ⚠️ Partial |
 | 7 | Workflow, permissions, notifications | ❌ Config only, nothing enforced |
@@ -33,9 +35,10 @@ reloaded, and restored).
 | 11 | A4/PDF output | ❌ Not started |
 | 12 | Hardening and future integrations | ❌ Not started |
 
-**Current phase: 4 (Weekly Workspace), in progress. Next increment: Look Ahead
-and milestones — the remaining Phase 4 sections are listed in order under
-Phase 4 below.**
+**Current phase: 4 (Weekly Workspace). The final content and layout pass is
+done and the Weekly is the canonical source for Print. Next increment: Phase 11
+Print / PDF, reading the Weekly workspace data as it now stands. Attachments
+and history remain outstanding in Phase 4 and are listed under it below.**
 
 The two standing facts that used to gate every estimate below are **no longer true** and are recorded here so the change is visible rather than silently edited away:
 
@@ -194,11 +197,97 @@ second row, and a stale id cannot steer a write onto another department's or
 another item's input. No migration was needed: the table, its unique index, and
 the scoped RLS policies already cover the scope-item level.
 
+**Added in the final content and layout pass:** the workspace now reads as a
+progress report rather than a dashboard — one linear document from the week's
+progress, through the departments, to what the project needs.
+
+- **One reading of the schedule variance.** Three threshold sets used to answer
+  the same question on one screen, so a report could say On Track, print
+  "Variance reads at risk" beside it, and show a Recommendation of On Schedule.
+  `progressSummary()` now interprets the variance once, by the documented §5
+  thresholds, and the arithmetic is remarked on only when it genuinely
+  disagrees with the recorded verdict — naming the figure when it does. The
+  duplicate "Key Indicators" card is gone; SPI, HSE, Quality, man-hours and the
+  submission count live beside the figures they qualify, and are omitted rather
+  than shown as "—" when the report does not record them.
+- **Department Overall Update**, renamed from "General Department Update",
+  collapsed by default and marked Optional. It was open by default and took
+  most of a screen, pushing the scope items — the actual weekly content — below
+  the fold. It has never gated completion and now says so.
+- **Compact department headers**: name and code, manager (from the project's own
+  scoped assignments, never the master-data default lead), reported out of
+  expected, outstanding count, missing-input flag, completion state.
+- **One save per scope item.** The weekly update and the Required Action /
+  Support rows are still two writes to two tables, unchanged, but one press
+  performs both and each part is skipped when it is not dirty. Entry ids are
+  folded back one row at a time, so a retry after a mid-way failure updates the
+  rows that already landed instead of inserting twins of them.
+- **Project-level Critical Issues / Risks and Required Decisions / Management
+  Support**, derived from the existing `weekly_entries` rows — risks and issues
+  for the first, `escalation` category for the second. No new table, no new
+  form. A scope item's Required Action rows are `action` + `general` and match
+  neither, so nothing is reported twice.
+- **Next Week Lookahead**, gathered from the `nextWeekPlan` already recorded on
+  each department and scope item. Nothing is copied into a second field.
+- **Report Information / Approval** as a compact strip: prepared, reviewed and
+  approved by, created, last updated, source, lifecycle state. An unrecorded
+  name reads "Not recorded" and is never filled in with the signed-in user.
+- **`Include in Monthly`** keeps `weekly_entries.include_in_monthly` and now
+  rolls up per scope item and per report. Monthly compilation is still Phase 9.
+- **No horizontal overflow.** `SidebarInset` lacked `min-w-0`, so as a flex
+  child its automatic minimum was its content's min-content width and one long
+  unbreakable row pushed the whole document past the viewport. Shell-level fix,
+  one property, applies to every route.
+
+**Added in the Edit / Preview consistency pass:**
+
+- **One editor for department input.** The report edit form carried a second
+  "Department Updates" editor over the same `weekly_submissions` rows the
+  workspace edits, and it saved through `saveSubmissions`, which DELETES every
+  submission row on the report and re-inserts the form's set. A Save Draft
+  therefore rewrote or deleted work done in the workspace and reissued every
+  row id. The editor and that call are gone; the form now points at the
+  workspace. **No stored data was removed** — the columns and rows are
+  untouched and every existing value still renders.
+- **`saveDepartmentUpdate` no longer nulls `health_status`.** It sent
+  `health_status: null` on every save, so a workspace save silently cleared a
+  verdict recorded through the old form — a write wiping a column its own form
+  never showed. The key is now omitted unless the caller supplies one.
+- **Project-type terminology reaches the Edit form and the Preview.** Both
+  resolve `hierarchyTermsFor()` through the new `useHierarchyTerms` hook, which
+  subscribes to the master-data store rather than reading it synchronously —
+  the same lazy-hydration trap that made the old preview render raw UUIDs. A
+  PSM/PSAIM project now says Programs & Studies in the scope selector, the
+  activity and entry pickers, and every preview heading. `ManagedSelect` and
+  `ManagedMultiSelect` gained `searchPlaceholder` / `optionsHeading` overrides
+  so one string can be renamed per screen without renaming the kind.
+- **Owner selection is scoped to the project.** The Required Action / Support
+  owner offered every contact in master data; it now offers only the people the
+  project assigned to that department, scope item first, via
+  `DepartmentSection.eligiblePeople`. A scoped member sees only the people on
+  their own items. Someone stored but since unassigned stays selectable and is
+  marked, rather than being silently dropped.
+- **The Preview consumes the canonical Weekly data.** It calls
+  `buildWeeklyWorkspace()` with a server-resolved scope, exactly as the
+  workspace route does, so it cannot show a different report. Its
+  eight-column department table — 1208px inside a 686px page, with a permanent
+  horizontal scrollbar — is replaced by stacked blocks that wrap at any width.
+- **The three statuses are named for what they are about**: Report Lifecycle
+  Status, Project Overall Status, Weekly Progress Status. No new status model.
+
+Two "Discipline" strings remain reachable from a PSM Edit form, deliberately:
+"Add new discipline" and "Manage disciplines…" inside the picker. Both open
+Global Administration, where the record IS a Discipline; relabelling the
+doorway would announce one thing and open another, and the standing rule is
+that Global Administration keeps the entity name.
+
 **Still missing, from `archive/reporting-architecture-v1.md` §3:**
 
-- Look Ahead (next week, 2 weeks, 4 weeks, month, quarter)
-- Documents and attachments
-- Approval actions
+- Documents and attachments. **Confirmed unsupported**: no attachments table
+  exists in any of the 32 migrations, and `attachmentIds` is hard-coded `[]` in
+  both the mock and the Supabase service. Building one was explicitly out of
+  scope for the content pass; it needs a table, storage and a migration.
+- Approval actions beyond the lifecycle transitions
 - History / audit trail
 
 ---
@@ -311,6 +400,20 @@ Create print views and PDF export for Weekly, Monthly, Project Executive, and Po
 
 **Current state:** `export-service.ts` is two stubs; there are no print views or print CSS. Requirements are detailed in `12_REPORT_GENERATION.md` §7.
 
+**Ready to start for Weekly.** The Weekly workspace is now the canonical source
+and needs no print-only duplicate of its data. `buildWeeklyWorkspace()` returns
+everything both outputs need, already scoped to the viewer:
+
+- **A. Department-level report** — one `DepartmentSection`: its overall update,
+  its scope items with their submissions, responsibility, actions, and its
+  completion counters.
+- **B. Consolidated Project Weekly Report** — the whole `WeeklyWorkspace`:
+  `summary` (one status reading), every `DepartmentSection`, `criticalItems`,
+  `decisionItems`, `lookahead`, plus the report's own activities and the
+  Report Information fields.
+
+The renderer is the only thing missing. Do not add a second data path for it.
+
 ---
 
 ## Phase 12 — Hardening and future integrations ❌ NOT STARTED
@@ -324,7 +427,29 @@ Add DOCX output, branding management, signatures, QR codes, advanced audit/revis
 - Replace the temporary `using (true)` RLS policies with real per-role rules on
   the **non-Weekly** tables. The four Weekly tables are done — see Phase 5.
 - `xlsx@0.18.5` carries a high-severity advisory with no registry fix available; `next@16.2.10` has one fixed in 16.2.11. Eight advisories total (5 high, 3 moderate).
-- There is no test runner. Assertions written for the tree helpers, chart templates, locking rules, and the Excel importer (87 in total, all passing) live in a scratch directory outside the repository and are lost between sessions. They should be moved into `eprp/src` under a real runner.
+- **There is still no test runner, and this is now the largest gap in the
+  validation story.** Assertions exist for the tree helpers, chart templates,
+  locking rules and the Excel importer (87), and for the Weekly derivation,
+  scope and lifecycle modules (81, added in the final Weekly pass and covering
+  the one-status-reading rule, the optional Department Overall Update, the
+  project-level entry split, the scoped-member boundary and the transition
+  guards). All pass. All of them live in a scratch directory outside the
+  repository and are lost between sessions — the Weekly set runs by mirroring
+  the pure modules and rewriting the `@/` alias, because nothing in `eprp/` can
+  execute a `.ts` file. They should be moved into `eprp/src` under a real
+  runner; adding one is a tooling decision that needs approval.
+- **Row-level security is verified only at the derivation level between
+  database sessions.** The 19 database-level assertions run as the
+  `authenticated` role (Phase 5) have not been re-run since; the Weekly set
+  above asserts that the resolver and the workspace apply the same predicates,
+  which is the rendering half of the same rule, not the boundary itself.
+- **The database holds exactly one project, and it is PSM.** The non-PSM
+  terminology branch therefore cannot be exercised in the browser against real
+  data; it is covered by assertions over `hierarchyTermsFor` /
+  `isPsmProjectType` (including `AIM-01`, which must NOT match) and by the
+  New Weekly Report form before a project is chosen, which correctly falls back
+  to "Discipline". A second, non-PSM project would let this be verified for
+  real.
 
 ---
 

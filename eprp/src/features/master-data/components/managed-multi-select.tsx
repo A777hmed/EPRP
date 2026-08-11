@@ -38,6 +38,14 @@ export interface ManagedMultiSelectProps {
   /** Text shown when the filter leaves nothing to choose from. */
   emptyLabel?: string;
   /**
+   * Wording for the search box, when the caller's screen names this kind
+   * differently from Global Administration — see the note on the same prop in
+   * `ManagedSelect`. Overrides one string; it does not rename the kind.
+   */
+  searchPlaceholder?: string;
+  /** Heading over the option list, when the caller names the kind differently. */
+  optionsHeading?: string;
+  /**
    * Accessible name for the "×" button, e.g. "Clear all disciplines".
    * Defaults to the master-data kind when the field has no distinct name.
    */
@@ -66,6 +74,8 @@ export function ManagedMultiSelect({
   disabled = false,
   filter,
   emptyLabel,
+  searchPlaceholder,
+  optionsHeading,
   clearLabel,
   controlProps,
   onMutated,
@@ -160,7 +170,9 @@ export function ManagedMultiSelect({
           >
             <Command>
               <CommandInput
-                placeholder={`Search ${config.plural.toLowerCase()}…`}
+                placeholder={
+                  searchPlaceholder ?? `Search ${config.plural.toLowerCase()}…`
+                }
                 value={query}
                 onValueChange={setQuery}
               />
@@ -168,7 +180,14 @@ export function ManagedMultiSelect({
                 <CommandEmpty>
                   {emptyLabel ?? `No ${config.plural.toLowerCase()} found.`}
                 </CommandEmpty>
-                <CommandGroup heading={config.plural}>
+                {/*
+                  Named for the caller's screen where it differs. The "Add
+                  new" and "Manage" actions below deliberately keep the master
+                  -data name: they open Global Administration, where the record
+                  IS a Discipline, and relabelling the doorway would announce
+                  one thing and open another.
+                */}
+                <CommandGroup heading={optionsHeading ?? config.plural}>
                   {options.map((record) => {
                     const checked = selectedIds.has(record.id);
                     return (
