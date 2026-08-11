@@ -164,8 +164,8 @@
 @media (min-width: 640px) {
   .weekly-scope-header {
     grid-template-columns:
-      minmax(0, 1.45fr) minmax(0, 1.2fr) minmax(0, 0.55fr)
-      minmax(0, 0.8fr) minmax(0, 1.35fr);
+      minmax(0, 1fr) minmax(0, 0.85fr) minmax(0, 0.64fr)
+      minmax(0, 1.18fr);
   }
 }
 
@@ -219,8 +219,23 @@
   .weekly-scope-header {
     display: grid !important;
     grid-template-columns:
-      minmax(0, 1.45fr) minmax(0, 1.2fr) minmax(0, 0.55fr)
-      minmax(0, 0.8fr) minmax(0, 1.35fr) !important;
+      minmax(0, 1fr) minmax(0, 0.85fr) minmax(0, 0.64fr)
+      minmax(0, 1.18fr) !important;
+  }
+
+  .weekly-scope-header > div,
+  .weekly-scope-header dd {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .weekly-scope-responsible {
+    grid-column: 1 / -1 !important;
+  }
+
+  .weekly-scope-header .inline-flex {
+    max-width: 100%;
+    white-space: normal;
   }
 
   .weekly-department-block {

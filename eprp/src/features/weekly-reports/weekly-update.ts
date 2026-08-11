@@ -1,4 +1,5 @@
 import type {
+  CommentCategory,
   EntryStatus,
   Priority,
   WeeklyEntry,
@@ -7,40 +8,142 @@ import type {
 } from "@/types";
 import type { WeeklyEntryInput } from "@/services/weekly-report-service";
 
-/** The four ordinary comment types shown inside a department scope item. */
-export const WEEKLY_COMMENT_TYPES: WeeklyUpdateType[] = [
+/**
+ * The one user-facing narrative taxonomy for a department scope item.
+ *
+ * `weekly_entries.update_type` predates this UI and is constrained to seven
+ * values. The two contextual distinctions that do not have a dedicated stored
+ * value (Decision and Next Week Plan) reuse the existing entry type/category
+ * compatibility fields; users never see or choose those implementation fields.
+ */
+export const WEEKLY_COMMENT_TYPES = [
   "progress_update",
   "achievement",
-  "delay_constraint",
+  "issue_constraint",
+  "risk",
+  "decision_management_support",
+  "next_week_plan",
+  "action",
   "general",
-];
+ ] as const;
 
-const WEEKLY_COMMENT_TYPE_SET = new Set<WeeklyUpdateType>(
-  WEEKLY_COMMENT_TYPES
-);
+export type WeeklyCommentType = (typeof WEEKLY_COMMENT_TYPES)[number];
 
-/** Formal risks, issues, actions and decisions stay in Management Items. */
-export function isWeeklyComment(entry: WeeklyEntry): boolean {
-  return WEEKLY_COMMENT_TYPE_SET.has(entry.updateType);
+export interface WeeklyCommentTypeMeta {
+  label: string;
+  entryType: WeeklyEntryType;
+  storedUpdateType: WeeklyUpdateType;
+  category: CommentCategory;
+  priority: Priority;
+  requiresWorkflowFields: boolean;
+  showWorkflowFields: boolean;
 }
 
-export const WEEKLY_UPDATE_TYPE_META: Record<
-  WeeklyUpdateType,
-  { label: string; entryType: WeeklyEntryType; priority: Priority }
+export const WEEKLY_COMMENT_TYPE_META: Record<
+  WeeklyCommentType,
+  WeeklyCommentTypeMeta
 > = {
-  progress_update: { label: "Progress Update", entryType: "comment", priority: "low" },
-  achievement: { label: "Achievement", entryType: "comment", priority: "low" },
-  delay_constraint: { label: "Delay / Constraint", entryType: "comment", priority: "high" },
-  risk: { label: "Risk", entryType: "risk", priority: "high" },
-  issue: { label: "Issue", entryType: "issue", priority: "medium" },
-  action_required: { label: "Action Required", entryType: "action", priority: "medium" },
-  general: { label: "General Update", entryType: "comment", priority: "low" },
+  progress_update: {
+    label: "Progress Update",
+    entryType: "comment",
+    storedUpdateType: "progress_update",
+    category: "progress",
+    priority: "low",
+    requiresWorkflowFields: false,
+    showWorkflowFields: false,
+  },
+  achievement: {
+    label: "Achievement",
+    entryType: "comment",
+    storedUpdateType: "achievement",
+    category: "general",
+    priority: "low",
+    requiresWorkflowFields: false,
+    showWorkflowFields: false,
+  },
+  issue_constraint: {
+    label: "Issue / Constraint",
+    entryType: "issue",
+    storedUpdateType: "issue",
+    category: "issue",
+    priority: "medium",
+    requiresWorkflowFields: false,
+    showWorkflowFields: true,
+  },
+  risk: {
+    label: "Risk",
+    entryType: "risk",
+    storedUpdateType: "risk",
+    category: "risk",
+    priority: "high",
+    requiresWorkflowFields: false,
+    showWorkflowFields: true,
+  },
+  decision_management_support: {
+    label: "Decision / Management Support",
+    entryType: "comment",
+    storedUpdateType: "general",
+    category: "escalation",
+    priority: "high",
+    requiresWorkflowFields: false,
+    showWorkflowFields: true,
+  },
+  next_week_plan: {
+    label: "Next Week Plan",
+    entryType: "action",
+    storedUpdateType: "action_required",
+    category: "progress",
+    priority: "medium",
+    requiresWorkflowFields: false,
+    showWorkflowFields: false,
+  },
+  action: {
+    label: "Action",
+    entryType: "action",
+    storedUpdateType: "action_required",
+    category: "general",
+    priority: "medium",
+    requiresWorkflowFields: true,
+    showWorkflowFields: true,
+  },
+  general: {
+    label: "General",
+    entryType: "comment",
+    storedUpdateType: "general",
+    category: "general",
+    priority: "low",
+    requiresWorkflowFields: false,
+    showWorkflowFields: false,
+  },
 };
+
+/** Translate persisted compatibility fields back to the one UI taxonomy. */
+export function weeklyCommentTypeForEntry(entry: WeeklyEntry): WeeklyCommentType {
+  if (entry.updateType === "progress_update") return "progress_update";
+  if (entry.updateType === "achievement") return "achievement";
+  if (entry.updateType === "delay_constraint" || entry.updateType === "issue") return "issue_constraint";
+  if (entry.updateType === "risk") return "risk";
+  if (entry.entryType === "decision") return "decision_management_support";
+  if (entry.updateType === "action_required") {
+    return entry.category === "progress" ? "next_week_plan" : "action";
+  }
+  if (entry.category === "escalation") return "decision_management_support";
+  return "general";
+}
+
+export function weeklyCommentLabel(entry: WeeklyEntry): string {
+  return WEEKLY_COMMENT_TYPE_META[weeklyCommentTypeForEntry(entry)].label;
+}
+
+/** Scope-level entries are the canonical Weekly narrative rows. */
+export function isWeeklyComment(entry: WeeklyEntry): boolean {
+  return Boolean(entry.departmentId);
+}
 
 export interface WeeklyUpdateDraft {
   key: string;
   id?: string;
-  updateType: WeeklyUpdateType;
+  updateType: WeeklyCommentType;
   description: string;
   ownerContactId: string;
   dueDate: string;
@@ -53,7 +156,7 @@ export function toWeeklyUpdateDraft(entry: WeeklyEntry): WeeklyUpdateDraft {
   return {
     key: entry.id,
     id: entry.id,
-    updateType: entry.updateType ?? "general",
+    updateType: weeklyCommentTypeForEntry(entry),
     description: entry.description,
     ownerContactId: entry.ownerContactId ?? "",
     dueDate: entry.dueDate ?? "",
@@ -78,10 +181,11 @@ export function newWeeklyUpdateDraft(key: string): WeeklyUpdateDraft {
 export function weeklyUpdateErrors(row: WeeklyUpdateDraft): string[] {
   const missing: string[] = [];
   if (!row.description.trim()) missing.push("comment text");
-  if (row.updateType === "action_required" && !row.ownerContactId) {
+  const meta = WEEKLY_COMMENT_TYPE_META[row.updateType];
+  if (meta.requiresWorkflowFields && !row.ownerContactId) {
     missing.push("a responsible person");
   }
-  if (row.updateType === "action_required" && !row.dueDate) {
+  if (meta.requiresWorkflowFields && !row.dueDate) {
     missing.push("a target date");
   }
   return missing.length ? [`Weekly update needs ${missing.join(" and ")}.`] : [];
@@ -96,13 +200,13 @@ export function toWeeklyUpdateInput(
     authorContactId?: string;
   }
 ): WeeklyEntryInput {
-  const meta = WEEKLY_UPDATE_TYPE_META[row.updateType];
+  const meta = WEEKLY_COMMENT_TYPE_META[row.updateType];
   return {
     id: row.id,
     entryType: meta.entryType,
-    updateType: row.updateType,
+    updateType: meta.storedUpdateType,
     // Compatibility-only storage. Normal users never choose this field.
-    category: row.updateType === "progress_update" ? "progress" : "general",
+    category: meta.category,
     description: row.description.trim(),
     priority: meta.priority,
     status: row.status,

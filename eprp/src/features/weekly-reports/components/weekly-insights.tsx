@@ -6,7 +6,7 @@ import { SectionCard, StatusBadge, type StatusTone } from "@/components/shared";
 import { ENTRY_STATUS_META, REPORT_STATUS_META } from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
 import type { WeeklyEntry, WeeklyPlanItem, WeeklyReport } from "@/types";
-import { isWeeklyComment, WEEKLY_UPDATE_TYPE_META } from "../weekly-update";
+import { isWeeklyComment, weeklyCommentLabel } from "../weekly-update";
 import type { WeeklyWorkspace } from "../workspace";
 import type { WeeklyNameLookup } from "./weekly-department-section";
 
@@ -190,7 +190,7 @@ export function MonthlyReportTray({ workspace, names, weekNumber }: {
                 <td className="py-2 pr-3">{names.department(entry.departmentId)?.name ?? "Project"}</td>
                 <td className="py-2 pr-3">{names.system(entry.systemId)?.name ?? "—"}</td>
                 <td className="py-2 pr-3">{names.scopeItem(entry.disciplineId)?.name ?? "—"}</td>
-                <td className="py-2 pr-3"><StatusBadge tone={ENTRY_STATUS_META[entry.status].tone}>{WEEKLY_UPDATE_TYPE_META[entry.updateType].label}</StatusBadge></td>
+                <td className="py-2 pr-3"><StatusBadge tone={ENTRY_STATUS_META[entry.status].tone}>{weeklyCommentLabel(entry)}</StatusBadge></td>
                 <td className="max-w-md py-2 pr-3 whitespace-pre-wrap">{entry.description}</td>
                 <td className="py-2 pr-3">{names.person(entry.createdByContactId)?.name ?? "Legacy / not recorded"}</td>
                 <td className="py-2 tabular-nums">Week {weekNumber}</td>

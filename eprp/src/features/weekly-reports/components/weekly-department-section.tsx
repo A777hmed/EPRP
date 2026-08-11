@@ -26,7 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge, type StatusTone } from "@/components/shared";
 import { useMasterData } from "@/features/master-data";
 import {
@@ -48,7 +47,7 @@ import {
   toWeeklyUpdateDraft,
   toWeeklyUpdateInput,
   weeklyUpdateErrors,
-  WEEKLY_UPDATE_TYPE_META,
+  weeklyCommentLabel,
   type WeeklyUpdateDraft,
 } from "../weekly-update";
 import type {
@@ -152,13 +151,13 @@ function toDraft(submission: WeeklySubmission | undefined): Draft {
   };
 }
 
-type NarrativeField =
+type LegacyNarrativeField =
   | "summary"
   | "keyAchievement"
   | "delayConstraint"
   | "nextWeekPlan";
 
-const NARRATIVE_FIELDS: NarrativeField[] = [
+const LEGACY_NARRATIVE_FIELDS: LegacyNarrativeField[] = [
   "summary",
   "keyAchievement",
   "delayConstraint",
@@ -174,46 +173,11 @@ const NARRATIVE_FIELDS: NarrativeField[] = [
  */
 export type UpdateLevel = "department" | "scope_item";
 
-interface LevelCopy {
-  labels: Record<NarrativeField, string>;
-  placeholders: Record<NarrativeField, string>;
-  statusDescription: string;
-}
-
-const LEVEL_COPY: Record<UpdateLevel, LevelCopy> = {
-  department: {
-    labels: {
-      summary: "Overall Update",
-      keyAchievement: "Key Achievement",
-      delayConstraint: "Delay / Constraint",
-      nextWeekPlan: "Next Week Plan",
-    },
-    placeholders: {
-      summary:
-        "What applies to this department as a whole, and to no single item below.",
-      keyAchievement: "The main department-wide win this week.",
-      delayConstraint: "Anything holding the whole department back.",
-      nextWeekPlan: "What the department plans next week.",
-    },
-    statusDescription: "Optional. Leaving it Pending does not block completion.",
-  },
-  scope_item: {
-    labels: {
-      summary: "Weekly Update / Current Progress",
-      keyAchievement: "Key Achievement",
-      delayConstraint: "Delay / Constraint",
-      nextWeekPlan: "Next Week Plan",
-    },
-    placeholders: {
-      summary:
-        "Briefly describe progress and key developments for this scope item during the reporting week.",
-      keyAchievement: "The main win for this scope item this week.",
-      delayConstraint: "Anything holding this scope item back.",
-      nextWeekPlan: "What is planned for this scope item next week.",
-    },
-    statusDescription:
-      "Contributes to the Department’s overall completion status.",
-  },
+const LEGACY_NARRATIVE_LABELS: Record<LegacyNarrativeField, string> = {
+  summary: "Weekly Update / Current Progress",
+  keyAchievement: "Key Achievement",
+  delayConstraint: "Delay / Constraint",
+  nextWeekPlan: "Next Week Plan",
 };
 
 /** Read-only rendering of one narrative field. */
@@ -231,18 +195,41 @@ function ReadOnlyText({ label, value }: { label: string; value: string }) {
 }
 
 /** What a submission says, for a viewer who may not change it. */
+function LegacyNarrative({ submission }: { submission: WeeklySubmission | undefined }) {
+  const values = LEGACY_NARRATIVE_FIELDS.filter((key) => Boolean(submission?.[key]?.trim()));
+  if (values.length === 0) return null;
+
+  return (
+    <details className="rounded-md border bg-muted/20 px-3 py-2">
+      <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+        Legacy narrative from earlier reporting
+      </summary>
+      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+        {values.map((key) => (
+          <ReadOnlyText
+            key={key}
+            label={LEGACY_NARRATIVE_LABELS[key]}
+            value={submission?.[key] ?? ""}
+          />
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function ReadOnlyUpdate({
   submission,
   level,
+  names,
 }: {
   submission: WeeklySubmission | undefined;
   level: UpdateLevel;
+  names: WeeklyNameLookup;
 }) {
   const status = submission?.status ?? "pending";
-  const { labels } = LEVEL_COPY[level];
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border-l-4 border-l-primary bg-muted/30 px-3 py-2">
         <span className="inline-flex items-center gap-1.5">
           <span className="text-xs text-muted-foreground">Status</span>
           <StatusBadge tone={SUBMISSION_STATUS_META[status].tone}>
@@ -257,16 +244,26 @@ function ReadOnlyUpdate({
               : "Not reported"}
           </span>
         </span>
+        {level === "scope_item" && (
+          <>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Responsible</span>
+              <span className="text-sm font-medium">
+                {submission?.responsibleContactId
+                  ? names.person(submission.responsibleContactId)?.name ?? "Assigned person"
+                  : "Not assigned"}
+              </span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Target Date</span>
+              <span className="text-sm font-medium">
+                {submission?.targetDate ?? "Not set"}
+              </span>
+            </span>
+          </>
+        )}
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {NARRATIVE_FIELDS.map((key) => (
-          <ReadOnlyText
-            key={key}
-            label={labels[key]}
-            value={submission?.[key] ?? ""}
-          />
-        ))}
-      </div>
+      <LegacyNarrative submission={submission} />
     </div>
   );
 }
@@ -381,7 +378,6 @@ function UpdateEditor({
   onSaved,
   items,
 }: UpdateEditorProps) {
-  const copy = LEVEL_COPY[level];
   const [submissionId, setSubmissionId] = React.useState(existing?.id);
   const [draft, setDraft] = React.useState<Draft>(() => toDraft(existing));
   const [pristine, setPristine] = React.useState<Draft>(() => toDraft(existing));
@@ -504,6 +500,12 @@ function UpdateEditor({
   const setMonthly = async (key: string, checked: boolean) => {
     const row = rows.find((candidate) => candidate.key === key);
     if (!row) return;
+    if (checked && !row.description.trim()) {
+      const message = "Comment text is required before including this item in the Monthly Report.";
+      setCommentError(message);
+      toast.error(message);
+      return;
+    }
     const next = { ...row, includeInMonthly: checked };
     patchRow(key, { includeInMonthly: checked });
     // A new comment has no database row yet. Its flag lands with Save Comment.
@@ -617,7 +619,11 @@ function UpdateEditor({
               )}
             </SelectContent>
           </Select>
-          <FieldDescription>{copy.statusDescription}</FieldDescription>
+          <FieldDescription>
+            {level === "scope_item"
+              ? "Contributes to the Department’s overall completion status."
+              : "Optional. Leaving it Pending does not block completion."}
+          </FieldDescription>
         </Field>
 
         <Field data-invalid={progressInvalid || undefined}>
@@ -644,41 +650,6 @@ function UpdateEditor({
             </FieldDescription>
           )}
         </Field>
-      </div>
-
-      <Field>
-        <FieldLabel htmlFor={`${fieldId}-summary`}>
-          {copy.labels.summary}
-        </FieldLabel>
-        <Textarea
-          id={`${fieldId}-summary`}
-          rows={3}
-          disabled={saving}
-          placeholder={copy.placeholders.summary}
-          value={draft.summary}
-          onChange={(event) => set("summary", event.target.value)}
-        />
-      </Field>
-
-      {/* Two-up: three short narratives that used to stack full width. */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        {(["keyAchievement", "delayConstraint", "nextWeekPlan"] as const).map(
-          (key) => (
-            <Field key={key}>
-              <FieldLabel htmlFor={`${fieldId}-${key}`}>
-                {copy.labels[key]}
-              </FieldLabel>
-              <Textarea
-                id={`${fieldId}-${key}`}
-                rows={2}
-                disabled={saving}
-                placeholder={copy.placeholders[key]}
-                value={draft[key]}
-                onChange={(event) => set(key, event.target.value)}
-              />
-            </Field>
-          )
-        )}
       </div>
 
       {/*
@@ -737,11 +708,9 @@ function UpdateEditor({
               </p>
             </div>
             <div className="flex items-center gap-3">
-              {markedForMonthly > 0 && (
-                <span className="text-xs font-medium text-primary">
-                  ★ {markedForMonthly} Monthly
-                </span>
-              )}
+              <span className="text-xs font-medium text-primary">
+                {markedForMonthly} selected for Monthly
+              </span>
               <Button
                 type="button"
                 size="sm"
@@ -860,11 +829,9 @@ function ReadOnlyItems({
         <h5 className="text-xs font-semibold tracking-wide text-primary uppercase">
           Weekly Comments / Updates
         </h5>
-        {marked > 0 && (
-          <span className="text-xs text-muted-foreground">
-            {marked} for Monthly
-          </span>
-        )}
+        <span className="text-xs text-muted-foreground">
+          {marked} selected for Monthly
+        </span>
       </div>
       <ul className="space-y-2">
         {entries.map((entry, index) => (
@@ -874,7 +841,7 @@ function ReadOnlyItems({
                 Comment {index + 1}
               </span>
               <StatusBadge tone={ENTRY_STATUS_META[entry.status].tone}>
-                {WEEKLY_UPDATE_TYPE_META[entry.updateType].label}
+                {weeklyCommentLabel(entry)}
               </StatusBadge>
               {entry.includeInMonthly && (
                 <span className="text-xs font-semibold text-primary">
@@ -1060,7 +1027,7 @@ function ScopeItemCard({
           />
         ) : (
           <>
-            <ReadOnlyUpdate submission={submission} level="scope_item" />
+            <ReadOnlyUpdate submission={submission} level="scope_item" names={names} />
             <ReadOnlyItems entries={row.entries} names={names} />
           </>
         )}
@@ -1275,7 +1242,7 @@ function OverallUpdateBlock({
           />
         ) : (
           <>
-            <ReadOnlyUpdate submission={submission} level="department" />
+            <ReadOnlyUpdate submission={submission} level="department" names={names} />
             <ReadOnlyItems entries={section.overallComments} names={names} />
           </>
         )}

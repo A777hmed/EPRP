@@ -18,11 +18,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { ENTRY_STATUS_META } from "@/lib/constants";
 import { formatDate, formatDateTime } from "@/lib/formatters";
-import type { EntryStatus, WeeklyUpdateType } from "@/types";
+import type { EntryStatus } from "@/types";
 import type { ScopeItemResponsibility } from "../workspace";
 import {
   WEEKLY_COMMENT_TYPES,
-  WEEKLY_UPDATE_TYPE_META,
+  WEEKLY_COMMENT_TYPE_META,
   weeklyUpdateErrors,
   type WeeklyUpdateDraft,
 } from "../weekly-update";
@@ -69,6 +69,8 @@ export function WeeklyUpdateFields({
       source.updatedByContactId !== source.createdByContactId
   );
   const problems = weeklyUpdateErrors(row);
+  const typeMeta = WEEKLY_COMMENT_TYPE_META[row.updateType];
+  const showOwnerAndDue = typeMeta.showWorkflowFields || row.updateType === "next_week_plan";
 
   const audit = source ? (
     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -94,7 +96,7 @@ export function WeeklyUpdateFields({
                 Comment {number}
               </p>
               <StatusBadge tone={ENTRY_STATUS_META[row.status].tone}>
-                {WEEKLY_UPDATE_TYPE_META[row.updateType].label}
+                {typeMeta.label}
               </StatusBadge>
               {row.includeInMonthly && (
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
@@ -107,9 +109,9 @@ export function WeeklyUpdateFields({
               {row.description}
             </p>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              {owner && <span>Responsible: {owner}</span>}
-              <span>Status: {ENTRY_STATUS_META[row.status].label}</span>
-              {row.dueDate && <span>Due: {formatDate(row.dueDate)}</span>}
+              {showOwnerAndDue && owner && <span>Responsible: {owner}</span>}
+              {typeMeta.showWorkflowFields && <span>Status: {ENTRY_STATUS_META[row.status].label}</span>}
+              {showOwnerAndDue && row.dueDate && <span>Due: {formatDate(row.dueDate)}</span>}
             </div>
           </div>
           {canEdit && (
@@ -138,21 +140,7 @@ export function WeeklyUpdateFields({
           )}
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t pt-2">
-          {audit}
-          {canEdit && (
-            <Label className="flex items-center gap-2 text-xs font-normal">
-              <Checkbox
-                checked={row.includeInMonthly}
-                disabled={saving}
-                onCheckedChange={(checked) =>
-                  void onMonthlyChange(checked === true)
-                }
-              />
-              Include in Monthly Report
-            </Label>
-          )}
-        </div>
+        <div className="mt-3 border-t pt-2">{audit}</div>
       </article>
     );
   }
@@ -163,21 +151,15 @@ export function WeeklyUpdateFields({
         <p className="text-xs font-semibold text-primary">
           Comment {number}{source ? "" : " · New"}
         </p>
-        {row.includeInMonthly && (
-          <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
-            <Star className="size-3 fill-current" aria-hidden="true" />
-            Monthly
-          </span>
-        )}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className={typeMeta.showWorkflowFields ? "grid gap-3 sm:grid-cols-2" : "max-w-sm"}>
         <div className="space-y-1.5">
           <Label htmlFor={`${fieldId}-type`}>Update Type</Label>
           <Select
             value={row.updateType}
             onValueChange={(value) =>
-              onChange({ updateType: value as WeeklyUpdateType })
+              onChange({ updateType: value as WeeklyUpdateDraft["updateType"] })
             }
           >
             <SelectTrigger
@@ -190,13 +172,13 @@ export function WeeklyUpdateFields({
             <SelectContent>
               {WEEKLY_COMMENT_TYPES.map((type) => (
                 <SelectItem key={type} value={type}>
-                  {WEEKLY_UPDATE_TYPE_META[type].label}
+                  {WEEKLY_COMMENT_TYPE_META[type].label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1.5">
+        {typeMeta.showWorkflowFields && <div className="space-y-1.5">
           <Label htmlFor={`${fieldId}-status`}>Status</Label>
           <Select
             value={row.status}
@@ -221,7 +203,7 @@ export function WeeklyUpdateFields({
               )}
             </SelectContent>
           </Select>
-        </div>
+        </div>}
       </div>
 
       <div className="space-y-1.5">
@@ -233,13 +215,13 @@ export function WeeklyUpdateFields({
           rows={3}
           disabled={saving || !canEdit}
           aria-label="Comment / Update text"
-          placeholder="Record this week’s progress, achievement, constraint, or general update."
+          placeholder="Record this week’s update."
           value={row.description}
           onChange={(event) => onChange({ description: event.target.value })}
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      {showOwnerAndDue && <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label>Responsible Person</Label>
           <ScopedPersonSelect
@@ -263,13 +245,13 @@ export function WeeklyUpdateFields({
             onChange={(event) => onChange({ dueDate: event.target.value })}
           />
         </div>
-      </div>
+      </div>}
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-2">
         <Label className="flex items-center gap-2 text-xs font-normal">
           <Checkbox
             checked={row.includeInMonthly}
-            disabled={saving || !canEdit}
+            disabled={saving || !canEdit || !row.description.trim()}
             onCheckedChange={(checked) =>
               void onMonthlyChange(checked === true)
             }
@@ -277,13 +259,23 @@ export function WeeklyUpdateFields({
           Include in Monthly Report
         </Label>
         <div className="flex items-center gap-2">
-          {source && (
+          {source ? (
             <Button
               type="button"
               size="sm"
               variant="outline"
               disabled={saving}
               onClick={() => setEditing(false)}
+            >
+              Cancel
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={saving}
+              onClick={() => void onRemove()}
             >
               Cancel
             </Button>
