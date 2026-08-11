@@ -73,7 +73,7 @@ export const mockClients: Client[] = [
 ];
 
 export const mockProjectTypes: ProjectType[] = [
-  { id: "pt-asset-integrity", name: "Asset Integrity", code: "AI", active: true },
+  { id: "pt-asset-integrity", name: "Process Safety and Asset Integrity Management", code: "PSAIM", active: true },
   { id: "pt-inspection", name: "Inspection Program", code: "INSP", active: true },
   { id: "pt-turnaround", name: "Turnaround", code: "TA", active: true },
   { id: "pt-rehabilitation", name: "Rehabilitation", code: "REHAB", active: true },

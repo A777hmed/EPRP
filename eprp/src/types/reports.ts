@@ -12,6 +12,8 @@ import type {
   SubmissionHealthStatus,
   SubmissionStatus,
   WeeklyEntryType,
+  WeeklyPlanStatus,
+  WeeklyUpdateType,
 } from "./core";
 
 /** File attached to a report, submission, or comment. */
@@ -95,6 +97,8 @@ export interface WeeklyEntry {
   id: string;
   weeklyReportId: string;
   entryType: WeeklyEntryType;
+  /** Clear user-facing meaning; legacy category remains internal only. */
+  updateType: WeeklyUpdateType;
   category: CommentCategory;
   description: string;
   priority: Priority;
@@ -107,7 +111,26 @@ export interface WeeklyEntry {
   disciplineId?: string;
   /** Roll this entry up into the monthly report. */
   includeInMonthly: boolean;
+  /** Original author is immutable; responsibility is ownerContactId. */
+  createdByContactId?: string;
+  updatedByContactId?: string;
   createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export interface WeeklyPlanItem {
+  id: string;
+  weeklyReportId: string;
+  kind: "milestone" | "next_week";
+  title: string;
+  startDate?: IsoDate;
+  endDate: IsoDate;
+  ownerContactId?: string;
+  departmentId?: string;
+  status: WeeklyPlanStatus;
+  sortOrder: number;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
 }
 
 /**

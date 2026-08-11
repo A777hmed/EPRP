@@ -267,6 +267,7 @@ export interface WeeklyEntryRow {
   id: string;
   weekly_report_id: string;
   entry_type: string;
+  update_type: string;
   category: string;
   description: string;
   priority: string;
@@ -277,6 +278,23 @@ export interface WeeklyEntryRow {
   system_id: string | null;
   discipline_id: string | null;
   include_in_monthly: boolean;
+  created_by_contact_id: string | null;
+  updated_by_contact_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WeeklyPlanItemRow {
+  id: string;
+  weekly_report_id: string;
+  kind: string;
+  title: string;
+  start_date: string | null;
+  end_date: string;
+  owner_contact_id: string | null;
+  department_id: string | null;
+  status: string;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 }
@@ -393,6 +411,7 @@ export interface Database {
       weekly_reports: TableDef<WeeklyReportRow, Writable<WeeklyReportRow> & { report_number: string; project_id: string; week_number: number; period_start: string; period_end: string }, Writable<WeeklyReportRow>>;
       weekly_submissions: TableDef<WeeklySubmissionRow, Omit<WeeklySubmissionRow, "id" | "created_at" | "updated_at">, Partial<WeeklySubmissionRow>>;
       weekly_entries: TableDef<WeeklyEntryRow, Omit<WeeklyEntryRow, "id" | "created_at" | "updated_at">, Partial<WeeklyEntryRow>>;
+      weekly_plan_items: TableDef<WeeklyPlanItemRow, Omit<WeeklyPlanItemRow, "id" | "created_at" | "updated_at">, Partial<WeeklyPlanItemRow>>;
       weekly_activities: TableDef<WeeklyActivityRow, Omit<WeeklyActivityRow, "id" | "created_at" | "updated_at">, Partial<WeeklyActivityRow>>;
     };
   };

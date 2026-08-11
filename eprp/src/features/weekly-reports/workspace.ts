@@ -6,6 +6,7 @@ import type {
   WeeklyReport,
   WeeklySubmission,
 } from "@/types";
+import { isWeeklyComment } from "./weekly-update";
 import {
   departmentManager,
   scopedAssignments,
@@ -327,7 +328,12 @@ function buildScopeItems(
 
   const entriesByItem = new Map<string, WeeklyEntry[]>();
   for (const entry of entries) {
-    if (entry.departmentId !== departmentId || !entry.disciplineId) continue;
+    if (
+      entry.departmentId !== departmentId ||
+      !entry.disciplineId ||
+      !isWeeklyComment(entry)
+    )
+      continue;
     entriesByItem.set(entry.disciplineId, [
       ...(entriesByItem.get(entry.disciplineId) ?? []),
       entry,
@@ -392,6 +398,8 @@ export interface DepartmentSection {
   overallUpdate?: WeeklySubmission;
   /** Submissions scoped to an item below the System. */
   scopedUpdates: WeeklySubmission[];
+  /** Authored comments that apply to the department as a whole. */
+  overallComments: WeeklyEntry[];
   /** The scope items this department owes input on, with what has arrived. */
   scopeItems: ScopeItemRow[];
   /** Scope items carrying content, out of those in scope for the viewer. */
@@ -559,6 +567,7 @@ export function buildWeeklyWorkspace(
 ): WeeklyWorkspace {
   const all = weeklyDepartments(project);
   const visible = all.filter((id) => canAccessDepartment(scope, id));
+  const reachableEntries = filterWeeklyRows(scope, entries);
 
   const departments: DepartmentSection[] = visible.map((departmentId) => {
     const items = visibleScopeItems(scope, departmentId);
@@ -579,7 +588,13 @@ export function buildWeeklyWorkspace(
       departmentId,
       items,
       mine,
-      entries
+      reachableEntries
+    );
+    const overallComments = reachableEntries.filter(
+      (entry) =>
+        entry.departmentId === departmentId &&
+        !entry.disciplineId &&
+        isWeeklyComment(entry)
     );
     const expected = scopeItems.filter((item) => !item.detached);
 
@@ -588,6 +603,7 @@ export function buildWeeklyWorkspace(
       submissions: mine,
       overallUpdate: mine.find((s) => !s.disciplineId),
       scopedUpdates: mine.filter((s) => Boolean(s.disciplineId)),
+      overallComments,
       scopeItems,
       scopeItemsReported: scopeItems.filter((item) => item.reported).length,
       scopeItemsExpected: expected.length,
@@ -597,7 +613,7 @@ export function buildWeeklyWorkspace(
       markedForMonthly: scopeItems.reduce(
         (count, item) =>
           count + item.entries.filter((entry) => entry.includeInMonthly).length,
-        0
+        overallComments.filter((entry) => entry.includeInMonthly).length
       ),
       state,
       stateLabel: DEPARTMENT_STATE_LABELS[state],
@@ -611,7 +627,6 @@ export function buildWeeklyWorkspace(
    * the same filter the submissions go through — a scoped member's project
    * sections must not become the back door to the whole report.
    */
-  const reachableEntries = filterWeeklyRows(scope, entries);
   const { criticalItems, decisionItems, actionItems, commentItems } =
     projectEntries(reachableEntries);
 

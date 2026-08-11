@@ -25,14 +25,14 @@ and a lifecycle transition correctly refused).
 | 2A | Organization Chart *(added — see note)* | ✅ Complete |
 | 2B | Configurable hierarchy and scoped assignments *(added — see note)* | ✅ Complete |
 | 3 | Data foundation | ✅ Complete — all 32 migrations applied |
-| 4 | Weekly Workspace UI | ⚠️ Partial (~90%) — content complete and print-ready; attachments and history outstanding |
+| 4 | Weekly Workspace UI | ⚠️ Partial (~95%) — final Weekly UX, multiple authored updates, insights, plans and print delivered; attachments/history outstanding |
 | 5 | Weekly data and department submission | ⚠️ Partial — department ownership now enforced in the UI |
 | 6 | Comments and collaboration | ⚠️ Partial |
 | 7 | Workflow, permissions, notifications | ❌ Config only, nothing enforced |
 | 8 | Excel exchange | ❌ Not started |
 | 9 | Monthly Reports | ❌ **Not started** |
 | 10 | Executive reporting | ❌ **Not started** |
-| 11 | A4/PDF output | ❌ Not started |
+| 11 | A4/PDF output | ⚠️ Partial — dedicated Weekly A4 preview/print delivered; other report types remain untouched |
 | 12 | Hardening and future integrations | ❌ Not started |
 
 **Current phase: 4 (Weekly Workspace). The final content and layout pass is
@@ -167,6 +167,17 @@ Implement the Weekly design as a project workspace: header, workflow, KPIs, summ
 **Done when:** the complete Weekly experience is usable with typed data and matches the approved references.
 
 **Delivered:** report header with project linkage, workflow status display, progress and KPI section with auto-calculated variance and SPI, department updates with discipline auto-linking, narrative entries (key comments, risks, issues, actions) with priority/status/owner/due date and an `includeInMonthly` flag, submission status by department, and detail plus preview views.
+
+**Weekly finalization pass (2026-08-11):** the route contract is explicit
+(`/{id}` operational detail, `/{id}/workspace` editing, `/{id}/preview`
+print-ready document); one shared EPROM/client/QR report identity header serves
+all three views; each assigned scope item supports multiple separately
+persisted Weekly Updates with immutable original authorship; Project Control
+look-ahead and next-week baselines are separate from department input; previous
+week continuity, derived alerts, and the Monthly tray are read from canonical
+Weekly data without copying into another report path. Browser verification
+covered all five Weekly routes, update/save, scoped owner candidates, previous
+week present/missing cases, plan save, print controls, and horizontal overflow.
 
 **Added in the Weekly workspace pass:** the detail route now renders the real
 workspace — a professional document header (project, code, client, week,
@@ -392,13 +403,18 @@ Depends on Phase 9 and on the Executive comment flag from Phase 6.
 
 ---
 
-## Phase 11 — A4/PDF output ❌ NOT STARTED
+## Phase 11 — A4/PDF output ⚠️ PARTIAL
 
 Create print views and PDF export for Weekly, Monthly, Project Executive, and Portfolio Executive reports. Include logos, compact charts, selected comments, decisions, sign-offs, and page metadata.
 
 **Done when:** the one-page Executive output is readable and print-safe.
 
-**Current state:** `export-service.ts` is two stubs; there are no print views or print CSS. Requirements are detailed in `12_REPORT_GENERATION.md` §7.
+**Current state:** Weekly now has a dedicated `/weekly-reports/[reportId]/preview`
+A4 document with EPROM/client identity, QR, controlled wrapping/page breaks,
+repeated table headers, and print CSS that removes the application shell and
+all controls. `export-service.ts` remains two stubs and no Monthly or Executive
+print work was started. Requirements are detailed in `12_REPORT_GENERATION.md`
+§7.
 
 **Ready to start for Weekly.** The Weekly workspace is now the canonical source
 and needs no print-only duplicate of its data. `buildWeeklyWorkspace()` returns

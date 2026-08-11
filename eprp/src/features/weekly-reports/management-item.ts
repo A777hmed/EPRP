@@ -135,6 +135,14 @@ export function toEntryInput(row: ManagementItemDraft): WeeklyEntryInput {
   return {
     id: row.id,
     entryType: row.entryType,
+    updateType:
+      row.entryType === "risk"
+        ? "risk"
+        : row.entryType === "issue"
+          ? "issue"
+          : row.entryType === "action" || row.entryType === "decision"
+            ? "action_required"
+            : "general",
     category: row.category,
     description: row.description.trim(),
     priority: row.priority,

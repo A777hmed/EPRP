@@ -3,8 +3,7 @@
 import { EyeOff } from "lucide-react";
 
 import { SectionCard } from "@/components/shared";
-import type { HierarchyTerms } from "@/config/project-terminology";
-import type { Project, WeeklyEntry, WeeklySubmission } from "@/types";
+import type { WeeklyEntry, WeeklySubmission } from "@/types";
 import type { WeeklyWorkspace } from "../workspace";
 import {
   WeeklyDepartmentSection,
@@ -14,11 +13,9 @@ import {
 export interface WeeklyDepartmentsPanelProps {
   reportId: string;
   workspace: WeeklyWorkspace;
-  /** The project, for cascading and owner candidates on management items. */
-  project: Project | null;
-  terms: HierarchyTerms;
   /** The reason it may be false is stated once, at page level. */
   canEdit: boolean;
+  viewerContactId?: string;
   onSaved: (submission: WeeklySubmission) => void;
   onEntrySaved: (entry: WeeklyEntry) => void;
   onEntryDeleted: (entryId: string) => void;
@@ -36,9 +33,8 @@ export interface WeeklyDepartmentsPanelProps {
 export function WeeklyDepartmentsPanel({
   reportId,
   workspace,
-  project,
-  terms,
   canEdit,
+  viewerContactId,
   onSaved,
   onEntrySaved,
   onEntryDeleted,
@@ -83,10 +79,9 @@ export function WeeklyDepartmentsPanel({
             section={section}
             scopeItemLabel={workspace.scopeItemLabel}
             scopeItemLabelPlural={workspace.scopeItemLabelPlural}
-            project={project}
-            terms={terms}
             names={names}
             canEdit={canEdit}
+            viewerContactId={viewerContactId}
             // Opened by default when the viewer covers exactly one department:
             // they came here to fill it in, not to look at a closed row.
             defaultOpen={total === 1}

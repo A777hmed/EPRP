@@ -35,7 +35,7 @@ export function WeeklyWorkspacePointer({
       action={
         reportId ? (
           <Button variant="outline" size="sm" asChild>
-            <Link href={`/weekly-reports/${reportId}`}>
+            <Link href={`/weekly-reports/${reportId}/workspace`}>
               Open workspace
               <ArrowRight data-icon="inline-end" aria-hidden="true" />
             </Link>

@@ -24,6 +24,7 @@ import type {
   Project,
   WeeklyActivity,
   WeeklyEntry,
+  WeeklyPlanItem,
   WeeklyReport,
   WeeklySubmission,
 } from "@/types";
@@ -35,6 +36,9 @@ import {
 } from "../workspace";
 import { useHierarchyTerms } from "../use-hierarchy-terms";
 import { useWeeklyNameLookup } from "./weekly-department-section";
+import { reachableWeeklyUpdates } from "./weekly-insights";
+import { WeeklyWorkspaceHeader } from "./weekly-workspace-header";
+import { WEEKLY_UPDATE_TYPE_META } from "../weekly-update";
 
 function Cell({ label, value }: { label: string; value: string }) {
   return (
@@ -48,12 +52,14 @@ function Cell({ label, value }: { label: string; value: string }) {
 function Section({
   title,
   children,
+  breakable = false,
 }: {
   title: string;
   children: React.ReactNode;
+  breakable?: boolean;
 }) {
   return (
-    <section className="break-inside-avoid">
+    <section className={breakable ? undefined : "break-inside-avoid"}>
       <h2 className="mb-2 text-sm font-semibold">{title}</h2>
       {children}
     </section>
@@ -94,80 +100,143 @@ function ScopeItemBlock({
 }) {
   const submission = row.submission;
   const status = submission?.status ?? "pending";
+  const narratives = [
+    {
+      label: "Weekly Update / Current Progress",
+      value: submission?.summary,
+    },
+    { label: "Key Achievement", value: submission?.keyAchievement },
+    { label: "Delay / Constraint", value: submission?.delayConstraint },
+    { label: "Next Week Plan", value: submission?.nextWeekPlan },
+  ].filter(({ value }) => Boolean(value));
 
   return (
-    <div className="break-inside-avoid border-b border-dashed py-2.5 last:border-0">
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <span className="text-sm font-medium">{itemLabel}</span>
-        {systemLabel && (
-          <span className="text-xs text-muted-foreground">· {systemLabel}</span>
-        )}
-        <span className="ml-auto flex items-center gap-2">
-          {typeof submission?.progressPercent === "number" && (
-            <span className="text-xs font-medium tabular-nums">
-              {submission.progressPercent}%
-            </span>
-          )}
-          <StatusBadge tone={SUBMISSION_STATUS_META[status].tone}>
-            {row.reported
-              ? SUBMISSION_STATUS_META[status].label
-              : "Not reported"}
-          </StatusBadge>
-        </span>
-      </div>
+    <article className="weekly-scope-item break-inside-avoid rounded-lg border bg-background p-3">
+      <dl className="weekly-scope-header grid grid-cols-2 gap-px overflow-hidden rounded-md border bg-border">
+        <div className="min-w-0 bg-card p-2">
+          <dt className="text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
+            Name
+          </dt>
+          <dd className="weekly-print-wrap text-sm font-semibold">{itemLabel}</dd>
+        </div>
+        <div className="min-w-0 bg-card p-2">
+          <dt className="text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
+            System
+          </dt>
+          <dd className="weekly-print-wrap text-sm font-medium">
+            {systemLabel ?? "Not assigned"}
+          </dd>
+        </div>
+        <div className="min-w-0 bg-card p-2">
+          <dt className="text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
+            Progress
+          </dt>
+          <dd className="text-sm font-semibold tabular-nums">
+            {typeof submission?.progressPercent === "number"
+              ? `${submission.progressPercent}%`
+              : "—"}
+          </dd>
+        </div>
+        <div className="min-w-0 bg-card p-2">
+          <dt className="text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
+            Status
+          </dt>
+          <dd className="pt-0.5">
+            <StatusBadge tone={SUBMISSION_STATUS_META[status].tone}>
+              {row.reported
+                ? SUBMISSION_STATUS_META[status].label
+                : "Not reported"}
+            </StatusBadge>
+          </dd>
+        </div>
+        <div className="min-w-0 bg-card p-2">
+          <dt className="text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
+            Responsible Person
+          </dt>
+          <dd className="weekly-print-wrap text-sm font-medium">
+            {responsibleLabel ?? "Not assigned"}
+          </dd>
+        </div>
+      </dl>
 
-      <Meta
-        items={[
-          responsibleLabel ?? "No responsible person assigned",
-          row.detached && "No longer in project scope",
-        ]}
-      />
-
-      {submission?.summary && (
-        <p className="mt-1 text-sm whitespace-pre-wrap text-pretty">
-          {submission.summary}
+      {row.detached && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          No longer in project scope
         </p>
       )}
 
-      <dl className="mt-1 grid gap-x-6 gap-y-1 sm:grid-cols-3">
-        {(
-          [
-            ["Key Achievement", submission?.keyAchievement],
-            ["Delay / Constraint", submission?.delayConstraint],
-            ["Next Week Plan", submission?.nextWeekPlan],
-          ] as const
-        )
-          .filter(([, value]) => Boolean(value))
-          .map(([label, value]) => (
-            <div key={label} className="min-w-0">
-              <dt className="text-xs text-muted-foreground">{label}</dt>
-              <dd className="text-sm whitespace-pre-wrap text-pretty">
+      {narratives.length > 0 && (
+        <dl className="weekly-narratives mt-3 space-y-2">
+          {narratives.map(({ label, value }) => (
+            <div
+              key={label}
+              className="weekly-narrative-block border-l-[3px] border-l-[#0b3f7c] bg-muted/30 px-3 py-2"
+            >
+              <dt className="text-[0.6875rem] font-semibold tracking-wide text-[#0b3f7c] uppercase">
+                {label}
+              </dt>
+              <dd className="weekly-print-wrap mt-0.5 text-sm whitespace-pre-wrap">
                 {value}
               </dd>
             </div>
           ))}
-      </dl>
+        </dl>
+      )}
 
       {row.entries.length > 0 && (
-        <ul className="mt-1.5 space-y-1">
-          {row.entries.map((entry) => (
-            <li key={entry.id} className="text-sm text-pretty">
-              <span className="text-xs text-muted-foreground">Action · </span>
-              {entry.description}
-              <Meta
-                items={[
-                  PRIORITY_META[entry.priority].label,
-                  ENTRY_STATUS_META[entry.status].label,
-                  ownerName(entry.ownerContactId),
-                  entry.dueDate && `due ${formatDate(entry.dueDate)}`,
-                  entry.includeInMonthly && "In Monthly",
-                ]}
-              />
-            </li>
-          ))}
-        </ul>
+        <div className="mt-3">
+          <h5 className="mb-1.5 text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">
+            Weekly Comments / Updates
+          </h5>
+          <table className="weekly-updates-table w-full table-fixed border-collapse text-left text-xs">
+            <colgroup>
+              <col className="w-[15%]" />
+              <col className="w-[43%]" />
+              <col className="w-[18%]" />
+              <col className="w-[10%]" />
+              <col className="w-[14%]" />
+            </colgroup>
+            <thead>
+              <tr className="border-y bg-muted/60 text-muted-foreground">
+                <th className="px-2 py-1.5 font-semibold">Type</th>
+                <th className="px-2 py-1.5 font-semibold">Update</th>
+                <th className="px-2 py-1.5 font-semibold">Author</th>
+                <th className="px-2 py-1.5 font-semibold">Priority</th>
+                <th className="px-2 py-1.5 font-semibold">Monthly</th>
+              </tr>
+            </thead>
+            <tbody>
+              {row.entries.map((entry) => (
+                <tr key={entry.id} className="border-b align-top last:border-0">
+                  <td className="weekly-print-wrap px-2 py-2 font-medium">
+                    {WEEKLY_UPDATE_TYPE_META[entry.updateType].label}
+                  </td>
+                  <td className="weekly-print-wrap px-2 py-2 whitespace-pre-wrap">
+                    {entry.description}
+                  </td>
+                  <td className="weekly-print-wrap px-2 py-2">
+                    {ownerName(entry.createdByContactId) ??
+                      "Legacy / not recorded"}
+                  </td>
+                  <td className="weekly-print-wrap px-2 py-2">
+                    {PRIORITY_META[entry.priority].label}
+                  </td>
+                  <td className="weekly-print-wrap px-2 py-2">
+                    {entry.includeInMonthly ? (
+                      <span className="font-semibold text-[#0b3f7c]">
+                        ★ Monthly
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-    </div>
+    </article>
   );
 }
 
@@ -197,29 +266,74 @@ export function WeeklyReportPreview({
   const [submissions, setSubmissions] = React.useState<WeeklySubmission[]>([]);
   const [activities, setActivities] = React.useState<WeeklyActivity[]>([]);
   const [entries, setEntries] = React.useState<WeeklyEntry[]>([]);
+  const [planItems, setPlanItems] = React.useState<WeeklyPlanItem[]>([]);
   const [project, setProject] = React.useState<Project | null>(null);
+  const [projectLoadState, setProjectLoadState] = React.useState<
+    "loading" | "ready" | "error"
+  >("loading");
+  const [reportLoadError, setReportLoadError] = React.useState<string | null>(
+    null
+  );
   const names = useWeeklyNameLookup();
   const terms = useHierarchyTerms(project);
 
   React.useEffect(() => {
     let cancelled = false;
-    weeklyReportService.getById(reportId).then(async (r) => {
-      if (cancelled) return;
-      setReport(r);
-      if (r) {
-        const [subs, proj, acts, rows] = await Promise.all([
+
+    const load = async () => {
+      setReport(undefined);
+      setReportLoadError(null);
+      setProject(null);
+      setProjectLoadState("loading");
+      setSubmissions([]);
+      setActivities([]);
+      setEntries([]);
+      setPlanItems([]);
+
+      try {
+        const r = await weeklyReportService.getById(reportId);
+        if (cancelled) return;
+        setReport(r);
+        if (!r) {
+          setProjectLoadState("ready");
+          return;
+        }
+
+        // Preview must keep its project/scope even if an optional section
+        // fails; it reads the same canonical services as the workspace.
+        const [subs, proj, acts, rows, plans] = await Promise.allSettled([
           weeklyReportService.listSubmissions(r.id),
           projectService.getProjectById(r.projectId),
           weeklyReportService.listActivities(r.id),
           weeklyReportService.listEntries(r.id),
+          weeklyReportService.listPlanItems(r.id),
         ]);
         if (cancelled) return;
-        setSubmissions(subs);
-        setProject(proj);
-        setActivities(acts);
-        setEntries(rows);
+
+        setSubmissions(subs.status === "fulfilled" ? subs.value : []);
+        setActivities(acts.status === "fulfilled" ? acts.value : []);
+        setEntries(rows.status === "fulfilled" ? rows.value : []);
+        setPlanItems(plans.status === "fulfilled" ? plans.value : []);
+        if (proj.status === "fulfilled") {
+          setProject(proj.value);
+          setProjectLoadState("ready");
+        } else {
+          setProject(null);
+          setProjectLoadState("error");
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setReport(null);
+        setProjectLoadState("error");
+        setReportLoadError(
+          error instanceof Error
+            ? error.message
+            : "The Weekly preview could not be loaded."
+        );
       }
-    });
+    };
+
+    void load();
     return () => {
       cancelled = true;
     };
@@ -229,10 +343,16 @@ export function WeeklyReportPreview({
   const scope = React.useMemo<WeeklyScope | null>(() => {
     if (viewerScope) return viewerScope;
     if (!demoMode || !project) return null;
-    return resolveWeeklyScope(project, "", {
-      isAdmin: true,
+    return resolveWeeklyScope(
+      project,
+      project.projectControlManagerId ??
+        project.reportingCoordinatorId ??
+        project.projectManagerId,
+      {
+      isAdmin: false,
       projectType: getProjectTypeById(project.projectTypeId),
-    });
+      }
+    );
   }, [viewerScope, demoMode, project]);
 
   const workspace = React.useMemo(() => {
@@ -249,8 +369,10 @@ export function WeeklyReportPreview({
     return (
       <EmptyState
         icon={FileX}
-        title="Weekly report not found"
-        description={`No weekly report exists with id “${reportId}”.`}
+        title={reportLoadError ? "Weekly preview could not be loaded" : "Weekly report not found"}
+        description={
+          reportLoadError ?? `No weekly report exists with id “${reportId}”.`
+        }
         action={
           <Button variant="outline" asChild>
             <Link href="/weekly-reports">Back to Weekly Reports</Link>
@@ -282,8 +404,11 @@ export function WeeklyReportPreview({
     );
 
     return (
-      <div key={section.departmentId} className="break-inside-avoid">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b pb-1">
+      <section
+        key={section.departmentId}
+        className="weekly-department-block space-y-3"
+      >
+        <header className="weekly-department-heading flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border-l-4 border-l-[#0b3f7c] bg-[#0b3f7c]/5 px-3 py-2">
           <h3 className="text-sm font-semibold">
             {department?.name ?? "Unknown department"}
             {department?.code && (
@@ -296,15 +421,19 @@ export function WeeklyReportPreview({
             {section.scopeItemsReported}/{section.scopeItemsExpected} reported
           </span>
           <StatusBadge tone="neutral">{section.stateLabel}</StatusBadge>
-        </div>
-        <Meta items={[manager ? `Manager: ${manager}` : "No manager assigned"]} />
+          {manager && (
+            <p className="basis-full text-xs text-muted-foreground">
+              Manager: {manager}
+            </p>
+          )}
+        </header>
 
         {section.overallUpdate?.summary && (
-          <div className="mt-1.5">
-            <p className="text-xs text-muted-foreground">
+          <div className="weekly-narrative-block rounded-md border bg-muted/20 px-3 py-2">
+            <p className="text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">
               Department Overall Update
             </p>
-            <p className="text-sm whitespace-pre-wrap text-pretty">
+            <p className="weekly-print-wrap mt-0.5 text-sm whitespace-pre-wrap">
               {section.overallUpdate.summary}
             </p>
           </div>
@@ -315,7 +444,7 @@ export function WeeklyReportPreview({
             No {terms.pluralLower} are assigned to this department.
           </p>
         ) : (
-          <div className="mt-1">
+          <div className="space-y-3">
             {rows.map((row) => (
               <ScopeItemBlock
                 key={row.scopeItemId}
@@ -336,7 +465,7 @@ export function WeeklyReportPreview({
             ))}
           </div>
         )}
-      </div>
+      </section>
     );
   };
 
@@ -357,8 +486,14 @@ export function WeeklyReportPreview({
       </div>
 
       {/* A4-style document */}
-      <article className="mx-auto max-w-3xl space-y-6 rounded-xl bg-card p-6 ring-1 ring-foreground/10 sm:p-10 print:ring-0">
-        <header className="flex flex-wrap items-start justify-between gap-4 border-b pb-4">
+      <article className="weekly-print-document mx-auto max-w-[210mm] space-y-6 rounded-xl bg-card p-6 ring-1 ring-foreground/10 sm:p-10 print:ring-0">
+        <WeeklyWorkspaceHeader
+          report={report}
+          project={project}
+          mode="preview"
+          qrHref={`/weekly-reports/${report.id}`}
+        />
+        <header className="hidden">
           <div className="min-w-0">
             <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
               {siteConfig.company}
@@ -375,7 +510,7 @@ export function WeeklyReportPreview({
           </StatusBadge>
         </header>
 
-        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <dl className="hidden">
           <Cell label="Project" value={project?.name ?? "—"} />
           <Cell label="Project Code" value={project?.code ?? "—"} />
           <Cell label="Reporting Week" value={`Week ${report.weekNumber}`} />
@@ -491,20 +626,21 @@ export function WeeklyReportPreview({
           )}
         </Section>
 
-        {/* Singular reads as a compound noun — "Department and Discipline
-            Updates", not "Department and Disciplines Updates". */}
-        <Section title={`Department and ${terms.singular} Updates`}>
+        <Section title={`Department Updates — ${terms.plural}`} breakable>
           {!workspace ? (
             <p className="text-sm text-muted-foreground">
-              Department input cannot be shown until your access to this project
-              is resolved.
+              {projectLoadState === "loading"
+                ? "Loading the project this report belongs to…"
+                : projectLoadState === "error"
+                  ? "The project for this report could not be loaded."
+                  : "Department input cannot be shown until your access to this project is resolved."}
             </p>
           ) : workspace.departments.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No departments in this report are within your access.
             </p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-6">
               {workspace.departments.map(departmentBlock)}
             </div>
           )}
@@ -550,22 +686,76 @@ export function WeeklyReportPreview({
           </Section>
         )}
 
-        {workspace && workspace.lookahead.length > 0 && (
-          <Section title="Next Week Lookahead">
-            <ul className="space-y-1">
-              {workspace.lookahead.map((line, index) => (
-                <li
-                  key={`${line.departmentId}-${line.scopeItemId ?? "overall"}-${index}`}
-                  className="text-sm text-pretty"
-                >
-                  <span className="text-xs text-muted-foreground">
-                    {names.department(line.departmentId)?.name ?? "Department"}
-                    {line.scopeItemId
-                      ? ` · ${names.scopeItem(line.scopeItemId)?.name ?? "Item"}`
-                      : " · Department-wide"}
-                    {" — "}
-                  </span>
-                  {line.plan}
+        {planItems.length > 0 && (
+          <Section
+            title="PROJECT CONTROL — LOOK-AHEAD & NEXT WEEK PLAN"
+            breakable
+          >
+            <table className="weekly-project-control-table w-full table-fixed border-collapse text-left text-xs">
+              <colgroup>
+                <col className="w-[42%]" />
+                <col className="w-[23%]" />
+                <col className="w-[20%]" />
+                <col className="w-[15%]" />
+              </colgroup>
+              <thead>
+                <tr className="border-y bg-muted/60 text-muted-foreground">
+                  <th className="px-2 py-1.5 font-semibold">
+                    Activity / Milestone
+                  </th>
+                  <th className="px-2 py-1.5 font-semibold">Date / Period</th>
+                  <th className="px-2 py-1.5 font-semibold">Owner</th>
+                  <th className="px-2 py-1.5 font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...planItems]
+                  .sort(
+                    (a, b) =>
+                      a.kind.localeCompare(b.kind) ||
+                      a.sortOrder - b.sortOrder ||
+                      a.endDate.localeCompare(b.endDate)
+                  )
+                  .map((item) => (
+                    <tr
+                      key={item.id}
+                      className="break-inside-avoid border-b align-top last:border-0"
+                    >
+                      <td className="weekly-print-wrap px-2 py-2">
+                        <span className="block text-[0.625rem] font-semibold tracking-wide text-[#0b3f7c] uppercase">
+                          {item.kind === "milestone"
+                            ? "Look-Ahead Milestone"
+                            : "Next Week Project Task"}
+                        </span>
+                        <span className="font-medium">{item.title}</span>
+                      </td>
+                      <td className="weekly-print-wrap px-2 py-2">
+                        {item.startDate && item.startDate !== item.endDate
+                          ? `${formatDate(item.startDate)} – ${formatDate(item.endDate)}`
+                          : formatDate(item.endDate)}
+                      </td>
+                      <td className="weekly-print-wrap px-2 py-2">
+                        {personName(item.ownerContactId) ??
+                          names.department(item.departmentId)?.name ??
+                          "Project Control"}
+                      </td>
+                      <td className="weekly-print-wrap px-2 py-2 capitalize">
+                        {item.status.replaceAll("_", " ")}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </Section>
+        )}
+
+        {workspace && reachableWeeklyUpdates(workspace).some((entry) => entry.includeInMonthly) && (
+          <Section title="Monthly-Flagged Important Items">
+            <ul className="space-y-2">
+              {reachableWeeklyUpdates(workspace).filter((entry) => entry.includeInMonthly).map((entry) => (
+                <li key={entry.id} className="break-inside-avoid border-b border-dashed pb-2 text-sm last:border-0">
+                  <span className="font-medium">{WEEKLY_UPDATE_TYPE_META[entry.updateType].label}: </span>{entry.description}
+                  <Meta items={[names.department(entry.departmentId)?.name, names.system(entry.systemId)?.name, names.scopeItem(entry.disciplineId)?.name, personName(entry.createdByContactId)]} />
                 </li>
               ))}
             </ul>
@@ -574,6 +764,14 @@ export function WeeklyReportPreview({
 
         <Section title="Report Information">
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Cell
+              label="Prepared By"
+              value={getContactById(report.preparedByContactId)?.name ?? "Not recorded"}
+            />
+            <Cell
+              label="Reviewed By"
+              value={getContactById(report.reviewedByContactId)?.name ?? "Not recorded"}
+            />
             <Cell
               label="Approved By"
               value={

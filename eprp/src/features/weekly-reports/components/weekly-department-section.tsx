@@ -31,36 +31,33 @@ import { StatusBadge, type StatusTone } from "@/components/shared";
 import { useMasterData } from "@/features/master-data";
 import {
   ASSIGNMENT_ROLE_META,
-  COMMENT_CATEGORY_META,
   ENTRY_STATUS_META,
-  PRIORITY_META,
   SUBMISSION_STATUS_META,
-  WEEKLY_ENTRY_TYPE_META,
 } from "@/lib/constants";
+import { formatDateTime } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { weeklyReportService } from "@/services/weekly-report-service";
-import type { HierarchyTerms } from "@/config/project-terminology";
 import type {
   MasterRecordBase,
-  Project,
   SubmissionStatus,
   WeeklyEntry,
   WeeklySubmission,
 } from "@/types";
 import {
-  managementItemErrors,
-  newManagementItemDraft,
-  toEntryInput,
-  toManagementItemDraft,
-  type ManagementItemDraft,
-} from "../management-item";
+  newWeeklyUpdateDraft,
+  toWeeklyUpdateDraft,
+  toWeeklyUpdateInput,
+  weeklyUpdateErrors,
+  WEEKLY_UPDATE_TYPE_META,
+  type WeeklyUpdateDraft,
+} from "../weekly-update";
 import type {
   DepartmentSection,
   DepartmentState,
   ScopeItemResponsibility,
   ScopeItemRow,
 } from "../workspace";
-import { ManagementItemFields } from "./management-item-fields";
+import { WeeklyUpdateFields } from "./weekly-update-fields";
 import { ScopedPersonSelect } from "./scoped-person-select";
 
 /** Badge tone per completion state. Neutral until work actually starts. */
@@ -329,16 +326,19 @@ function ResponsibilityLine({
 /* --------------------------------- Editor --------------------------------- */
 
 interface ItemsConfig {
-  disciplineId: string;
+  disciplineId?: string;
   systemId?: string;
   entries: WeeklyEntry[];
   /** Who holds this scope item. The owner candidates for its items. */
   responsible: ScopeItemResponsibility[];
-  project: Project | null;
+  /** Department-level candidates, used only by Department Overall comments. */
+  departmentPeople: ScopeItemResponsibility[];
+  /** Department Manager, Project Control and Admin may manage every comment. */
+  canManageComments: boolean;
   names: WeeklyNameLookup;
-  terms: HierarchyTerms;
   onEntrySaved: (entry: WeeklyEntry) => void;
   onEntryDeleted: (entryId: string) => void;
+  viewerContactId?: string;
 }
 
 interface UpdateEditorProps {
@@ -359,24 +359,14 @@ interface UpdateEditorProps {
 }
 
 /**
- * One department-owned Weekly update, and — at the scope-item level — the
- * management items that belong to it, behind ONE Save.
+ * One department-owned scope summary followed by independent authored Weekly
+ * comments. The summary remains the single `weekly_submissions` row identified
+ * by (report, department, scope item). Every comment remains its own
+ * `weekly_entries` row and saves independently, so changing one Monthly flag or
+ * comment never rewrites its neighbours.
  *
- * The two used to be separate forms with separate buttons, which read as two
- * unrelated obligations on a screen where they are plainly one. They are still
- * two writes to two tables, because that is what they are: `saveDepartmentUpdate`
- * updates the single row identified by (report, department, scope item), and
- * each item is a `weekly_entries` upsert. Nothing about that changed —
- * only that one press performs both, and each part is skipped when it is not
- * dirty, so pressing Save never rewrites what the user did not touch.
- *
- * The item rows use the same fields component as the project-level Project
- * Management Items section — one editor over one table, mounted twice with a
- * different pre-set scope, rather than two forms that could drift.
- *
- * Ids are folded back the moment a row returns, one row at a time. That is
- * what makes a retry after a mid-way failure update the rows that already
- * landed instead of inserting twins of them.
+ * Ids are folded back the moment a new comment returns. A retry therefore
+ * updates the row that landed instead of inserting a twin.
  *
  * State is deliberately not synchronised from props: this component keeps the
  * identity of what it has saved, so a background reload cannot clobber typing.
@@ -396,16 +386,14 @@ function UpdateEditor({
   const [draft, setDraft] = React.useState<Draft>(() => toDraft(existing));
   const [pristine, setPristine] = React.useState<Draft>(() => toDraft(existing));
 
-  const [rows, setRows] = React.useState<ManagementItemDraft[]>(() =>
-    (items?.entries ?? []).map(toManagementItemDraft)
+  const [rows, setRows] = React.useState<WeeklyUpdateDraft[]>(() =>
+    (items?.entries ?? []).map(toWeeklyUpdateDraft)
   );
-  const [rowsPristine, setRowsPristine] = React.useState(() =>
-    JSON.stringify((items?.entries ?? []).map(toManagementItemDraft))
-  );
-  const [removed, setRemoved] = React.useState<string[]>([]);
 
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [commentError, setCommentError] = React.useState<string | null>(null);
+  const [commentSaving, setCommentSaving] = React.useState<string | null>(null);
   const [savedAt, setSavedAt] = React.useState<number | null>(null);
   const nextKey = React.useRef(0);
 
@@ -416,17 +404,14 @@ function UpdateEditor({
       ),
     [draft, pristine]
   );
-  const itemsDirty =
-    JSON.stringify(rows) !== rowsPristine || removed.length > 0;
-  const dirty = updateDirty || itemsDirty;
+  const dirty = updateDirty;
 
   const progress =
     draft.progressPercent === "" ? undefined : Number(draft.progressPercent);
   const progressInvalid =
     progress !== undefined &&
     (!Number.isFinite(progress) || progress < 0 || progress > 100);
-  const itemProblems = rows.flatMap(managementItemErrors);
-  const blocked = progressInvalid || itemProblems.length > 0;
+  const blocked = progressInvalid;
 
   const markedForMonthly = rows.filter((row) => row.includeInMonthly).length;
 
@@ -435,7 +420,7 @@ function UpdateEditor({
     setSavedAt(null);
   };
 
-  const patchRow = (key: string, change: Partial<ManagementItemDraft>) => {
+  const patchRow = (key: string, change: Partial<WeeklyUpdateDraft>) => {
     setRows((current) =>
       current.map((row) => (row.key === key ? { ...row, ...change } : row))
     );
@@ -448,22 +433,111 @@ function UpdateEditor({
       ...current,
       // Pre-scoped to the item being edited: the department, System and scope
       // item are already known here, so the row never asks for them again.
-      newManagementItemDraft(`new-${nextKey.current}`, {
-        departmentId,
-        systemId: items?.systemId ?? "",
-        disciplineId: items?.disciplineId ?? "",
-      }),
+      newWeeklyUpdateDraft(`new-${nextKey.current}`),
     ]);
     setSavedAt(null);
   };
 
-  const removeRow = (key: string) => {
+  const removeRow = async (key: string) => {
     const row = rows.find((candidate) => candidate.key === key);
-    // Only a persisted row needs deleting; one added and dropped in the same
-    // sitting never reached the database.
-    if (row?.id) setRemoved((current) => [...current, row.id!]);
-    setRows((current) => current.filter((candidate) => candidate.key !== key));
-    setSavedAt(null);
+    if (!row || !items) return;
+    setCommentError(null);
+    if (!row.id) {
+      setRows((current) =>
+        current.filter((candidate) => candidate.key !== key)
+      );
+      return;
+    }
+    setCommentSaving(key);
+    try {
+      await weeklyReportService.deleteEntry(reportId, row.id);
+      items.onEntryDeleted(row.id);
+      setRows((current) =>
+        current.filter((candidate) => candidate.key !== key)
+      );
+      toast.success("Comment removed");
+    } catch (e) {
+      const message =
+        e instanceof Error ? e.message : "Could not remove this comment.";
+      setCommentError(message);
+      toast.error(message);
+    } finally {
+      setCommentSaving(null);
+    }
+  };
+
+  const saveComment = async (key: string): Promise<boolean> => {
+    const row = rows.find((candidate) => candidate.key === key);
+    if (!row || !items || weeklyUpdateErrors(row).length > 0) return false;
+    setCommentSaving(key);
+    setCommentError(null);
+    try {
+      const entry = await weeklyReportService.saveEntry(
+        reportId,
+        toWeeklyUpdateInput(row, {
+          departmentId,
+          systemId: items.systemId,
+          disciplineId: items.disciplineId,
+          authorContactId: items.viewerContactId,
+        })
+      );
+      items.onEntrySaved(entry);
+      const next = { ...toWeeklyUpdateDraft(entry), key: row.key };
+      setRows((current) =>
+        current.map((candidate) =>
+          candidate.key === row.key ? next : candidate
+        )
+      );
+      toast.success("Comment saved");
+      return true;
+    } catch (e) {
+      const message =
+        e instanceof Error ? e.message : "Could not save this comment.";
+      setCommentError(message);
+      toast.error(message);
+      return false;
+    } finally {
+      setCommentSaving(null);
+    }
+  };
+
+  const setMonthly = async (key: string, checked: boolean) => {
+    const row = rows.find((candidate) => candidate.key === key);
+    if (!row) return;
+    const next = { ...row, includeInMonthly: checked };
+    patchRow(key, { includeInMonthly: checked });
+    // A new comment has no database row yet. Its flag lands with Save Comment.
+    if (!row.id || !items) return;
+    setCommentSaving(key);
+    setCommentError(null);
+    try {
+      const entry = await weeklyReportService.saveEntry(
+        reportId,
+        toWeeklyUpdateInput(next, {
+          departmentId,
+          systemId: items.systemId,
+          disciplineId: items.disciplineId,
+          authorContactId: items.viewerContactId,
+        })
+      );
+      items.onEntrySaved(entry);
+      setRows((current) =>
+        current.map((candidate) =>
+          candidate.key === key
+            ? { ...toWeeklyUpdateDraft(entry), key: candidate.key }
+            : candidate
+        )
+      );
+      toast.success(checked ? "Added to Monthly Tray" : "Removed from Monthly Tray");
+    } catch (e) {
+      patchRow(key, { includeInMonthly: row.includeInMonthly });
+      const message =
+        e instanceof Error ? e.message : "Could not update the Monthly flag.";
+      setCommentError(message);
+      toast.error(message);
+    } finally {
+      setCommentSaving(null);
+    }
   };
 
   const save = async () => {
@@ -490,45 +564,12 @@ function UpdateEditor({
         onSaved(saved);
       }
 
-      if (items && itemsDirty) {
-        for (const entryId of removed) {
-          await weeklyReportService.deleteEntry(reportId, entryId);
-          items.onEntryDeleted(entryId);
-          // Dropped from the pending list as it lands, so a retry after a
-          // later failure does not delete it a second time.
-          setRemoved((current) => current.filter((id) => id !== entryId));
-        }
-
-        const saved: ManagementItemDraft[] = [];
-        for (const row of rows) {
-          const entry = await weeklyReportService.saveEntry(
-            reportId,
-            // The scope is taken from where the row lives, not from the row's
-            // own fields, so an item added inside a scope item can never be
-            // saved against a different one.
-            toEntryInput({
-              ...row,
-              departmentId,
-              systemId: items.systemId ?? "",
-              disciplineId: items.disciplineId,
-            })
-          );
-          items.onEntrySaved(entry);
-          const next = { ...toManagementItemDraft(entry), key: row.key };
-          saved.push(next);
-          // Keep the row's identity as soon as it exists, so a second save
-          // updates rather than inserts.
-          setRows((current) =>
-            current.map((candidate) =>
-              candidate.key === row.key ? next : candidate
-            )
-          );
-        }
-        setRowsPristine(JSON.stringify(saved));
-      }
-
       setSavedAt(Date.now());
-      toast.success("Update saved");
+      toast.success(
+        level === "scope_item"
+          ? "Scope summary saved"
+          : "Department summary saved"
+      );
     } catch (e) {
       const message =
         e instanceof Error ? e.message : "Could not save this update.";
@@ -543,6 +584,15 @@ function UpdateEditor({
 
   return (
     <div className="space-y-3">
+      <div className="rounded-md border-l-4 border-l-primary bg-muted/30 px-3 py-2">
+        <h5 className="text-xs font-semibold">
+          {level === "scope_item" ? "Scope Summary" : "Department Summary"}
+        </h5>
+        <p className="text-xs text-muted-foreground">
+          Overall status and progress. Detailed authored comments are recorded
+          separately below.
+        </p>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field>
           <FieldLabel htmlFor={`${fieldId}-status`}>Status</FieldLabel>
@@ -637,7 +687,7 @@ function UpdateEditor({
         populated on live rows — but no editor wrote them, so a value could be
         read and never corrected.
       */}
-      {items && names && (
+      {level === "scope_item" && items && names && (
         <div className="grid gap-3 sm:grid-cols-2">
           <Field>
             <FieldLabel htmlFor={`${fieldId}-responsible`}>
@@ -675,55 +725,74 @@ function UpdateEditor({
       )}
 
       {items && (
-        <div className="space-y-2 border-t pt-3">
+        <section className="space-y-3 rounded-lg border border-primary/20 bg-primary/[0.025] p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h5 className="text-xs font-semibold">Management Items</h5>
+            <div>
+              <h5 className="text-xs font-semibold tracking-wide text-primary uppercase">
+                Weekly Comments / Updates
+              </h5>
+              <p className="text-xs text-muted-foreground">
+                Independent authored comments. Monthly selection belongs to
+                each comment.
+              </p>
+            </div>
             <div className="flex items-center gap-3">
               {markedForMonthly > 0 && (
-                <span className="text-xs text-muted-foreground">
-                  {markedForMonthly} for Monthly
+                <span className="text-xs font-medium text-primary">
+                  ★ {markedForMonthly} Monthly
                 </span>
               )}
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
-                disabled={saving}
+                disabled={commentSaving !== null}
                 onClick={addRow}
               >
                 <Plus data-icon="inline-start" aria-hidden="true" />
-                Add Item
+                Add Comment
               </Button>
             </div>
           </div>
 
           {rows.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              Nothing raised for this scope item this week.
+              No comments yet. Use + Add Comment to record the first one.
             </p>
           ) : (
             <div className="space-y-2">
-              {rows.map((row) => (
-                /*
-                 * The same fields component the project-level section uses,
-                 * with the scope selectors hidden: this row's department,
-                 * System and scope item are fixed by where it lives.
-                 */
-                <ManagementItemFields
+              {rows.map((row, index) => (
+                <WeeklyUpdateFields
                   key={row.key}
                   row={row}
-                  project={items.project}
+                  number={index + 1}
+                  responsible={items.responsible}
+                  departmentPeople={items.departmentPeople}
                   names={items.names}
-                  terms={items.terms}
-                  disabled={saving}
-                  showScopeSelectors={false}
+                  canEdit={
+                    !row.source ||
+                    items.canManageComments ||
+                    row.source.createdByContactId === items.viewerContactId
+                  }
+                  saving={commentSaving === row.key}
                   onChange={(change) => patchRow(row.key, change)}
+                  onMonthlyChange={(checked) =>
+                    setMonthly(row.key, checked)
+                  }
                   onRemove={() => removeRow(row.key)}
+                  onSave={() => saveComment(row.key)}
                 />
               ))}
             </div>
           )}
-        </div>
+          {commentError && (
+            <p
+              role="alert"
+              className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {commentError}
+            </p>
+          )}
+        </section>
       )}
 
       {error && (
@@ -736,16 +805,15 @@ function UpdateEditor({
       )}
 
       <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-3">
-        {itemProblems.length > 0 && (
-          <span className="text-xs text-destructive">{itemProblems[0]}</span>
-        )}
         {savedAt !== null && !dirty && (
           <span className="text-xs text-success" role="status">
             Saved
           </span>
         )}
         {dirty && !saving && (
-          <span className="text-xs text-muted-foreground">Unsaved changes</span>
+          <span className="text-xs text-muted-foreground">
+            Unsaved summary changes
+          </span>
         )}
         <Button
           type="button"
@@ -762,22 +830,20 @@ function UpdateEditor({
           ) : (
             <Save data-icon="inline-start" aria-hidden="true" />
           )}
-          {saving ? "Saving…" : items ? "Save this item" : "Save overall update"}
+          {saving
+            ? "Saving…"
+            : level === "scope_item"
+              ? "Save Scope Summary"
+              : "Save Department Summary"}
         </Button>
       </div>
-      {/* Named so the single button's reach is never in doubt. */}
-      {items && (
-        <p className="text-right text-xs text-muted-foreground">
-          Saves the weekly update and this item’s management items together.
-        </p>
-      )}
     </div>
   );
 }
 
 /* ---------------------------- Read-only item list -------------------------- */
 
-/** This scope item's management items, for a viewer who may not change them. */
+/** Compact authored comments for a viewer who may not change them. */
 function ReadOnlyItems({
   entries,
   names,
@@ -791,7 +857,9 @@ function ReadOnlyItems({
   return (
     <div className="space-y-2 border-t pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h5 className="text-xs font-semibold">Management Items</h5>
+        <h5 className="text-xs font-semibold tracking-wide text-primary uppercase">
+          Weekly Comments / Updates
+        </h5>
         {marked > 0 && (
           <span className="text-xs text-muted-foreground">
             {marked} for Monthly
@@ -799,26 +867,35 @@ function ReadOnlyItems({
         )}
       </div>
       <ul className="space-y-2">
-        {entries.map((entry) => (
+        {entries.map((entry, index) => (
           <li key={entry.id} className="rounded-md border p-2.5">
             <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge tone={WEEKLY_ENTRY_TYPE_META[entry.entryType].tone}>
-                {WEEKLY_ENTRY_TYPE_META[entry.entryType].singular}
-              </StatusBadge>
-              <span className="text-xs text-muted-foreground">
-                {COMMENT_CATEGORY_META[entry.category]?.label}
+              <span className="text-xs font-semibold text-primary">
+                Comment {index + 1}
               </span>
+              <StatusBadge tone={ENTRY_STATUS_META[entry.status].tone}>
+                {WEEKLY_UPDATE_TYPE_META[entry.updateType].label}
+              </StatusBadge>
+              {entry.includeInMonthly && (
+                <span className="text-xs font-semibold text-primary">
+                  ★ Monthly
+                </span>
+              )}
             </div>
             <p className="mt-1 text-sm whitespace-pre-wrap text-pretty">
               {entry.description}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {PRIORITY_META[entry.priority].label} ·{" "}
-              {ENTRY_STATUS_META[entry.status].label}
+              Added by: {names.person(entry.createdByContactId)?.name ?? "Recorded user"}
               {entry.ownerContactId &&
-                ` · ${names.person(entry.ownerContactId)?.name ?? "Owner"}`}
-              {entry.dueDate && ` · due ${entry.dueDate}`}
-              {entry.includeInMonthly && " · In Monthly"}
+                ` · Responsible: ${names.person(entry.ownerContactId)?.name ?? "Assigned person"}`}
+              {` · Created: ${formatDateTime(entry.createdAt)}`}
+              {entry.updatedByContactId &&
+                entry.updatedByContactId !== entry.createdByContactId &&
+                ` · Last edited by: ${names.person(entry.updatedByContactId)?.name ?? "Recorded user"}`}
+              {entry.updatedAt !== entry.createdAt &&
+                ` · Last edited: ${formatDateTime(entry.updatedAt)}`}
+              {entry.dueDate && ` · Target: ${entry.dueDate}`}
             </p>
           </li>
         ))}
@@ -833,11 +910,10 @@ interface ScopeItemCardProps {
   reportId: string;
   departmentId: string;
   row: ScopeItemRow;
-  /** Needed for cascading and owner candidates on this item's management items. */
-  project: Project | null;
-  terms: HierarchyTerms;
   names: WeeklyNameLookup;
   canEdit: boolean;
+  canManageComments: boolean;
+  viewerContactId?: string;
   onSaved: (submission: WeeklySubmission) => void;
   onEntrySaved: (entry: WeeklyEntry) => void;
   onEntryDeleted: (entryId: string) => void;
@@ -855,10 +931,10 @@ function ScopeItemCard({
   reportId,
   departmentId,
   row,
-  project,
-  terms,
   names,
   canEdit,
+  canManageComments,
+  viewerContactId,
   onSaved,
   onEntrySaved,
   onEntryDeleted,
@@ -974,11 +1050,12 @@ function ScopeItemCard({
               systemId: row.systemId,
               entries: row.entries,
               responsible: row.responsible,
-              project,
+              departmentPeople: [],
+              canManageComments,
               names,
-              terms,
               onEntrySaved,
               onEntryDeleted,
+              viewerContactId,
             }}
           />
         ) : (
@@ -997,10 +1074,9 @@ interface ScopeItemsBlockProps {
   section: DepartmentSection;
   scopeItemLabel: string;
   scopeItemLabelPlural: string;
-  project: Project | null;
-  terms: HierarchyTerms;
   names: WeeklyNameLookup;
   canEdit: boolean;
+  viewerContactId?: string;
   onSaved: (submission: WeeklySubmission) => void;
   onEntrySaved: (entry: WeeklyEntry) => void;
   onEntryDeleted: (entryId: string) => void;
@@ -1019,10 +1095,9 @@ function ScopeItemsBlock({
   section,
   scopeItemLabel,
   scopeItemLabelPlural,
-  project,
-  terms,
   names,
   canEdit,
+  viewerContactId,
   onSaved,
   onEntrySaved,
   onEntryDeleted,
@@ -1064,10 +1139,10 @@ function ScopeItemsBlock({
               reportId={reportId}
               departmentId={section.departmentId}
               row={row}
-              project={project}
-              terms={terms}
               names={names}
               canEdit={canEdit}
+              canManageComments={section.seesWholeDepartment}
+              viewerContactId={viewerContactId}
               onSaved={onSaved}
               onEntrySaved={onEntrySaved}
               onEntryDeleted={onEntryDeleted}
@@ -1094,8 +1169,12 @@ function overallPreview(submission: WeeklySubmission | undefined): string {
 interface OverallUpdateBlockProps {
   reportId: string;
   section: DepartmentSection;
+  names: WeeklyNameLookup;
   canEdit: boolean;
+  viewerContactId?: string;
   onSaved: (submission: WeeklySubmission) => void;
+  onEntrySaved: (entry: WeeklyEntry) => void;
+  onEntryDeleted: (entryId: string) => void;
 }
 
 /**
@@ -1112,15 +1191,19 @@ interface OverallUpdateBlockProps {
 function OverallUpdateBlock({
   reportId,
   section,
+  names,
   canEdit,
+  viewerContactId,
   onSaved,
+  onEntrySaved,
+  onEntryDeleted,
 }: OverallUpdateBlockProps) {
   const [open, setOpen] = React.useState(false);
   const submission = section.overallUpdate;
   const preview = overallPreview(submission);
 
   // Nothing written and nothing to write with: one quiet line, not a card.
-  if (!canEdit && !preview) {
+  if (!canEdit && !preview && section.overallComments.length === 0) {
     return (
       <p className="rounded-md border border-dashed px-3 py-1.5 text-xs text-muted-foreground">
         Department Overall Update — not reported. Optional; it does not affect
@@ -1154,7 +1237,10 @@ function OverallUpdateBlock({
           Optional
         </span>
         <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-          {preview || "Not reported"}
+          {preview ||
+            (section.overallComments.length > 0
+              ? `${section.overallComments.length} department comment${section.overallComments.length === 1 ? "" : "s"}`
+              : "Not reported")}
         </span>
         {typeof submission?.progressPercent === "number" && (
           <span className="text-xs tabular-nums text-muted-foreground">
@@ -1174,10 +1260,24 @@ function OverallUpdateBlock({
             departmentId={section.departmentId}
             level="department"
             existing={submission}
+            names={names}
             onSaved={onSaved}
+            items={{
+              entries: section.overallComments,
+              responsible: [],
+              departmentPeople: section.eligiblePeople,
+              canManageComments: section.seesWholeDepartment,
+              names,
+              onEntrySaved,
+              onEntryDeleted,
+              viewerContactId,
+            }}
           />
         ) : (
-          <ReadOnlyUpdate submission={submission} level="department" />
+          <>
+            <ReadOnlyUpdate submission={submission} level="department" />
+            <ReadOnlyItems entries={section.overallComments} names={names} />
+          </>
         )}
       </CollapsibleContent>
     </Collapsible>
@@ -1192,9 +1292,6 @@ export interface WeeklyDepartmentSectionProps {
   /** Wording for the level below the department, from the project type. */
   scopeItemLabel: string;
   scopeItemLabelPlural: string;
-  /** The project, for cascading and owner candidates on management items. */
-  project: Project | null;
-  terms: HierarchyTerms;
   /** Master-data names, resolved once for the whole panel. */
   names: WeeklyNameLookup;
   /**
@@ -1203,6 +1300,7 @@ export interface WeeklyDepartmentSectionProps {
    * into three identical sentences on the same screen.
    */
   canEdit: boolean;
+  viewerContactId?: string;
   defaultOpen?: boolean;
   onSaved: (submission: WeeklySubmission) => void;
   onEntrySaved: (entry: WeeklyEntry) => void;
@@ -1223,10 +1321,9 @@ export function WeeklyDepartmentSection({
   section,
   scopeItemLabel,
   scopeItemLabelPlural,
-  project,
-  terms,
   names,
   canEdit,
+  viewerContactId,
   defaultOpen = false,
   onSaved,
   onEntrySaved,
@@ -1311,8 +1408,12 @@ export function WeeklyDepartmentSection({
         <OverallUpdateBlock
           reportId={reportId}
           section={section}
+          names={names}
           canEdit={canEdit}
+          viewerContactId={viewerContactId}
           onSaved={onSaved}
+          onEntrySaved={onEntrySaved}
+          onEntryDeleted={onEntryDeleted}
         />
 
         <ScopeItemsBlock
@@ -1320,10 +1421,9 @@ export function WeeklyDepartmentSection({
           section={section}
           scopeItemLabel={scopeItemLabel}
           scopeItemLabelPlural={scopeItemLabelPlural}
-          project={project}
-          terms={terms}
           names={names}
           canEdit={canEdit}
+          viewerContactId={viewerContactId}
           onSaved={onSaved}
           onEntrySaved={onEntrySaved}
           onEntryDeleted={onEntryDeleted}

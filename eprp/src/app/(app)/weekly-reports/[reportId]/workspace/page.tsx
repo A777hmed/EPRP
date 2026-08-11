@@ -4,19 +4,15 @@ import { WeeklyReportDetailView } from "@/features/weekly-reports";
 import { getWeeklyViewerContext } from "@/features/weekly-reports/viewer-context";
 
 export const metadata: Metadata = {
-  title: "Weekly Report",
+  title: "Weekly Report Workspace",
 };
 
 /**
- * The main operational Weekly Report detail route.
- *
- * Scope is resolved here, on the server, because it depends on the auth cookie
- * and on the `profiles` row linking that login to a contact — neither of which
- * the client can be trusted to assert. The workspace receives the ANSWER as
- * props rather than the means to compute one, so there is no second
- * authorization model to keep in step.
+ * The existing editable Weekly workspace, under its explicit route.
+ * Authorization and editability remain resolved by the same server context;
+ * the client receives no new authority and uses the existing save path.
  */
-export default async function WeeklyReportDetailPage({
+export default async function WeeklyReportWorkspacePage({
   params,
 }: {
   params: Promise<{ reportId: string }>;
@@ -33,6 +29,8 @@ export default async function WeeklyReportDetailPage({
       demoMode={context.demoMode}
       viewerName={context.viewerName}
       viewerRoleLabel={context.viewerRoleLabel}
+      backHref={`/weekly-reports/${reportId}`}
+      mode="workspace"
     />
   );
 }

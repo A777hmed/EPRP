@@ -14,8 +14,11 @@ import type {
   WeeklyActivity,
   WeeklyEntry,
   WeeklyEntryType,
+  WeeklyPlanItem,
+  WeeklyPlanStatus,
   WeeklyReport,
   WeeklySubmission,
+  WeeklyUpdateType,
 } from "@/types";
 import {
   formatReportNumber,
@@ -29,6 +32,8 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   mockWeeklyReports,
   mockWeeklySubmissions,
+  mockWeeklyEntries,
+  mockWeeklyPlanItems,
 } from "@/data/mock/weekly-reports.mock";
 import { projectService } from "./project-service";
 import { supabaseWeeklyReportService } from "./supabase-weekly-report-service";
@@ -153,6 +158,7 @@ export interface WeeklyDepartmentUpdateInput {
 export interface WeeklyEntryInput {
   id?: string;
   entryType: WeeklyEntryType;
+  updateType?: WeeklyUpdateType;
   category: CommentCategory;
   description: string;
   priority: Priority;
@@ -163,6 +169,20 @@ export interface WeeklyEntryInput {
   systemId?: string;
   disciplineId?: string;
   includeInMonthly: boolean;
+  /** Mock-mode attribution only; live DB derives identity from auth.uid(). */
+  authorContactId?: string;
+}
+
+export interface WeeklyPlanItemInput {
+  id?: string;
+  kind: "milestone" | "next_week";
+  title: string;
+  startDate?: IsoDate;
+  endDate: IsoDate;
+  ownerContactId?: string;
+  departmentId?: string;
+  status: WeeklyPlanStatus;
+  sortOrder?: number;
 }
 
 export interface WeeklyReportService {
@@ -214,6 +234,12 @@ export interface WeeklyReportService {
   saveEntry(reportId: string, input: WeeklyEntryInput): Promise<WeeklyEntry>;
   /** Remove ONE narrative row, leaving the rest of the report alone. */
   deleteEntry(reportId: string, entryId: string): Promise<void>;
+  listPlanItems(reportId: string): Promise<WeeklyPlanItem[]>;
+  savePlanItem(
+    reportId: string,
+    input: WeeklyPlanItemInput
+  ): Promise<WeeklyPlanItem>;
+  deletePlanItem(reportId: string, itemId: string): Promise<void>;
 }
 
 /* --------------------------------- Helpers -------------------------------- */
@@ -242,8 +268,13 @@ const reportStore = new Map<string, WeeklyReport>(
 const submissionStore = new Map<string, WeeklySubmission>(
   mockWeeklySubmissions.map((s) => [s.id, clone(s)])
 );
-const entryStore = new Map<string, WeeklyEntry>();
+const entryStore = new Map<string, WeeklyEntry>(
+  mockWeeklyEntries.map((entry) => [entry.id, clone(entry)])
+);
 const activityStore = new Map<string, WeeklyActivity>();
+const planStore = new Map<string, WeeklyPlanItem>(
+  mockWeeklyPlanItems.map((item) => [item.id, clone(item)])
+);
 
 let sequence = reportStore.size;
 function nextId(prefix: string): string {
@@ -640,10 +671,13 @@ const mockWeeklyReportService: WeeklyReportService = {
 
     const saved: WeeklyEntry[] = entries.map((input) => {
       const id = input.id ?? nextId("entry");
+      const now = nowIso();
+      const prior = previous.get(id);
       const entry: WeeklyEntry = {
         id,
         weeklyReportId: reportId,
         entryType: input.entryType,
+        updateType: input.updateType ?? "general",
         category: input.category,
         description: input.description,
         priority: input.priority,
@@ -654,7 +688,11 @@ const mockWeeklyReportService: WeeklyReportService = {
         systemId: input.systemId,
         disciplineId: input.disciplineId,
         includeInMonthly: input.includeInMonthly,
-        createdAt: previous.get(id)?.createdAt ?? nowIso(),
+        createdByContactId:
+          prior?.createdByContactId ?? input.authorContactId,
+        updatedByContactId: prior ? input.authorContactId : undefined,
+        createdAt: prior?.createdAt ?? now,
+        updatedAt: now,
       };
       entryStore.set(entry.id, entry);
       return clone(entry);
@@ -681,11 +719,13 @@ const mockWeeklyReportService: WeeklyReportService = {
     const existing = input.id ? entryStore.get(input.id) : undefined;
     const target =
       existing && existing.weeklyReportId === reportId ? existing : undefined;
+    const now = nowIso();
 
     const entry: WeeklyEntry = {
       id: target?.id ?? nextId("entry"),
       weeklyReportId: reportId,
       entryType: input.entryType,
+      updateType: input.updateType ?? target?.updateType ?? "general",
       category: input.category,
       description: input.description,
       priority: input.priority,
@@ -696,8 +736,12 @@ const mockWeeklyReportService: WeeklyReportService = {
       systemId: input.systemId,
       disciplineId: input.disciplineId,
       includeInMonthly: input.includeInMonthly,
+      createdByContactId:
+        target?.createdByContactId ?? input.authorContactId,
+      updatedByContactId: target ? input.authorContactId : undefined,
       // Creation time belongs to the row, not to the edit that touched it.
-      createdAt: target?.createdAt ?? nowIso(),
+      createdAt: target?.createdAt ?? now,
+      updatedAt: now,
     };
 
     entryStore.set(entry.id, entry);
@@ -728,6 +772,51 @@ const mockWeeklyReportService: WeeklyReportService = {
       entryIds: report.entryIds.filter((id) => id !== entryId),
       updatedAt: nowIso(),
     });
+  },
+
+  async listPlanItems(reportId) {
+    await delay(100);
+    return [...planStore.values()]
+      .filter((item) => item.weeklyReportId === reportId)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map(clone);
+  },
+
+  async savePlanItem(reportId, input) {
+    await delay();
+    const report = reportStore.get(reportId);
+    if (!report) throw new Error(`Weekly report ${reportId} not found`);
+    const frozen = contentFrozenReason(report.status);
+    if (frozen) throw new Error(frozen);
+    const existing = input.id ? planStore.get(input.id) : undefined;
+    const target =
+      existing?.weeklyReportId === reportId ? existing : undefined;
+    const item: WeeklyPlanItem = {
+      id: target?.id ?? nextId("plan"),
+      weeklyReportId: reportId,
+      kind: input.kind,
+      title: input.title.trim(),
+      startDate: input.startDate,
+      endDate: input.endDate,
+      ownerContactId: input.ownerContactId,
+      departmentId: input.departmentId,
+      status: input.status,
+      sortOrder: input.sortOrder ?? target?.sortOrder ?? planStore.size,
+      createdAt: target?.createdAt ?? nowIso(),
+      updatedAt: nowIso(),
+    };
+    planStore.set(item.id, item);
+    return clone(item);
+  },
+
+  async deletePlanItem(reportId, itemId) {
+    await delay();
+    const report = reportStore.get(reportId);
+    if (!report) throw new Error(`Weekly report ${reportId} not found`);
+    const frozen = contentFrozenReason(report.status);
+    if (frozen) throw new Error(frozen);
+    const item = planStore.get(itemId);
+    if (item?.weeklyReportId === reportId) planStore.delete(itemId);
   },
 };
 

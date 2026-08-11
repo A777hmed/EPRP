@@ -5,6 +5,7 @@ import type {
   ReportStatus,
   WeeklyActivity,
   WeeklyEntry,
+  WeeklyPlanItem,
   WeeklyReport,
   WeeklySubmission,
 } from "@/types";
@@ -12,6 +13,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   WeeklyActivityRow,
   WeeklyEntryRow,
+  WeeklyPlanItemRow,
   WeeklyReportRow,
   WeeklySubmissionRow,
 } from "@/lib/supabase/database.types";
@@ -106,6 +108,7 @@ function rowToEntry(row: WeeklyEntryRow): WeeklyEntry {
     id: row.id,
     weeklyReportId: row.weekly_report_id,
     entryType: row.entry_type as WeeklyEntry["entryType"],
+    updateType: row.update_type as WeeklyEntry["updateType"],
     category: row.category as WeeklyEntry["category"],
     description: row.description,
     priority: row.priority as WeeklyEntry["priority"],
@@ -116,7 +119,27 @@ function rowToEntry(row: WeeklyEntryRow): WeeklyEntry {
     systemId: row.system_id ?? undefined,
     disciplineId: row.discipline_id ?? undefined,
     includeInMonthly: row.include_in_monthly,
+    createdByContactId: row.created_by_contact_id ?? undefined,
+    updatedByContactId: row.updated_by_contact_id ?? undefined,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function rowToPlanItem(row: WeeklyPlanItemRow): WeeklyPlanItem {
+  return {
+    id: row.id,
+    weeklyReportId: row.weekly_report_id,
+    kind: row.kind as WeeklyPlanItem["kind"],
+    title: row.title,
+    startDate: row.start_date ?? undefined,
+    endDate: row.end_date,
+    ownerContactId: row.owner_contact_id ?? undefined,
+    departmentId: row.department_id ?? undefined,
+    status: row.status as WeeklyPlanItem["status"],
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -687,6 +710,7 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
         entries.map((entry) => ({
           weekly_report_id: reportId,
           entry_type: entry.entryType,
+          update_type: entry.updateType ?? "general",
           category: entry.category,
           description: entry.description,
           priority: entry.priority,
@@ -697,6 +721,8 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
           system_id: entry.systemId ?? null,
           discipline_id: entry.disciplineId ?? null,
           include_in_monthly: entry.includeInMonthly,
+          created_by_contact_id: null,
+          updated_by_contact_id: null,
         }))
       )
       .select("*");
@@ -710,6 +736,7 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
 
     const fields = {
       entry_type: input.entryType,
+      update_type: input.updateType ?? "general",
       category: input.category,
       description: input.description,
       priority: input.priority,
@@ -760,6 +787,63 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
       .from("weekly_entries")
       .delete()
       .eq("id", entryId)
+      .eq("weekly_report_id", reportId);
+    if (error) throw new Error(error.message);
+  },
+
+  async listPlanItems(reportId) {
+    const { data, error } = await client()
+      .from("weekly_plan_items")
+      .select("*")
+      .eq("weekly_report_id", reportId)
+      .order("kind", { ascending: true })
+      .order("sort_order", { ascending: true });
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as WeeklyPlanItemRow[]).map(rowToPlanItem);
+  },
+
+  async savePlanItem(reportId, input) {
+    const sb = client();
+    await assertContentEditable(sb, reportId);
+    const fields = {
+      kind: input.kind,
+      title: input.title.trim(),
+      start_date: input.startDate ?? null,
+      end_date: input.endDate,
+      owner_contact_id: input.ownerContactId ?? null,
+      department_id: input.departmentId ?? null,
+      status: input.status,
+      sort_order: input.sortOrder ?? 0,
+    };
+    const { data, error } = input.id
+      ? await sb
+          .from("weekly_plan_items")
+          .update(fields)
+          .eq("id", input.id)
+          .eq("weekly_report_id", reportId)
+          .select("*")
+          .maybeSingle()
+      : await sb
+          .from("weekly_plan_items")
+          .insert({ ...fields, weekly_report_id: reportId })
+          .select("*")
+          .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) {
+      throw new Error(
+        "This Project Control plan item was not saved. Your role may be read-only."
+      );
+    }
+    return rowToPlanItem(data as WeeklyPlanItemRow);
+  },
+
+  async deletePlanItem(reportId, itemId) {
+    const sb = client();
+    await assertContentEditable(sb, reportId);
+    const { error } = await sb
+      .from("weekly_plan_items")
+      .delete()
+      .eq("id", itemId)
       .eq("weekly_report_id", reportId);
     if (error) throw new Error(error.message);
   },

@@ -11,6 +11,14 @@ export function formatDate(isoDate: string | undefined | null): string {
   return format(date, "dd MMM yyyy");
 }
 
+/** Format an ISO timestamp with local date and 24-hour time. */
+export function formatDateTime(isoDate: string | undefined | null): string {
+  if (!isoDate) return "â€”";
+  const date = parseISO(isoDate);
+  if (Number.isNaN(date.getTime())) return "â€”";
+  return format(date, "dd MMM yyyy, HH:mm");
+}
+
 /** Format a number as a compact currency value, e.g. "$1.2M". */
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {

@@ -77,6 +77,23 @@ export type WeeklyEntryType =
   | "action"
   | "decision";
 
+/** User-facing taxonomy for one persisted Weekly update/comment. */
+export type WeeklyUpdateType =
+  | "progress_update"
+  | "achievement"
+  | "delay_constraint"
+  | "risk"
+  | "issue"
+  | "action_required"
+  | "general";
+
+/** Project Control plan lifecycle inside one Weekly report. */
+export type WeeklyPlanStatus =
+  | "not_started"
+  | "in_progress"
+  | "completed"
+  | "delayed";
+
 /**
  * A department's verdict on its own work for the week (spec section 7).
  * Deliberately separate from {@link SubmissionStatus}, which tracks the

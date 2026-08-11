@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Archive,
+  ArrowLeft,
   ArrowRight,
   Copy,
   Eye,
@@ -32,6 +33,7 @@ import type {
   ReportStatus,
   WeeklyActivity,
   WeeklyEntry,
+  WeeklyPlanItem,
   WeeklyReport,
   WeeklySubmission,
 } from "@/types";
@@ -44,7 +46,6 @@ import {
 } from "../scope";
 import { buildWeeklyWorkspace } from "../workspace";
 import { countReceived, isEditableReport } from "../utils";
-import { useHierarchyTerms } from "../use-hierarchy-terms";
 import { ActivitiesTable } from "./activities-table";
 import { useWeeklyNameLookup } from "./weekly-department-section";
 import { WeeklyDepartmentsPanel } from "./weekly-departments-panel";
@@ -53,6 +54,13 @@ import { WeeklyProgressSummary } from "./weekly-progress-summary";
 import { WeeklyProjectEntries } from "./weekly-project-entries";
 import { WeeklyReportInformation } from "./weekly-report-information";
 import { WeeklyWorkspaceHeader } from "./weekly-workspace-header";
+import {
+  MonthlyReportTray,
+  PreviousWeekSnapshot,
+  WeeklyAlerts,
+  type PreviousWeeklyData,
+} from "./weekly-insights";
+import { WeeklyProjectControlPlan } from "./weekly-project-control-plan";
 
 /** Horizontal workflow stepper for the weekly main path. */
 function WorkflowStepper({ status }: { status: ReportStatus }) {
@@ -114,6 +122,8 @@ export interface WeeklyReportDetailViewProps {
   demoMode: boolean;
   viewerName?: string;
   viewerRoleLabel?: string;
+  backHref?: string;
+  mode?: "detail" | "workspace";
 }
 
 /** /weekly-reports/[reportId] — the Weekly workspace for one project. */
@@ -125,13 +135,28 @@ export function WeeklyReportDetailView({
   demoMode,
   viewerName,
   viewerRoleLabel,
+  backHref,
+  mode = "detail",
 }: WeeklyReportDetailViewProps) {
   const router = useRouter();
   const [report, setReport] = React.useState<WeeklyReport | null | undefined>();
   const [submissions, setSubmissions] = React.useState<WeeklySubmission[]>([]);
   const [activities, setActivities] = React.useState<WeeklyActivity[]>([]);
   const [entries, setEntries] = React.useState<WeeklyEntry[]>([]);
+  const [planItems, setPlanItems] = React.useState<WeeklyPlanItem[]>([]);
+  const [previousRaw, setPreviousRaw] = React.useState<{
+    report: WeeklyReport;
+    submissions: WeeklySubmission[];
+    entries: WeeklyEntry[];
+    planItems: WeeklyPlanItem[];
+  } | null>(null);
   const [project, setProject] = React.useState<Project | null>(null);
+  const [projectLoadState, setProjectLoadState] = React.useState<
+    "loading" | "ready" | "error"
+  >("loading");
+  const [reportLoadError, setReportLoadError] = React.useState<string | null>(
+    null
+  );
   const [archiveOpen, setArchiveOpen] = React.useState(false);
   const [pendingStatus, setPendingStatus] = React.useState<string | null>(null);
   const [reloadKey, setReloadKey] = React.useState(0);
@@ -143,27 +168,105 @@ export function WeeklyReportDetailView({
    * Called before the early returns below — it is a hook.
    */
   const names = useWeeklyNameLookup();
-  const terms = useHierarchyTerms(project);
 
   React.useEffect(() => {
     let cancelled = false;
-    weeklyReportService.getById(reportId).then(async (r) => {
-      if (cancelled) return;
-      setReport(r);
-      if (r) {
-        const [subs, proj, acts, rows] = await Promise.all([
-          weeklyReportService.listSubmissions(r.id),
-          projectService.getProjectById(r.projectId),
-          weeklyReportService.listActivities(r.id),
-          weeklyReportService.listEntries(r.id),
-        ]);
+
+    const load = async () => {
+      setReport(undefined);
+      setReportLoadError(null);
+      setProject(null);
+      setProjectLoadState("loading");
+      setSubmissions([]);
+      setActivities([]);
+      setEntries([]);
+      setPlanItems([]);
+      setPreviousRaw(null);
+
+      try {
+        const r = await weeklyReportService.getById(reportId);
         if (cancelled) return;
-        setSubmissions(subs);
-        setProject(proj);
-        setActivities(acts);
-        setEntries(rows);
+        setReport(r);
+        if (!r) {
+          setProjectLoadState("ready");
+          return;
+        }
+
+        /*
+         * Resolve every source independently. Project identity and department
+         * scope are critical; optional planning/history data must never keep
+         * them in a permanent loading state if one additive table is missing
+         * or temporarily unavailable.
+         */
+        const [subs, proj, acts, rows, plans, reports] =
+          await Promise.allSettled([
+            weeklyReportService.listSubmissions(r.id),
+            projectService.getProjectById(r.projectId),
+            weeklyReportService.listActivities(r.id),
+            weeklyReportService.listEntries(r.id),
+            weeklyReportService.listPlanItems(r.id),
+            weeklyReportService.list(),
+          ]);
+        if (cancelled) return;
+
+        setSubmissions(subs.status === "fulfilled" ? subs.value : []);
+        setActivities(acts.status === "fulfilled" ? acts.value : []);
+        setEntries(rows.status === "fulfilled" ? rows.value : []);
+        setPlanItems(plans.status === "fulfilled" ? plans.value : []);
+
+        if (proj.status === "fulfilled") {
+          setProject(proj.value);
+          setProjectLoadState("ready");
+        } else {
+          setProject(null);
+          setProjectLoadState("error");
+        }
+
+        const availableReports =
+          reports.status === "fulfilled" ? reports.value : [];
+        const previous = availableReports
+          .filter(
+            (candidate) =>
+              candidate.projectId === r.projectId &&
+              candidate.id !== r.id &&
+              candidate.periodEnd < r.periodStart
+          )
+          .sort((a, b) => b.periodEnd.localeCompare(a.periodEnd))[0];
+        if (!previous) return;
+
+        const [previousSubmissions, previousEntries, previousPlans] =
+          await Promise.allSettled([
+            weeklyReportService.listSubmissions(previous.id),
+            weeklyReportService.listEntries(previous.id),
+            weeklyReportService.listPlanItems(previous.id),
+          ]);
+        if (cancelled) return;
+        setPreviousRaw({
+          report: previous,
+          submissions:
+            previousSubmissions.status === "fulfilled"
+              ? previousSubmissions.value
+              : [],
+          entries:
+            previousEntries.status === "fulfilled"
+              ? previousEntries.value
+              : [],
+          planItems:
+            previousPlans.status === "fulfilled" ? previousPlans.value : [],
+        });
+      } catch (error) {
+        if (cancelled) return;
+        setReport(null);
+        setProjectLoadState("error");
+        setReportLoadError(
+          error instanceof Error
+            ? error.message
+            : "The Weekly report could not be loaded."
+        );
       }
-    });
+    };
+
+    void load();
     return () => {
       cancelled = true;
     };
@@ -178,10 +281,16 @@ export function WeeklyReportDetailView({
   const scope = React.useMemo<WeeklyScope | null>(() => {
     if (viewerScope) return viewerScope;
     if (!demoMode || !project) return null;
-    return resolveWeeklyScope(project, "", {
-      isAdmin: true,
+    return resolveWeeklyScope(
+      project,
+      project.projectControlManagerId ??
+        project.reportingCoordinatorId ??
+        project.projectManagerId,
+      {
+      isAdmin: false,
       projectType: getProjectTypeById(project.projectTypeId),
-    });
+      }
+    );
   }, [viewerScope, demoMode, project]);
 
   const editability = React.useMemo<WeeklyEditability>(() => {
@@ -209,6 +318,40 @@ export function WeeklyReportDetailView({
     if (!belongsToScopeProject(scope, project.id)) return null;
     return buildWeeklyWorkspace(project, report, submissions, scope, entries);
   }, [report, project, scope, submissions, entries]);
+
+  const previous = React.useMemo<PreviousWeeklyData | null>(() => {
+    if (!previousRaw || !project || !scope) return null;
+    if (!belongsToScopeProject(scope, previousRaw.report.projectId)) return null;
+    return {
+      report: previousRaw.report,
+      entries: previousRaw.entries,
+      planItems: previousRaw.planItems,
+      workspace: buildWeeklyWorkspace(
+        project,
+        previousRaw.report,
+        previousRaw.submissions,
+        scope,
+        previousRaw.entries
+      ),
+    };
+  }, [previousRaw, project, scope]);
+
+  const effectiveScope = React.useMemo(() => {
+    if (!scope || !workspace) return "Access unresolved";
+    if (scope.capability === "all_projects" || scope.capability === "project") {
+      return "Full project workspace";
+    }
+    return workspace.departments
+      .map((department) => {
+        const departmentName = names.department(department.departmentId)?.name ?? "Department";
+        if (department.seesWholeDepartment) return departmentName;
+        const itemNames = department.scopeItems
+          .filter((item) => !item.detached)
+          .map((item) => names.scopeItem(item.scopeItemId)?.name ?? workspace.scopeItemLabel);
+        return `${departmentName} > ${itemNames.join(", ") || "assigned scope"}`;
+      })
+      .join(" · ");
+  }, [scope, workspace, names]);
 
   /**
    * Fold a saved row back in by id, so the department's completion state and
@@ -248,8 +391,10 @@ export function WeeklyReportDetailView({
     return (
       <EmptyState
         icon={FileX}
-        title="Weekly report not found"
-        description={`No weekly report exists with id “${reportId}”.`}
+        title={reportLoadError ? "Weekly report could not be loaded" : "Weekly report not found"}
+        description={
+          reportLoadError ?? `No weekly report exists with id “${reportId}”.`
+        }
         action={
           <Button variant="outline" asChild>
             <Link href="/weekly-reports">Back to Weekly Reports</Link>
@@ -282,17 +427,37 @@ export function WeeklyReportDetailView({
       <WeeklyWorkspaceHeader
         report={report}
         project={project}
-        viewerName={viewerName}
-        viewerRoleLabel={viewerRoleLabel}
+        viewerName={viewerName ?? names.person(scope?.contactId)?.name}
+        viewerRoleLabel={viewerRoleLabel ?? (demoMode ? "Project Control (demo)" : undefined)}
+        mode={mode}
+        effectiveScope={effectiveScope}
+        canEdit={mode === "workspace" && editability.canEdit}
+        editBlockedReason={editability.reason}
         actions={
           <>
+            {mode === "workspace" && (
+              <Button variant="outline" asChild>
+                <Link href={backHref ?? `/weekly-reports/${report.id}`}>
+                  <ArrowLeft data-icon="inline-start" aria-hidden="true" />
+                  Back to report
+                </Link>
+              </Button>
+            )}
+            {mode === "detail" && (
+              <Button variant="outline" asChild>
+                <Link href={`/weekly-reports/${report.id}/workspace`}>
+                  <ArrowRight data-icon="inline-start" aria-hidden="true" />
+                  Open Workspace
+                </Link>
+              </Button>
+            )}
             <Button variant="outline" asChild>
               <Link href={`/weekly-reports/${report.id}/preview`}>
                 <Eye data-icon="inline-start" aria-hidden="true" />
                 Preview
               </Link>
             </Button>
-            {isEditableReport(report) && editability.canEdit && (
+            {mode === "detail" && isEditableReport(report) && editability.canEdit && (
               <Button variant="outline" asChild>
                 <Link href={`/weekly-reports/${report.id}/edit`}>
                   <PenLine data-icon="inline-start" aria-hidden="true" />
@@ -300,7 +465,7 @@ export function WeeklyReportDetailView({
                 </Link>
               </Button>
             )}
-            <Button
+            {mode === "detail" && <Button
               variant="outline"
               onClick={async () => {
                 const copy = await weeklyReportService.duplicate(report.id);
@@ -310,8 +475,8 @@ export function WeeklyReportDetailView({
             >
               <Copy data-icon="inline-start" aria-hidden="true" />
               Duplicate
-            </Button>
-            {report.status !== "archived" && (
+            </Button>}
+            {mode === "detail" && report.status !== "archived" && (
               <Button variant="destructive" onClick={() => setArchiveOpen(true)}>
                 <Archive data-icon="inline-start" aria-hidden="true" />
                 Archive
@@ -322,7 +487,7 @@ export function WeeklyReportDetailView({
       />
 
       {/* Why this report is read-only, said once and up front. */}
-      {!editability.canEdit && editability.reason && (
+      {mode === "workspace" && !editability.canEdit && editability.reason && (
         <p
           role="status"
           className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning/10 px-4 py-3 text-sm text-warning"
@@ -353,7 +518,7 @@ export function WeeklyReportDetailView({
               {workspace.markedForMonthly === 1 ? "" : "s"} marked for Monthly
             </span>
           )}
-          {allowedTransitions.map((to) => (
+          {scope?.canConsolidate && allowedTransitions.map((to) => (
             <Button
               key={to}
               size="sm"
@@ -369,7 +534,17 @@ export function WeeklyReportDetailView({
         </div>
       </div>
 
-      {workspace && (
+      {mode === "detail" && workspace && (
+        <WeeklyAlerts
+          report={report}
+          workspace={workspace}
+          planItems={planItems}
+          previous={previous}
+          names={names}
+        />
+      )}
+
+      {mode === "detail" && workspace && (
         <WeeklyProgressSummary
           summary={workspace.summary}
           manHoursToDate={report.manHoursToDate}
@@ -380,13 +555,16 @@ export function WeeklyReportDetailView({
         />
       )}
 
+      {mode === "detail" && (
+        <PreviousWeekSnapshot previous={previous} names={names} />
+      )}
+
       {workspace ? (
         <WeeklyDepartmentsPanel
           reportId={report.id}
           workspace={workspace}
-          project={project}
-          terms={terms}
-          canEdit={editability.canEdit}
+          canEdit={mode === "workspace" && editability.canEdit}
+          viewerContactId={scope?.contactId}
           onSaved={handleSaved}
           onEntrySaved={handleEntrySaved}
           onEntryDeleted={handleEntryDeleted}
@@ -397,14 +575,18 @@ export function WeeklyReportDetailView({
           description="Department input for this reporting week."
         >
           <p className="text-sm text-muted-foreground">
-            {project
-              ? "Department input cannot be shown until your access to this project is resolved."
-              : "Loading the project this report belongs to…"}
+            {projectLoadState === "loading"
+              ? "Loading the project this report belongs to…"
+              : projectLoadState === "error"
+                ? "The project for this report could not be loaded."
+                : project
+                  ? "Department input cannot be shown until your access to this project is resolved."
+                  : "The project for this report is not available."}
           </p>
         </SectionCard>
       )}
 
-      <SectionCard
+      {mode === "detail" && <SectionCard
         title="Major Activities Completed"
         description="Significant activities delivered in this reporting week."
         action={
@@ -419,9 +601,26 @@ export function WeeklyReportDetailView({
           activities={activities}
           emptyMessage="No major activities recorded for this week. They are added on the report edit form."
         />
-      </SectionCard>
+      </SectionCard>}
 
       {workspace && (
+        <WeeklyProjectControlPlan
+          reportId={report.id}
+          project={project}
+          names={names}
+          periodStart={report.periodStart}
+          periodEnd={report.periodEnd}
+          items={planItems}
+          editable={
+            mode === "workspace" &&
+            editability.canEdit &&
+            Boolean(scope?.canConsolidate)
+          }
+          onChange={setPlanItems}
+        />
+      )}
+
+      {mode === "detail" && workspace && (
         <>
           <div className="grid gap-4 lg:grid-cols-2">
             <WeeklyProjectEntries
@@ -450,7 +649,15 @@ export function WeeklyReportDetailView({
         </>
       )}
 
-      <WeeklyReportInformation report={report} />
+      {workspace && (
+        <MonthlyReportTray
+          workspace={workspace}
+          names={names}
+          weekNumber={report.weekNumber}
+        />
+      )}
+
+      {mode === "detail" && <WeeklyReportInformation report={report} />}
 
       <ConfirmDialog
         open={archiveOpen}

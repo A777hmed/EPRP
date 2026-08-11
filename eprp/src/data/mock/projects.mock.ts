@@ -64,21 +64,34 @@ export const mockProjects: Project[] = [
         leadName: "Ibrahim Lotfy",
         reportingRequired: true,
         systems: [
-          { id: "sys-1", name: "Crude Distillation Unit", code: "CDU" },
-          { id: "sys-2", name: "Tank Farm", code: "TF" },
+          { id: "sy-cdu", name: "Crude Distillation Unit", code: "CDU" },
+          { id: "sy-tank-farm", name: "Tank Farm", code: "TF" },
         ],
       },
       {
         departmentId: "dp-inst",
         leadName: "Mona Ezz",
         reportingRequired: true,
-        systems: [{ id: "sys-3", name: "Safeguarding Systems", code: "SGS" }],
+        systems: [{ id: "sy-safeguarding", name: "Safeguarding Systems", code: "SGS" }],
       },
       {
         departmentId: "dp-qc",
         reportingRequired: false,
         systems: [],
       },
+    ],
+    disciplines: [
+      { disciplineId: "di-piping", departmentId: "dp-mech", systemId: "sy-cdu" },
+      { disciplineId: "di-static", departmentId: "dp-mech", systemId: "sy-tank-farm" },
+      { disciplineId: "di-control", departmentId: "dp-inst", systemId: "sy-safeguarding" },
+    ],
+    team: [
+      { contactId: "ct-fahmy", assignmentRole: "team_member_lead" },
+      { contactId: "ct-adel", assignmentRole: "team_member" },
+      { contactId: "ct-helmy", departmentId: "dp-mech", systemId: "sy-cdu", disciplineId: "di-piping", assignmentRole: "department_manager", functionalTitle: "Piping Program Lead" },
+      { contactId: "ct-shazly", departmentId: "dp-mech", systemId: "sy-cdu", disciplineId: "di-piping", assignmentRole: "team_member", functionalTitle: "Piping Data Engineer", reportsToContactId: "ct-helmy" },
+      { contactId: "ct-helmy", departmentId: "dp-mech", systemId: "sy-tank-farm", disciplineId: "di-static", assignmentRole: "department_manager", functionalTitle: "Static Equipment Program Lead" },
+      { contactId: "ct-adel", departmentId: "dp-inst", systemId: "sy-safeguarding", disciplineId: "di-control", assignmentRole: "department_manager", functionalTitle: "Safeguarding Program Lead" },
     ],
     branding: {
       ...defaultBranding,
