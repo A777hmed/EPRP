@@ -30,7 +30,7 @@ and a lifecycle transition correctly refused).
 | 6 | Comments and collaboration | ⚠️ Partial |
 | 7 | Workflow, permissions, notifications | ❌ Config only, nothing enforced |
 | 8 | Excel exchange | ❌ Not started |
-| 9 | Monthly Reports | ❌ **Not started** |
+| 9 | Monthly Reports | ⚠️ Partial — schema, RLS, service and full Monthly UX (register, create, document, workspace, analytics, A4 print) delivered; see note |
 | 10 | Executive reporting | ❌ **Not started** |
 | 11 | A4/PDF output | ⚠️ Partial — dedicated Weekly A4 preview/print delivered; other report types remain untouched |
 | 12 | Hardening and future integrations | ❌ Not started |
@@ -46,6 +46,26 @@ The two standing facts that used to gate every estimate below are **no longer tr
 - **Version control history exists** — 17 commits, with `4fe5dae` as the pre-release stabilization checkpoint. A verified restore path also exists: `EPR_Full_Backup_2026-08-09.dump` and `EPR_Schema_Backup_2026-08-09.sql`, the former checked with `pg_restore -l`. *(Was: "`.git` exists but is empty. There is no way to revert a bad change.")*
 
 Docker is still not installed, so `supabase db dump` is unavailable locally; backups are taken outside the CLI.
+
+### A note on Phase 9 (Monthly Reports)
+
+Phase 9 was recorded as "Not started" long after it had in fact been built. As
+built it comprises four tables (`monthly_reports`, `monthly_comments`,
+`monthly_department_summaries`, `monthly_plan_items`) with RLS and an authorship
+trigger, a full CRUD service, and the Monthly register, create, document,
+workspace, analytics and A4 print UI.
+
+It is **Partial**, not Complete, for three reasons — all recorded in
+`KNOWN_LIMITATIONS.md` §3.6–3.7:
+
+1. Migration `20260812000001` calls `weekly_can_access_scope()` with four
+   arguments where only a three-argument function exists. The live database was
+   repaired by `20260812000002`, but the migration set **cannot be replayed on a
+   fresh environment**.
+2. HSE event counts and a next-month planned-% target have no column; the UI
+   renders "Not recorded" rather than a placeholder value.
+3. No Google Drive upload or admin-PIN approval exists, despite appearing in the
+   Monthly design reference. Nothing in the platform implements either.
 
 ### A note on phase numbering
 

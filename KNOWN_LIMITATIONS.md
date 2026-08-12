@@ -99,7 +99,50 @@ records into one requires a migration, as `20260809000002` did — and
 `Asset Integrity Study` and `Inspection` are still unmapped to a System
 (`refs=0`), deliberately kept pending a decision.
 
-### 3.6 No test runner
+### 3.6 Migration `20260812000001_monthly_reports.sql` is not replayable
+
+**The live database is unaffected — this only bites a fresh environment.**
+
+Lines 145, 151 and 156 of `eprp/supabase/migrations/20260812000001_monthly_reports.sql`
+call `public.weekly_can_access_scope()` with **four** uuid arguments
+(project, department, system, discipline). That function only ever exists with
+**three** — defined at `20260810000002_weekly_rls.sql:126`, redefined at
+`20260810000003_identity_and_admin_limits.sql:213`, and commented as
+`(uuid, uuid, uuid)` at `20260810000002:183`. No four-argument overload exists
+anywhere in the migration set.
+
+The evidence says this already failed once, statement-by-statement: everything
+through line 142 exists in the live database (which is why `monthly_reports_*`
+and `monthly_comments_select` are absent from the repair migration), line 143
+raised `function … does not exist`, and lines 147–159 never ran.
+`20260812000002_monthly_rls_repair.sql` recreates exactly lines 143–159 with the
+correct three-argument signature — matching its own header, "the partial
+20260812000001 run".
+
+**Consequence:** `supabase db reset`, or standing up any new environment from
+migrations, **will fail** on this file. The Monthly RLS policies are correct in
+the live database; they are not reproducible from the repository.
+
+**Fix (deliberately not applied):** change the three calls in
+`20260812000001` to the three-argument form. Already-applied migrations are not
+re-run, so this is safe for the live database, but it rewrites migration
+history and was left as an explicit decision rather than a silent edit.
+
+### 3.7 The Monthly data model has no field for several reported values
+
+Three values the Monthly report layout asks for have no column anywhere:
+
+| Value | Nearest thing that exists |
+|---|---|
+| HSE event counts — LTI, recordable, first aid, near miss | `hse_status` only, a rating enum (`excellent`…`critical`) on `weekly_reports` and `monthly_reports` |
+| Next-month "Planned % target" | Nothing |
+| Numeric progress per Programme/Study or Discipline | `weekly_submissions.progress_percent`, which the Monthly scope table now reads |
+
+The Monthly UI renders a compact "Not recorded" for the first two rather than a
+placeholder number. Storing them needs an additive migration
+(`monthly_reports.hse_lti` etc.), which was deferred by decision.
+
+### 3.8 No test runner
 
 All verification across both sprints was ad-hoc. This is the single biggest obstacle to the sprint's end condition: without automated tests, "no regressions" can only ever be asserted over the narrow slice manually exercised.
 

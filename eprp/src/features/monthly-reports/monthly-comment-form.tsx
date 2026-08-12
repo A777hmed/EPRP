@@ -26,13 +26,6 @@ export const MONTHLY_UPDATE_TYPE_OPTIONS = [
 
 const PRIORITIES = ["low", "medium", "high", "critical"] as const;
 const STATUS_OPTIONS = [...(Object.keys(ENTRY_STATUS_META) as EntryStatus[]), "pending"] as const;
-const DETAILED_TYPES = new Set<MonthlyComment["updateType"]>([
-  "challenge_constraint",
-  "risk_issue",
-  "action",
-  "decision_management_support",
-  "next_month_plan",
-]);
 
 interface MonthlyCommentFormProps {
   reportId: string;
@@ -45,12 +38,14 @@ interface MonthlyCommentFormProps {
   defaultType?: MonthlyComment["updateType"];
   buttonLabel?: string;
   onCancel?: () => void;
+  /** Render the editor immediately, when the caller owns the open/close state. */
+  forceOpen?: boolean;
 }
 
 export function MonthlyCommentForm(props: MonthlyCommentFormProps) {
-  const { comment, buttonLabel = "Add Monthly Comment" } = props;
+  const { comment, buttonLabel = "Add Monthly Comment", forceOpen = false } = props;
   const [isCreating, setIsCreating] = React.useState(false);
-  const open = Boolean(comment) || isCreating;
+  const open = Boolean(comment) || isCreating || forceOpen;
 
   if (!open && !comment) {
     return (
@@ -93,7 +88,6 @@ function MonthlyCommentEditor({
   const availableSystems = projectSystems(project, departmentId || undefined);
   const availableDisciplines = projectScopeItemIds(project, departmentId || undefined, systemId || undefined);
   const owners = eligibleOwners(project, { departmentId, systemId, disciplineId });
-  const needsDetail = DETAILED_TYPES.has(type);
   const nameOf = (id: string, rows: { id: string; name: string }[]) => rows.find((row) => row.id === id)?.name ?? id;
 
   const save = async () => {
@@ -111,8 +105,8 @@ function MonthlyCommentEditor({
         departmentId: departmentId || undefined,
         systemId: systemId || undefined,
         disciplineId: disciplineId || undefined,
-        responsibleContactId: needsDetail && responsibleContactId ? responsibleContactId : undefined,
-        targetDate: needsDetail && targetDate ? targetDate : undefined,
+        responsibleContactId: responsibleContactId || undefined,
+        targetDate: targetDate || undefined,
         priority,
         status,
         includeInFinal,
@@ -164,27 +158,23 @@ function MonthlyCommentEditor({
             {availableDisciplines.map((id) => <option key={id} value={id}>{nameOf(id, disciplines)}</option>)}
           </select>
         </Field>
-        {needsDetail && (
-          <>
-            <Field label="Responsible Person">
-              <select value={responsibleContactId} onChange={(event) => setResponsibleContactId(event.target.value)}>
-                <option value="">Not specified</option>
-                {owners.map((owner) => <option key={owner.contactId} value={owner.contactId}>{nameOf(owner.contactId, contacts)}</option>)}
-              </select>
-            </Field>
-            <Field label="Due Date">
-              <Input type="date" value={targetDate} onChange={(event) => setTargetDate(event.target.value)} />
-            </Field>
-            <Field label="Status">
-              <select value={status} onChange={(event) => setStatus(event.target.value as MonthlyComment["status"])}>
-                {STATUS_OPTIONS.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}
-              </select>
-            </Field>
-          </>
-        )}
+        <Field label="Responsible Person">
+          <select value={responsibleContactId} onChange={(event) => setResponsibleContactId(event.target.value)}>
+            <option value="">Not specified</option>
+            {owners.map((owner) => <option key={owner.contactId} value={owner.contactId}>{nameOf(owner.contactId, contacts)}</option>)}
+          </select>
+        </Field>
+        <Field label="Due Date">
+          <Input type="date" value={targetDate} onChange={(event) => setTargetDate(event.target.value)} />
+        </Field>
         <Field label="Priority">
           <select value={priority} onChange={(event) => setPriority(event.target.value as MonthlyComment["priority"])}>
             {PRIORITIES.map((value) => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}
+          </select>
+        </Field>
+        <Field label="Status">
+          <select value={status} onChange={(event) => setStatus(event.target.value as MonthlyComment["status"])}>
+            {STATUS_OPTIONS.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}
           </select>
         </Field>
       </div>

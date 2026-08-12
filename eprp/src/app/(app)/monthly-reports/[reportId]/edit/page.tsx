@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { MonthlyReportView } from "@/features/monthly-reports";
+import { MonthlyWorkspaceView } from "@/features/monthly-reports";
 
 export const metadata: Metadata = {
   title: "Edit Monthly Report",
@@ -12,5 +12,5 @@ export default async function EditMonthlyReportPage({
 }) {
   const { reportId } = await params;
 
-  return <MonthlyReportView reportId={reportId} mode="workspace" />;
+  return <MonthlyWorkspaceView reportId={reportId} />;
 }
