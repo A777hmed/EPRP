@@ -314,6 +314,86 @@ export interface WeeklyActivityRow {
   updated_at: string;
 }
 
+export interface MonthlyReportRow {
+  id: string;
+  report_number: string;
+  project_id: string;
+  reporting_month: string;
+  status: string;
+  prepared_by_contact_id: string | null;
+  reviewed_by_contact_id: string | null;
+  approved_by_contact_id: string | null;
+  planned_progress: number;
+  actual_progress: number;
+  hse_status: string | null;
+  quality_status: string | null;
+  overall_progress_status: string | null;
+  executive_summary: string | null;
+  active: boolean;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MonthlyCommentRow {
+  id: string;
+  monthly_report_id: string;
+  source_weekly_entry_id: string | null;
+  source_weekly_report_id: string | null;
+  source_kind: string;
+  week_number: number | null;
+  department_id: string | null;
+  system_id: string | null;
+  discipline_id: string | null;
+  update_type: string;
+  original_text: string;
+  presentation_text: string | null;
+  priority: string;
+  status: string;
+  responsible_contact_id: string | null;
+  target_date: string | null;
+  include_in_final: boolean;
+  escalate_to_management: boolean;
+  is_major_achievement: boolean;
+  created_by_contact_id: string | null;
+  updated_by_contact_id: string | null;
+  source_created_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MonthlyDepartmentSummaryRow {
+  id: string;
+  monthly_report_id: string;
+  department_id: string;
+  system_id: string | null;
+  discipline_id: string | null;
+  monthly_summary: string | null;
+  key_achievements: string | null;
+  challenges: string | null;
+  outstanding_actions: string | null;
+  next_month_plan: string | null;
+  created_by_contact_id: string | null;
+  updated_by_contact_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MonthlyPlanItemRow {
+  id: string;
+  monthly_report_id: string;
+  title: string;
+  department_id: string | null;
+  start_date: string | null;
+  target_date: string | null;
+  owner_contact_id: string | null;
+  status: string;
+  remarks: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface OrganizationChartRow {
   id: string;
   project_id: string;
@@ -413,6 +493,10 @@ export interface Database {
       weekly_entries: TableDef<WeeklyEntryRow, Omit<WeeklyEntryRow, "id" | "created_at" | "updated_at">, Partial<WeeklyEntryRow>>;
       weekly_plan_items: TableDef<WeeklyPlanItemRow, Omit<WeeklyPlanItemRow, "id" | "created_at" | "updated_at">, Partial<WeeklyPlanItemRow>>;
       weekly_activities: TableDef<WeeklyActivityRow, Omit<WeeklyActivityRow, "id" | "created_at" | "updated_at">, Partial<WeeklyActivityRow>>;
+      monthly_reports: TableDef<MonthlyReportRow, Omit<MonthlyReportRow, "id" | "created_at" | "updated_at" | "active" | "archived_at">, Partial<MonthlyReportRow>>;
+      monthly_comments: TableDef<MonthlyCommentRow, Omit<MonthlyCommentRow, "id" | "created_at" | "updated_at" | "created_by_contact_id" | "updated_by_contact_id">, Partial<MonthlyCommentRow>>;
+      monthly_department_summaries: TableDef<MonthlyDepartmentSummaryRow, Omit<MonthlyDepartmentSummaryRow, "id" | "created_at" | "updated_at" | "created_by_contact_id" | "updated_by_contact_id">, Partial<MonthlyDepartmentSummaryRow>>;
+      monthly_plan_items: TableDef<MonthlyPlanItemRow, Omit<MonthlyPlanItemRow, "id" | "created_at" | "updated_at">, Partial<MonthlyPlanItemRow>>;
     };
   };
 }

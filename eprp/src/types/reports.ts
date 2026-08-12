@@ -180,24 +180,85 @@ export interface WeeklyReport extends ReportBase {
 export interface MonthlyComment {
   id: string;
   monthlyReportId: string;
-  category: CommentCategory;
+  sourceKind: "weekly" | "monthly_manual";
+  sourceWeeklyEntryId?: string;
+  sourceWeeklyReportId?: string;
+  weekNumber?: number;
+  departmentId?: string;
+  systemId?: string;
+  disciplineId?: string;
+  updateType: MonthlyUpdateType;
+  /** Immutable source wording, copied only once from Weekly. */
+  originalText: string;
+  /** Optional Monthly consolidation wording; it never replaces originalText. */
+  presentationText?: string;
   priority: Priority;
-  text: string;
-  important: boolean;
-  authorContactId?: string;
+  status: EntryStatus | "pending";
+  responsibleContactId?: string;
+  targetDate?: IsoDate;
+  includeInFinal: boolean;
+  escalateToManagement: boolean;
+  isMajorAchievement: boolean;
+  createdByContactId?: string;
+  updatedByContactId?: string;
+  sourceCreatedAt?: IsoDateTime;
   createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export type MonthlyUpdateType =
+  | "progress_update"
+  | "achievement"
+  | "challenge_constraint"
+  | "risk_issue"
+  | "decision_management_support"
+  | "next_month_plan"
+  | "action"
+  | "general";
+
+export interface MonthlyDepartmentSummary {
+  id: string;
+  monthlyReportId: string;
+  departmentId: string;
+  systemId?: string;
+  disciplineId?: string;
+  monthlySummary?: string;
+  keyAchievements?: string;
+  challenges?: string;
+  outstandingActions?: string;
+  nextMonthPlan?: string;
+  createdByContactId?: string;
+  updatedByContactId?: string;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export interface MonthlyPlanItem {
+  id: string;
+  monthlyReportId: string;
+  title: string;
+  departmentId?: string;
+  startDate?: IsoDate;
+  targetDate?: IsoDate;
+  ownerContactId?: string;
+  status: "not_started" | "in_progress" | "completed" | "delayed" | "pending";
+  remarks?: string;
+  sortOrder: number;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
 }
 
 export interface MonthlyReport extends ReportBase {
-  /** e.g. "July 2026" */
-  monthLabel: string;
-  /** Weekly reports compiled into this monthly report. */
-  weeklyReportIds: string[];
+  /** First day of the consolidated calendar month. */
+  reportingMonth: IsoDate;
   plannedProgress: number;
   actualProgress: number;
   scheduleVariance: number; // percentage points, negative = behind
   spi: number;
-  commentIds: string[];
+  hseStatus?: KpiRating;
+  qualityStatus?: KpiRating;
+  overallProgressStatus?: ProgressStatus;
+  executiveSummary?: string;
 }
 
 /* -------------------------------- Executive ------------------------------- */
