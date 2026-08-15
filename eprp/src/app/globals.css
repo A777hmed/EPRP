@@ -101,41 +101,60 @@
   --sidebar-ring: oklch(0.63 0.16 128);
 }
 
+/*
+ * Dark theme — a NAVY-CHARCOAL estate, not an inverted light one.
+ *
+ * The previous block was stock shadcn greyscale (`oklch(L 0 0)`), which put a
+ * neutral grey app around a navy sidebar and read as unfinished. Every surface
+ * here carries a small amount of the brand hue (~260) so the chrome, the
+ * sidebar and the workspace ground belong to one family, and the LIGHTEST
+ * surface is a layered slate rather than pure black at the bottom.
+ *
+ * Elevation runs background → card → popover, each step lighter, so panels sit
+ * ON the ground instead of dissolving into it. Accents brighten (rather than
+ * darken) against the dark ground to hold contrast.
+ */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.62 0.15 262);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --success: oklch(0.765 0.177 163.223);
-  --warning: oklch(0.828 0.189 84.429);
-  --info: oklch(0.707 0.165 254.624);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.62 0.15 262);
-  --chart-1: oklch(0.62 0.15 262);
-  --chart-2: oklch(0.75 0.17 128);
-  --chart-3: oklch(0.7 0.13 240);
-  --chart-4: oklch(0.82 0.16 84);
-  --chart-5: oklch(0.7 0.19 22);
-  --sidebar: oklch(0.21 0.05 265);
-  --sidebar-foreground: oklch(0.96 0.005 260);
-  --sidebar-primary: oklch(0.5 0.19 262);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(1 0 0 / 10%);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.75 0.17 128);
+  /* Written as hex rather than oklch: the oklch lightnesses that read as
+     "dark slate" on paper resolved to #06090f–#121822 in-browser, i.e. the
+     near-black the brief rules out. These are the values that were measured
+     back out of the running app. */
+  --background: #0f1726;
+  --foreground: #e9eff8;
+  --card: #182133;
+  --card-foreground: #e9eff8;
+  --popover: #1d2840;
+  --popover-foreground: #e9eff8;
+  --primary: #4f9bea;
+  --primary-foreground: #0b1220;
+  --secondary: #232f45;
+  --secondary-foreground: #e9eff8;
+  --muted: #202b40;
+  --muted-foreground: #9aa8bd;
+  --accent: #263450;
+  --accent-foreground: #f1f5fb;
+  --destructive: #f2707a;
+  --success: #3fc48d;
+  --warning: #e8a94b;
+  --info: #5aa8f2;
+  --border: rgb(255 255 255 / 12%);
+  --input: rgb(255 255 255 / 16%);
+  --ring: #4f9bea;
+  --chart-1: #4f9bea;
+  --chart-2: #6cc46a;
+  --chart-3: #6fb4e8;
+  --chart-4: #e8a94b;
+  --chart-5: #f2707a;
+  /* A shade lighter than the app ground, so the rail reads as a raised
+     surface rather than a hole punched in the page. */
+  --sidebar: #141d2f;
+  --sidebar-foreground: #e9eff8;
+  --sidebar-primary: #3d7fd6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(255 255 255 / 10%);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgb(255 255 255 / 12%);
+  --sidebar-ring: #6cc46a;
 }
 
 @layer base {
@@ -887,4 +906,2829 @@
   .monthly-print-document * {
     overflow: visible !important;
   }
+}
+
+/* ==========================================================================
+   Project Portfolio Executive Report
+
+   The Executive document deliberately opts into the Monthly document CSS
+   contract — `.monthly-report-sheet` / `.monthly-print-document` and the
+   section, table and analytics classes beneath them. That class set is the
+   platform's A4 document contract (page-break policy, repeated table headers,
+   the screen/print chart swap, colour-adjust), so the two reports look like one
+   family and ~180 lines of print CSS are not duplicated.
+
+   This block adds ONLY what is genuinely new at portfolio altitude. Nothing
+   above is modified.
+   ========================================================================== */
+
+.exec-stage { min-height: 100%; background: #e7eef6; padding: 0 0 2rem; }
+
+/* The portfolio table carries eleven columns, so the sheet is wider than the
+   Monthly document's. Both classes sit on the same element, so this is written
+   at higher specificity rather than relying on source order. */
+.monthly-report-sheet.exec-document { width: min(100% - 32px, 1360px); }
+.exec-stage .monthly-preview-tools { width: min(100% - 32px, 1360px); }
+
+/* -------------------------------- Control bar ----------------------------- */
+
+.exec-control-bar { width: min(100% - 32px, 1360px); margin: 16px auto 0; padding: 16px 20px; background: linear-gradient(135deg, #0a3974 0%, #0d59a8 100%); border-radius: 8px; color: white; box-shadow: 0 8px 22px rgb(22 51 84 / 18%); }
+.exec-control-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 18px; align-items: start; }
+.exec-control-title { min-width: 0; }
+.exec-control-title p { margin: 0 0 4px; color: #b9d2ed; font-size: .62rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.exec-control-title h1 { margin: 0; font-size: 1.42rem; font-weight: 800; letter-spacing: .015em; text-transform: uppercase; line-height: 1.15; }
+.exec-control-title span { display: block; margin-top: 5px; color: #c9dcf1; font-size: .74rem; }
+
+.exec-control-actions { display: flex; align-items: flex-end; gap: 10px; }
+.exec-control-period { display: grid; gap: 4px; }
+.exec-control-period span { color: #b9d2ed; font-size: .6rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.exec-control-period select { min-width: 168px; height: 38px; padding: 0 10px; border: 1px solid rgb(255 255 255 / 45%); border-radius: 5px; background: rgb(255 255 255 / 12%); color: white; font: inherit; font-size: .78rem; font-weight: 700; }
+.exec-control-period select option { color: #163b68; }
+.exec-control-empty { height: 38px; display: inline-flex; align-items: center; padding: 0 10px; border: 1px dashed rgb(255 255 255 / 45%); border-radius: 5px; font-size: .74rem; }
+
+/*
+ * Buttons ON the navy bar.
+ *
+ * The bar sets `color: white`, and the shadcn `outline` variant paints
+ * `bg-background` (white) WITHOUT setting a foreground — so the Edit control
+ * rendered white-on-white and looked like a blank box. These buttons therefore
+ * declare both halves of the pair explicitly and never inherit the bar's ink.
+ */
+.exec-control-actions .exec-control-button {
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgb(255 255 255 / 52%);
+  border-radius: 5px;
+  background: rgb(255 255 255 / 14%);
+  color: white;
+  font-size: .78rem;
+  font-weight: 700;
+}
+.exec-control-actions .exec-control-button:hover:not(:disabled) {
+  background: rgb(255 255 255 / 24%);
+  border-color: rgb(255 255 255 / 72%);
+  color: white;
+}
+.exec-control-actions .exec-control-button:disabled { opacity: .55; }
+.exec-control-actions .exec-control-button svg { width: 15px; height: 15px; }
+
+/* The print action is the bar's one solid control, so it reads as primary. */
+.exec-control-actions .exec-control-button.is-primary {
+  border-color: white;
+  background: white;
+  color: #0a3974;
+}
+.exec-control-actions .exec-control-button.is-primary:hover {
+  background: #eaf2fb;
+  color: #0a3974;
+}
+
+.exec-filter-row { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid rgb(255 255 255 / 20%); }
+.exec-filter-label { display: inline-flex; align-items: center; gap: 6px; color: #b9d2ed; font-size: .62rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.exec-filter-label svg { width: 14px; height: 14px; }
+.exec-filter-row select { min-width: 0; flex: 1 1 150px; max-width: 220px; height: 34px; padding: 0 8px; border: 1px solid rgb(255 255 255 / 38%); border-radius: 5px; background: rgb(255 255 255 / 10%); color: white; font: inherit; font-size: .73rem; }
+.exec-filter-row select option { color: #163b68; }
+.exec-filter-clear { height: 34px; padding: 0 12px; border: 1px solid rgb(255 255 255 / 45%); border-radius: 5px; background: transparent; color: white; font: inherit; font-size: .72rem; font-weight: 700; }
+.exec-filter-clear:hover { background: rgb(255 255 255 / 14%); }
+
+.exec-preview-period { display: flex; align-items: flex-end; gap: 10px; }
+.exec-preview-period label { display: grid; gap: 4px; color: #5b718c; font-size: .6rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.exec-preview-period select { height: 38px; min-width: 168px; padding: 0 10px; border: 1px solid #c7d6e5; border-radius: 5px; background: white; color: #173b68; font: inherit; font-size: .78rem; }
+
+.exec-denied, .exec-empty-card { width: min(100% - 32px, 1360px); margin: 16px auto 0; padding: 8px; background: white; border: 1px solid #c9d8e7; border-radius: 8px; }
+
+/* ------------------------------ Document head ----------------------------- */
+
+.exec-header-meta { display: flex; gap: 10px; }
+.exec-header-meta > div { display: grid; gap: 3px; min-width: 96px; padding: 8px 11px; border: 1px solid #cbd9e7; border-radius: 6px; background: linear-gradient(180deg, #ffffff 0%, #f6f9fc 100%); }
+.exec-header-meta span { color: #667a91; font-size: .58rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.exec-header-meta b { color: #173b68; font-size: .78rem; }
+
+.exec-title-note { display: grid; gap: 2px; text-align: right; font-size: .64rem; white-space: nowrap; }
+.exec-title-note span { color: #b9d2ed; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; font-size: .56rem; }
+.exec-title-note b { font-size: .72rem; }
+
+/* Provenance: an output that is not an approved snapshot must say so. */
+.exec-provenance-band { display: flex; align-items: baseline; gap: 10px; padding: 7px 24px; background: #fff5e6; border-top: 1px solid #f0d9b4; border-bottom: 1px solid #f0d9b4; color: #7a5312; font-size: .68rem; }
+.exec-provenance-band b { flex: none; text-transform: uppercase; letter-spacing: .06em; font-size: .62rem; }
+
+.exec-basis-warning { display: grid; gap: 3px; margin-bottom: 10px; padding: 10px 13px; border: 1px solid #e4b98f; border-radius: 6px; background: #fdf3e7; color: #7a5312; }
+.exec-basis-warning b { font-size: .78rem; }
+.exec-basis-warning span { font-size: .7rem; color: #8a6528; }
+
+/* --------------------------------- KPI rows -------------------------------- */
+
+.exec-kpi-row { display: grid; gap: 10px; }
+.exec-kpi-row + .exec-kpi-row { margin-top: 10px; }
+.exec-kpi-position { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.exec-kpi-health { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.exec-kpi-health .monthly-kpi { min-height: 68px; }
+.exec-kpi-health .monthly-kpi b { font-size: 1.24rem; }
+.exec-kpi-legend { margin: 9px 0 0; color: #6d7f94; font-size: .66rem; line-height: 1.5; }
+.exec-kpi-legend b { color: #17477d; }
+
+/* --------------------------- Project status table -------------------------- */
+
+/*
+ * Sized so the whole table fits the 1360px sheet without scrolling on a normal
+ * laptop, rather than being wide enough to guarantee a scrollbar. Below that
+ * width the wrapper scrolls rather than any column being dropped — no
+ * management information is hidden to save space.
+ */
+/*
+ * 1100px is the honest minimum for eleven columns whose headers must each sit
+ * on one line. It is tuned against the header metrics below: drop either and
+ * "Variance (SV)" no longer fits its 7.5% column and spills into its neighbour.
+ * Below this width the wrapper scrolls; no column is dropped to avoid it.
+ */
+/*
+ * NO min-width, deliberately.
+ *
+ * The nine column widths sum to 100%, and headers wrap at word boundaries, so
+ * the table fits whatever container it is given. A min-width here was what
+ * forced the horizontal scrollbar at ordinary desktop widths.
+ */
+.exec-status-table { min-width: 0; width: 100%; table-layout: fixed; }
+
+/* ------------------------------- Register ---------------------------------- */
+
+/*
+ * No min-width: the seven widths sum to 100%, so the table fits its container
+ * and cannot force a scrollbar at ordinary desktop widths.
+ */
+.exec-register-table { min-width: 0; width: 100%; table-layout: fixed; }
+
+/*
+ * Headers wrap at spaces, never mid-word.
+ *
+ * Same defect the Project Status Overview had: in a fixed-layout table a
+ * `nowrap` header wider than its column does not widen the column, it
+ * overflows into the next one. "Approved Monthly Basis" is the long one here.
+ */
+.exec-register-table th {
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  hyphens: none;
+  padding: 9px 10px;
+  vertical-align: middle;
+  line-height: 1.3;
+  background: #f7fafd;
+  border-bottom: 1px solid #cfdce9;
+}
+.exec-register-table th + th { border-left: 1px solid #dde6f0; }
+
+.exec-register-table td {
+  padding: 10px;
+  vertical-align: middle;
+  border-bottom: 1px solid #e8eef5;
+}
+
+/* Period reads as a label; everything else is a figure, a state or a control. */
+.exec-register-table th:nth-child(1), .exec-register-table td:nth-child(1) { width: 18%; text-align: left; }
+.exec-register-table th:nth-child(2), .exec-register-table td:nth-child(2) { width: 13%; text-align: center; }
+.exec-register-table th:nth-child(3), .exec-register-table td:nth-child(3) { width: 11%; text-align: center; }
+.exec-register-table th:nth-child(4), .exec-register-table td:nth-child(4) { width: 17%; text-align: center; }
+.exec-register-table th:nth-child(5), .exec-register-table td:nth-child(5) { width: 15%; text-align: center; }
+.exec-register-table th:nth-child(6), .exec-register-table td:nth-child(6) { width: 13%; text-align: center; }
+.exec-register-table th:nth-child(7), .exec-register-table td:nth-child(7) { width: 13%; text-align: center; }
+
+/* Counts, coverage and dates share one numeric treatment. */
+.exec-register-table td:nth-child(2),
+.exec-register-table td:nth-child(3),
+.exec-register-table td:nth-child(4),
+.exec-register-table td:nth-child(6) {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: #33506f;
+}
+.exec-register-table td:nth-child(1) { font-weight: 600; }
+
+/* A centred cell centres its badge, not just its text. */
+.exec-register-table td:nth-child(5) [data-slot="status-badge"] { margin: 0 auto; }
+
+/*
+ * Primary action and overflow menu read as one control group.
+ *
+ * It must be allowed to WRAP: forcing `nowrap` made the group wider than its
+ * 13% column, and an overflowing cell is what put a scrollbar on the wrapper
+ * even though every column width was correct. The button also shrinks its
+ * padding here so the pair normally sits on one line anyway.
+ */
+.exec-register-table .monthly-row-action-cell {
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.exec-register-table .monthly-row-action-cell > button:first-child,
+.exec-register-table .monthly-row-action-cell > a:first-child { padding-inline: 10px; }
+
+.exec-register-note { margin: 10px 4px 12px; color: #8494a7; font-size: .68rem; line-height: 1.5; }
+/*
+ * Alignment, stated once.
+ *
+ * `.monthly-table td` sets `vertical-align: top`, which left a one-line figure
+ * sitting above a two-line project name in the same row. Every primary cell is
+ * centred against its row instead, and the padding is generous enough that no
+ * value touches a column rule.
+ */
+.exec-status-table th {
+  font-size: .55rem;
+  letter-spacing: .04em;
+  padding: 10px 12px;
+  vertical-align: middle;
+  line-height: 1.3;
+}
+.exec-status-table .exec-row-primary > td {
+  padding: 11px 12px;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+
+/*
+ * A hairline between every column, header and body alike, so adjacent headers
+ * are visibly separate rather than merely spaced apart.
+ */
+.exec-status-table th + th,
+.exec-status-table .exec-row-primary > td + td { border-left: 1px solid #edf2f7; }
+.exec-status-table th + th { border-left-color: #dde6f0; }
+/* The header band reads as a band. */
+.exec-status-table thead th { background: #f7fafd; border-bottom: 1px solid #cfdce9; }
+
+/* Nothing in a portfolio table may become a paragraph. */
+.exec-status-table td:nth-child(7) > :first-child,
+.exec-status-table .exec-movement small,
+.exec-status-table .exec-movement-none {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.exec-count-link { color: #0d59a8; font-weight: 700; font-variant-numeric: tabular-nums; }
+.exec-count-link:hover { text-decoration: underline; }
+
+/*
+ * Headers WRAP at spaces; they never run on and they never break mid-word.
+ *
+ * This is the fix for "NEXT / DUE MILESTONE" colliding with "DETAILS".
+ * The table is `table-layout: fixed`, so a `nowrap` header wider than its
+ * percentage column does not widen the column — it OVERFLOWS into the next
+ * one. Holding headers on one line was therefore the cause, not the cure.
+ *
+ * Allowing a wrap at word boundaries lets a long header use two lines inside
+ * its own column, while `word-break: keep-all` still forbids the mid-word
+ * break ("VARIANC / E") that started all of this.
+ */
+.exec-status-table th {
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  hyphens: none;
+}
+
+/*
+ * Nine columns at the agreed proportions. They sum to exactly 100%, so the
+ * table fills its container without a min-width and therefore cannot scroll.
+ */
+.exec-status-table th:nth-child(1), .exec-status-table td:nth-child(1) { width: 19%; text-align: left; }
+.exec-status-table th:nth-child(2), .exec-status-table td:nth-child(2) { width: 14%; text-align: left; }
+.exec-status-table th:nth-child(3), .exec-status-table td:nth-child(3) { width: 8%; text-align: center; }
+.exec-status-table th:nth-child(4), .exec-status-table td:nth-child(4) { width: 8%; text-align: center; }
+.exec-status-table th:nth-child(5), .exec-status-table td:nth-child(5) { width: 7%; text-align: center; }
+.exec-status-table th:nth-child(6), .exec-status-table td:nth-child(6) { width: 12%; text-align: center; }
+.exec-status-table th:nth-child(7), .exec-status-table td:nth-child(7) { width: 9%; text-align: center; }
+.exec-status-table th:nth-child(8), .exec-status-table td:nth-child(8) { width: 15%; text-align: left; }
+.exec-status-table th:nth-child(9), .exec-status-table td:nth-child(9) { width: 8%; text-align: center; }
+
+/* The narrow numeric columns get tighter side padding, so a header such as
+   "Planned" has room to sit on one line inside its own 8% column. */
+.exec-status-table th:nth-child(3),
+.exec-status-table th:nth-child(4),
+.exec-status-table th:nth-child(5),
+.exec-status-table th:nth-child(7),
+.exec-status-table th:nth-child(9) { padding-left: 6px; padding-right: 6px; }
+
+/* Figures stay on one line — that is cell content, and it is always short. */
+.exec-status-table td:nth-child(3),
+.exec-status-table td:nth-child(4),
+.exec-status-table td:nth-child(5) {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A centred column centres its badge too, not just its text. */
+.exec-status-table td:nth-child(6) [data-slot="status-badge"] { margin: 0 auto; }
+.exec-status-table .exec-numeric { color: #17477d; font-weight: 700; font-variant-numeric: tabular-nums; }
+.exec-status-table .exec-numeric small { display: block; margin-top: 3px; }
+
+/* ----------------------------- Two-level rows ------------------------------ */
+
+.exec-status-table .exec-row-primary > td { border-bottom: 0; padding-bottom: 5px; }
+/* Zero inset, so the strip's width is exactly the table's width. */
+.exec-status-table .exec-row-secondary > td {
+  padding: 0 0 8px;
+  border-left: 0;
+  border-bottom: 1px solid #dbe4ee;
+}
+.exec-status-table .exec-row-secondary:last-child > td { border-bottom: 0; }
+/*
+ * The detail row: two equal columns, each label sitting directly above its own
+ * content so both blocks start on the same baseline whatever they contain.
+ */
+/*
+ * The detail strip is part of its row, not a floating panel beneath it.
+ *
+ * It spans the full table width and carries no side inset, so its edges line
+ * up with the table's own edges — that alignment is what makes it read as the
+ * same object as the row above rather than a disconnected box.
+ */
+.exec-secondary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 4px 26px;
+  padding: 8px 12px 9px;
+  border-top: 1px solid #eaf0f6;
+  border-left: 3px solid #cfdded;
+  background: #f8fafd;
+}
+.exec-detail { display: grid; align-content: start; gap: 5px; min-width: 0; }
+.exec-detail > b {
+  color: #66798f;
+  font-size: .56rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.exec-detail p { margin: 0; color: #2c4a72; font-size: .73rem; line-height: 1.5; overflow-wrap: anywhere; }
+.exec-detail p.muted { font-style: italic; }
+.exec-detail-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 1px; }
+.exec-detail-decision { margin: 5px 0 0 !important; padding-top: 5px; border-top: 1px dashed #dfe7f0; color: #4d6480 !important; font-size: .7rem !important; }
+.exec-detail-decision b { color: #66798f; font-size: .56rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-right: 6px; }
+
+/* Snapshot: severity/status chips sit under their line, not inline with it. */
+.exec-snapshot-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.exec-detail .exec-movement-list { gap: 5px; }
+.exec-detail .exec-movement small { color: #5b718c; font-size: .68rem; line-height: 1.45; }
+.exec-detail .exec-movement-none { margin: 0; color: #8697a9; font-size: .73rem; font-style: italic; }
+
+/* Figures line up against each other, not against ragged text. */
+.exec-status-table td.planned-value,
+.exec-status-table td.actual-value,
+.exec-status-table td.variance-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.exec-basis-chip { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 4px; }
+.exec-basis-chip small { color: #8494a7; font-size: .6rem; }
+.exec-numeric { color: #17477d; font-weight: 700; }
+.exec-overdue { color: #c0444c !important; font-weight: 700; }
+
+.exec-movement-list { display: grid; gap: 5px; }
+.exec-movement { display: grid; gap: 2px; }
+.exec-movement small { color: #6d7f94; font-size: .61rem; line-height: 1.35; }
+.exec-movement-none { color: #8fa0b3; font-size: .68rem; font-style: italic; }
+.exec-more { display: block; color: #8494a7; font-size: .6rem; }
+
+/* ----------------------------- Management attention ------------------------ */
+
+/* `align-items: start` so a panel with nothing in it stays the height of its
+   one-line empty state instead of stretching to match its busiest neighbour. */
+.exec-attention-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.exec-attention-panel { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 11px 13px; border: 1px solid #cbd9e7; border-radius: 6px; background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%); }
+.exec-attention-panel .monthly-mini-heading small { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: #0d59a8; color: white; font-size: .58rem; font-weight: 800; text-align: center; }
+.exec-attention-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.exec-attention-list li { display: grid; gap: 3px; padding-bottom: 7px; border-bottom: 1px solid #e5ecf3; }
+.exec-attention-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.exec-attention-text { color: #2c4a72; font-size: .72rem; line-height: 1.4; overflow-wrap: anywhere; }
+.exec-attention-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: #6d7f94; font-size: .62rem; }
+.exec-attention-meta b { color: #17477d; }
+.exec-attention-meta em { font-style: normal; color: #8494a7; }
+
+/* -------------------------------- Milestones ------------------------------- */
+
+.exec-milestone-table { min-width: 760px; }
+.exec-milestone-table th:nth-child(1), .exec-milestone-table td:nth-child(1) { width: 10%; }
+.exec-milestone-table th:nth-child(2), .exec-milestone-table td:nth-child(2) { width: 18%; }
+.exec-milestone-table th:nth-child(3), .exec-milestone-table td:nth-child(3) { width: auto; }
+.exec-milestone-table th:nth-child(4), .exec-milestone-table td:nth-child(4) { width: 15%; }
+.exec-milestone-table th:nth-child(5), .exec-milestone-table td:nth-child(5) { width: 12%; }
+.exec-milestone-table th:last-child, .exec-milestone-table td:last-child { width: 12%; }
+
+/* --------------------------------- Snapshots ------------------------------- */
+
+.exec-snapshot-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+/* Compact and decision-focused: a snapshot is a summary card, not a page. */
+.exec-snapshot { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px 12px; border: 1px solid #dde7f1; border-radius: 7px; background: #ffffff; box-shadow: 0 1px 2px rgb(19 47 79 / 4%); }
+.exec-snapshot > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.exec-snapshot > header b { display: block; color: #0d4384; font-size: .84rem; line-height: 1.25; overflow-wrap: anywhere; }
+.exec-snapshot > header small { display: block; margin-top: 2px; color: #7d8fa4; font-size: .64rem; }
+.exec-snapshot-basis { display: flex; align-items: center; gap: 7px; }
+.exec-snapshot-basis small { color: #8494a7; font-size: .62rem; }
+.exec-snapshot-figures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px 0; border-top: 1px solid #e5ecf3; border-bottom: 1px solid #e5ecf3; }
+.exec-snapshot-figures > div { display: grid; gap: 2px; }
+.exec-snapshot-figures span { color: #667a91; font-size: .57rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.exec-snapshot-figures b { font-size: 1.02rem; }
+.exec-snapshot-lines { display: grid; gap: 5px; margin: 0; }
+.exec-snapshot-lines > div { display: grid; grid-template-columns: 74px minmax(0, 1fr); align-items: baseline; gap: 8px; }
+.exec-snapshot-lines dt { color: #7386a0; font-size: .54rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; line-height: 1.5; }
+.exec-snapshot-lines dd { margin: 0; color: #2c4a72; font-size: .69rem; line-height: 1.4; overflow-wrap: anywhere; }
+/* Each field is one concise line; the drill-down carries the full detail. */
+.exec-snapshot-lines dd { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.exec-snapshot-move { display: grid; gap: 2px; margin-bottom: 4px; }
+.exec-snapshot-move small { color: #6d7f94; font-size: .62rem; }
+.exec-snapshot-link { margin-top: auto; padding-top: 8px; color: #0d59a8; font-size: .72rem; font-weight: 700; }
+.exec-snapshot-link:hover { text-decoration: underline; }
+
+/* ------------------------------ Approval block ----------------------------- */
+
+.exec-approval-notice { display: grid; gap: 4px; padding: 11px 13px; border: 1px solid #cbd9e7; border-left: 3px solid #0d59a8; border-radius: 6px; background: #f4f8fc; }
+.exec-approval-notice b { color: #0d4384; font-size: .76rem; }
+.exec-approval-notice span { color: #5b718c; font-size: .7rem; line-height: 1.5; }
+.exec-approval-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.exec-approval-slot { display: grid; gap: 3px; padding: 9px 11px; border: 1px dashed #c8d6e4; border-radius: 6px; }
+.exec-approval-slot b { color: #667a91; font-size: .58rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.exec-approval-slot span { font-size: .74rem; }
+
+/* ==========================================================================
+   Executive analytics — the BI dashboard.
+
+   Executive-owned markup and styling. The Monthly analytics block is untouched
+   and keeps its own appearance.
+   ========================================================================== */
+
+/*
+ * A 20-column grid, not three equal cards.
+ *
+ * Each panel declares how many columns it takes, so the row's message gets the
+ * width: primary performance is wide, distributions are compact, and the risk
+ * ranking dominates its row. Rows sum to exactly 20.
+ */
+.exec-analytics {
+  display: grid;
+  grid-template-columns: repeat(var(--exec-cols, 20), minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+  align-items: stretch;
+}
+
+/*
+ * Minimal chrome: the chart is the content, the card is only a container.
+ * A hairline and a whisper of elevation — no heavy border competing with the
+ * data inside it.
+ */
+.exec-card {
+  grid-column: span var(--span, 7);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px 8px;
+  background: #ffffff;
+  border: 1px solid #edf2f8;
+  border-radius: 8px;
+  box-shadow: 0 1px 1px rgb(19 47 79 / 4%);
+}
+
+/*
+ * Hierarchy by content, not by position.
+ *
+ * A panel that carries a real chart gets a touch more elevation and a stronger
+ * title; a collapsed one recedes. Position-based rules (nth-child) were wrong
+ * once spans became adaptive — the important panel is not always the first.
+ */
+.exec-card-hgrouped,
+.exec-card-trend,
+.exec-card-hbars,
+.exec-card-hvariance {
+  border-color: #e2eaf3;
+  box-shadow: 0 1px 2px rgb(19 47 79 / 6%), 0 6px 14px rgb(19 47 79 / 3%);
+}
+.exec-card-hgrouped .exec-card-head h3,
+.exec-card-trend .exec-card-head h3 { font-size: .74rem; }
+
+/*
+ * Management Attention is the executive action panel and is styled to say so:
+ * a navy leading edge and a tinted ground lift it out of the chart set.
+ */
+.exec-card-exception {
+  border-color: #d9e4f0;
+  border-left: 3px solid #0d59a8;
+  background: linear-gradient(180deg, #fbfdff 0%, #f5f9fd 100%);
+  box-shadow: 0 1px 2px rgb(19 47 79 / 7%), 0 6px 16px rgb(19 47 79 / 4%);
+}
+.exec-card-exception .exec-card-head h3 { color: #0d4384; font-size: .74rem; }
+
+/* A collapsed panel states its case and stops — it does not stretch a row. */
+.exec-card-empty {
+  align-self: start;
+  border-color: #f0f4f9;
+  box-shadow: none;
+  background: #fcfdfe;
+}
+.exec-card-empty .exec-card-head h3 { color: #7d8fa4; font-size: .64rem; }
+
+.exec-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.exec-card-head h3 {
+  margin: 0;
+  color: #17477d;
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  line-height: 1.25;
+}
+.exec-card-head p { margin: 2px 0 0; color: #8697a9; font-size: .62rem; line-height: 1.35; }
+.exec-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.exec-card-note { color: #8697a9; font-size: .61rem; line-height: 1.45; }
+
+.exec-legend { display: flex; flex-wrap: wrap; gap: 10px; color: #6d8199; font-size: .63rem; font-weight: 600; white-space: nowrap; }
+.exec-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.exec-legend i { width: 9px; height: 9px; border-radius: 2px; }
+
+/* One renderer serves both media, so there is no screen/print chart swap. */
+.exec-card-body > svg { display: block; width: 100%; height: auto; }
+
+/* -------------------------- Stat and empty states -------------------------- */
+
+.exec-stat { display: flex; flex-wrap: wrap; align-items: baseline; gap: 26px; min-height: 132px; align-content: center; }
+.exec-stat > div { display: grid; gap: 3px; min-width: 0; }
+.exec-stat b { color: #17477d; font-size: 1.85rem; font-weight: 800; line-height: 1; letter-spacing: -.015em; }
+.exec-stat span { color: #7f92a7; font-size: .6rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+
+/*
+ * An empty panel is a quiet statement, not a dashed developer placeholder.
+ * No border, no reserved chart height — the card shrinks to its message.
+ */
+.exec-empty-chart {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 10px 6px 14px;
+  color: #93a4b6;
+  font-size: .71rem;
+  line-height: 1.5;
+  text-align: center;
+}
+.exec-card:has(.exec-empty-chart) { align-self: start; }
+
+/* ----------------------------- Exception list ------------------------------ */
+
+/*
+ * Compact by necessity, not just taste.
+ *
+ * At 7px row padding this list stood 210px tall — the tallest item in its row —
+ * so the two charts beside it stretched to match and each carried ~100px of
+ * dead space around a 110px chart. Tightening the list is what removes that
+ * whitespace, because a grid row is only as tall as its tallest child.
+ */
+.exec-exceptions { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.exec-exceptions li {
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 2px;
+  border-bottom: 1px solid #f3f6fa;
+}
+.exec-exceptions li:last-child { border-bottom: 0; }
+.exec-exceptions i { width: 7px; height: 7px; border-radius: 50%; background: #dbe3ec; }
+.exec-exceptions span { color: #4d6480; font-size: .69rem; line-height: 1.3; overflow-wrap: anywhere; }
+.exec-exceptions b { color: #17477d; font-size: .92rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.3; }
+/* A cleared category stays visible but recedes. */
+.exec-exceptions li.is-clear span { color: #9dadbf; }
+.exec-exceptions li.is-clear b { color: #b6c3d1; font-weight: 700; }
+
+/* Below the full width the hierarchy relaxes to halves, then to one column. */
+@media (max-width: 1180px) {
+  .exec-card { grid-column: span 10; }
+}
+@media (max-width: 800px) {
+  .exec-card { grid-column: 1 / -1; }
+}
+
+/* --------------------------- Executive workspace --------------------------- */
+
+.exec-workspace { max-width: 1120px; margin: 0 auto; display: grid; gap: 16px; }
+.exec-workspace .exec-drilldown-head { margin-bottom: 0; }
+.exec-drilldown-status small { display: block; margin-top: 4px; color: #8494a7; font-size: .64rem; }
+
+.exec-ws-panel { padding: 16px 18px; background: white; border: 1px solid #c9d8e7; border-radius: 8px; color: #163b68; }
+.exec-ws-panel .exec-figure-row { margin: 10px 0 8px; }
+.exec-ws-summary { width: 100%; margin-top: 10px; padding: 11px 13px; border: 1px solid #c7d6e5; border-radius: 6px; background: white; color: #173b68; font: inherit; font-size: .78rem; line-height: 1.65; resize: vertical; }
+.exec-ws-summary::placeholder { color: #a9b8c8; }
+.exec-ws-summary-actions { display: flex; gap: 8px; margin-top: 8px; }
+
+.exec-ws-preparers { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; margin: 10px 0 8px; }
+.exec-ws-preparers label { display: flex; align-items: flex-start; gap: 9px; padding: 9px 11px; border: 1px solid #d3dfea; border-radius: 6px; font-size: .74rem; }
+.exec-ws-preparers label:hover { border-color: #b9cde2; }
+.exec-ws-preparers span { display: grid; gap: 2px; min-width: 0; }
+.exec-ws-preparers em { color: #8494a7; font-size: .64rem; font-style: normal; }
+
+.exec-ws-state label { display: grid; gap: 5px; max-width: 260px; margin: 10px 0 8px; color: #5b718c; font-size: .64rem; font-weight: 700; }
+.exec-ws-state select { height: 38px; padding: 0 10px; border: 1px solid #c7d6e5; border-radius: 5px; background: white; color: #173b68; font: inherit; font-size: .78rem; }
+
+.exec-ws-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-bottom: 8px; }
+.exec-ws-actions > span { color: #8494a7; font-size: .68rem; }
+
+.exec-record-state { display: block; margin-top: 4px; color: #8494a7; font-size: .61rem; }
+
+/* --------------------------- AI writing assistant -------------------------- */
+
+/* Quiet by design: two controls beside the summary, not a chat surface. */
+.exec-ai { margin-top: 10px; display: grid; gap: 9px; }
+.exec-ai-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.exec-ai-hint { color: #8fa0b3; font-size: .65rem; }
+.exec-ai-rewrite { position: relative; display: inline-flex; align-items: center; }
+.exec-ai-rewrite select { height: 32px; padding: 0 10px; border: 1px solid #c7d6e5; border-radius: 6px; background: white; color: #17477d; font: inherit; font-size: .74rem; font-weight: 600; }
+.exec-ai-unconfigured { display: inline-flex; align-items: center; padding: 3px 9px; border: 1px dashed #c8d6e4; border-radius: 999px; color: #8090a3; font-size: .66rem; font-weight: 700; }
+.exec-ai-rewrite select:disabled { opacity: .55; }
+.exec-ai-error { margin: 0; padding: 8px 11px; border: 1px solid #e4b98f; border-radius: 5px; background: #fdf3e7; color: #7a5312; font-size: .7rem; }
+
+.exec-ai-draft { display: grid; gap: 8px; padding: 12px 13px; border: 1px solid #c5d6e8; border-left: 3px solid #0d59a8; border-radius: 6px; background: #f7fafd; }
+.exec-ai-draft-head { display: grid; gap: 2px; }
+.exec-ai-draft-head b { color: #0d4384; font-size: .76rem; }
+.exec-ai-draft-head span { color: #6d7f94; font-size: .68rem; }
+.exec-ai-draft textarea { width: 100%; padding: 9px 11px; border: 1px solid #c7d6e5; border-radius: 5px; background: white; color: #173b68; font: inherit; font-size: .76rem; line-height: 1.6; resize: vertical; }
+.exec-ai-draft-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.exec-ai-applied { margin: 8px 0 0; color: #8494a7; font-size: .66rem; }
+
+/* ----------------------------- Executive Notes ----------------------------- */
+
+.exec-notes { display: grid; gap: 10px; }
+.exec-notes-toolbar { display: flex; align-items: center; gap: 10px; }
+.exec-notes-toolbar span { color: #8494a7; font-size: .68rem; }
+.exec-notes-pending { display: grid; gap: 4px; padding: 11px 13px; border: 1px dashed #d8c39a; border-radius: 6px; background: #fdf8ef; color: #7a5312; }
+.exec-notes-pending b { font-size: .76rem; }
+.exec-notes-pending span { color: #8a6528; font-size: .7rem; line-height: 1.55; }
+.exec-notes-pending code { padding: 1px 5px; border-radius: 3px; background: #f2e6d0; font-size: .68rem; }
+
+.exec-note-editor { display: grid; gap: 9px; padding: 12px 14px; border: 1px solid #c5d6e8; border-radius: 6px; background: #f7fafd; }
+.exec-note-editor-head { display: flex; align-items: center; justify-content: space-between; color: #0d4384; font-size: .78rem; }
+.exec-note-editor-head button { display: inline-flex; padding: 3px; border: 0; background: transparent; color: #7d8fa4; }
+.exec-note-editor-head svg { width: 15px; height: 15px; }
+.exec-note-editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.exec-note-editor label, .exec-note-body { display: grid; gap: 4px; color: #5b718c; font-size: .64rem; font-weight: 700; }
+.exec-note-editor select, .exec-note-editor textarea { width: 100%; padding: 7px 9px; border: 1px solid #c7d6e5; border-radius: 5px; background: white; color: #173b68; font: inherit; font-size: .76rem; }
+.exec-note-editor textarea { resize: vertical; line-height: 1.5; }
+.exec-note-flags { display: flex; flex-wrap: wrap; gap: 16px; }
+.exec-note-flags label { flex-direction: row; align-items: center; gap: 7px; font-size: .72rem; }
+.exec-note-editor-actions { display: flex; gap: 8px; }
+
+.exec-note-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+.exec-note-list li { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid #cbd9e7; border-left: 3px solid #0d59a8; border-radius: 6px; background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%); }
+.exec-note-head { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.exec-note-head > b { color: #17477d; font-size: .68rem; }
+.exec-note-list p { margin: 0; color: #2c4a72; font-size: .75rem; line-height: 1.5; overflow-wrap: anywhere; }
+.exec-note-list small { color: #8494a7; font-size: .62rem; }
+.exec-note-actions { display: inline-flex; gap: 4px; margin-left: auto; }
+.exec-note-actions button { display: inline-flex; padding: 4px; border: 1px solid #d3dfea; border-radius: 4px; background: white; color: #5b718c; }
+.exec-note-actions button:hover { color: #0d59a8; border-color: #b9cde2; }
+.exec-note-actions svg { width: 13px; height: 13px; }
+
+/* --------------------------- Print-only sign-off --------------------------- */
+
+/* Hidden on screen; revealed by the print stylesheet. A portfolio dashboard is
+   not a form to sign, but the printed document needs somewhere to sign. */
+.exec-signoff-section { display: none; }
+
+/* ============================== Edit Mode =================================
+   Editing lives ON the report, BESIDE the document it changes, so the author
+   reads the figures while writing the words about them.
+
+   It is deliberately a two-PANE workspace, not a stack. The panel used to sit
+   in normal flow above `.exec-document`, which put a full-width editor on top
+   of a full-width report — one screen showing what looked like two pages. The
+   controls now hold a sticky rail and the document occupies the pane beside
+   them, so exactly one report is on screen in either mode.
+
+   Screen-only — `print:hidden` on the panel keeps every control off paper, and
+   the grid collapses back to a single column for print below.
+   ========================================================================= */
+
+.exec-edit-stage {
+  width: min(100% - 32px, 1680px);
+  margin: 16px auto 0;
+  display: grid;
+  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+/*
+ * The preview pane — not the PAGE — is what scrolls sideways when the pane is
+ * narrower than the document.
+ *
+ * Letting the document go fully fluid was tried first and rejected: below about
+ * 700px the sign-off and commentary blocks stop shrinking and get CLIPPED by
+ * the sheet, so the author previews truncated text. Holding the document at the
+ * width it is designed for keeps the preview faithful, and the pane absorbs the
+ * difference.
+ */
+.exec-edit-preview { min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; }
+.exec-edit-preview .monthly-report-sheet.exec-document { width: 100%; min-width: 780px; }
+
+.exec-edit-preview-head {
+  margin: 0 0 8px;
+  color: #4d6480;
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.exec-edit-panel {
+  margin: 0;
+  width: 100%;
+  border: 1px solid #b9cde2;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 8px 22px rgb(22 51 84 / 10%);
+  overflow: hidden;
+}
+
+/* Follows the reader down the document it is describing. */
+.exec-edit-stage > .exec-edit-panel {
+  position: sticky;
+  top: 12px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Under two comfortable panes the rail goes full width above the preview.
+   That is a responsive fallback, not the default reading layout. */
+@media (max-width: 1180px) {
+  .exec-edit-stage { grid-template-columns: minmax(0, 1fr); }
+  .exec-edit-stage > .exec-edit-panel { position: static; max-height: none; overflow-y: visible; }
+  .exec-edit-preview .monthly-report-sheet.exec-document { min-width: 0; }
+}
+
+.exec-edit-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #dbe6f1;
+  background: linear-gradient(180deg, #f4f9ff 0%, #eef5fc 100%);
+}
+.exec-edit-head h2 { margin: 2px 0 0; color: #0d4384; font-size: 1rem; font-weight: 800; }
+.exec-edit-head > div > span {
+  display: block;
+  margin-top: 4px;
+  max-width: 62ch;
+  color: #5b7290;
+  font-size: .72rem;
+  line-height: 1.5;
+}
+.exec-edit-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.exec-edit-body { display: grid; gap: 18px; padding: 18px; }
+.exec-edit-block { display: grid; gap: 10px; }
+
+/* ---------------------------- Signatory selector --------------------------- */
+
+.exec-sig-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.exec-sig-field {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dbe6f1;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #ffffff 0%, #fafcff 100%);
+}
+.exec-sig-head { display: grid; gap: 3px; }
+.exec-sig-head > b {
+  color: #0d4384;
+  font-size: .74rem;
+  font-weight: 800;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+.exec-sig-head > small { color: #7d8fa4; font-size: .64rem; line-height: 1.4; }
+
+.exec-sig-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.exec-sig-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 6px 8px;
+  padding: 9px 10px;
+  border: 1px solid #e2eaf3;
+  border-radius: 6px;
+  background: white;
+}
+.exec-sig-editing { grid-template-columns: minmax(0, 1fr); background: #f6fbff; border-color: #b9cde2; }
+
+.exec-sig-person { display: grid; gap: 2px; min-width: 0; }
+.exec-sig-person > span { color: #17477d; font-size: .78rem; font-weight: 700; overflow-wrap: anywhere; }
+.exec-sig-person > em { color: #5b7290; font-size: .68rem; font-style: normal; overflow-wrap: anywhere; }
+.exec-sig-person > i { color: #8494a7; font-size: .62rem; font-style: normal; overflow-wrap: anywhere; }
+
+.exec-sig-tag {
+  justify-self: end;
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: #eef2f7;
+  color: #4d6480;
+  font-size: .58rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.exec-sig-tag.is-custom { background: #e3f0ff; color: #0d59a8; }
+
+/* Actions sit on their own row so a long name never squeezes them out. */
+.exec-sig-item-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; }
+.exec-sig-item-actions svg { width: 13px; height: 13px; }
+
+.exec-sig-empty {
+  margin: 0;
+  padding: 9px 10px;
+  border: 1px dashed #c8d6e4;
+  border-radius: 6px;
+  color: #8090a3;
+  font-size: .69rem;
+  line-height: 1.45;
+}
+
+.exec-sig-draft { display: grid; gap: 8px; }
+.exec-sig-draft label,
+.exec-sig-add label { display: grid; gap: 3px; min-width: 0; }
+.exec-sig-draft label > span,
+.exec-sig-add label > span {
+  color: #6a7f99;
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.exec-sig-draft input,
+.exec-sig-add select {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid #c9d8e7;
+  border-radius: 5px;
+  background: white;
+  color: #17477d;
+  font: inherit;
+  font-size: .76rem;
+}
+.exec-sig-draft input:focus-visible,
+.exec-sig-add select:focus-visible { outline: 2px solid #0d59a8; outline-offset: 1px; }
+.exec-sig-add select:disabled { background: #f3f6fa; color: #93a3b6; }
+
+.exec-sig-add { display: grid; gap: 8px; }
+.exec-sig-add svg { width: 14px; height: 14px; }
+
+/* ------------------------------ Inline empties ----------------------------- */
+
+.exec-empty-inline { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px dashed #c8d6e4; border-radius: 5px; color: #8090a3; font-size: .72rem; }
+.exec-empty-inline svg { width: 15px; height: 15px; flex: none; }
+
+/* --------------------------------- Flags ----------------------------------- */
+
+.exec-flag { display: inline-block; margin-left: 5px; padding: 1px 6px; border-radius: 3px; font-size: .58rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+.exec-flag-new { background: #e3f0ff; color: #0d59a8; }
+.exec-flag-escalated { background: #fdeaea; color: #b0343c; margin-left: 0; }
+.exec-flag-client { background: #fff3e0; color: #9a6212; margin-left: 0; }
+.exec-flag-internal { background: #eef2f7; color: #4d6480; margin-left: 0; }
+.exec-flag-overdue { background: #fdeaea; color: #b0343c; margin-left: 0; }
+.exec-flag-upcoming { background: #e8f5ea; color: #1f7a33; margin-left: 0; }
+
+.exec-row-severe td { background: #fffaf9; }
+.exec-row-overdue td { background: #fff7f7; }
+
+/* ------------------------------- Timeline ---------------------------------- */
+
+.exec-timeline { margin: 4px 0 14px; padding: 8px 10px; border: 1px solid #dde6ef; border-radius: 6px; background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%); overflow: hidden; }
+.exec-timeline svg { display: block; max-width: 100%; }
+
+/* -------------------------------- Drill-down ------------------------------- */
+
+.exec-drilldown { max-width: 1200px; margin: 0 auto; }
+.exec-tab-lead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 18px; }
+.exec-tab-lead:first-child { margin-top: 0; }
+.exec-tab-lead .exec-tab-heading { margin: 0 0 8px; }
+.exec-tab-lead > span { color: #8494a7; font-size: .66rem; font-weight: 700; }
+
+.exec-risk-table { min-width: 900px; }
+.exec-risk-table th:nth-child(1), .exec-risk-table td:nth-child(1) { width: 8%; }
+.exec-risk-table th:nth-child(2), .exec-risk-table td:nth-child(2) { width: auto; }
+.exec-risk-table th:nth-child(3), .exec-risk-table td:nth-child(3) { width: 12%; }
+.exec-risk-table th:nth-child(4), .exec-risk-table td:nth-child(4) { width: 10%; }
+.exec-risk-table th:nth-child(5), .exec-risk-table td:nth-child(5) { width: 13%; }
+.exec-risk-table th:nth-child(6), .exec-risk-table td:nth-child(6) { width: 12%; }
+.exec-risk-table th:nth-child(7), .exec-risk-table td:nth-child(7) { width: 10%; }
+.exec-risk-table th:last-child, .exec-risk-table td:last-child { width: 10%; }
+
+.exec-action-table { min-width: 860px; }
+.exec-action-table th:nth-child(1), .exec-action-table td:nth-child(1) { width: 8%; }
+.exec-action-table th:nth-child(2), .exec-action-table td:nth-child(2) { width: auto; }
+.exec-action-table th:nth-child(3), .exec-action-table td:nth-child(3) { width: 13%; }
+.exec-action-table th:nth-child(4), .exec-action-table td:nth-child(4) { width: 9%; }
+.exec-action-table th:nth-child(5), .exec-action-table td:nth-child(5) { width: 14%; }
+.exec-action-table th:nth-child(6), .exec-action-table td:nth-child(6) { width: 13%; }
+.exec-action-table th:last-child, .exec-action-table td:last-child { width: 11%; }
+
+.exec-milestone-detail-table { min-width: 780px; }
+.exec-milestone-detail-table th:nth-child(1), .exec-milestone-detail-table td:nth-child(1) { width: 14%; }
+.exec-milestone-detail-table th:nth-child(2), .exec-milestone-detail-table td:nth-child(2) { width: auto; }
+.exec-milestone-detail-table th:nth-child(3), .exec-milestone-detail-table td:nth-child(3) { width: 15%; }
+.exec-milestone-detail-table th:nth-child(4), .exec-milestone-detail-table td:nth-child(4) { width: 13%; }
+.exec-milestone-detail-table th:nth-child(5), .exec-milestone-detail-table td:nth-child(5) { width: 13%; }
+.exec-milestone-detail-table th:last-child, .exec-milestone-detail-table td:last-child { width: 11%; }
+
+.exec-risk-table td small, .exec-action-table td small { display: block; margin-top: 2px; }
+.exec-drilldown-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px; }
+.exec-back { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1px solid #c5d5e5; border-radius: 5px; background: white; color: #17477d; font-size: .76rem; font-weight: 700; }
+.exec-back svg { width: 14px; height: 14px; }
+.exec-drilldown-head h1 { margin: 0; color: #0d4384; font-size: 1.42rem; font-weight: 800; }
+.exec-drilldown-head > div > span { display: block; margin-top: 3px; color: #71859d; font-size: .76rem; }
+.exec-drilldown-status { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+
+.exec-tabs { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 18px; border-bottom: 1px solid #cad7e5; }
+.exec-tabs button { padding: 9px 15px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: #5b718c; font: inherit; font-size: .78rem; font-weight: 700; }
+.exec-tabs button:hover { color: #0d59a8; }
+.exec-tabs button.active { border-bottom-color: #0d59a8; color: #0d4384; }
+
+.exec-tab-panel { margin-top: 16px; padding: 16px 18px; background: white; border: 1px solid #c9d8e7; border-radius: 8px; color: #163b68; }
+.exec-tab-panel > .monthly-executive-summary { margin-top: 8px; }
+.exec-tab-heading { margin: 18px 0 8px; color: #0d4384; font-size: .72rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.exec-tab-heading:first-child { margin-top: 0; }
+.exec-tab-note { margin: 0 0 4px; color: #6d7f94; font-size: .73rem; line-height: 1.5; }
+.exec-tab-table { min-width: 720px; margin-top: 4px; }
+.exec-tab-panel .monthly-table-wrap, .exec-tab-panel table { max-width: 100%; }
+
+.exec-figure-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.exec-figure { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid #cbd9e7; border-radius: 6px; background: linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%); }
+.exec-figure span { color: #667a91; font-size: .6rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.exec-figure b { color: #0d4d99; font-size: 1.24rem; }
+
+.exec-drilldown-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; }
+.exec-drilldown-foot span { color: #8494a7; font-size: .7rem; }
+
+/* -------------------------------- Responsive ------------------------------- */
+
+@media (max-width: 1180px) {
+  .exec-kpi-health { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .exec-attention-grid, .exec-snapshot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 800px) {
+  .exec-control-bar { grid-template-columns: 1fr; }
+  .exec-control-actions { align-items: stretch; flex-wrap: wrap; }
+  .exec-filter-row select { max-width: none; flex-basis: 100%; }
+  .exec-kpi-position, .exec-kpi-health, .exec-attention-grid, .exec-snapshot-grid,
+  .exec-figure-row, .exec-snapshot-figures { grid-template-columns: 1fr; }
+  .exec-header-meta { flex-wrap: wrap; }
+  .exec-drilldown-head { grid-template-columns: 1fr; }
+  .exec-drilldown-status { justify-content: flex-start; }
+}
+
+/* ==========================================================================
+   Executive — A4 print.
+
+   Same policy as the Monthly document: sections flow freely, small units stay
+   whole. A4 portrait is ~794px, so the 800px breakpoint above is ACTIVE while
+   printing and every grid must restate its columns explicitly or the document
+   prints as one tall stack.
+   ========================================================================== */
+
+@media print {
+  /* ----------------------------------------------------------------------
+     A4 LANDSCAPE — declared with the document, not here.
+
+     The portfolio earns the extra width: eleven management columns, multiple
+     projects and multiple clients do not fit a portrait measure without
+     compressing values to the point of illegibility.
+
+     Two approaches were tried and rejected before the current one:
+
+     1. A NAMED page (`@page exec-portfolio` + `.exec-document { page: … }`).
+        Chrome began the document on the DEFAULT portrait page and inserted a
+        break to enter the named landscape one — a near-blank portrait first
+        sheet, and a PDF the reader had to rotate.
+     2. Declaring it on the print ROUTE only. Ctrl+P from the portfolio page
+        then fell through to the portrait `@page` above, so the same document
+        printed landscape from one URL and portrait from another.
+
+     It now ships inside `ExecutiveDocument` itself (`executive-document.tsx`),
+     so orientation travels with the document wherever it renders. Weekly and
+     Monthly never mount that component and keep the portrait rule above.
+     ---------------------------------------------------------------------- */
+
+  /* `min-height: 100%` resolves against the PAGE box when printing, so the
+     stage claimed a full sheet even when its content ended earlier. */
+  .exec-stage {
+    padding: 0 !important;
+    background: white !important;
+    min-height: 0 !important;
+  }
+  /* Nothing may push a break after the last block. */
+  .exec-document > *:last-child,
+  .exec-document .monthly-report-body > *:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  /* Application furniture is not part of the document. */
+  .exec-control-bar,
+  .exec-preview-period,
+  .exec-tabs,
+  .exec-back,
+  .exec-drilldown-foot,
+  .exec-snapshot-link,
+  .exec-actions-col {
+    display: none !important;
+  }
+
+  .monthly-report-sheet.exec-document { width: 100% !important; max-width: none !important; }
+
+  /* Printing FROM Edit Mode: the editor rail is already `print:hidden`, so the
+     surviving preview pane must drop the two-pane grid and give the document
+     the whole sheet rather than the narrow column it occupied on screen. */
+  .exec-edit-stage {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+  .exec-edit-preview { overflow: visible !important; }
+  .exec-edit-preview .monthly-report-sheet.exec-document { min-width: 0 !important; }
+
+  .exec-header-meta { display: flex !important; flex-wrap: nowrap !important; gap: 2mm; }
+  .exec-header-meta > div { min-width: 0; padding: 1.5mm 2mm; border: 0.3mm solid #cbd9e7; border-radius: 1.2mm; background: #f7fafc !important; }
+  .exec-header-meta span { font-size: 5.4pt; }
+  .exec-header-meta b { font-size: 7pt; }
+  .exec-title-note span { font-size: 5.4pt; }
+  .exec-title-note b { font-size: 6.6pt; }
+
+  .exec-provenance-band { padding: 1.4mm 4mm; font-size: 6.2pt; background: #fff5e6 !important; break-inside: avoid; }
+  .exec-provenance-band b { font-size: 5.8pt; }
+  .exec-basis-warning { padding: 2mm; margin-bottom: 2.5mm; font-size: 6.6pt; background: #fdf3e7 !important; break-inside: avoid; }
+  .exec-basis-warning b { font-size: 7.2pt; }
+  .exec-basis-warning span { font-size: 6.2pt; }
+
+  .exec-kpi-row + .exec-kpi-row { margin-top: 2mm; }
+  .exec-kpi-position { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 2mm !important; }
+  .exec-kpi-health { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; gap: 1.6mm !important; }
+  .exec-kpi-health .monthly-kpi { min-height: 0; padding: 1.6mm; }
+  .exec-kpi-health .monthly-kpi b { font-size: 9.5pt; }
+  .exec-kpi-health .monthly-kpi > span { font-size: 5pt; }
+  .exec-kpi-legend { margin-top: 1.5mm; font-size: 5.8pt; break-inside: avoid; }
+
+  /* ----------------------------------------------------------------------
+     Analytics on paper: TWO columns, never three.
+
+     Three 26mm-wide charts across A4 produced legible titles above unreadable
+     drawings. Two columns give each chart roughly 80mm, which is where the
+     axis labels and legends become readable again. Scoped to `.exec-document`
+     so the Monthly report's own three-across print layout is untouched.
+     ---------------------------------------------------------------------- */
+  /* ----------------------------------------------------------------------
+     Executive analytics on A4 landscape: TWO cards across, never three.
+
+     Each card gets ~124mm, which is where axis labels, legends and value
+     labels stay readable. The screen renderer is swapped out for the static
+     SVG in the same slot, so the printed dashboard is the same dashboard.
+     ---------------------------------------------------------------------- */
+  /* The SAME hierarchy on paper — spans are preserved, not flattened to a
+     uniform two-column grid, which would destroy the composition. */
+  .exec-analytics {
+    grid-template-columns: repeat(var(--exec-cols, 20), minmax(0, 1fr)) !important;
+    gap: 2.5mm !important;
+    margin-top: 2.5mm;
+  }
+  .exec-card { grid-column: span var(--span, 7) !important; }
+  .exec-card {
+    padding: 2.5mm 3mm;
+    border: 0.3mm solid #e5edf5;
+    border-radius: 1.5mm;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    gap: 1.6mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .exec-card-head h3 { font-size: 7pt; }
+  .exec-card-head p { font-size: 5.6pt; margin-top: 0.5mm; }
+  .exec-card-note { font-size: 5.4pt; }
+  .exec-legend { font-size: 5.6pt; gap: 2.5mm; }
+  .exec-legend i { width: 2mm; height: 2mm; }
+
+  /* The same SVG prints; it only needs room and a break guard. */
+  .exec-card-body > svg { width: 100% !important; height: auto !important; break-inside: avoid; }
+
+  .exec-stat { min-height: 0; gap: 6mm; }
+  .exec-stat b { font-size: 15pt; }
+  .exec-stat span { font-size: 5.4pt; }
+  .exec-empty-chart { min-height: 16mm; padding: 3mm; font-size: 6.4pt; background: #fbfdff !important; }
+  /* The screen's min-height is a layout floor, not a paper one — enforcing it
+     on A4 would reserve whitespace the page cannot spare. */
+  .exec-document .monthly-analytics-card {
+    padding: 2.5mm 3mm;
+    min-height: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+  }
+  .exec-document .exec-donut-total { display: none !important; }
+  .exec-document .monthly-mini-heading { font-size: 6.6pt; }
+  .exec-document .monthly-mini-heading small,
+  .exec-document .monthly-chart-legend { font-size: 6pt; }
+  .exec-document .monthly-analytics-note { font-size: 5.8pt; }
+  .exec-document .monthly-chart-empty { min-height: 12mm; font-size: 6.6pt; }
+
+  /*
+     The static print SVGs carry literal px dimensions so a print re-layout
+     cannot collapse them. Widening them to a DEFINITE mm width keeps that
+     property — nothing resolves against a parent — while filling the larger
+     two-column cell. `height: auto` scales via the viewBox, so nothing clips.
+  */
+  .exec-document .monthly-chart-print > svg { width: 80mm !important; height: auto !important; }
+  .exec-document .monthly-donut-layout .monthly-chart-print > svg { width: 26mm !important; }
+  .exec-document .monthly-donut-layout { grid-template-columns: 26mm minmax(0, 1fr) !important; gap: 3mm !important; }
+  .exec-document .monthly-donut-legend span { font-size: 6.2pt; }
+  .exec-document .monthly-compact-stat b { font-size: 13pt; }
+  .exec-document .monthly-compact-stat span { font-size: 6pt; }
+
+  /* ----------------------------------------------------------------------
+     Project Status Overview on paper.
+
+     Landscape gives ~273mm of usable measure, so the type can go back up to a
+     readable size instead of being shrunk to fit. The Details column is hidden
+     — "View →" does nothing on paper — and the remaining TEN columns restate
+     their widths to sum to 100%, otherwise they inherit proportions sized for
+     eleven and leave a gap where Details used to be.
+     ---------------------------------------------------------------------- */
+  .exec-status-table { min-width: 0 !important; font-size: 7.4pt; }
+  .exec-status-table th { font-size: 6pt; padding: 1.6mm 1.8mm !important; }
+  .exec-status-table td { padding: 1.8mm !important; }
+  .exec-status-table td small { font-size: 6pt; }
+
+  /* A figure split across two lines is not a figure. */
+  .exec-status-table td:nth-child(3),
+  .exec-status-table td:nth-child(4),
+  .exec-status-table td:nth-child(5),
+  .exec-status-table td:nth-child(7) {
+    white-space: nowrap !important;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* EIGHT visible columns (Details hidden), summing to 100%. */
+  .exec-status-table th:nth-child(1), .exec-status-table td:nth-child(1) { width: 23%; }
+  .exec-status-table th:nth-child(2), .exec-status-table td:nth-child(2) { width: 16%; }
+  .exec-status-table th:nth-child(3), .exec-status-table td:nth-child(3) { width: 8%; }
+  .exec-status-table th:nth-child(4), .exec-status-table td:nth-child(4) { width: 8%; }
+  .exec-status-table th:nth-child(5), .exec-status-table td:nth-child(5) { width: 8%; }
+  .exec-status-table th:nth-child(6), .exec-status-table td:nth-child(6) { width: 13%; }
+  .exec-status-table th:nth-child(7), .exec-status-table td:nth-child(7) { width: 9%; }
+  .exec-status-table th:nth-child(8), .exec-status-table td:nth-child(8) { width: 15%; }
+
+  /*
+     A project is its two rows. Keeping the pair together stops a project's
+     Key Concern and Latest Movement being orphaned onto the next page from the
+     figures they describe.
+  */
+  .exec-status-table .exec-row-primary { break-after: avoid; page-break-after: avoid; }
+  .exec-status-table .exec-row-secondary { break-before: avoid; page-break-before: avoid; }
+  .exec-status-table .exec-row-primary > td { padding-bottom: 0.8mm !important; }
+  .exec-status-table .exec-row-secondary > td { padding: 0 1.8mm 1.6mm !important; border-left: 0 !important; }
+  .exec-secondary-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 1mm 5mm;
+    padding: 1.4mm 2mm;
+    border-left: 0.5mm solid #dce6f1;
+    background: #f8fafd !important;
+  }
+  /* Label above content on paper too — one structure, both media. */
+  .exec-detail { display: grid !important; gap: 0.8mm; }
+  .exec-detail > b { font-size: 5.4pt; }
+  .exec-detail p { font-size: 6.6pt; line-height: 1.4; }
+  .exec-detail-chips { display: flex !important; flex-wrap: wrap; gap: 1mm; }
+  .exec-detail .exec-movement small { font-size: 6pt; }
+  .exec-detail .exec-movement-none { font-size: 6.4pt; }
+
+  /* The hairline that separates adjacent headers must survive onto paper. */
+  .exec-status-table th + th { border-left: 0.25mm solid #d7e1ec !important; }
+  .exec-status-table td + td { border-left: 0.2mm solid #eef2f7 !important; }
+  .exec-movement small { font-size: 6pt; }
+  .exec-movement-none { font-size: 5.8pt; }
+
+  .exec-attention-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 2.5mm !important; }
+  .exec-attention-panel { padding: 2mm 2.5mm; border-radius: 1.2mm; break-inside: avoid; page-break-inside: avoid; }
+  .exec-attention-text { font-size: 6.4pt; }
+  .exec-attention-meta { font-size: 5.6pt; gap: 1.5mm; }
+  .exec-attention-list li { padding-bottom: 1.2mm; }
+
+  .exec-milestone-table { min-width: 0 !important; }
+
+  /*
+     Snapshots two-up on paper.
+
+     Three-across at A4 squeezed each card until its lines wrapped to four
+     rows and the grid grew taller than the space it saved. Two per row reads,
+     and `break-inside: avoid` on the CARD (never on the grid) lets the run of
+     cards flow across a page boundary instead of reserving a page for one.
+  */
+  .exec-snapshot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 2.5mm !important; }
+  .exec-snapshot { padding: 2mm 2.5mm; border-radius: 1.2mm; gap: 1.5mm; break-inside: avoid; page-break-inside: avoid; }
+  .exec-snapshot > header b { font-size: 7.4pt; }
+  .exec-snapshot > header small { font-size: 5.8pt; }
+  .exec-snapshot-figures { grid-template-columns: repeat(3, 1fr) !important; padding: 1.5mm 0; }
+  .exec-snapshot-figures span { font-size: 5.2pt; }
+  .exec-snapshot-figures b { font-size: 8pt; }
+  .exec-snapshot-lines { gap: 1.2mm; }
+  .exec-snapshot-lines dt { font-size: 5.2pt; }
+  .exec-snapshot-lines dd { font-size: 6.2pt; }
+  .exec-snapshot-move small { font-size: 5.4pt; }
+  .exec-snapshot-basis small { font-size: 5.6pt; }
+
+  /* ====================================================================
+     PAGE 4 — the Executive Approval sheet.
+
+     A DELIBERATE page, not a remainder. `break-before: page` is correct here
+     precisely because the block is designed to own a sheet: previously it was
+     whatever fell off the bottom of page 3, which produced an ~85% empty page
+     that read as an accident. Measured evidence for that decision: page 3 left
+     15–17mm free while this block needs ~50mm, so it could never share the page
+     without shrinking signature space to ~4mm per box.
+
+     The sheet is composed to fill itself honestly — identity band at the top,
+     signature columns in the optical centre, standing note beneath — rather
+     than by inflating type. `min-height` reserves the page minus the footer, so
+     the footer lands at the bottom of the sheet instead of floating mid-page.
+     ==================================================================== */
+  .exec-signoff-section {
+    display: flex !important;
+    flex-direction: column;
+    /* 192mm page box − 9mm footer (7mm + 2mm margin) − a little tolerance. */
+    min-height: 180mm;
+    margin-top: 0;
+    padding-top: 2mm;
+    break-before: page;
+    page-break-before: always;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* What is being signed, restated so a loose sheet identifies itself. */
+  .exec-signoff-doc {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 3mm;
+    margin: 4mm 0 0;
+    padding: 3mm 3.5mm;
+    border: 0.3mm solid #cbd9e7;
+    border-radius: 1.5mm;
+    background: #f7fafc !important;
+  }
+  .exec-signoff-doc > div { display: grid; gap: 1mm; min-width: 0; }
+  .exec-signoff-doc dt {
+    color: #6a7f99;
+    font-size: 5.6pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+  }
+  .exec-signoff-doc dd { margin: 0; color: #17477d; font-size: 8pt; font-weight: 600; }
+
+  /*
+     The signature columns sit in the optical centre of the sheet.
+     `margin: auto 0` inside the flex column distributes the leftover space
+     above and below rather than leaving it all at the bottom — which is what
+     made the old page read as leftover content.
+  */
+  .exec-signoff-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 5mm;
+    margin: auto 0;
+    padding: 6mm 0;
+  }
+  /*
+     The box absorbs the sheet's spare height rather than leaving it as a void.
+     That is not padding for its own sake: the blank area between the printed
+     name and the signature rule IS the space somebody signs in, so a taller box
+     is a more usable box. The name sits at the top, the rules at the bottom,
+     and the writing space in between grows with the page.
+  */
+  .exec-signoff {
+    display: flex;
+    flex-direction: column;
+    gap: 2mm;
+    min-height: 74mm;
+    padding: 4mm;
+    border: 0.3mm solid #c9d8e7;
+    border-radius: 1.5mm;
+    background: #ffffff !important;
+    break-inside: avoid;
+  }
+  .exec-signoff > b {
+    padding-bottom: 1.5mm;
+    border-bottom: 0.4mm solid #0d4384;
+    color: #0d4384;
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+  .exec-signoff span { min-height: 4.5mm; color: #17477d; font-size: 9pt; font-weight: 700; }
+  .exec-signoff em { min-height: 4mm; color: #5b7290; font-size: 7pt; font-style: normal; }
+
+  /*
+     A ruled line the reader actually writes on.
+     The label sits UNDER its rule, so the space above it is blank writing
+     space rather than a caption competing with the ink.
+  */
+  .exec-signoff small,
+  .exec-signoff .exec-sign-rule {
+    display: block;
+    margin-top: 5mm;
+    padding-top: 1.2mm;
+    border-top: 0.3mm solid #a9bdd3;
+    color: #7d8fa4;
+    font-size: 5.8pt;
+    font-style: normal;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+  /* Name and Job Title rules on an unassigned role need the same writing room. */
+  .exec-signoff em.exec-sign-rule,
+  .exec-signoff i.exec-sign-rule { min-height: 0; margin-top: 6mm; }
+
+  /* Prepared By can carry several people; each gets its own signature line. */
+  .exec-signoff-prepared { grid-row: span 1; }
+  .exec-preparer { display: flex; flex-direction: column; gap: 1mm; flex: 1 1 auto; }
+  /* Pushes Signature and Date to the foot of the box, leaving the space above
+     them clear for the actual signature. */
+  .exec-preparer small:first-of-type { margin-top: auto; }
+  .exec-preparer + .exec-preparer {
+    margin-top: 3mm;
+    padding-top: 3mm;
+    border-top: 0.2mm dashed #dbe4ee;
+  }
+  .exec-preparer i { color: #8494a7; font-size: 6pt; font-style: normal; }
+  .exec-preparer-gap { display: block; margin-top: 2mm; color: #b0343c; font-size: 6pt; font-style: normal; }
+
+  .exec-signoff-note {
+    margin: 0;
+    padding: 2.5mm 3mm;
+    border-left: 0.8mm solid #0d4384;
+    background: #f7fafc !important;
+    color: #4d6480;
+    font-size: 6.4pt;
+    line-height: 1.5;
+  }
+
+  /* Executive Notes print as content; their editor is not part of the document. */
+  .exec-notes-toolbar,
+  .exec-note-editor,
+  .exec-note-actions { display: none !important; }
+  .exec-note-list li { padding: 1.6mm 2mm; border-radius: 1.2mm; break-inside: avoid; page-break-inside: avoid; background: #ffffff !important; }
+  .exec-note-list p { font-size: 6.6pt; }
+  .exec-note-list small { font-size: 5.6pt; }
+  .exec-notes-pending { padding: 2mm; font-size: 6.2pt; background: #fdf8ef !important; break-inside: avoid; }
+
+  /* Approval block: reserved fields, kept whole and never orphaned. */
+  .exec-approval-notice { padding: 2mm; font-size: 6.2pt; background: #f4f8fc !important; break-inside: avoid; }
+  .exec-approval-notice b { font-size: 6.8pt; }
+  .exec-approval-grid { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; gap: 2mm !important; margin-top: 2mm; break-inside: avoid; }
+  .exec-approval-slot { padding: 1.6mm 2mm; border-radius: 1.2mm; }
+  .exec-approval-slot b { font-size: 5.2pt; }
+  .exec-approval-slot span { font-size: 6.4pt; }
+
+  .exec-empty-inline { padding: 1.6mm 2mm; font-size: 6.4pt; break-inside: avoid; }
+  .exec-empty-inline svg { width: 3mm; height: 3mm; }
+
+  .exec-flag { padding: 0.4mm 1.2mm; font-size: 5.2pt; }
+  .exec-row-severe td { background: #fffaf9 !important; }
+  .exec-row-overdue td { background: #fff7f7 !important; }
+
+  .exec-timeline { margin: 1.5mm 0 3mm; padding: 1.5mm 2mm; break-inside: avoid; page-break-inside: avoid; background: #ffffff !important; }
+  .exec-timeline svg { width: 100% !important; }
+
+  /*
+   * The footer repeats on every printed page.
+   *
+   * `position: fixed` is what makes a block repeat per page in Chrome's print
+   * layout. It carries no page number: Chrome does not implement `@page` margin
+   * boxes, so CSS has no page counter to read. The identity, period and status
+   * are what a loose sheet actually needs to be traceable.
+   */
+  /*
+   * The footer flows with the document; it is NOT fixed.
+   *
+   * `position: fixed` repeats a block on every printed page in Chrome, but it
+   * is also a reliable way to generate a trailing blank sheet — the fixed box
+   * is laid out against a page that has no remaining content. Combined with the
+   * 9mm of body padding reserved for it, that produced the extra page. A normal
+   * in-flow footer prints once, at the end, and creates no page of its own.
+   */
+  .exec-footer {
+    position: static;
+    min-height: 7mm;
+    margin: 2mm 0 0;
+    padding: 1.2mm 4mm;
+    font-size: 5.8pt;
+    background: #0d4384 !important;
+    break-before: avoid;
+    page-break-before: avoid;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* Drill-down prints as a plain read-only document if a reader asks for it. */
+  .exec-drilldown-head { grid-template-columns: minmax(0, 1fr) auto !important; }
+  .exec-tab-panel { padding: 0; border: 0; }
+  .exec-figure-row { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 2mm; }
+  .exec-tab-table,
+  .exec-risk-table,
+  .exec-action-table,
+  .exec-milestone-detail-table { min-width: 0 !important; font-size: 6.6pt; }
+  .exec-tab-lead { margin-top: 3mm; }
+}
+
+/* ==========================================================================
+   EPR Control Center — Dashboard, Calendar and the sidebar active treatment.
+
+   Screen only. The Dashboard and Calendar are application surfaces, not
+   documents; the print stylesheet above governs the Weekly / Monthly /
+   Executive sheets and is untouched by this block.
+   ========================================================================== */
+
+/* --------------------- Sidebar: the notched active item -------------------- */
+
+/*
+   The active item is a NOTCH cut into the sidebar edge, not a rounded box.
+
+   Geometry, and why the first attempt failed. The fillets must sit exactly at
+   the sidebar's inner edge; previously they were pushed outside it with a
+   negative offset and were clipped away by the scroll container, so all that
+   survived was a plain rectangle.
+
+   Three parts:
+     1. the RAIL — the active row, filled with the page ground, stretched to the
+        sidebar edge by cancelling the group's 0.5rem padding, with only its
+        left corners rounded;
+     2. the PUCK — the icon in a filled circle, sitting on that rail;
+     3. two FILLETS — squares of page ground above and below the rail at the
+        edge, each masked by a quarter-disc so the sidebar colour curves back
+        in. A concave corner is impossible with border-radius, which only ever
+        rounds inward, so the mask is doing the real work.
+*/
+
+.epr-nav-item { position: relative; }
+
+/* Cancel the group padding so the rail reaches the sidebar's inner edge. */
+.epr-nav-item:has(.epr-nav-link[data-active="true"]) {
+  margin-right: -0.5rem;
+  z-index: 1;
+}
+
+.epr-nav-link {
+  position: relative;
+  gap: 0.6rem;
+  height: 2.25rem;
+  padding-inline: 0.4rem;
+  border-radius: 999px;
+  color: color-mix(in oklab, var(--sidebar-foreground) 82%, transparent);
+  font-size: 0.8rem;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.epr-nav-link .epr-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  flex: none;
+  border-radius: 999px;
+  transition: background-color 200ms ease, color 200ms ease, box-shadow 200ms ease,
+    transform 220ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+.epr-nav-link .epr-nav-icon svg { width: 1rem; height: 1rem; }
+.epr-nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.epr-nav-link:hover:not([data-active="true"]) {
+  background: color-mix(in oklab, var(--sidebar-accent) 60%, transparent);
+  color: var(--sidebar-foreground);
+}
+.epr-nav-link:hover:not([data-active="true"]) .epr-nav-icon {
+  background: color-mix(in oklab, var(--sidebar-primary) 26%, transparent);
+}
+
+/* 1. The rail. */
+.epr-nav-link[data-active="true"] {
+  background: var(--epr-rail);
+  border-radius: 999px 0 0 999px;
+  padding-right: 0.5rem;
+  color: var(--sidebar-primary);
+  font-weight: 700;
+}
+
+/* 2. The puck. */
+.epr-nav-link[data-active="true"] .epr-nav-icon {
+  background: var(--sidebar-primary);
+  color: var(--sidebar-primary-foreground);
+  box-shadow: 0 3px 8px color-mix(in oklab, var(--sidebar-primary) 50%, transparent);
+  transform: scale(1.06);
+}
+
+/* 3. The fillets. */
+.epr-nav-item:has(.epr-nav-link[data-active="true"])::before,
+.epr-nav-item:has(.epr-nav-link[data-active="true"])::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  width: 0.85rem;
+  height: 0.85rem;
+  background: var(--epr-rail);
+  pointer-events: none;
+}
+/* Above: keep the corner nearest the rail, curve away from it. */
+.epr-nav-item:has(.epr-nav-link[data-active="true"])::before {
+  bottom: 100%;
+  -webkit-mask-image: radial-gradient(circle at top left, transparent 0 0.85rem, black 0.85rem);
+  mask-image: radial-gradient(circle at top left, transparent 0 0.85rem, black 0.85rem);
+}
+.epr-nav-item:has(.epr-nav-link[data-active="true"])::after {
+  top: 100%;
+  -webkit-mask-image: radial-gradient(circle at bottom left, transparent 0 0.85rem, black 0.85rem);
+  mask-image: radial-gradient(circle at bottom left, transparent 0 0.85rem, black 0.85rem);
+}
+
+/* Collapsed rail: the puck alone carries the state; the tooltip carries the name. */
+[data-collapsible="icon"] .epr-nav-item:has(.epr-nav-link[data-active="true"]) { margin-right: 0; }
+[data-collapsible="icon"] .epr-nav-link[data-active="true"] {
+  padding-right: 0;
+  background: transparent;
+}
+[data-collapsible="icon"] .epr-nav-item:has(.epr-nav-link[data-active="true"])::before,
+[data-collapsible="icon"] .epr-nav-item:has(.epr-nav-link[data-active="true"])::after { display: none; }
+
+/* Group labels: quieter, so the items lead. */
+[data-slot="sidebar-group-label"] {
+  color: color-mix(in oklab, var(--sidebar-foreground) 52%, transparent);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+[data-slot="sidebar-group"] { padding-block: 0.25rem; }
+[data-slot="sidebar-menu"] { gap: 0.1rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .epr-nav-link,
+  .epr-nav-link .epr-nav-icon { transition: none; }
+  .epr-nav-link[data-active="true"] .epr-nav-icon { transform: none; }
+}
+
+/* ------------------------------- Dashboard --------------------------------- */
+
+.dash-stage { display: grid; gap: 16px; min-width: 0; }
+
+.dash-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 10px;
+  /* Literal navy, not --dash-navy: this is chrome that stays navy in BOTH
+     themes, whereas the token inverts to a near-white heading ink in dark.
+     (The Control Center v2 block below overrides this rule outright — kept
+     self-consistent so it cannot mislead if that override is ever removed.) */
+  background: linear-gradient(135deg, #0d4384 0%, #0d59a8 60%, #0d59a8 100%);
+  color: white;
+}
+.dash-hero-title p { margin: 0; font-size: .68rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; opacity: .82; }
+.dash-hero-title h1 { margin: 2px 0 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -.01em; }
+.dash-hero-title span { display: block; margin-top: 4px; max-width: 68ch; font-size: .76rem; opacity: .86; }
+
+.dash-hero-filters { display: flex; flex-wrap: wrap; gap: 10px; }
+.dash-hero-filters label { display: grid; gap: 4px; min-width: 0; }
+.dash-hero-filters label > span { font-size: .6rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; opacity: .85; }
+.dash-hero-filters select {
+  min-width: 168px;
+  max-width: 240px;
+  padding: 7px 10px;
+  border: 1px solid rgb(255 255 255 / 35%);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 12%);
+  color: white;
+  font: inherit;
+  font-size: .76rem;
+}
+.dash-hero-filters select option { color: var(--dash-navy); }
+
+/* KPI strip: compact by design — six readable tiles, not six empty cards. */
+.dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); gap: 10px; }
+.dash-kpi {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 13px;
+  border: 1px solid var(--dash-edge);
+  border-left: 3px solid var(--dash-muted);
+  border-radius: 8px;
+  background: var(--dash-surface);
+  box-shadow: 0 1px 2px rgb(22 51 84 / 6%);
+}
+.dash-kpi-icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: 8px; background: var(--dash-tint-blue); color: var(--dash-blue); }
+.dash-kpi-icon svg { width: 17px; height: 17px; }
+.dash-kpi > div { min-width: 0; display: grid; gap: 1px; }
+.dash-kpi-label { color: var(--dash-ink-soft); font-size: .63rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.dash-kpi-value { color: var(--dash-navy); font-size: 1.35rem; font-weight: 800; line-height: 1.1; }
+.dash-kpi small { color: var(--dash-ink-soft); font-size: .63rem; overflow-wrap: anywhere; }
+.dash-kpi.is-success { border-left-color: var(--dash-teal); }
+.dash-kpi.is-success .dash-kpi-icon { background: var(--dash-tint-green); color: var(--dash-teal); }
+.dash-kpi.is-warning { border-left-color: var(--dash-amber); }
+.dash-kpi.is-warning .dash-kpi-icon { background: var(--dash-tint-amber); color: var(--dash-amber); }
+.dash-kpi.is-danger { border-left-color: var(--dash-red); }
+.dash-kpi.is-danger .dash-kpi-icon { background: var(--dash-tint-red); color: var(--dash-red); }
+.dash-kpi.is-info { border-left-color: var(--dash-blue); }
+
+/* A 13-column grid so panels take different widths instead of one uniform row. */
+.dash-grid { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 12px; }
+.dash-panel {
+  grid-column: span var(--span, 13);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--dash-edge);
+  border-radius: 9px;
+  background: var(--dash-surface);
+  box-shadow: 0 1px 2px rgb(22 51 84 / 5%);
+  overflow: hidden;
+}
+.dash-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--dash-surface-3);
+  background: linear-gradient(180deg, var(--dash-surface-2) 0%, var(--dash-surface-2) 100%);
+}
+.dash-panel-head > div { display: grid; gap: 2px; min-width: 0; }
+.dash-panel-head b { color: var(--dash-navy); font-size: .8rem; font-weight: 800; }
+.dash-panel-head small { color: var(--dash-ink-soft); font-size: .65rem; }
+.dash-panel-head a { color: var(--dash-blue); font-size: .68rem; font-weight: 700; white-space: nowrap; }
+.dash-panel-body { flex: 1; min-width: 0; padding: 12px 14px 14px; }
+
+.dash-nodata {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed var(--dash-edge);
+  border-radius: 7px;
+  color: var(--dash-ink-soft);
+  font-size: .72rem;
+  line-height: 1.5;
+}
+.dash-nodata svg { width: 15px; height: 15px; flex: none; margin-top: 1px; }
+
+.dash-donut { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: center; }
+.dash-legend { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.dash-legend li { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; align-items: center; gap: 7px; font-size: .69rem; color: var(--dash-ink-soft); }
+.dash-legend i { width: 9px; height: 9px; border-radius: 2px; }
+.dash-legend b { color: var(--dash-navy); font-variant-numeric: tabular-nums; }
+
+.dash-table { width: 100%; border-collapse: collapse; font-size: .72rem; }
+.dash-table th { padding: 6px 8px; border-bottom: 1px solid var(--dash-edge); color: var(--dash-ink-soft); font-size: .61rem; font-weight: 700; letter-spacing: .05em; text-align: left; text-transform: uppercase; }
+.dash-table td { padding: 7px 8px; border-bottom: 1px solid var(--dash-surface-2); color: var(--dash-ink); vertical-align: top; }
+.dash-table tr:last-child td { border-bottom: 0; }
+.dash-table a { color: var(--dash-blue); font-weight: 600; }
+.dash-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.dash-alerts { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.dash-alerts a { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 11px; border: 1px solid var(--dash-edge); border-radius: 6px; color: var(--dash-ink-soft); font-size: .73rem; }
+.dash-alerts a:hover { border-color: var(--dash-edge); background: var(--dash-surface-2); }
+.dash-alerts b { min-width: 26px; padding: 1px 7px; border-radius: 4px; background: var(--dash-ground); color: var(--dash-ink-soft); font-size: .72rem; font-variant-numeric: tabular-nums; text-align: center; }
+.dash-alerts li.is-active a { border-color: var(--dash-tint-red); background: var(--dash-tint-red); color: var(--dash-red); }
+.dash-alerts li.is-active b { background: var(--dash-tint-red); color: var(--dash-red); }
+
+.dash-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+.dash-action { justify-content: flex-start !important; font-size: .74rem !important; }
+
+/* ------------------------- Dashboard calendar panel ------------------------ */
+
+.dash-calendar { grid-column: 1 / -1; }
+.dash-cal-nav { display: flex; align-items: center; gap: 6px; }
+.dash-cal-nav button { padding: 4px 8px; border: 1px solid var(--dash-edge); border-radius: 5px; background: var(--dash-surface); color: var(--dash-ink-soft); font-size: .68rem; }
+.dash-cal-nav button:hover { border-color: var(--dash-edge); color: var(--dash-blue); }
+.dash-cal-nav svg { width: 13px; height: 13px; }
+.dash-cal-nav a { margin-left: 4px; color: var(--dash-blue); font-size: .68rem; font-weight: 700; }
+
+.dash-cal-week { display: grid; gap: 8px; margin: 0; padding: 12px 14px 14px; list-style: none; }
+.dash-cal-week > li { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 10px; align-items: start; }
+.dash-cal-week > li.is-today .dash-cal-day { background: var(--dash-blue); border-color: var(--dash-blue); }
+.dash-cal-day { display: grid; justify-items: center; padding: 5px 0; border: 1px solid var(--dash-edge); border-radius: 6px; background: var(--dash-surface-2); }
+.dash-cal-day b { color: var(--dash-navy); font-size: .92rem; line-height: 1.1; }
+.dash-cal-week > li.is-today .dash-cal-day b { color: var(--dash-on-blue); }
+.dash-cal-day span { color: var(--dash-ink-soft); font-size: .58rem; text-transform: uppercase; }
+.dash-cal-week > li.is-today .dash-cal-day span { color: rgb(255 255 255 / 82%); }
+.dash-cal-items { display: grid; gap: 5px; min-width: 0; }
+.dash-cal-item { display: grid; gap: 1px; padding: 6px 9px; border: 1px solid var(--dash-edge); border-left-width: 3px; border-radius: 5px; background: var(--dash-surface); text-align: left; }
+.dash-cal-item:hover { border-color: var(--dash-edge); background: var(--dash-surface-2); }
+.dash-cal-item b { color: var(--dash-navy); font-size: .73rem; font-weight: 700; }
+.dash-cal-item span { color: var(--dash-ink-soft); font-size: .63rem; }
+
+.dash-drawer-host { position: fixed; inset: 0; z-index: 50; display: flex; justify-content: flex-end; background: rgb(13 67 132 / 18%); }
+
+/* ------------------------------- Calendar ---------------------------------- */
+
+.cal-stage { display: grid; gap: 12px; min-width: 0; }
+.cal-header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; }
+.cal-header-title h1 { margin: 2px 0 0; color: var(--dash-navy); font-size: 1.4rem; font-weight: 800; }
+.cal-header-title span { display: block; margin-top: 3px; color: var(--dash-ink-soft); font-size: .75rem; }
+.cal-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+.cal-view-switch { display: inline-flex; padding: 3px; border: 1px solid var(--dash-edge); border-radius: 8px; background: var(--dash-surface-2); }
+.cal-view-switch button { padding: 5px 13px; border-radius: 6px; color: var(--dash-ink-soft); font-size: .73rem; font-weight: 600; }
+.cal-view-switch button.is-active { background: var(--dash-surface); color: var(--dash-navy); box-shadow: 0 1px 3px rgb(22 51 84 / 12%); }
+
+.cal-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.cal-nav { display: flex; align-items: center; gap: 7px; }
+.cal-nav button { display: inline-flex; padding: 6px; border: 1px solid var(--dash-edge); border-radius: 6px; background: var(--dash-surface); color: var(--dash-ink-soft); }
+.cal-nav button:hover { border-color: var(--dash-edge); color: var(--dash-blue); }
+.cal-nav svg { width: 15px; height: 15px; }
+.cal-range { margin-left: 6px; color: var(--dash-navy); font-size: .86rem; font-weight: 700; }
+
+.cal-filters { display: flex; flex-wrap: wrap; gap: 10px; }
+.cal-filters label { display: grid; gap: 3px; }
+.cal-filters label > span { color: var(--dash-ink-soft); font-size: .6rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.cal-filters select { min-width: 172px; padding: 6px 9px; border: 1px solid var(--dash-edge); border-radius: 6px; background: var(--dash-surface); color: var(--dash-navy); font: inherit; font-size: .75rem; }
+
+.cal-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cal-chips button { padding: 4px 11px; border: 1px solid var(--dash-edge); border-radius: 999px; background: var(--dash-surface); color: var(--dash-ink-soft); font-size: .68rem; font-weight: 600; }
+.cal-chips button.is-active { border-color: var(--dash-blue); background: var(--dash-blue); color: var(--dash-on-blue); }
+
+.cal-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
+.cal-body.has-drawer { grid-template-columns: minmax(0, 1fr) minmax(0, 22rem); }
+.cal-surface { min-width: 0; border: 1px solid var(--dash-edge); border-radius: 9px; background: var(--dash-surface); overflow: hidden; }
+
+/* Event colour tokens, shared by every view and the Dashboard preview. */
+/* Event categories keep their own hues; only the ink lightens for dark, since
+   the deep violet/rust readable on white drops under 3:1 on a dark card. */
+.cal-chip-mom { border-left-color: #7c3aed; color: #5b21b6; }
+.cal-chip-kom { border-left-color: #c2410c; color: #9a3412; }
+.dark .cal-chip-mom { border-left-color: #a78bfa; color: #c4b5fd; }
+.dark .cal-chip-kom { border-left-color: #fb923c; color: #fdba74; }
+.cal-chip-meeting { border-left-color: var(--dash-blue); color: var(--dash-navy); }
+.cal-chip-milestone { border-left-color: var(--dash-teal); color: var(--dash-teal); }
+.cal-chip-reminder { border-left-color: var(--dash-amber); color: var(--dash-amber); }
+.cal-chip-due { border-left-color: var(--dash-red); color: var(--dash-red); }
+.cal-chip-derived { border-left-color: var(--dash-muted); color: var(--dash-ink-soft); }
+
+.cal-chip { display: inline-flex; padding: 2px 9px; border: 1px solid currentColor; border-radius: 999px; font-size: .63rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
+.cal-dot { width: 8px; height: 8px; border-radius: 999px; background: currentColor; flex: none; }
+
+.cal-event { display: grid; gap: 1px; width: 100%; padding: 4px 7px; border: 1px solid var(--dash-edge); border-left-width: 3px; border-radius: 4px; background: var(--dash-surface); text-align: left; }
+.cal-event:hover { background: var(--dash-surface-2); }
+.cal-event b { font-size: .68rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-event span { color: var(--dash-ink-soft); font-size: .6rem; }
+.cal-event.is-compact b { font-size: .63rem; }
+
+/* Time grid (Day / Week) */
+.cal-timegrid { display: grid; min-width: 0; }
+.cal-timegrid-head, .cal-allday, .cal-timegrid-body { display: grid; grid-template-columns: 62px repeat(var(--cal-days, 7), minmax(0, 1fr)); }
+.cal-timegrid-head { border-bottom: 1px solid var(--dash-edge); }
+.cal-dayhead { display: grid; justify-items: center; gap: 1px; padding: 8px 4px; border-left: 1px solid var(--dash-surface-2); }
+.cal-dayhead span { color: var(--dash-ink-soft); font-size: .61rem; text-transform: uppercase; }
+.cal-dayhead b { color: var(--dash-navy); font-size: .95rem; }
+.cal-dayhead.is-today b { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 999px; background: var(--dash-blue); color: var(--dash-on-blue); }
+.cal-gutter { display: flex; align-items: center; justify-content: flex-end; padding: 4px 8px; color: var(--dash-muted); font-size: .58rem; text-transform: uppercase; }
+.cal-allday { min-height: 34px; border-bottom: 1px solid var(--dash-edge); background: var(--dash-surface-2); }
+.cal-allday-cell { display: grid; gap: 3px; align-content: start; padding: 4px; border-left: 1px solid var(--dash-surface-2); }
+.cal-timegrid-body { max-height: 60vh; overflow-y: auto; }
+.cal-hours { display: grid; }
+.cal-hour-label { height: 52px; padding: 2px 8px 0 0; color: var(--dash-muted); font-size: .6rem; text-align: right; }
+.cal-daycol { display: grid; border-left: 1px solid var(--dash-surface-2); }
+.cal-slot { height: 52px; padding: 2px; border-top: 1px solid var(--dash-surface-2); display: grid; gap: 2px; align-content: start; }
+
+/* Month grid */
+.cal-monthgrid { display: grid; min-width: 0; }
+.cal-monthhead { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid var(--dash-edge); }
+.cal-monthhead span { padding: 7px 8px; color: var(--dash-ink-soft); font-size: .62rem; font-weight: 700; text-transform: uppercase; }
+.cal-monthbody { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-auto-rows: minmax(94px, auto); }
+.cal-monthcell { display: grid; align-content: start; gap: 4px; padding: 5px 6px; border-top: 1px solid var(--dash-surface-2); border-left: 1px solid var(--dash-surface-2); min-width: 0; }
+.cal-monthcell > b { color: var(--dash-navy); font-size: .72rem; }
+.cal-monthcell.is-outside { background: var(--dash-surface-2); }
+.cal-monthcell.is-outside > b { color: var(--dash-muted); }
+.cal-monthcell.is-today > b { display: inline-flex; align-items: center; justify-content: center; width: 21px; height: 21px; border-radius: 999px; background: var(--dash-blue); color: var(--dash-on-blue); }
+.cal-monthcell-events { display: grid; gap: 3px; min-width: 0; }
+.cal-more { color: var(--dash-ink-soft); font-size: .6rem; }
+
+/* Agenda */
+.cal-agenda { display: grid; gap: 10px; margin: 0; padding: 14px; list-style: none; }
+.cal-agenda > li { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 12px; }
+.cal-agenda-date { display: grid; justify-items: start; }
+.cal-agenda-date b { color: var(--dash-navy); font-size: .86rem; }
+.cal-agenda-date span { color: var(--dash-ink-soft); font-size: .62rem; }
+.cal-agenda-items { display: grid; gap: 5px; min-width: 0; }
+.cal-agenda-item { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto auto; align-items: center; gap: 9px; padding: 8px 11px; border: 1px solid var(--dash-edge); border-radius: 6px; background: var(--dash-surface); text-align: left; }
+.cal-agenda-item:hover { border-color: var(--dash-edge); background: var(--dash-surface-2); }
+.cal-agenda-item b { color: var(--dash-navy); font-size: .75rem; }
+.cal-agenda-item em { color: var(--dash-ink-soft); font-size: .66rem; font-style: normal; }
+.cal-agenda-item i { color: var(--dash-ink-soft); font-size: .64rem; font-style: normal; }
+
+/* Drawer */
+.cal-drawer { display: flex; flex-direction: column; min-width: 0; max-height: 82vh; border: 1px solid var(--dash-edge); border-radius: 9px; background: var(--dash-surface); box-shadow: 0 10px 26px rgb(22 51 84 / 12%); overflow: hidden; }
+.dash-drawer-host .cal-drawer { width: min(100%, 26rem); max-height: 100vh; border-radius: 0; }
+.cal-drawer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 13px 15px; border-bottom: 1px solid var(--dash-surface-3); background: linear-gradient(180deg, var(--dash-surface-2) 0%, var(--dash-surface-2) 100%); }
+.cal-drawer-head h2 { margin: 0; color: var(--dash-navy); font-size: .95rem; font-weight: 800; }
+.cal-drawer-head button { display: inline-flex; padding: 4px; border-radius: 5px; color: var(--dash-ink-soft); }
+.cal-drawer-head button:hover { background: var(--dash-edge); color: var(--dash-navy); }
+.cal-drawer-head svg { width: 16px; height: 16px; }
+.cal-drawer-body { flex: 1; min-height: 0; padding: 14px 15px; overflow-y: auto; }
+.cal-drawer-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+
+.cal-detail-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.cal-detail-row { display: grid; grid-template-columns: 18px 88px minmax(0, 1fr); align-items: start; gap: 8px; padding: 5px 0; font-size: .74rem; }
+.cal-detail-icon { color: var(--dash-muted); }
+.cal-detail-icon svg { width: 14px; height: 14px; }
+.cal-detail-label { color: var(--dash-ink-soft); font-size: .63rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.cal-detail-value { color: var(--dash-navy); overflow-wrap: anywhere; }
+.cal-detail-block { display: grid; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--dash-ground); }
+.cal-detail-block > b { color: var(--dash-navy); font-size: .68rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.cal-detail-text { margin: 0; color: var(--dash-ink); font-size: .74rem; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cal-muted { margin: 0; color: var(--dash-muted); font-size: .72rem; line-height: 1.5; }
+
+.cal-attendee-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.cal-attendee-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px; font-size: .73rem; color: var(--dash-navy); }
+.cal-attendee-list em { color: var(--dash-ink-soft); font-size: .65rem; font-style: normal; }
+.cal-attendee-list i { padding: 1px 6px; border-radius: 3px; background: var(--dash-ground); color: var(--dash-ink-soft); font-size: .58rem; font-style: normal; font-weight: 700; text-transform: uppercase; }
+
+.cal-confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.cal-confirm b { color: var(--dash-red); font-size: .72rem; }
+
+.cal-form { display: grid; gap: 11px; }
+.cal-form label { display: grid; gap: 4px; min-width: 0; }
+.cal-form label > span { color: var(--dash-ink-soft); font-size: .62rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.cal-form input, .cal-form select, .cal-form textarea {
+  width: 100%; min-width: 0; padding: 7px 9px;
+  border: 1px solid var(--dash-edge); border-radius: 5px; background: var(--dash-surface);
+  color: var(--dash-navy); font: inherit; font-size: .76rem;
+}
+.cal-form textarea { line-height: 1.55; resize: vertical; }
+.cal-form-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.cal-form-triple { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+.cal-form-block { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--dash-ground); }
+.cal-form-legend { color: var(--dash-navy); font-size: .66rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.cal-inline-add { display: flex; gap: 6px; }
+.cal-attendee-edit { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.cal-attendee-edit li { display: flex; align-items: center; gap: 7px; padding: 5px 9px; border: 1px solid var(--dash-edge); border-radius: 5px; font-size: .73rem; color: var(--dash-navy); }
+.cal-attendee-edit i { padding: 1px 6px; border-radius: 3px; background: var(--dash-ground); color: var(--dash-ink-soft); font-size: .57rem; font-style: normal; font-weight: 700; text-transform: uppercase; }
+.cal-attendee-edit button { margin-left: auto; display: inline-flex; padding: 2px; border-radius: 4px; color: var(--dash-muted); }
+.cal-attendee-edit button:hover { background: var(--dash-tint-red); color: var(--dash-red); }
+.cal-attendee-edit svg { width: 13px; height: 13px; }
+
+/* ------------------------------ Responsive --------------------------------- */
+
+@media (max-width: 1180px) {
+  .dash-panel { grid-column: 1 / -1; }
+  .dash-donut { grid-template-columns: minmax(0, 1fr); }
+  .cal-body.has-drawer { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .dash-hero { align-items: flex-start; }
+  .dash-hero-filters select { min-width: 0; width: 100%; max-width: none; }
+  .cal-timegrid { overflow-x: auto; }
+  .cal-timegrid-head, .cal-allday, .cal-timegrid-body { grid-template-columns: 46px repeat(var(--cal-days, 7), minmax(58px, 1fr)); }
+}
+
+/* The Dashboard and Calendar are application surfaces, not documents. */
+@media print {
+  .dash-stage, .cal-stage { display: none !important; }
+}
+
+/* ==========================================================================
+   Report surfaces in dark.
+
+   DELIBERATE EXCEPTION: the report SHEET itself (`.monthly-report-sheet` /
+   `.exec-document` and everything inside it) stays paper-white in both themes.
+   It is a WYSIWYG A4 artifact — the screen is meant to show exactly what the
+   PDF will contain — so inverting it would make the preview stop predicting
+   the print, and `print-color-adjust` would then fight the theme on paper.
+   Document viewers behave the same way: dark chrome, white page.
+
+   Everything AROUND the sheet is application furniture and does follow the
+   theme: the stage it sits on, the register, the workspace panels, Edit Mode,
+   and the empty/denied cards. The navy control bar is already dark in both.
+   ========================================================================== */
+
+.dark .monthly-screen-stage,
+.dark .monthly-preview-stage,
+.dark .monthly-workspace,
+.dark .exec-stage { background: var(--dash-ground); }
+
+/* Cards and panels */
+.dark .exec-denied,
+.dark .exec-empty-card,
+.dark .exec-ws-panel,
+.dark .exec-edit-panel {
+  background: var(--dash-surface);
+  border-color: var(--dash-edge);
+  color: var(--dash-ink);
+}
+
+.dark .exec-edit-head {
+  background: linear-gradient(180deg, var(--dash-surface-2) 0%, var(--dash-surface) 100%);
+  border-bottom-color: var(--dash-edge);
+}
+.dark .exec-edit-head h2 { color: var(--dash-navy); }
+.dark .exec-edit-head > div > span,
+.dark .exec-tab-note,
+.dark .exec-edit-preview-head { color: var(--dash-ink-soft); }
+.dark .monthly-mini-heading { color: var(--dash-ink-soft); }
+
+/* Fields */
+.dark .exec-ws-summary,
+.dark .exec-preview-period select {
+  background: var(--dash-surface-2);
+  border-color: var(--dash-edge);
+  color: var(--dash-ink);
+}
+.dark .exec-ws-summary::placeholder { color: var(--dash-muted); }
+.dark .exec-preview-period label { color: var(--dash-ink-soft); }
+
+/* Figures and header meta blocks (outside the sheet) */
+.dark .exec-ws-panel .exec-figure {
+  background: var(--dash-surface-2);
+  border-color: var(--dash-edge);
+}
+.dark .exec-ws-panel .exec-figure span { color: var(--dash-ink-soft); }
+.dark .exec-ws-panel .exec-figure b { color: var(--dash-ink); }
+
+/* Signatory editor — furniture, so it themes even though it looks like the
+   sign-off block it feeds. */
+.dark .exec-sig-field {
+  background: var(--dash-surface-2);
+  border-color: var(--dash-edge);
+}
+.dark .exec-sig-head > b { color: var(--dash-navy); }
+.dark .exec-sig-head > small,
+.dark .exec-sig-person > em { color: var(--dash-ink-soft); }
+.dark .exec-sig-person > i { color: var(--dash-muted); }
+.dark .exec-sig-item { background: var(--dash-surface); border-color: var(--dash-edge); }
+.dark .exec-sig-editing { background: var(--dash-surface-3); border-color: var(--dash-edge); }
+.dark .exec-sig-person > span { color: var(--dash-ink); }
+.dark .exec-sig-tag { background: var(--dash-surface-3); color: var(--dash-ink-soft); }
+.dark .exec-sig-tag.is-custom { background: var(--dash-tint-blue); color: var(--dash-blue); }
+.dark .exec-sig-empty { border-color: var(--dash-edge); color: var(--dash-muted); }
+.dark .exec-sig-draft label > span,
+.dark .exec-sig-add label > span { color: var(--dash-ink-soft); }
+
+/*
+ * Executive Notes — the EDITOR only.
+ *
+ * `.exec-notes` and its children are rendered both by `ExecutiveNotesPanel`
+ * (furniture, inside Edit Mode and the workspace) and by the document's own
+ * notes section, so these are scoped to the two editing containers. Unscoped,
+ * they would repaint the notes printed on the sheet.
+ */
+.dark :is(.exec-edit-panel, .exec-ws-panel) .exec-note-list li {
+  background: var(--dash-surface-2);
+  border-color: var(--dash-edge);
+  border-left-color: var(--dash-blue);
+}
+.dark :is(.exec-edit-panel, .exec-ws-panel) .exec-note-head > b { color: var(--dash-ink); }
+.dark :is(.exec-edit-panel, .exec-ws-panel) .exec-note-list p { color: var(--dash-ink); }
+.dark :is(.exec-edit-panel, .exec-ws-panel) .exec-note-list small,
+.dark :is(.exec-edit-panel, .exec-ws-panel) .exec-notes-toolbar span { color: var(--dash-muted); }
+.dark :is(.exec-edit-panel, .exec-ws-panel) .exec-note-editor {
+  background: var(--dash-surface-2);
+  border-color: var(--dash-edge);
+}
+.dark :is(.exec-edit-panel, .exec-ws-panel) .exec-note-editor-head { color: var(--dash-navy); }
+.dark :is(.exec-edit-panel, .exec-ws-panel) .exec-note-editor label,
+.dark :is(.exec-edit-panel, .exec-ws-panel) .exec-note-body { color: var(--dash-ink-soft); }
+.dark :is(.exec-edit-panel, .exec-ws-panel) .exec-note-editor select,
+.dark :is(.exec-edit-panel, .exec-ws-panel) .exec-note-editor textarea {
+  background: var(--dash-surface-3);
+  border-color: var(--dash-edge);
+  color: var(--dash-ink);
+}
+
+/* Register head — shared by the Weekly, Monthly and Executive registers. */
+.dark .monthly-list-card { background: var(--dash-surface); border-color: var(--dash-edge); }
+.dark .monthly-list-header h1,
+.dark .monthly-new-header h1 { color: var(--dash-navy); }
+.dark .monthly-list-header span,
+.dark .monthly-new-header span,
+.dark .monthly-eyebrow { color: var(--dash-ink-soft); }
+
+/*
+ * Register tables only.
+ *
+ * `.monthly-table` is ALSO the document's table class — it appears four times
+ * inside `ExecutiveDocument` — so these are scoped to `.monthly-list-card`.
+ * An unscoped `.dark .monthly-table` would repaint the printed sheet.
+ */
+.dark .monthly-list-card .monthly-table th {
+  color: var(--dash-ink-soft);
+  border-bottom-color: var(--dash-edge);
+}
+.dark .monthly-list-card .monthly-table td {
+  color: var(--dash-ink);
+  border-bottom-color: var(--dash-edge);
+}
+.dark .monthly-list-card .monthly-table td small { color: var(--dash-muted); }
+.dark .monthly-list-card .planned-value { color: var(--dash-blue); }
+.dark .monthly-list-card .actual-value { color: var(--dash-teal); }
+.dark .monthly-list-card .variance-value { color: var(--dash-amber); }
+.dark .monthly-list-card .drive-cell { color: var(--dash-ink-soft); }
+/* Same scoping reason: `.monthly-link` also appears inside the document. */
+.dark .monthly-list-card .monthly-link { color: var(--dash-blue); }
+
+/* Register table */
+.dark .exec-register-table th {
+  background: var(--dash-surface-2);
+  border-bottom-color: var(--dash-edge);
+  color: var(--dash-ink);
+}
+.dark .exec-register-table th + th { border-left-color: var(--dash-edge); }
+.dark .exec-register-table td {
+  border-bottom-color: var(--dash-edge);
+  color: var(--dash-ink);
+}
+
+/* ==========================================================================
+   Control Center v2 — application surface, not a report page.
+
+   The first pass borrowed the Executive Report's visual language: big white
+   cards, heavy borders, generous padding, one chart per canvas. That reads as a
+   printable document. This block replaces it with an application palette —
+   a tinted workspace ground, low-contrast card edges, subtle elevation instead
+   of borders, tighter rhythm, and smaller type — so the Dashboard and the
+   Executive Report are visibly different kinds of thing.
+   ========================================================================== */
+
+:root {
+  --dash-ground: #eef2f7;
+  --dash-surface: #ffffff;
+  /* One step up from the surface: table headers, inset wells, hover rows. */
+  --dash-surface-2: #f8fafc;
+  --dash-surface-3: #f1f5f9;
+  --dash-edge: #e3e9f1;
+  --dash-ink: #12263f;
+  /*
+   * Three text tiers, each held at or above WCAG AA (4.5:1) on --dash-surface.
+   * The previous soft/muted pair was #64748b / #94a3b8; the lighter of the two
+   * measured 2.45–2.56:1 on white, so KPI captions, axis ticks and empty-state
+   * copy were failing. Both were darkened rather than merged, to keep the tier
+   * distinction that the hierarchy relies on.
+   */
+  --dash-ink-soft: #55647c;
+  /* Third-tier text — axis ticks, footnotes, disabled labels. */
+  --dash-muted: #64728a;
+  --dash-navy: #0d4384;
+  --dash-blue: #0d59a8;
+  --dash-teal: #12805c;
+  --dash-amber: #b8730b;
+  --dash-red: #b0343c;
+  /* Status washes behind badges and callouts. Tokenised because a light tint
+     cannot simply be reused on a dark ground — each needs its own dark value. */
+  --dash-tint-blue: #eef4fb;
+  --dash-tint-green: #e7f5ef;
+  --dash-tint-amber: #fdf3e4;
+  --dash-tint-red: #fdecee;
+  /* Ink for text sitting ON a solid --dash-blue fill. Light keeps white; dark
+     has to flip to navy, because the dark blue is bright enough that white on
+     it falls to ~2.5:1. */
+  --dash-on-blue: #ffffff;
+  --dash-radius: 10px;
+  --dash-shadow: 0 1px 2px rgb(18 38 63 / 6%), 0 1px 3px rgb(18 38 63 / 4%);
+  /* What the sidebar notch opens ONTO. White by default; the workspace ground
+     on Dashboard and Calendar. Without this the rail was grey against a white
+     page and read as a floating pill rather than an opening. */
+  --epr-rail: var(--background);
+}
+
+/*
+ * The workspace palette in dark.
+ *
+ * Redefining these ten tokens re-themes the whole Control Center and Calendar,
+ * because both blocks were already written against them. The ground goes
+ * DARKER than the card surface (the reverse of light, where the ground is the
+ * tinted one) so panels still read as raised; `--dash-navy` inverts from a navy
+ * heading ink to a near-white, since navy-on-navy would vanish.
+ */
+.dark {
+  --dash-ground: #0c1320;
+  --dash-surface: #182133;
+  --dash-surface-2: #1f2b40;
+  --dash-surface-3: #26344c;
+  --dash-edge: rgb(255 255 255 / 11%);
+  --dash-ink: #e9eff8;
+  --dash-ink-soft: #9aa8bd;
+  --dash-muted: #7d8ca4;
+  /* Heading ink inverts: navy on navy would vanish. */
+  --dash-navy: #dfe8f5;
+  --dash-blue: #5aa8f2;
+  --dash-teal: #3fc48d;
+  --dash-amber: #e8a94b;
+  --dash-red: #f2707a;
+  /* Deep, desaturated washes — a light tint at these lightnesses would glow. */
+  --dash-tint-blue: #1c2c44;
+  --dash-tint-green: #14322a;
+  --dash-tint-amber: #32280f;
+  --dash-tint-red: #391e23;
+  --dash-on-blue: #0b1220;
+  --dash-shadow: 0 1px 2px rgb(0 0 0 / 45%), 0 2px 6px rgb(0 0 0 / 30%);
+}
+
+html:has(.dash-stage),
+html:has(.cal-stage) { --epr-rail: var(--dash-ground); }
+
+[data-slot="sidebar-inset"]:has(.dash-stage),
+[data-slot="sidebar-inset"]:has(.cal-stage) { background: var(--dash-ground); }
+
+/* The workspace ground makes white cards read as surfaces rather than paper. */
+.dash-stage,
+.cal-stage {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: -8px -4px 0;
+  padding: 12px 4px 8px;
+}
+
+/* -------------------------------- Header ----------------------------------- */
+
+.dash-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 0 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--dash-ink);
+}
+.dash-hero-title p {
+  margin: 0;
+  color: var(--dash-blue);
+  font-size: .63rem;
+  font-weight: 800;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  opacity: 1;
+}
+.dash-hero-title h1 {
+  margin: 1px 0 0;
+  color: var(--dash-navy);
+  font-size: 1.32rem;
+  font-weight: 800;
+  letter-spacing: -.015em;
+}
+.dash-hero-title span {
+  display: block;
+  margin-top: 2px;
+  max-width: 70ch;
+  color: var(--dash-ink-soft);
+  font-size: .72rem;
+  opacity: 1;
+}
+
+.dash-hero-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.dash-hero-filters label { display: grid; gap: 3px; min-width: 0; }
+.dash-hero-filters label > span {
+  color: var(--dash-ink-soft);
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  opacity: 1;
+}
+.dash-hero-filters select {
+  min-width: 150px;
+  max-width: 220px;
+  padding: 6px 9px;
+  border: 1px solid var(--dash-edge);
+  border-radius: 7px;
+  background: var(--dash-surface);
+  box-shadow: var(--dash-shadow);
+  color: var(--dash-ink);
+  font: inherit;
+  font-size: .73rem;
+  font-weight: 600;
+}
+.dash-hero-filters select option { color: var(--dash-ink); }
+
+/* --------------------------------- KPIs ------------------------------------ */
+
+/*
+ * KPI strip — the figure leads.
+ *
+ * The previous card put a filled icon tile beside a 1.28rem number, so all six
+ * resolved to the same silhouette and the chrome outweighed the data. The icon
+ * is now a low-contrast watermark behind the figure, the figure carries the
+ * card, and the accent rail + wash are driven by STATE — so a danger KPI is
+ * visibly different from a neutral one without anything being decorated.
+ */
+/*
+ * Six explicit columns, not `auto-fit`.
+ *
+ * `auto-fit` with a 158px minimum resolved to five tracks at laptop width and
+ * dropped the sixth KPI onto a row of its own — one card marooned beside five
+ * columns of empty ground. The strip is a fixed set of six figures, so the
+ * column count is stated and steps down in whole rows.
+ */
+.dash-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 1150px) { .dash-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .dash-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.dash-kpi {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: 11px 13px 10px;
+  border: 1px solid var(--dash-edge);
+  border-radius: var(--dash-radius);
+  background: var(--dash-surface);
+  box-shadow: var(--dash-shadow);
+  overflow: hidden;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+/* The accent is an inset rail, not a border, so it cannot alter box metrics
+   and every card in the strip stays exactly the same height. */
+.dash-kpi::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--dash-edge);
+}
+.dash-kpi:hover { border-color: var(--dash-muted); box-shadow: 0 2px 8px rgb(18 38 63 / 9%); }
+.dark .dash-kpi:hover { box-shadow: 0 2px 10px rgb(0 0 0 / 45%); }
+
+.dash-kpi-mark {
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--dash-ink);
+  opacity: .07;
+  pointer-events: none;
+}
+.dash-kpi-mark svg { width: 40px; height: 40px; }
+.dark .dash-kpi-mark { opacity: .1; }
+
+.dash-kpi-label {
+  color: var(--dash-ink-soft);
+  font-size: .585rem;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.dash-kpi-value {
+  color: var(--dash-navy);
+  font-size: 1.72rem;
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -.028em;
+  font-variant-numeric: tabular-nums;
+}
+.dash-kpi small {
+  color: var(--dash-muted);
+  font-size: .605rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.dash-kpi.is-info::before { background: var(--dash-blue); }
+.dash-kpi.is-success::before { background: var(--dash-teal); }
+.dash-kpi.is-success .dash-kpi-value { color: var(--dash-teal); }
+.dash-kpi.is-warning::before { background: var(--dash-amber); }
+.dash-kpi.is-warning .dash-kpi-value { color: var(--dash-amber); }
+.dash-kpi.is-danger::before { background: var(--dash-red); }
+.dash-kpi.is-danger .dash-kpi-value { color: var(--dash-red); }
+/* Only states that need action take a wash — so the eye lands on them first. */
+.dash-kpi.is-danger { background: linear-gradient(90deg, var(--dash-tint-red) 0%, var(--dash-surface) 62%); }
+.dash-kpi.is-warning { background: linear-gradient(90deg, var(--dash-tint-amber) 0%, var(--dash-surface) 62%); }
+
+/* ------------------------------- Card grid --------------------------------- */
+
+.dash-analytics,
+.dash-ops {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dash-card {
+  grid-column: span var(--span, 12);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--dash-edge);
+  border-radius: var(--dash-radius);
+  background: var(--dash-surface);
+  box-shadow: var(--dash-shadow);
+  overflow: hidden;
+}
+.dash-card > header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px 12px 7px;
+  border-bottom: 1px solid var(--dash-surface-3);
+}
+.dash-card > header b {
+  color: var(--dash-ink);
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: -.005em;
+}
+.dash-card > header small { color: var(--dash-muted); font-size: .62rem; }
+.dash-card > header a {
+  margin-left: auto;
+  color: var(--dash-blue);
+  font-size: .64rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.dash-card-body { flex: 1; min-width: 0; padding: 10px 12px 12px; }
+
+/* Empty states state a fact; they do not reserve a chart's worth of space.
+   The 74px floor left a one-line sentence sitting in a tall grey slab. */
+.dash-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 7px;
+  background: var(--dash-surface-2);
+  color: var(--dash-muted);
+  font-size: .69rem;
+  line-height: 1.45;
+}
+
+/* ------------------------------ Bullet bars -------------------------------- */
+
+/* One or two projects: the fact, at a glance, with no empty canvas. */
+.dash-bullets { display: grid; gap: 14px; margin: 0; padding: 2px 0; list-style: none; }
+.dash-bullet-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.dash-bullet-head b { color: var(--dash-ink); font-size: .78rem; font-weight: 700; }
+.dash-delta { font-size: .82rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.dash-delta.is-success { color: var(--dash-teal); }
+.dash-delta.is-warning { color: var(--dash-amber); }
+.dash-delta.is-danger { color: var(--dash-red); }
+.dash-delta.is-default { color: var(--dash-muted); }
+
+.dash-bullet-track {
+  position: relative;
+  height: 22px;
+  margin-top: 7px;
+  border-radius: 5px;
+  background: var(--dash-surface-3);
+  overflow: hidden;
+}
+.dash-bullet-plan { position: absolute; inset: 0 auto 0 0; background: var(--dash-tint-blue); }
+.dash-bullet-actual { position: absolute; inset: 4px auto 4px 0; border-radius: 4px; }
+.dash-bullet-marker {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--dash-navy);
+  transform: translateX(-1px);
+}
+.dash-bullet-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 6px;
+  color: var(--dash-ink-soft);
+  font-size: .66rem;
+}
+.dash-bullet-foot b { color: var(--dash-ink); font-variant-numeric: tabular-nums; }
+.dash-bullet-basis { margin-left: auto; color: var(--dash-muted); }
+
+.dash-bullet-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  color: var(--dash-muted);
+  font-size: .56rem;
+  font-variant-numeric: tabular-nums;
+}
+.dash-bullet-state {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+.dash-bullet-state.is-success { background: var(--dash-tint-green); color: var(--dash-teal); }
+.dash-bullet-state.is-warning { background: var(--dash-tint-amber); color: var(--dash-amber); }
+.dash-bullet-state.is-danger { background: var(--dash-tint-red); color: var(--dash-red); }
+.dash-bullet-state.is-default { background: var(--dash-ground); color: var(--dash-ink-soft); }
+
+.dash-dist-foot {
+  margin: 2px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--dash-edge);
+  color: var(--dash-muted);
+  font-size: .66rem;
+}
+.dash-dist-foot b { color: var(--dash-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* --------------------------------- Gauge ----------------------------------- */
+
+.dash-gauge { display: grid; gap: 5px; padding: 4px 0 2px; }
+.dash-gauge-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.dash-gauge-label {
+  color: var(--dash-ink-soft);
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.dash-gauge-value {
+  font-size: 1.95rem;
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A labelled scale turns the bar into a measurement rather than a decoration. */
+.dash-gauge-scale {
+  display: flex;
+  justify-content: space-between;
+  color: var(--dash-muted);
+  font-size: .56rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-gauge-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--dash-edge);
+}
+.dash-gauge-facts > div { display: grid; gap: 1px; min-width: 0; }
+.dash-gauge-facts dt {
+  color: var(--dash-muted);
+  font-size: .56rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.dash-gauge-facts dd {
+  margin: 0;
+  color: var(--dash-ink);
+  font-size: .84rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.dash-gauge-value.is-success { color: var(--dash-teal); }
+.dash-gauge-value.is-warning { color: var(--dash-amber); }
+.dash-gauge-value.is-danger { color: var(--dash-red); }
+.dash-gauge-value.is-default { color: var(--dash-muted); }
+.dash-gauge-track { position: relative; height: 10px; margin: 4px 0 2px; border-radius: 5px; background: var(--dash-surface-3); }
+.dash-gauge-zero { position: absolute; top: -3px; bottom: -3px; left: 50%; width: 2px; background: var(--dash-edge); }
+.dash-gauge-fill { position: absolute; top: 0; bottom: 0; border-radius: 5px; }
+.dash-gauge-fill.is-success { background: var(--dash-teal); }
+.dash-gauge-fill.is-warning { background: var(--dash-amber); }
+.dash-gauge-fill.is-danger { background: var(--dash-red); }
+.dash-gauge p { margin: 4px 0 0; color: var(--dash-muted); font-size: .66rem; line-height: 1.45; }
+
+/* --------------------------------- Health ---------------------------------- */
+
+/*
+ * One segmented bar carries the whole distribution, with the legend beneath as
+ * a compact key. Replaces a track-per-status, which drew a mostly-empty bar for
+ * every state and could not be read as proportions.
+ */
+.dash-dist { display: grid; gap: 10px; padding: 2px 0; }
+.dash-dist-bar {
+  display: flex;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--dash-surface-3);
+  overflow: hidden;
+}
+.dash-dist-bar i { display: block; height: 100%; }
+/* Hairline separators so adjacent segments stay countable. */
+.dash-dist-bar i + i { box-shadow: inset 1px 0 0 var(--dash-surface); }
+
+.dash-dist-legend { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.dash-dist-legend li {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+.dash-dist-legend i { width: 8px; height: 8px; border-radius: 2px; }
+.dash-dist-legend span {
+  color: var(--dash-ink-soft);
+  font-size: .68rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-dist-legend b { color: var(--dash-ink); font-size: .74rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* -------------------------------- Attention -------------------------------- */
+
+.dash-attention { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.dash-attention li {
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: var(--dash-surface-2);
+}
+.dash-pip { width: 7px; height: 7px; border-radius: 999px; }
+.dash-pip.is-success { background: var(--dash-teal); }
+.dash-pip.is-warning { background: var(--dash-amber); }
+.dash-pip.is-danger { background: var(--dash-red); }
+.dash-pip.is-default { background: var(--dash-muted); }
+.dash-attention-name { color: var(--dash-ink); font-size: .73rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-attention-tag { padding: 1px 7px; border-radius: 999px; font-size: .58rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
+.dash-attention-tag.is-warning { background: var(--dash-tint-amber); color: var(--dash-amber); }
+.dash-attention-tag.is-danger { background: var(--dash-tint-red); color: var(--dash-red); }
+.dash-attention-tag.is-default { background: var(--dash-ground); color: var(--dash-ink-soft); }
+.dash-attention-tag.is-success { background: var(--dash-tint-green); color: var(--dash-teal); }
+.dash-attention b { color: var(--dash-ink); font-size: .72rem; font-variant-numeric: tabular-nums; }
+
+.dash-clear {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 7px;
+  background: var(--dash-tint-green);
+  color: var(--dash-teal);
+  font-size: .71rem;
+  font-weight: 600;
+}
+.dash-clear span { font-weight: 800; }
+
+/* ------------------------------- Milestones -------------------------------- */
+
+.dash-milestones { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.dash-milestones li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 7px;
+}
+.dash-milestones li:hover { background: var(--dash-surface-2); }
+.dash-ms-date { display: grid; justify-items: center; padding: 3px 0; border-radius: 6px; background: var(--dash-tint-blue); }
+.dash-ms-date b { color: var(--dash-navy); font-size: .82rem; line-height: 1.05; }
+.dash-ms-date small { color: var(--dash-muted); font-size: .53rem; text-transform: uppercase; }
+.dash-ms-body { display: grid; gap: 0; min-width: 0; }
+.dash-ms-body a { color: var(--dash-ink); font-size: .73rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-ms-body a:hover { color: var(--dash-blue); }
+.dash-ms-body small { color: var(--dash-muted); font-size: .62rem; }
+.dash-ms-status { padding: 1px 7px; border-radius: 999px; font-size: .57rem; font-weight: 700; text-transform: uppercase; white-space: nowrap; }
+.dash-ms-status.is-success { background: var(--dash-tint-green); color: var(--dash-teal); }
+.dash-ms-status.is-danger { background: var(--dash-tint-red); color: var(--dash-red); }
+.dash-ms-status.is-info { background: var(--dash-tint-blue); color: var(--dash-blue); }
+.dash-ms-status.is-default { background: var(--dash-ground); color: var(--dash-ink-soft); }
+
+/* --------------------------------- Alerts ---------------------------------- */
+
+.dash-alerts { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.dash-alerts a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: var(--dash-surface-2);
+  color: var(--dash-ink-soft);
+  font-size: .7rem;
+  font-weight: 600;
+}
+.dash-alerts a:hover { background: var(--dash-tint-blue); color: var(--dash-blue); }
+.dash-alerts b {
+  min-width: 22px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--dash-edge);
+  color: var(--dash-ink-soft);
+  font-size: .68rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+/*
+ * Priority hierarchy: a row that needs action is filled, ruled and carries a
+ * chevron; a cleared row recedes to plain text on the ground. Previously both
+ * states shared one treatment and only the digit differed, so "0 overdue" drew
+ * as much attention as "3 overdue".
+ */
+.dash-alerts li.is-active a {
+  background: var(--dash-tint-red);
+  color: var(--dash-red);
+  box-shadow: inset 3px 0 0 var(--dash-red);
+  font-weight: 700;
+}
+.dash-alerts li.is-active b {
+  background: var(--dash-red);
+  color: var(--dash-surface);
+  font-weight: 700;
+}
+.dash-alerts li.is-active a:hover { background: var(--dash-tint-red); color: var(--dash-red); }
+.dash-alert-go { width: 13px; height: 13px; margin-left: -4px; flex: none; }
+
+.dash-alerts li.is-clear a { background: transparent; border: 1px solid var(--dash-edge); }
+.dash-alerts li.is-clear b { background: transparent; color: var(--dash-muted); }
+
+/* ------------------------------ Quick actions ------------------------------ */
+
+/* Actions are a compact toolbar, not six full-width tiles claiming a whole row. */
+.dash-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.dash-action {
+  justify-content: flex-start !important;
+  height: 30px !important;
+  padding: 0 11px !important;
+  border-color: var(--dash-edge) !important;
+  border-radius: 7px !important;
+  color: var(--dash-ink) !important;
+  font-size: .69rem !important;
+  font-weight: 600 !important;
+}
+.dash-action:hover { background: var(--dash-surface-2) !important; color: var(--dash-blue) !important; }
+.dash-action svg { width: 14px !important; height: 14px !important; color: var(--dash-blue); }
+
+/* ---------------------------- Density and rhythm --------------------------- */
+
+/*
+ * The Control Center is an instrument panel: it should fill the fold with
+ * information, not with padding.
+ *
+ * The shared `EmptyState` is built for a whole page — a 44px icon medallion
+ * above stacked centred text inside `py-12`. Used as the calendar preview's
+ * empty state it left roughly 150px of dead ground at the foot of the page.
+ * Laid on its side it says the same thing in one line. SCOPED to the dashboard
+ * panel: every other EmptyState in the app keeps the full treatment.
+ */
+.dash-calendar [data-slot="empty-state"] {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 11px;
+  margin: 10px 12px 12px;
+  padding: 11px 13px;
+  text-align: left;
+}
+.dash-calendar [data-slot="empty-state"] > div:first-of-type {
+  margin: 0;
+  width: 30px;
+  height: 30px;
+  flex: none;
+}
+.dash-calendar [data-slot="empty-state"] > div:first-of-type svg { width: 15px; height: 15px; }
+.dash-calendar [data-slot="empty-state"] p { max-width: none; font-size: .72rem; }
+.dash-calendar [data-slot="empty-state"] p:first-of-type { font-weight: 700; white-space: nowrap; }
+
+/* Card headers: the title leads, the hint trails on the same baseline, and the
+   rule beneath is a hairline rather than a full-strength border. */
+.dash-card > header { border-bottom-color: var(--dash-edge); padding: 10px 13px 8px; }
+.dash-card-body { padding: 11px 13px 13px; }
+
+/* Analytics rows keep equal heights so a short panel never leaves a step in
+   the row it shares. */
+.dash-analytics { align-items: stretch; }
+.dash-analytics > .dash-card { height: 100%; }
+
+/* --------------------------- Dashboard calendar ---------------------------- */
+
+.dash-calendar {
+  grid-column: 1 / -1;
+  border: 1px solid var(--dash-edge);
+  border-radius: var(--dash-radius);
+  background: var(--dash-surface);
+  box-shadow: var(--dash-shadow);
+  overflow: hidden;
+}
+.dash-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px 7px;
+  border-bottom: 1px solid var(--dash-surface-3);
+  background: none;
+}
+.dash-panel-head > div { display: flex; align-items: baseline; gap: 8px; }
+.dash-panel-head b { color: var(--dash-ink); font-size: .76rem; font-weight: 700; }
+.dash-panel-head small { color: var(--dash-muted); font-size: .62rem; }
+.dash-cal-nav button {
+  padding: 3px 8px;
+  border: 1px solid var(--dash-edge);
+  border-radius: 6px;
+  background: var(--dash-surface);
+  color: var(--dash-ink-soft);
+  font-size: .65rem;
+  font-weight: 600;
+}
+.dash-cal-nav a { color: var(--dash-blue); font-size: .65rem; font-weight: 700; }
+.dash-cal-week { gap: 6px; padding: 10px 12px 12px; }
+.dash-cal-week > li { grid-template-columns: 40px minmax(0, 1fr); gap: 9px; }
+.dash-cal-day { padding: 4px 0; border: 0; border-radius: 6px; background: var(--dash-surface-3); }
+.dash-cal-day b { color: var(--dash-navy); font-size: .82rem; }
+.dash-cal-day span { font-size: .53rem; }
+.dash-cal-week > li.is-today .dash-cal-day { background: var(--dash-blue); }
+.dash-cal-week > li.is-today .dash-cal-day b,
+.dash-cal-week > li.is-today .dash-cal-day span { color: var(--dash-on-blue); }
+.dash-cal-item {
+  padding: 5px 9px;
+  border: 0;
+  border-left: 3px solid currentColor;
+  border-radius: 0 6px 6px 0;
+  background: var(--dash-surface-2);
+}
+.dash-cal-item:hover { background: var(--dash-tint-blue); }
+.dash-cal-item b { color: var(--dash-ink); font-size: .71rem; }
+.dash-cal-item span { color: var(--dash-muted); font-size: .61rem; }
+
+/* ================================ Calendar ================================= */
+
+.cal-header-title h1 { color: var(--dash-navy); font-size: 1.32rem; font-weight: 800; letter-spacing: -.015em; }
+.cal-header-title span { color: var(--dash-ink-soft); font-size: .72rem; }
+
+.cal-view-switch { padding: 2px; border: 1px solid var(--dash-edge); border-radius: 8px; background: var(--dash-surface-3); }
+.cal-view-switch button { padding: 4px 12px; border-radius: 6px; color: var(--dash-ink-soft); font-size: .7rem; font-weight: 600; }
+.cal-view-switch button.is-active { background: var(--dash-surface); color: var(--dash-navy); box-shadow: var(--dash-shadow); }
+
+.cal-nav button { padding: 5px; border: 1px solid var(--dash-edge); border-radius: 6px; background: var(--dash-surface); color: var(--dash-ink-soft); }
+.cal-range { color: var(--dash-navy); font-size: .82rem; font-weight: 700; }
+.cal-filters select { padding: 5px 9px; border: 1px solid var(--dash-edge); border-radius: 7px; background: var(--dash-surface); box-shadow: var(--dash-shadow); font-size: .72rem; font-weight: 600; }
+.cal-filters label > span { color: var(--dash-ink-soft); font-size: .57rem; }
+
+.cal-chips button { padding: 3px 10px; border: 1px solid var(--dash-edge); border-radius: 999px; background: var(--dash-surface); color: var(--dash-ink-soft); font-size: .65rem; font-weight: 600; }
+.cal-chips button.is-active { border-color: var(--dash-blue); background: var(--dash-blue); color: var(--dash-on-blue); }
+
+.cal-surface { border: 1px solid var(--dash-edge); border-radius: var(--dash-radius); box-shadow: var(--dash-shadow); }
+
+/* Event chips: a colour bar and tight type, not a bordered box. */
+.cal-event {
+  padding: 3px 7px;
+  border: 0;
+  border-left: 3px solid currentColor;
+  border-radius: 0 5px 5px 0;
+  background: var(--dash-surface-2);
+}
+.cal-event:hover { background: var(--dash-tint-blue); }
+.cal-event b { color: var(--dash-ink); font-size: .66rem; }
+.cal-event span { color: var(--dash-muted); font-size: .58rem; }
+
+.cal-dayhead { border-left: 1px solid var(--dash-surface-2); }
+.cal-dayhead span { color: var(--dash-muted); font-size: .58rem; }
+.cal-dayhead b { color: var(--dash-ink); font-size: .88rem; }
+.cal-dayhead.is-today b { background: var(--dash-blue); color: var(--dash-on-blue); }
+.cal-monthcell { border-top: 1px solid var(--dash-surface-2); border-left: 1px solid var(--dash-surface-2); }
+.cal-monthcell > b { color: var(--dash-ink-soft); font-size: .68rem; font-weight: 600; }
+.cal-monthcell.is-today > b { background: var(--dash-blue); color: var(--dash-on-blue); font-weight: 700; }
+.cal-monthhead span { color: var(--dash-muted); font-size: .58rem; }
+
+.cal-agenda-item { border: 0; border-radius: 7px; background: var(--dash-surface-2); }
+.cal-agenda-item:hover { background: var(--dash-tint-blue); }
+.cal-agenda-item b { color: var(--dash-ink); font-size: .73rem; }
+
+.cal-drawer { border: 1px solid var(--dash-edge); border-radius: var(--dash-radius); box-shadow: 0 8px 24px rgb(18 38 63 / 10%); }
+.cal-drawer-head { padding: 11px 13px; border-bottom: 1px solid var(--dash-surface-3); background: none; }
+.cal-drawer-head h2 { color: var(--dash-navy); font-size: .9rem; }
+.cal-detail-label { color: var(--dash-muted); font-size: .6rem; }
+.cal-detail-value { color: var(--dash-ink); font-size: .73rem; }
+
+/* ------------------------------ Responsive --------------------------------- */
+
+@media (max-width: 1280px) {
+  .dash-card { grid-column: span 6; }
+}
+@media (max-width: 900px) {
+  .dash-card { grid-column: 1 / -1; }
 }

@@ -1,30 +1,30 @@
 import type { Metadata } from "next";
 
-import { ExecutiveRegisterView } from "@/features/executive-reports";
+import { ExecutivePreviewView } from "@/features/executive-reports";
 import { getExecutiveViewerContext } from "@/features/executive-reports/executive-access";
 
 export const metadata: Metadata = {
-  title: "Executive Reports",
+  title: "Executive Report Preview",
 };
 
-/**
- * The Executive Report Register.
- *
- * Consistent with `/weekly-reports` and `/monthly-reports`: the sidebar lands on
- * a register of reporting periods, and the consolidated report opens from a row.
- * The portfolio itself lives at `/executive-reports/portfolio`.
- */
-export default async function ExecutiveReportsPage() {
+/** Print stage for the portfolio document — same structure, same data, no chrome. */
+export default async function ExecutiveReportPreviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
+  const { month } = await searchParams;
   const viewer = await getExecutiveViewerContext();
 
   return (
-    <ExecutiveRegisterView
+    <ExecutivePreviewView
       allowed={viewer.allowed}
       deniedReason={viewer.deniedReason}
       contactId={viewer.contactId}
       isAdmin={viewer.isAdmin}
       viewerName={viewer.viewerName}
       roleLabel={viewer.roleLabel}
+      requestedMonth={month}
     />
   );
 }

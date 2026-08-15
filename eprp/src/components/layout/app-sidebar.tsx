@@ -121,19 +121,28 @@ export function AppSidebar({ welcome }: AppSidebarProps) {
                   }
                   const active = isItemActive(pathname, item.href);
                   return (
-                    <SidebarMenuItem key={item.href}>
+                    <SidebarMenuItem key={item.href} className="epr-nav-item">
                       <SidebarMenuButton
                         asChild
                         isActive={active}
                         tooltip={item.title}
-                        className="data-active:bg-sidebar-primary! data-active:text-sidebar-primary-foreground!"
+                        /*
+                         * The active treatment is CSS, not a background utility:
+                         * `.epr-nav-link` draws the notched rail, the curved
+                         * corner joins and the circular icon puck. Tailwind's
+                         * `data-active:bg-*` is deliberately not used here — it
+                         * would paint a plain rectangle over the notch.
+                         */
+                        className="epr-nav-link"
                       >
                         <Link
                           href={item.href}
                           aria-current={active ? "page" : undefined}
                         >
-                          <item.icon aria-hidden="true" />
-                          <span>{item.title}</span>
+                          <span className="epr-nav-icon" aria-hidden="true">
+                            <item.icon aria-hidden="true" />
+                          </span>
+                          <span className="epr-nav-label">{item.title}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

@@ -31,7 +31,8 @@ and a lifecycle transition correctly refused).
 | 7 | Workflow, permissions, notifications | ❌ Config only, nothing enforced |
 | 8 | Excel exchange | ❌ Not started |
 | 9 | Monthly Reports | ⚠️ Partial — schema, RLS, service and full Monthly UX (register, create, document, workspace, analytics, A4 print) delivered; see note |
-| 10 | Executive reporting | ❌ **Not started** |
+| 10 | Executive reporting | ✅ Delivered — live derived Portfolio Executive view, drill-down, A4 landscape output, persisted `executive_reports` record, in-report Edit Mode and snapshot-based signatories |
+| 10a | Control Center + Calendar | ⚠️ Partial — Dashboard rebuilt on real data (mock removed), regrouped sidebar with notched active indicator, and a project-scoped Calendar (`project_events`) with Day/Week/Month/Agenda and full CRUD. Attachments on events are NOT implemented: the platform has no attachment storage at all (`attachment-service.ts` is `notImplemented`, no table, no bucket) |
 | 11 | A4/PDF output | ⚠️ Partial — dedicated Weekly A4 preview/print delivered; other report types remain untouched |
 | 12 | Hardening and future integrations | ❌ Not started |
 
@@ -411,15 +412,110 @@ Compile finalized Weeklies, selected/carry-forward comments, progress trends, ac
 
 ---
 
-## Phase 10 — Executive reporting ❌ NOT STARTED
+## Phase 10 — Executive reporting ⚠️ PARTIAL
 
 Build project and portfolio Executive Reports, executive comments, KPIs, health status, trends, risks, actions, decisions, and the company-president view across all projects.
 
 **Done when:** leadership can understand portfolio health without opening raw department submissions.
 
-**Current state:** all five routes are placeholders, `features/executive-reports/` is empty, `executive-report-service.ts` is five stubs, and no `executive_reports` table exists. The Executive Dashboard at `/dashboard` is a mock-data view, not this report.
+**Delivered (increment 1 — live derived portfolio view, no schema change):**
 
-Depends on Phase 9 and on the Executive comment flag from Phase 6.
+- `/executive-reports` — the Project Portfolio Executive Report: control bar with
+  period and five filters, auto-drafted Executive Summary, a ten-tile KPI strip,
+  the Project Status Overview table, Management Attention, six analytics panels,
+  an upcoming-milestone timeline and per-project snapshot cards.
+- `/executive-reports/preview` — the same document as an A4 print stage.
+- `/executive-reports/projects/[projectId]` — read-only drill-down with six tabs
+  (Overview, Weekly Updates, Monthly Reports, Risks & Issues, Actions,
+  Milestones).
+- The five `[reportId]` placeholder routes are **untouched and reserved** for the
+  persisted Executive Report.
+
+**The data policy, as built:**
+
+- **Monthly is the official baseline.** A project's position is the latest
+  Monthly for the selected month whose status is `approved`, `finalized` or
+  `locked`. `archived` is deliberately excluded from that set — it is withdrawn
+  from active use (§10.2) — so an archived Monthly appears as a fallback
+  position, never as an official one.
+- **Draft never aggregates.** A project with no approved Monthly still appears,
+  marked *Draft / Not Approved* beside its actual lifecycle status, and is
+  excluded from every portfolio figure. With no approved Monthly anywhere the
+  KPI tiles read "No approved basis" and the page states so plainly rather than
+  computing a total.
+- **Absence is never zero.** No Monthly at all reads *No Monthly Report*, and
+  every aggregate declares its basis and its exclusions.
+- **Freshness is deduplicated exactly**, on `monthly_comments.source_weekly_entry_id`
+  — the unique FK onto `weekly_entries.id`. Nothing already compiled into the
+  Monthly is repeated as Weekly movement.
+
+**One status reading.** `readHealth()` delegates to Monthly's own
+`monthEndStatus()` rather than calling `recommendScheduleStatus()`. The two
+carry different bands: at −2.0% variance the Weekly rule reads *On Schedule*
+while the Monthly rule reads *Delayed*, so running the Weekly rule at portfolio
+altitude made the Executive view contradict the report it compiles — a defect
+under Law 6 and conformance rule 21. Caught in browser verification against
+live data, not in review.
+
+**Not built, and why:**
+
+| Missing | Reason |
+|---|---|
+| Persisted Executive record — number, revision, approval, lock, snapshot | No `executive_reports` table; this increment was scoped to zero schema change |
+| QR code on the output | `03` §19.1 requires a QR to resolve to a specific report **and revision**; nothing here is snapshotted, so there is no revision to point at |
+| Documents tab | No attachment table exists in any migration |
+| Central milestone register | None exists; the timeline is sourced from Monthly plan items and Weekly plan milestones, and says so |
+| Business Unit / Portfolio Owner filters | No such columns on `projects` |
+| Weighted portfolio roll-up | No project value, budget or man-hour weight exists, so the mean is unweighted and declares itself as such |
+
+### Executive Notes — migration written, NOT applied
+
+`20260812000003_executive_notes.sql` adds the only table the Executive tier
+writes to. It is additive: no existing table, policy, function or row is
+changed, and neither Weekly nor Monthly can see it, so Monthly compilation and
+the Weekly→Monthly dedupe are untouched.
+
+**It has not been pushed, deliberately.** `supabase db push --dry-run` reports
+three pending migrations, not one:
+
+```text
+• 20260812000001_monthly_reports.sql      ← already live
+• 20260812000002_monthly_rls_repair.sql   ← already live
+• 20260812000003_executive_notes.sql      ← new
+```
+
+The two Monthly migrations exist in the live database — the application reads
+and writes `monthly_reports` daily — but are absent from the remote migration
+history. A push would therefore replay `create table public.monthly_reports`
+against an existing table, and `…0001` is the migration already recorded above
+as unreplayable (its four-argument `weekly_can_access_scope()` call). It would
+fail partway and it would touch Monthly.
+
+**The safe sequence, for a human to run deliberately:**
+
+```bash
+supabase migration repair --status applied 20260812000001 20260812000002
+supabase db push
+```
+
+The repair only inserts rows into `supabase_migrations.schema_migrations`; it
+executes no DDL and changes no Monthly data. It should still be run by someone
+who confirms the premise first — that both migrations are genuinely applied.
+
+Until then the Executive Notes UI renders a "migration pending" panel instead of
+failing: `executiveNoteService` treats PostgREST `42P01` / `PGRST205` as a state,
+not an error, so the rest of the Executive Report is unaffected.
+
+**Outstanding for production:** portfolio-level RLS. The four Weekly and four
+Monthly tables carry real scoped policies, but `projects` still carries the
+temporary `for all to authenticated using (true)` policy from Phase 3.
+`executive-scope.ts` mirrors `weekly_can_access_project()` in TypeScript and
+filters before aggregating (§7.2), but at portfolio altitude that is a rendering
+filter, **not a database boundary**. Hardening it is a prerequisite for
+production use of this module and is carried in Phase 12.
+
+Increment 2 (the persisted Executive Report) still depends on the Executive
+comment flag from Phase 6.
 
 ---
 

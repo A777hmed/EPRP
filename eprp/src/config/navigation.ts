@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Building2,
+  CalendarClock,
   CalendarDays,
   CalendarRange,
   Contact,
@@ -29,6 +30,23 @@ export interface NavSection {
   items: NavItem[];
 }
 
+/**
+ * Navigation groups.
+ *
+ * Regrouped to the four-band enterprise structure — Planning & Reporting,
+ * Reporting, Tools & Analytics, Administration — with Dashboard standing alone
+ * above them as the Control Center.
+ *
+ * EVERY ITEM RESOLVES TO A REAL ROUTE. The visual reference also shows
+ * Notifications and Reports Archive; neither exists in this platform (no route,
+ * no table), so neither is listed. A nav entry that leads nowhere is worse than
+ * an absent one — it advertises a capability the product does not have.
+ *
+ * "Programs & Studies" is likewise NOT listed beside Disciplines. Which of the
+ * two a project uses is a property of its project type (PSM/PSAIM projects use
+ * Programs & Studies, others use Disciplines), so it belongs to the project
+ * workspace, not to a global sidebar that would show both to everyone.
+ */
 export const mainNavigation: NavSection[] = [
   {
     label: "Overview",
@@ -37,19 +55,19 @@ export const mainNavigation: NavSection[] = [
         title: "Dashboard",
         href: "/dashboard",
         icon: LayoutDashboard,
-        description: "Executive overview and portfolio KPIs",
+        description: "Control Center — portfolio KPIs, analytics and calendar",
       },
+    ],
+  },
+  {
+    label: "Planning & Reporting",
+    items: [
       {
         title: "Projects",
         href: "/projects",
         icon: FolderKanban,
         description: "Project portfolio and progress tracking",
       },
-    ],
-  },
-  {
-    label: "Master Data",
-    items: [
       {
         title: "Departments",
         href: "/departments",
@@ -106,8 +124,14 @@ export const mainNavigation: NavSection[] = [
     ],
   },
   {
-    label: "Insights",
+    label: "Tools & Analytics",
     items: [
+      {
+        title: "Calendar",
+        href: "/calendar",
+        icon: CalendarClock,
+        description: "Meetings, MOM/KOM, milestones and report due dates",
+      },
       {
         title: "Analytics",
         href: "/analytics",
@@ -123,13 +147,13 @@ export const mainNavigation: NavSection[] = [
     ],
   },
   {
-    label: "System",
+    label: "Administration",
     items: [
       {
-        title: "Administration",
+        title: "Users & Roles",
         href: "/administration",
         icon: ShieldCheck,
-        description: "Departments, users, and permissions",
+        description: "Users, roles, and permissions",
       },
       {
         title: "Job Titles",

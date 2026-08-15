@@ -16,6 +16,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 /** Placeholder identity until user management arrives in a later phase. */
 const currentUser = {
@@ -56,6 +57,8 @@ export function TopBar() {
         >
           <Search aria-hidden="true" />
         </Button>
+
+        <ThemeToggle />
 
         <Button variant="ghost" size="icon" aria-label="Messages">
           <Mail aria-hidden="true" />
