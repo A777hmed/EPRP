@@ -96,6 +96,36 @@ export function ProjectFormView({ projectId }: ProjectFormViewProps) {
     }
   };
 
+  /*
+   * Positions-only save. `updateProject` acts on the keys it is given, so this
+   * replaces project_positions and leaves every other Project Info column and
+   * all project scope untouched.
+   */
+  const handleSavePositions = async (
+    positions: ProjectFormValues["additionalPositions"]
+  ): Promise<ProjectFormValues["additionalPositions"]> => {
+    if (!project) return positions;
+    const updated = await projectService.updateProject(project.id, {
+      positions: positions
+        .filter((position) => position.jobTitleId && position.contactId)
+        .map((position, index) => ({
+          id: position.id || undefined,
+          jobTitleId: position.jobTitleId ?? "",
+          contactId: position.contactId ?? "",
+          notes: position.notes?.trim() || undefined,
+          sortOrder: index,
+        })),
+    });
+    setProject(updated);
+    // Hand back the stored rows so the form adopts their ids.
+    return (updated.positions ?? []).map((position) => ({
+      id: position.id ?? "",
+      jobTitleId: position.jobTitleId,
+      contactId: position.contactId,
+      notes: position.notes ?? "",
+    }));
+  };
+
   const handleCancel = () => {
     router.push(isEdit && project ? `/projects/${project.id}` : "/projects");
   };
@@ -123,6 +153,7 @@ export function ProjectFormView({ projectId }: ProjectFormViewProps) {
         submitLabel={isEdit ? "Save Changes" : "Create Project"}
         onSubmit={handleSubmit}
         onSaveDraft={handleSaveDraft}
+        onSavePositions={project ? handleSavePositions : undefined}
         onCancel={handleCancel}
       />
     </div>

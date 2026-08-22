@@ -6,6 +6,7 @@
  */
 
 import * as React from "react";
+import { compilationMessage } from "./monthly-data";
 import Link from "next/link";
 import Image from "next/image";
 import { Eye, FilePlus2, PenLine, Plus, Printer, RefreshCw } from "lucide-react";
@@ -74,10 +75,10 @@ export function WeeklyImportStrip({ reportId, importedCount, onDone }: { reportI
   const run = async () => {
     setSyncing(true);
     try {
-      await monthlyReportService.compileFromWeeklies(reportId);
+      const result = await monthlyReportService.compileFromWeeklies(reportId);
       await onDone();
       setLastSync(new Date().toLocaleTimeString());
-      toast.success("Monthly items updated from Weekly Reports.");
+      toast.success(compilationMessage(result));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not update from Weekly Reports.");
     } finally {

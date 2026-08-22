@@ -35,7 +35,7 @@ import { monthlyReportService } from "@/services/monthly-report-service";
 import { projectService } from "@/services/project-service";
 import { useMasterData } from "@/features/master-data";
 import type { Contact, MonthlyReport, Project, UserRole } from "@/types";
-import { NOT_RECORDED, monthEndStatus, nameOf } from "./monthly-data";
+import { NOT_RECORDED, compilationMessage, monthEndStatus, nameOf } from "./monthly-data";
 
 /**
  * Row actions.
@@ -64,9 +64,9 @@ function RowActions({
   const updateFromWeekly = async () => {
     setUpdating(true);
     try {
-      await monthlyReportService.compileFromWeeklies(report.id);
+      const result = await monthlyReportService.compileFromWeeklies(report.id);
       await onChanged();
-      toast.success("Monthly items updated from Weekly Reports.");
+      toast.success(compilationMessage(result));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not update from Weekly Reports.");
     } finally {
@@ -76,7 +76,7 @@ function RowActions({
 
   const archive = async () => {
     try {
-      await monthlyReportService.update(report.id, { status: "archived" });
+      await monthlyReportService.changeStatus(report.id, "archived");
       await onChanged();
       toast.success("Monthly report archived.");
     } catch (error) {

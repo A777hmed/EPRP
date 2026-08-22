@@ -44,6 +44,10 @@ import { ASSIGNMENT_ROLE_META } from "@/lib/constants";
 import { withProjectContext } from "../../project-link-context";
 import { useHierarchyTerms } from "../../use-hierarchy-terms";
 import { ProjectSectionLayout } from "./project-section-layout";
+import {
+  compareTeamDisplayOrder,
+  departmentManager,
+} from "../../assignment-rules";
 
 type ScopeKind = "departments" | "systems" | "disciplines" | "contacts";
 
@@ -188,14 +192,18 @@ export function ProjectScopeSection({
           const record = departments.find(
             (candidate) => candidate.id === assignment.departmentId
           );
+          const manager = departmentManager(project, assignment.departmentId);
+          const managerName = contacts.find(
+            (contact) => contact.id === manager?.contactId
+          )?.name;
           return {
             id: assignment.departmentId,
             name: record?.name ?? assignment.departmentId,
             code: record?.code,
             departmentId: assignment.departmentId,
-            meta: assignment.leadName
-              ? `Lead: ${assignment.leadName}`
-              : "No lead set",
+            meta: manager
+              ? `Manager: ${managerName ?? manager.contactId}`
+              : "Manager assigned on Contacts step",
             badge: (
               <StatusBadge
                 tone={assignment.reportingRequired ? "info" : "neutral"}
@@ -239,7 +247,15 @@ export function ProjectScopeSection({
         }));
 
       case "contacts":
-        return (project.team ?? []).map((member) => {
+        return [...(project.team ?? [])]
+          .sort((left, right) =>
+            compareTeamDisplayOrder(
+              left,
+              right,
+              (id) => contacts.find((contact) => contact.id === id)?.name ?? id
+            )
+          )
+          .map((member) => {
           const record = contacts.find(
             (candidate) => candidate.id === member.contactId
           );
@@ -269,7 +285,7 @@ export function ProjectScopeSection({
               .join(" · "),
             resolved: Boolean(record),
           };
-        });
+          });
     }
   }, [kind, project, projectSystems, departments, systems, disciplines, contacts]);
 

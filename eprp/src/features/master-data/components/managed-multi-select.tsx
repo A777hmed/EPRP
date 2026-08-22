@@ -20,6 +20,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import type { HierarchyTerms } from "@/config/project-terminology";
 import type { MasterRecordBase } from "@/types";
 import { MASTER_KIND_CONFIG } from "../services";
 import type { MasterKind } from "../types";
@@ -45,6 +46,21 @@ export interface ManagedMultiSelectProps {
   searchPlaceholder?: string;
   /** Heading over the option list, when the caller names the kind differently. */
   optionsHeading?: string;
+  /** Project-type wording for the hierarchy level; display only. */
+  displayTerms?: HierarchyTerms;
+  /** Optional context-specific metadata shown and included in typeahead. */
+  optionSublabel?: (record: MasterRecordBase) => string | undefined;
+  /**
+   * Split the options into labelled groups, in the order returned.
+   *
+   * Used so a Team Member picker can offer people from the active Department
+   * and people from another one in the SAME list — the assignment is legal
+   * either way — while making it obvious which is which before the user picks.
+   * Returning `undefined` for a record leaves it in the default group.
+   */
+  optionGroup?: (record: MasterRecordBase) => string | undefined;
+  /** Group headings in display order; groups with no options are skipped. */
+  optionGroupOrder?: string[];
   /**
    * Accessible name for the "×" button, e.g. "Clear all disciplines".
    * Defaults to the master-data kind when the field has no distinct name.
@@ -76,11 +92,19 @@ export function ManagedMultiSelect({
   emptyLabel,
   searchPlaceholder,
   optionsHeading,
+  displayTerms,
+  optionSublabel,
+  optionGroup,
+  optionGroupOrder,
   clearLabel,
   controlProps,
   onMutated,
 }: ManagedMultiSelectProps) {
   const config = MASTER_KIND_CONFIG[kind];
+  const singular = displayTerms?.singular ?? config.singular;
+  const plural = displayTerms?.plural ?? config.plural;
+  const singularLower = displayTerms?.singularLower ?? singular.toLowerCase();
+  const pluralLower = displayTerms?.pluralLower ?? plural.toLowerCase();
   const { records, activeRecords } = useMasterData(kind);
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -109,9 +133,34 @@ export function ManagedMultiSelect({
     return all.filter((record) => filter(record) || selectedIds.has(record.id));
   }, [activeRecords, records, selectedIds, filter]);
 
+  /*
+   * Options split into their display groups. Without `optionGroup` this is a
+   * single group and renders exactly as it did before.
+   */
+  const groupedOptions = React.useMemo(() => {
+    const defaultHeading = optionsHeading ?? plural;
+    if (!optionGroup) return [{ heading: defaultHeading, records: options }];
+
+    const buckets = new Map<string, MasterRecordBase[]>();
+    for (const record of options) {
+      const heading = optionGroup(record) ?? defaultHeading;
+      buckets.set(heading, [...(buckets.get(heading) ?? []), record]);
+    }
+
+    const ordered = optionGroupOrder ?? [...buckets.keys()];
+    const seen = new Set(ordered);
+    return [
+      ...ordered,
+      // Any heading the caller did not list still has to appear.
+      ...[...buckets.keys()].filter((heading) => !seen.has(heading)),
+    ]
+      .map((heading) => ({ heading, records: buckets.get(heading) ?? [] }))
+      .filter((group) => group.records.length > 0);
+  }, [options, optionGroup, optionGroupOrder, optionsHeading, plural]);
+
   const triggerLabel =
     selectedRecords.length === 0
-      ? (placeholder ?? `Select ${config.plural.toLowerCase()}…`)
+      ? (placeholder ?? `Select ${pluralLower}…`)
       : selectedRecords.length <= 2
         ? selectedRecords.map((record) => record.name).join(", ")
         : `${selectedRecords
@@ -171,50 +220,48 @@ export function ManagedMultiSelect({
             <Command>
               <CommandInput
                 placeholder={
-                  searchPlaceholder ?? `Search ${config.plural.toLowerCase()}…`
+                  searchPlaceholder ?? `Search ${pluralLower}…`
                 }
                 value={query}
                 onValueChange={setQuery}
               />
               <CommandList>
                 <CommandEmpty>
-                  {emptyLabel ?? `No ${config.plural.toLowerCase()} found.`}
+                  {emptyLabel ?? `No ${pluralLower} found.`}
                 </CommandEmpty>
-                {/*
-                  Named for the caller's screen where it differs. The "Add
-                  new" and "Manage" actions below deliberately keep the master
-                  -data name: they open Global Administration, where the record
-                  IS a Discipline, and relabelling the doorway would announce
-                  one thing and open another.
-                */}
-                <CommandGroup heading={optionsHeading ?? config.plural}>
-                  {options.map((record) => {
-                    const checked = selectedIds.has(record.id);
-                    return (
-                      <CommandItem
-                        key={record.id}
-                        value={`${record.name} ${record.code ?? ""}`}
-                        data-checked={checked || undefined}
-                        aria-selected={checked}
-                        onSelect={() => toggle(record.id)}
-                      >
-                        <span className="min-w-0 flex-1 truncate">
-                          {record.name}
-                          {!record.active && (
-                            <span className="ml-1 text-xs text-muted-foreground">
-                              (archived)
+                {groupedOptions.map(({ heading, records: groupRecords }) => (
+                  <CommandGroup key={heading} heading={heading}>
+                    {groupRecords.map((record) => {
+                      const checked = selectedIds.has(record.id);
+                      const sublabel =
+                        optionSublabel?.(record) ??
+                        config.optionSublabel?.(record);
+                      return (
+                        <CommandItem
+                          key={record.id}
+                          value={`${record.name} ${record.code ?? ""} ${sublabel ?? ""}`}
+                          data-checked={checked || undefined}
+                          aria-selected={checked}
+                          onSelect={() => toggle(record.id)}
+                        >
+                          <span className="min-w-0 flex-1 truncate">
+                            {record.name}
+                            {!record.active && (
+                              <span className="ml-1 text-xs text-muted-foreground">
+                                (archived)
+                              </span>
+                            )}
+                          </span>
+                          {(sublabel || record.code) && (
+                            <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                              {sublabel ?? record.code}
                             </span>
                           )}
-                        </span>
-                        {record.code && (
-                          <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                            {record.code}
-                          </span>
-                        )}
-                      </CommandItem>
-                    );
-                  })}
-                </CommandGroup>
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                ))}
                 <CommandSeparator />
                 <CommandGroup>
                   <CommandItem
@@ -222,14 +269,14 @@ export function ManagedMultiSelect({
                     onSelect={() => openDialog("create", query.trim())}
                   >
                     <Plus className="size-4" aria-hidden="true" />
-                    Add new {config.singular.toLowerCase()}
+                    Add new {singularLower}
                   </CommandItem>
                   <CommandItem
                     value="__manage__"
                     onSelect={() => openDialog("list")}
                   >
                     <Settings2 className="size-4" aria-hidden="true" />
-                    Manage {config.plural.toLowerCase()}…
+                    Manage {pluralLower}…
                   </CommandItem>
                 </CommandGroup>
               </CommandList>
@@ -239,7 +286,7 @@ export function ManagedMultiSelect({
 
         {value.length > 0 && (
           <ClearValueButton
-            label={clearLabel ?? `Clear all ${config.plural.toLowerCase()}`}
+            label={clearLabel ?? `Clear all ${pluralLower}`}
             onClear={clearValue}
             disabled={disabled}
           />
@@ -250,7 +297,7 @@ export function ManagedMultiSelect({
           variant="outline"
           size="icon"
           disabled={disabled}
-          aria-label={`Manage ${config.plural.toLowerCase()}`}
+          aria-label={`Manage ${pluralLower}`}
           onClick={() => openDialog("list")}
         >
           <Settings2 aria-hidden="true" />
@@ -265,6 +312,7 @@ export function ManagedMultiSelect({
         }
         initialMode={dialog.mode}
         initialName={dialog.initialName}
+        displayTerms={displayTerms}
         onCreated={(record) => onChange([...value, record.id])}
         onMutated={onMutated}
       />

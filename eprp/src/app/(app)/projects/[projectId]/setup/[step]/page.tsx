@@ -32,10 +32,21 @@ export async function generateMetadata({
  */
 export default async function ProjectSetupStepPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ projectId: string; step: string }>;
+  searchParams: Promise<{ disciplineId?: string | string[] }>;
 }) {
   const { projectId, step } = await params;
+  const { disciplineId } = await searchParams;
   if (!isProjectWorkflowStep(step)) notFound();
-  return <ProjectSetupView projectId={projectId} step={step} />;
+  return (
+    <ProjectSetupView
+      projectId={projectId}
+      step={step}
+      initialDisciplineId={
+        Array.isArray(disciplineId) ? disciplineId[0] : disciplineId
+      }
+    />
+  );
 }

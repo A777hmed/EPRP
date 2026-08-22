@@ -6,6 +6,13 @@ Complete one phase at a time. After each phase, review the browser result, run v
 
 This file is the single source of truth for **where the project actually is**. Update the status table below at the end of every phase.
 
+**What the project must become** is governed by
+[`02_PLATFORM_ARCHITECTURE.md` §24](02_PLATFORM_ARCHITECTURE.md#24-locked-decisions--p0-architecture-review-2026-08-20)
+— the decisions locked at the P0 architecture review of 2026-08-20. Read §24
+before planning any phase from here on. This roadmap records delivery status;
+it does not restate architecture, and where the two appear to differ, §24
+governs.
+
 ---
 
 ## Status at a glance
@@ -24,7 +31,7 @@ and a lifecycle transition correctly refused).
 | 2 | Project master data | ✅ Complete |
 | 2A | Organization Chart *(added — see note)* | ✅ Complete |
 | 2B | Configurable hierarchy and scoped assignments *(added — see note)* | ✅ Complete |
-| 3 | Data foundation | ✅ Complete — all 32 migrations applied |
+| 3 | Data foundation | ✅ Complete — all 47 migrations applied |
 | 4 | Weekly Workspace UI | ⚠️ Partial (~95%) — final Weekly UX, multiple authored updates, insights, plans and print delivered; attachments/history outstanding |
 | 5 | Weekly data and department submission | ⚠️ Partial — department ownership now enforced in the UI |
 | 6 | Comments and collaboration | ⚠️ Partial |
@@ -35,15 +42,105 @@ and a lifecycle transition correctly refused).
 | 10a | Control Center + Calendar | ⚠️ Partial — Dashboard rebuilt on real data (mock removed), regrouped sidebar with notched active indicator, and a project-scoped Calendar (`project_events`) with Day/Week/Month/Agenda and full CRUD. Attachments on events are NOT implemented: the platform has no attachment storage at all (`attachment-service.ts` is `notImplemented`, no table, no bucket) |
 | 11 | A4/PDF output | ⚠️ Partial — dedicated Weekly A4 preview/print delivered; other report types remain untouched |
 | 12 | Hardening and future integrations | ❌ Not started |
+| 13 | Master Planning & Control *(added — see note)* | ⚠️ In progress — **13.1 & 13.2 CLOSED**, **13.3 implemented** (all verified in UI); 13.4–13.7 not started |
 
-**Current phase: 4 (Weekly Workspace). The final content and layout pass is
-done and the Weekly is the canonical source for Print. Next increment: Phase 11
-Print / PDF, reading the Weekly workspace data as it now stands. Attachments
-and history remain outstanding in Phase 4 and are listed under it below.**
+**Current phase: P0 — architecture-review blockers.** Scope, ordering and the
+locked decisions behind it are in
+[`02_PLATFORM_ARCHITECTURE.md` §24](02_PLATFORM_ARCHITECTURE.md#24-locked-decisions--p0-architecture-review-2026-08-20).
+Phase 4's remaining items (attachments, history) and Phase 11 resume after P0.
+
+### P0 status
+
+**Runtime-validated 2026-08-20 against an isolated local database. 39/39 checks
+pass. Still NOT deployed to the hosted project.**
+
+| # | Item | Implementation | Static / build | Runtime validation | Deployed |
+|---|---|---|:-:|:-:|:-:|
+| P0.5 | Migration replay correction | ✅ Complete | ✅ PASS | ✅ **Replay executed — 61/61 migrations** | n/a |
+| P0.6 | One canonical consolidator rule | ✅ Complete | ✅ PASS | ✅ **9/9 PASS** | ✅ **WAVE 1 — deployed 2026-08-21** |
+| P0.1 | Close escalation on `projects` / `project_contacts` | ✅ Complete | ✅ PASS | ✅ **9/9 PASS** | ✅ **WAVE 1 — deployed 2026-08-21** |
+| P0.2 | Platform-wide read policy (Tier A / Tier B) | ✅ Complete | ✅ PASS | ✅ **7/7 PASS** | ✅ **WAVE 1 — deployed 2026-08-21** |
+| P0.3 | Server-side Weekly/Monthly lifecycle enforcement | ✅ Complete | ✅ PASS | ✅ **8/8 PASS** | ✅ **WAVE 2 — deployed 2026-08-21** |
+| P0.4 | Monthly compiles approved Weekly data only | ✅ Complete | ✅ PASS | ✅ **6/6 PASS** | ✅ **WAVE 2 — deployed 2026-08-21** |
+| — | Corrective: archive from every live state (`20260822000001`) | ✅ Complete | ✅ PASS | ✅ **17/17 states** | ✅ **deployed 2026-08-22** |
+
+**The environment (P1.0).** An isolated local Supabase stack under Docker —
+containerised Postgres 17.6, matching the hosted project's 17.6.1.147. Rebuilt
+from empty with `supabase db reset` (local only; never `--linked`,
+`--project-ref` or `--db-url`). Two local-only identities are created by
+`scripts/p0-validation/00_local_test_identity.sql`, including the **second,
+non-admin** identity the negative permission paths are proved with. The hosted
+database was not connected to at any point.
+
+**Reproduce the whole thing** from `eprp/`:
+
+1. `npx supabase start`
+2. `npx supabase db reset`
+3. `00_local_test_identity.sql` → `01_setup_test_fixtures.sql` → `02`…`06`
+4. `99_teardown_test_fixtures.sql` when finished
+
+**Three defects were found by runtime validation that static analysis had
+missed** — recorded because they are the argument for never accepting
+"statically verified" as finished:
+
+1. **`weekly_transition_blockers()` crashed** on the reviewer and
+   no-submissions branches. `text[] || 'literal'` resolves the untyped literal
+   as an array and raises *malformed array literal*; only the `format()` branch
+   was typed enough to work. Fixed with `array_append`.
+2. **The migration set never grants table privileges.** The hosted platform
+   grants DML on `public` to `anon`/`authenticated`; nothing in the repository
+   does. A database built from migrations alone is unusable — every query fails
+   with *permission denied* before any policy is consulted. Applied locally by
+   the bootstrap script; **a portability gap that still has no home in the
+   migration set.**
+3. **Ten migrations could not replay onto an empty database** — one unconditional
+   data-cleanup guard and nine lockout pre-checks. All are now
+   fresh-environment aware: each refuses only when the thing it protects
+   actually exists.
+
+**DRESS REHEARSAL against the restored production schema, 2026-08-21.** The
+six migrations were applied to a local database restored from a production
+schema dump (no data), with an active system_admin seeded so the lockout
+pre-checks took production's branch rather than the empty-database branch. Two
+full cycles: 6/6 migrations applied, 39/39 validation checks passed, rollback
+returned the database to exactly the pristine restore (96 policies, 34
+functions), and the whole cycle reproduced identically.
+
+**The rehearsal caught a defect that would have FAILED the deployment.**
+`20260820000005` revoked EXECUTE on its two controlled writers from PUBLIC only.
+This project carries `alter default privileges ... grant execute on functions to
+anon`, so each new function ALSO received a DIRECT anon grant, which a PUBLIC
+revoke does not remove. The migration's own post-check refused to complete —
+correctly. It passed on a plain local stack, which lacks that default privilege,
+and failed the moment it met production's actual privilege configuration. Fixed
+by revoking from `anon` explicitly. This is the exact mirror of the defect
+`20260729000002` recorded, and half of that lesson had been applied.
+
+**PRE-FLIGHT PASSED against production, 2026-08-21 — 7/7 gates.** Observed:
+0 P0 migrations applied · 1 active system administrator · full DML grants on all
+8 probed tables, which settles §3.10 for P0 · **0 accounts gain manage rights
+from P0.6** · 96 policies / 17 unconditionally open, reconciled as 14 known P1
+residue + 2 closed by P0.1 + 1 by P0.2 · no portfolio Executive notes, so the one
+non-additive change in P0 affects nothing. Production untouched throughout —
+read-only SELECTs run by the owner in the SQL Editor.
+
+**Owner decision, 2026-08-21.** Pre-flight found 4 Monthly comments compiled from
+a never-approved Weekly, which P0.2 would publish platform-wide. Accepted **as
+test data**, not a P0 blocker, and the dataset is retained because it is what
+makes functional and runtime validation possible. This creates a **mandatory
+Pre-Handover Data Reset** — recorded as
+[`02_PLATFORM_ARCHITECTURE.md` §25](02_PLATFORM_ARCHITECTURE.md#25-pre-handover-data-reset--mandatory-delivery-gate),
+tracked as §22 row 2g. It is a delivery gate, not optional cleanup, and it must
+**NOT** be performed now.
+
+**The two P0 defects are now proven fixed, not merely believed fixed.** §3.8
+(`acceptedCount` compared against a status that does not exist, so no Weekly
+could ever be approved) is settled by checks **G6** and **G8**, which prove a
+legitimate transition now succeeds — not merely that illegitimate ones fail.
 
 The two standing facts that used to gate every estimate below are **no longer true** and are recorded here so the change is visible rather than silently edited away:
 
-- **The database is provisioned and current.** All 32 migrations are applied to the remote Supabase project via the CLI. The application runs on real data; the in-memory mock service is now only the fallback for an unconfigured environment. *(Was: "no database has ever been provisioned … all 13 migrations are unexecuted SQL.")*
+- **The database is provisioned and current.** All 47 migrations are applied to the remote Supabase project via the CLI. The application runs on real data; the in-memory mock service is now only the fallback for an unconfigured environment. *(Was: "no database has ever been provisioned … all 13 migrations are unexecuted SQL.")*
 - **Version control history exists** — 17 commits, with `4fe5dae` as the pre-release stabilization checkpoint. A verified restore path also exists: `EPR_Full_Backup_2026-08-09.dump` and `EPR_Schema_Backup_2026-08-09.sql`, the former checked with `pg_restore -l`. *(Was: "`.git` exists but is empty. There is no way to revert a bad change.")*
 
 Docker is still not installed, so `supabase db dump` is unavailable locally; backups are taken outside the CLI.
@@ -59,10 +156,10 @@ workspace, analytics and A4 print UI.
 It is **Partial**, not Complete, for three reasons — all recorded in
 `KNOWN_LIMITATIONS.md` §3.6–3.7:
 
-1. Migration `20260812000001` calls `weekly_can_access_scope()` with four
-   arguments where only a three-argument function exists. The live database was
-   repaired by `20260812000002`, but the migration set **cannot be replayed on a
-   fresh environment**.
+1. ~~Migration `20260812000001` calls `weekly_can_access_scope()` with four
+   arguments where only a three-argument function exists.~~ **Corrected by P0.5
+   on 2026-08-20**; the migration set is replayable again by static analysis,
+   though the replay itself has not been executed (no Docker, no `psql`).
 2. HSE event counts and a next-month planned-% target have no column; the UI
    renders "Not recorded" rather than a placeholder value.
 3. No Google Drive upload or admin-PIN approval exists, despite appearing in the
@@ -93,6 +190,15 @@ original plan but is now load-bearing for Weekly:
 - **A person may hold many scoped assignments,** each with its own Assignment
   Role. `assignedScopeItems()` resolves user → project → department → scope
   item(s) → role, which is the lookup Phase 4 needs to scope Weekly per user.
+- **Department Managers are project-scoped assignments.** The active Project
+  UI resolves them from `project_contacts` and `assignment_role`, not from the
+  Department master's default lead. The searchable selector remains scoped to
+  the active Department and manager changes preserve the project team.
+- **Department and System descriptions can be project-specific.** Migration
+  `20260817000002` adds a nullable description to each project/Department link;
+  System overrides stay in the existing assignment JSON. Blank overrides fall
+  back to the shared master description, so no master record is duplicated or
+  renamed for one project.
 
 ---
 
@@ -130,10 +236,32 @@ Projects, clients, project types, phases, departments, systems, disciplines, con
 
 - Full CRUD for Clients, Project Types, Phases, Departments, Systems, Disciplines, and Contacts, each with list/detail/new/edit routes.
 - Every dropdown is admin-managed; none are hardcoded.
+- Project and master-data relationship selectors use one searchable managed
+  pattern with Add/Manage actions, including Managed Job Title and dependent
+  Department/System references; their underlying semantics are unchanged.
 - Safe archive/deactivate with reference checks.
 - 6-step project creation wizard, guided setup flow, and a 13-section project workspace.
 - Responsibility fields store contact IDs, not names.
 - Zod validation with Save Draft versus Final Submission rules.
+- Contacts Add New saves dirty team assignments before leaving and returns to
+  the same Program & Study; failed validation or persistence keeps the draft in
+  place. Authenticated browser verification is still pending.
+- Add Person now receives its originating Project Department explicitly instead
+  of depending on a lazy Program & Study cache lookup. It is a prefill only:
+  the user's final Department selection remains authoritative.
+- One Directory Person can be selected explicitly as a Team Member for scope in
+  another Department without changing or duplicating the Person. The picker and
+  Project Team summary show the home Department; manager eligibility stays
+  Department-specific. Runtime persistence verification is still pending.
+- New Weekly delegations cannot start in the past; End Date follows Start Date
+  and clears when Start moves beyond it. Persisted historical delegations remain
+  readable and receive the same inline validation used by the save guard.
+- Project Team summaries share one presentation-only order: Department Manager,
+  Team Member Lead, Team Member, then alphabetical name. Stored assignments and
+  reporting lines are unchanged.
+- Client master data already carries an optional Short Name/Acronym. Project
+  Review and Project Details now resolve Clients reactively and fall back to the
+  full name; no schema or existing Client data changed.
 
 ---
 
@@ -582,6 +710,35 @@ Add DOCX output, branding management, signatures, QR codes, advanced audit/revis
   New Weekly Report form before a project is chosen, which correctly falls back
   to "Discipline". A second, non-PSM project would let this be verified for
   real.
+- **Project Sites foundation (Project pass P12) is implemented.** Additive
+  migration `20260817000003_project_sites.sql` provides stable project-owned
+  Site IDs and one Primary Site while retaining `projects.site/city/country`
+  as the compatibility path. Project Info can manage multiple Sites. Adding
+  Site attribution to Weekly/Monthly/Executive remains downstream work and was
+  intentionally not started in the Project-only pass.
+- **Project Reference Documents foundation (Project pass P13) is implemented.**
+  Migration `20260817000004_project_reference_documents.sql` adds revision-aware
+  metadata and a private Project-scoped Storage bucket. The Project can upload,
+  retain and view official references, including embedded PDF viewing. Global
+  document search, generic/report attachments and report linkage remain future
+  integrations; no reporting module was changed in this pass.
+- **Client Representative contact auto-resolution (Project pass P14) is implemented.**
+  Selecting a representative fills blank Project contact snapshot fields from
+  the Contact record while preserving explicit Project overrides. This required
+  no database change.
+- **Project Setup Review clarity (Project pass P15) is implemented.** Review
+  now renders Department → System → Program & Study explicitly, retains the
+  shared manager-first ordering, and labels cross-Department assignments with
+  the Person's Home Department. Counts remain derived from saved Project links.
+- **Project Branding labels (Project pass P16) are corrected.** Project Setup
+  now distinguishes `EPROM / Company Logo` from `Client Logo` and states that
+  QR requires a real published report/revision URL. Building that destination
+  remains reporting/deployment work; no report renderer was changed.
+- **Final Project regression (P17) is partially complete.** Static checks,
+  isolated production build, setup-route auth responses, migration alignment,
+  and the absence of active RLS-disable statements are confirmed. The full
+  save/reload/Finish Setup pass and `PSM-00-02` hosted-data confirmation remain
+  pending because no authenticated browser session is connected.
 
 ---
 
@@ -598,3 +755,318 @@ Run lint, type-check, and production build.
 Report changed files, completed requirements, deferred items, and remaining issues.
 Stop after this phase.
 ```
+
+---
+
+## Phase 13 — Master Planning & Control ⚠️ IN PROGRESS
+
+Master Milestones and Master Deliverables as the single governed source of
+truth for project milestones, with Weekly and Monthly as reporting channels
+over them rather than places where milestones are invented.
+
+The full architecture, the ten frozen rules (R1–R10) and the locked decision
+register (D1–D8) are held in the Phase 13 architecture review. This section
+records only the phase numbering and delivery status.
+
+**A note on the "P13" label.** Migration `20260817000004_project_reference_documents.sql`
+is headed "EPRP P13 — official Project Reference Documents". That label predates
+this heading and refers to the shipped Project Reference Documents work, **not**
+to this phase. Sub-phase 13.1 below extends that same table; the two are related
+but are not the same increment. Use the numbering in this file.
+
+### Sub-phases
+
+| # | Sub-phase | Status |
+|---|---|---|
+| 13.1 | Reference Input metadata | ✅ **CLOSED** — verified in the live UI 2026-08-19 |
+| 13.2 | Master Milestones | ✅ **CLOSED** — verified in the live UI 2026-08-19 |
+| 13.3 | Master Deliverables | ✅ **Implemented** — verified in the live UI 2026-08-20; one deferred test (M5) |
+| 13.4 | Reporting Integration | ❌ Not started |
+| 13.5 | Schedule Import (Primavera) | 🔒 Gated — needs written sign-off |
+| 13.6 | Schedule Views | 🔒 Gated |
+| 13.7 | Executive & Dashboard | ❌ Not started |
+
+**Acceptance gate:** 13.5 and 13.6 do not start until 13.1–13.4 are implemented,
+tested and accepted. 13.1–13.4 must be fully usable without Primavera.
+
+### 13.1 — Reference Input metadata ✅
+
+Additive metadata on the existing `project_documents` table so controlled
+reference inputs carry a revision chain, a provenance source and an effective
+date, and so schedule revisions can be filed as their own document type.
+
+**Delivered:**
+
+- `superseded_by_document_id` — nullable self-reference, `on delete set null`,
+  with a CHECK that a linked document is necessarily at status `superseded`.
+- `source` — nullable, one of `client_issued | internal | contractor | other`.
+- `effective_date` — nullable, distinct from `issue_date`.
+- `document_type` widened by `schedule_update`.
+- `projectDocumentService.supersede()` — writes the status and the chain link in
+  one statement, so the two cannot drift, and refuses cross-project, self- and
+  cycle links.
+- Reference Inputs UI grouped into Scope of Work, Baseline Schedule, Schedule
+  Updates and Supporting Documents, with the revision chain shown on each card.
+- In-app PDF preview (PDF.js canvas), because the Electron desktop shell has no
+  native PDF viewer. Actions are View Document | Download.
+- Metadata Edit, and a two-stage delete: Soft Delete to a Deleted Documents
+  section with a mandatory reason, Restore, and System-Administrator-only
+  Permanent Delete that removes the row and the stored object. `deleted_at` is
+  the discriminator; `status` is preserved so Restore returns the document to
+  what it was.
+
+**Not in 13.1:** no new table, no RLS change, no storage-bucket change, no
+parsing of any uploaded file, and nothing from 13.2 or later.
+
+**Done when:** a reference document can record its source and effective date, a
+schedule update can be filed as such, and one document can supersede another with
+the chain visible on both. ✅
+
+### 13.1 closure record — verified in the live UI, 2026-08-19
+
+All checks run against the real Supabase project, signed in as System
+Administrator, in the Electron desktop shell.
+
+| Area | Evidence |
+|---|---|
+| PDF viewer | 28-page PDF rendered to 28 canvases; page 1 confirmed by pixel histogram in an earlier pass |
+| Prev / Next | 1/28 → 2/28 → 3/28 → 2/28 |
+| Page X / Y | Follows scrolling (1 → 4 → 1); reads 28/28 at the end |
+| Button gating | Previous disabled on page 1; Next disabled on page 28 |
+| Zoom + / − | 100% → 125% with canvas width 1086 → 1357 px (exactly 1.25x); 125% → 100% |
+| Fit Width | Present; disabled at the 100% fit baseline, enabled once zoomed |
+| Download | Present in the viewer toolbar; signs a URL carrying the original file name |
+| Edit | Title and reference number persisted; uploaded file unchanged |
+| Soft delete | Reason mandatory (confirm disabled while empty); moved to Trash; left the active list |
+| Trash card | Deleted badge beside the PRESERVED original status, plus deleted-by, date and reason |
+| Restore | Returned to the active list at its original status with no delete residue |
+| Permanent delete | Title/message/buttons as specified, no typed confirmation; No changed nothing; Yes removed row and storage object |
+| Chain repair | A -> B -> C deleting B repaired to A -> C; A -> B deleting B returned A to Current (earlier pass) |
+
+**Known limitations carried out of 13.1** — none block closure, all recorded so
+they are not rediscovered as surprises:
+
+1. **Zoom re-rasterises every page.** On a heavy 28-page scanned PDF a zoom step
+   takes roughly a minute, and the toolbar is disabled throughout. Correct but
+   slow; a future pass could render only visible pages.
+2. **Controlled-reference blocking has never refused anything.** The code path
+   exists, but no referencing table is live yet — `master_deliverables.document_id`
+   arrives in 13.3, and milestones, reports and retained history do not exist.
+   Each check belongs in `assessPermanentDelete` as its table lands.
+3. **Negative permission cases unverified.** A Project Control Manager being
+   refused permanent delete, and a Reporting Coordinator being refused
+   delete/restore, are enforced by the RLS policy and the `deleted_at` trigger
+   but were never observed — testing them needs a second account.
+4. **Unexplained document loss.** Two documents present at the start of the
+   13.1 delete work (`WEPCO SOW`, `fdgfd`) are no longer in the project. No
+   document audit trail exists, so authorship could not be established. Worth
+   considering a purge audit log.
+
+---
+
+### 13.2 — Master Milestones ✅
+
+The authoritative milestone register, and the governed stream of updates
+reported against it.
+
+**The structural decision (D3).** Two tables, because identity and state are two
+different authorities:
+
+| Table | Holds | Written by |
+|---|---|---|
+| `master_milestones` | What a milestone **is** — code, name, scope, baseline, owner, priority | Project Control only |
+| `milestone_updates` | What is **true of it now** — status, progress, forecast, actual, narrative | Any scoped contributor |
+
+Putting `status` on the master row as well would give two writable stores of one
+fact with no rule for which wins. It is absent by design, and the shape probe
+asserts it stays absent. Symmetrically, `milestone_updates` has no `name`,
+`title` or `code` column and a NOT NULL FK to its milestone — an update cannot
+invent a milestone, which is R1/R4 made structural rather than asserted.
+
+**Frozen rules, and where each is enforced**
+
+| Rule | Enforced by |
+|---|---|
+| R1 — one register a milestone exists in | `milestone_updates` has no title of its own |
+| R2 — identity originates manual \| scope | `master_milestones_source_valid` CHECK |
+| R3 — only Project Control writes identity | `master_milestones_insert/update` → `weekly_can_manage_project` |
+| R4 — reports submit updates, never identities | separate table, separate policy |
+| R5 — current state = latest **approved** update | `milestone-state.ts`, one derivation for every tier |
+| R6 — Project Control approves | `milestone_updates_update` → `weekly_can_manage_project`; `projects.milestone_update_approval` carries the per-project auto-approval setting |
+| R7 — a regression needs a reason | flagged at submission; `milestone_updates_regression_reason` CHECK refuses an approved regression with no reason |
+
+**Delivered**
+
+- Migration `20260819000003_master_milestones.sql` — both tables, the
+  `milestone_project()` security-definer helper, the `guard_milestone_update()`
+  trigger (reported content immutable; a decision is final and stamps its
+  approver), RLS on both tables, and `projects.milestone_update_approval`.
+  **No DELETE policy on either table** — milestones archive, updates never
+  disappear.
+- `src/features/projects/milestone-state.ts` — the single derivation. Also
+  `isRegression()`, `approvalQueue()` and `summarise()`.
+- `src/services/milestone-service.ts` — identity CRUD, archive, `submitUpdate`
+  (always lands pending), `decide`. Constraint names are translated to user
+  wording in one place, so a rule is never worded differently than it is enforced.
+- `src/features/projects/use-milestone-authority.ts` — presentation authority,
+  delegating to the existing `resolveWeeklyScope()` rather than restating the rule.
+- UI at `/projects/[projectId]/milestones` — register, approval queue, identity
+  form, update dialog, history stream.
+
+**Absence is never zero.** A milestone with nothing approved reports an em dash,
+not 0%, and is counted in its own "Not yet reported" bucket rather than folded
+into Not Started.
+
+#### 13.2 verification — live UI and live database, 2026-08-19
+
+Driven through the authenticated UI on project `PSM-00-02`, against the live
+Supabase instance.
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Create milestone `M-01` through RLS | ✅ persisted |
+| 2 | Unreported milestone shows `—`, not 0% | ✅ |
+| 3 | Submit update (In Progress, 40%, forecast 15 Oct) | ✅ landed pending |
+| 4 | **Pending update changes nothing** — row still Not Started / `—` | ✅ **R5** |
+| 5 | Register marks "1 awaiting approval"; queue count 1 | ✅ |
+| 6 | Approve → row becomes In Progress / 40% / 15 Oct | ✅ |
+| 7 | Slip derived from baseline: `+15d` | ✅ |
+| 8 | Approver stamped by the trigger, not by the client | ✅ |
+| 9 | Submit 25% against approved 40% → regression warning before submit | ✅ **R7** |
+| 10 | Queue flags **Regression**; Approve disabled until a reason is written | ✅ **R7** |
+| 11 | Approve with reason → current figure becomes 25% (newest approved wins) | ✅ **R5** |
+| 12 | History shows both entries, newest marked **Current**, with reason and decision stamps | ✅ |
+| 13 | Anonymous shape probe: 12/12 — tables RLS-protected, all 37 columns resolve, no `status` on the register, no `title` on the stream, `milestone_update_approval` present | ✅ |
+
+Lint, `tsc --noEmit` and `next build` all green.
+
+**Known limitations carried out of 13.2**
+
+1. **The guard trigger and the regression CHECK were not independently
+   exercised.** Both are in the applied migration, and the UI behaves as though
+   they hold, but no test drove a write that they alone would refuse — editing a
+   reported figure, re-deciding a decided update, or approving a flagged
+   regression with no reason. An anonymous probe cannot prove them: RLS refuses
+   the write (42501) before either can run. Proving them needs a second
+   authenticated account or a service-role path, neither of which exists yet.
+2. **Auto-approval is stored but not acted on.** `projects.milestone_update_approval`
+   accepts `auto_on_report_finalized`, and nothing yet reads it — the report
+   finalization hook belongs to 13.4, and there is no UI to set it.
+3. **`source` is always `planning`.** The `weekly` and `monthly` values are valid
+   and their report columns exist, but no report submits an update until 13.4.
+4. **Negative permission cases unverified.** A scoped contributor being refused
+   approval, and a non-member being refused submission, are enforced by RLS but
+   were never observed — same second-account gap as 13.1's limitation 3.
+5. **Verification data is archived, not deleted.** Milestone `M-01` "Issue HAZOP
+   report for Unit 300" on `PSM-00-02`, with its two approved updates, was
+   created by this testing and was **archived on closure** so it cannot reach
+   the Dashboard, Upcoming Milestones, KPIs, reports or the default register. It
+   sits behind the Archived toggle with its history intact. It cannot be deleted
+   — the tables have no DELETE policy by design.
+
+**13.2 CLOSED 2026-08-19.** The four items above stay deferred and are verified
+when their dependent phases land: items 1 and 4 need a second authenticated
+account, item 2 needs 13.4's report-finalization hook, item 3 needs 13.4.
+
+---
+
+### 13.3 — Master Deliverables ✅
+
+The authoritative register of submittable items, and the governed stream of
+what has been reported about each one's journey through client review.
+
+**The same split as 13.2 (D2, D3).**
+
+| Table | Holds | Written by |
+|---|---|---|
+| `master_deliverables` | What a deliverable **is** — code, title, scope, owner, the milestone it serves, planned submission, evidence file | Project Control only |
+| `deliverable_updates` | What is **true of it now** — client review position, actual submission, submitted revision | Any scoped contributor |
+
+**The decision this phase exists to encode (D6): two approvals that must never
+be conflated.**
+
+- `client_review_status` is **reported data** — a fact about what the client did.
+- `approval_status` is **governance** — Project Control accepting that the
+  report of that fact is accurate.
+
+A row may legitimately read `client_review_status = 'approved'` while
+`approval_status = 'pending'`: someone has reported that the client approved the
+deliverable, and Project Control has not yet confirmed the report. The column
+names are deliberately asymmetric, the UI labels them "Client:" and "Report:",
+and **no screen renders them in one control or one status chip**. The shape
+probe asserts that no merged `status` column exists.
+
+Kept as its own table rather than merged into `milestone_updates` behind a
+discriminator: a client review cycle is not a progress percentage.
+
+**The milestone link is a reference, never a copy.** `master_deliverables.milestone_id`
+points into the milestone register and nothing else — no milestone code, name or
+date is denormalized onto the deliverable, which the probe also asserts. The
+register stays the single authoritative milestone source, as required.
+`ON DELETE SET NULL` because a deliverable outlives the plan it was drawn
+against; an archived milestone keeps its link and renders as "(archived)".
+
+**Delivered**
+
+- Migration `20260819000004_master_deliverables.sql` — both tables, the
+  `deliverable_project()` security-definer helper, the `guard_deliverable_update()`
+  trigger, RLS on both tables. **No DELETE policy on either.**
+- Migration `20260819000005_move_discipline_system_master_sync.sql` — **M5**.
+- `src/features/projects/deliverable-state.ts` — the single derivation, plus
+  `deliverableApprovalQueue()`, `forMilestone()` and `summariseDeliverables()`.
+- `src/services/deliverable-service.ts`, and UI at
+  `/projects/[projectId]/deliverables`.
+
+#### M5 — a live defect closed, not a new feature
+
+`move_discipline_system()` synchronises every `project_disciplines` link when a
+Program & Study moves. `master_milestones` and `master_deliverables` carry the
+same three scope columns and the function had never heard of them, so **a legal
+Discipline move left every milestone on it holding a stale department and
+system** — silently, with nothing to detect it. That hole opened with 13.2 and is
+closed here, in the same transaction as the move, with post-move verification
+that rolls the whole move back if either register is left stale. Synchronising
+from the client afterwards would have reopened the partial-save problem
+migration `20260809000004` exists to close.
+
+#### 13.3 verification — live UI and live database, 2026-08-20
+
+Driven through the authenticated UI on project `PSM-00-02`.
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Create deliverable `D-01` through RLS, linked to milestone `M-01` | ✅ persisted |
+| 2 | Milestone column resolves the reference from the milestone register | ✅ |
+| 3 | Planned revision shown when nothing has been reported | ✅ |
+| 4 | Review date and client reference disabled while Not Submitted (mirrors the CHECK) | ✅ |
+| 5 | Submit "Client Approved" → **register still reads Not Submitted, Accepted = 0** | ✅ **D6 + R5** |
+| 6 | Row shows a separate "1 awaiting approval" marker, apart from the Client status column | ✅ **D6** |
+| 7 | Queue labels the reported position "Reported:" and the buttons "Approve/Reject **Report**" | ✅ **D6** |
+| 8 | Approve report → Client Approved, Rev B, submitted 12 Oct, slip `+7d` from planned 05 Oct | ✅ |
+| 9 | Submit "Client Rejected", then **reject the report** → register unchanged, Returned = 0 | ✅ **R5** |
+| 10 | History shows "Client: Client Rejected / Report: Rejected" beside "Client: Client Approved / Report: Approved · Current" | ✅ **D6** |
+| 11 | Archiving the linked milestone keeps the reference, labelled "M-01 (archived)" | ✅ |
+| 12 | Anonymous shape probe: 18/18 — RLS holding, all 37 columns resolve, no client status on the register, no merged `status`, no denormalized milestone fields | ✅ |
+
+Lint, `tsc --noEmit` and `next build` all green.
+
+**Known limitations carried out of 13.3**
+
+1. **M5's register sync has not been exercised at runtime.** The migration is
+   applied and its post-move checks would refuse a stale result, but proving the
+   sync requires actually moving a Program & Study between Systems in **shared
+   master data** — which affects every project linked to it, not just the test
+   project. Not done unilaterally. The test is: file a milestone and a
+   deliverable under one Discipline, move that Discipline to another System in
+   the same Department, confirm both registers followed, move it back.
+2. **The guard trigger and the review-date CHECK were not independently
+   exercised** — same gap as 13.2's limitation 1, and the same cause: an
+   anonymous probe is refused by RLS (42501) before either can run.
+3. **`source` is always `planning`.** Weekly and Monthly do not submit
+   deliverable updates until 13.4.3.
+4. **Verification data is archived.** Deliverable `D-01` "HAZOP Report — Unit
+   300" on `PSM-00-02`, with one approved and one rejected update, was created by
+   this testing and archived on completion, together with the `M-01` restore that
+   the milestone-link test required (re-archived immediately after). Neither can
+   be deleted — the tables have no DELETE policy by design.
+

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { SearchInput, StatusBadge } from "@/components/shared";
+import type { HierarchyTerms } from "@/config/project-terminology";
 import type { MasterRecordBase } from "@/types";
 import { MASTER_KIND_CONFIG } from "../services";
 import type { MasterKind } from "../types";
@@ -31,14 +32,23 @@ export interface MasterDataDialogProps {
   kind: MasterKind;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Open directly in create mode (used by "+ Add new" in selects). */
-  initialMode?: "list" | "create";
+  /**
+   * Open directly in create mode (used by "+ Add new" in selects), or in
+   * edit mode for one record (used by the Edit action beside a selected
+   * value, so the user is never sent through Manage + search to reach a
+   * record they have already chosen).
+   */
+  initialMode?: "list" | "create" | "edit";
+  /** Record to open in edit mode. Required when `initialMode` is "edit". */
+  initialRecordId?: string;
   /** Prefill for create mode, e.g. the current search text. */
   initialName?: string;
   /** Called after a create so the select can auto-pick the new record. */
   onCreated?: (record: MasterRecordBase) => void;
   /** Called after any successful mutation (dirty tracking, refreshes). */
   onMutated?: () => void;
+  /** Project-type wording for the hierarchy level; display only. */
+  displayTerms?: HierarchyTerms;
 }
 
 type ViewState =
@@ -57,13 +67,19 @@ export function MasterDataDialog({
   open,
   onOpenChange,
   initialMode = "list",
+  initialRecordId,
   initialName,
   onCreated,
   onMutated,
+  displayTerms,
 }: MasterDataDialogProps) {
   const config = MASTER_KIND_CONFIG[kind];
+  const singular = displayTerms?.singular ?? config.singular;
+  const plural = displayTerms?.plural ?? config.plural;
+  const singularLower = displayTerms?.singularLower ?? singular.toLowerCase();
+  const pluralLower = displayTerms?.pluralLower ?? plural.toLowerCase();
   const { records } = useMasterData(kind);
-  const actions = useMasterDataActions(kind, { onMutated });
+  const actions = useMasterDataActions(kind, { onMutated, displayTerms });
 
   const [state, setState] = React.useState<ViewState>({ view: "list" });
   const [query, setQuery] = React.useState("");
@@ -75,7 +91,20 @@ export function MasterDataDialog({
   if (open !== prevOpen) {
     setPrevOpen(open);
     if (open) {
-      setState(initialMode === "create" ? { view: "create" } : { view: "list" });
+      // An "edit" request whose record cannot be found falls back to the list
+      // rather than opening an empty form — the record may have been archived
+      // or deleted in another tab since the button was rendered.
+      const requested =
+        initialMode === "edit"
+          ? records.find((record) => record.id === initialRecordId)
+          : undefined;
+      setState(
+        initialMode === "create"
+          ? { view: "create" }
+          : requested
+            ? { view: "edit", record: requested }
+            : { view: "list" }
+      );
       setQuery("");
     }
   }
@@ -93,8 +122,8 @@ export function MasterDataDialog({
   const handleSaved = (record: MasterRecordBase, mode: "create" | "edit") => {
     toast.success(
       mode === "create"
-        ? `${config.singular} “${record.name}” added`
-        : `${config.singular} updated`
+        ? `${singular} “${record.name}” added`
+        : `${singular} updated`
     );
     onMutated?.();
     if (mode === "create") {
@@ -106,6 +135,13 @@ export function MasterDataDialog({
         return;
       }
     }
+    if (mode === "edit" && initialMode === "edit") {
+      // Opened straight into this record from a form field: close and hand the
+      // user back to exactly where they were, with the form state untouched.
+      onOpenChange(false);
+      setState({ view: "list" });
+      return;
+    }
     setState({ view: "list" });
   };
 
@@ -115,14 +151,14 @@ export function MasterDataDialog({
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {state.view === "list" && `Manage ${config.plural}`}
-              {state.view === "create" && `Add ${config.singular}`}
-              {state.view === "edit" && `Edit ${config.singular}`}
+              {state.view === "list" && `Manage ${plural}`}
+              {state.view === "create" && `Add ${singular}`}
+              {state.view === "edit" && `Edit ${singular}`}
             </DialogTitle>
             <DialogDescription>
               {state.view === "list"
-                ? `Add, edit, archive, or delete ${config.plural.toLowerCase()}. Archived records stay in historical data but are hidden from new selections.`
-                : `${state.view === "create" ? "Create a new" : "Update this"} ${config.singular.toLowerCase()}.`}
+                ? `Add, edit, archive, or delete ${pluralLower}. Archived records stay in historical data but are hidden from new selections.`
+                : `${state.view === "create" ? "Create a new" : "Update this"} ${singularLower}.`}
             </DialogDescription>
           </DialogHeader>
 
@@ -132,7 +168,7 @@ export function MasterDataDialog({
                 <SearchInput
                   value={query}
                   onValueChange={setQuery}
-                  placeholder={`Search ${config.plural.toLowerCase()}…`}
+                  placeholder={`Search ${pluralLower}…`}
                   containerClassName="w-full sm:w-56"
                 />
                 <label className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -149,7 +185,7 @@ export function MasterDataDialog({
                   onClick={() => setState({ view: "create" })}
                 >
                   <Plus data-icon="inline-start" aria-hidden="true" />
-                  Add {config.singular}
+                  Add {singular}
                 </Button>
               </div>
 
@@ -169,7 +205,7 @@ export function MasterDataDialog({
                       render: (r) => r.code ?? "—",
                     },
                   ]}
-                  emptyLabel={`No ${config.plural.toLowerCase()} found.`}
+                  emptyLabel={`No ${pluralLower} found.`}
                   onEdit={(record) => setState({ view: "edit", record })}
                   onArchive={actions.requestArchive}
                   onRestore={actions.requestRestore}

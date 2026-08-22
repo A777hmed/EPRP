@@ -4,6 +4,7 @@ import type { Project, ProjectType } from "@/types";
 import {
   assignedScopeItems,
   departmentAssignments,
+  isProjectConsolidator,
 } from "@/features/projects/assignment-rules";
 
 /**
@@ -100,12 +101,16 @@ export function isDepartmentManager(
   );
 }
 
-/** Project-wide consolidation roles, read from the project's own fields. */
+/**
+ * Project-wide consolidation roles.
+ *
+ * Delegates to the canonical rule rather than restating it — P0.6. This read
+ * the project's two singular columns only, which meant a Project Control or
+ * Reporting Coordinator assigned through `project_contacts` was admitted by
+ * database policy and refused here.
+ */
 function isProjectController(project: Project, contactId: string): boolean {
-  return (
-    project.projectControlManagerId === contactId ||
-    project.reportingCoordinatorId === contactId
-  );
+  return isProjectConsolidator(project, contactId);
 }
 
 /**

@@ -101,7 +101,24 @@ records into one requires a migration, as `20260809000002` did — and
 
 ### 3.6 Migration `20260812000001_monthly_reports.sql` is not replayable
 
-**The live database is unaffected — this only bites a fresh environment.**
+> **CORRECTED 2026-08-20 (P0.5).** The file was corrected in place with the
+> owner's approval and carries a dated header note explaining the edit. The
+> four four-argument calls now pass three arguments, and the
+> `monthly_department_summaries_write` policy gained the `department_id is not
+> null` guard that `20260812000002` applied, so a replayed database reproduces
+> the live one rather than something subtly different.
+>
+> **Statically verified:** all 23 real `weekly_can_access_scope()` call sites
+> across the migration set pass exactly three arguments, and all 7 policies the
+> repair migration defines are now textually identical to the ones
+> `20260812000001` creates.
+>
+> **REPLAY EXECUTED 2026-08-20.** `supabase db reset` against an isolated local
+> Docker stack applied **all 61 migrations**, twice, from an empty database.
+> This limitation is closed by execution, not by analysis.
+>
+> Closing it required ten further replay blockers to be fixed first — a
+> different class from the arity defect. See §3.10.
 
 Lines 145, 151 and 156 of `eprp/supabase/migrations/20260812000001_monthly_reports.sql`
 call `public.weekly_can_access_scope()` with **four** uuid arguments
@@ -142,7 +159,71 @@ The Monthly UI renders a compact "Not recorded" for the first two rather than a
 placeholder number. Storing them needs an additive migration
 (`monthly_reports.hse_lti` etc.), which was deferred by decision.
 
-### 3.8 No test runner
+### 3.8 The Weekly lifecycle could never advance — fixed in P0.3
+
+**Found and corrected 2026-08-20.** `acceptedCount()` in
+`lifecycle-guards.ts` counted submissions whose status is `"accepted"`. No such
+value exists: `weekly_submissions_status_valid` admits
+`pending | in_progress | submitted | returned | approved`, and the
+`SubmissionStatus` type says the same. The only other `"accepted"` in the
+codebase is `AttendeeResponse` for calendar events, which is unrelated.
+
+The comparison therefore never matched, `needsAllSubmissions()` always reported
+an unmet condition, and `checkWeeklyTransition()` **always refused**
+`under_review`, `approved`, `finalized` and `locked`. No Weekly report could be
+approved or finalized through the application, which in turn meant the Monthly
+tier had no approved Weekly data to compile and the Approved-onward visibility
+gate could never open for Weekly content.
+
+Corrected to `"approved"` as part of P0.3, which mirrors these conditions into
+SQL and would otherwise have made an unsatisfiable rule authoritative at the
+data boundary. **Runtime-unverified** like the rest of P0 — check G6 and G8 in
+`eprp/scripts/p0-validation/05_validate_p03.sql` exist to prove a legitimate
+transition now succeeds, not merely that an illegitimate one fails.
+
+### 3.10 The migration set does not grant table privileges — OPEN
+
+**Found by P1.0 runtime validation, 2026-08-20. Not yet resolved in the
+repository.**
+
+No migration contains a single `GRANT` on a table. On the hosted project this is
+invisible: the Supabase platform grants DML on `public` to `anon`,
+`authenticated` and `service_role`, and Row Level Security is what actually
+restricts access. A database built from these migrations alone gets tables with
+RLS but **no role grants**, so `authenticated` holds only
+`TRUNCATE, REFERENCES, TRIGGER, MAINTAIN` and every query fails with
+`permission denied for table …` before a policy is ever consulted.
+
+The local environment applies the grants through
+`eprp/scripts/p0-validation/00_local_test_identity.sql`. That makes local a
+faithful mirror, but it leaves the **repository unable to produce a working
+database on its own** — which matters for CI, for any new environment, and for
+disaster recovery.
+
+The fix is a migration that performs the grants idempotently. It is deliberately
+not written yet: it changes privileges on the hosted project and needs explicit
+approval. **P1 item.**
+
+### 3.11 Ten migrations could not replay onto an empty database — FIXED
+
+**Found and fixed by P1.0, 2026-08-20**, and distinct from §3.6, which was a
+function-arity defect. These were *data* dependencies:
+
+- `20260809000002` aborted unless specific production master data existed.
+- `20260810000003` aborted unless one specifically-named contact existed.
+- Nine migrations aborted unless an active `system_admin` profile existed — and
+  **no migration or seed ever creates one**, so the condition was unsatisfiable
+  on a fresh database.
+
+Each guard now tests what it actually means: refuse when the thing it protects
+exists but is in a bad state; skip when it does not exist at all. A lockout
+guard cannot protect an empty `profiles` table, and a data-repair script has
+nothing to repair where the data was never created. Protection is unchanged
+wherever it matters, and the duplicate-name ambiguity check was **not** relaxed.
+
+Verified by executing `supabase db reset` twice from empty: 61/61 migrations.
+
+### 3.9 No test runner
 
 All verification across both sprints was ad-hoc. This is the single biggest obstacle to the sprint's end condition: without automated tests, "no regressions" can only ever be asserted over the narrow slice manually exercised.
 

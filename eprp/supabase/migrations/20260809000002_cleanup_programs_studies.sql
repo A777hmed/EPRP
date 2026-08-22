@@ -32,6 +32,25 @@ begin
   select id into ps_studies from public.systems
    where lower(btrim(name)) = 'process safety studies' limit 1;
 
+  /*
+   * P1.0 — replay safety.
+   *
+   * This migration is a ONE-TIME repair of specific production master data. Its
+   * targets are absent on a fresh environment, where there is by definition
+   * nothing to clean up, so it skips rather than aborting the rebuild.
+   *
+   * The distinction that makes this safe: an environment holding NO master data
+   * at all cannot be one where this repair was needed and silently failed. If
+   * departments or systems DO exist and these two are still missing, that is a
+   * real inconsistency and the exception below still fires.
+   */
+  if (ps_dept is null or ps_studies is null)
+     and not exists (select 1 from public.departments)
+     and not exists (select 1 from public.systems) then
+    raise notice 'Fresh environment: no master data present, so there is nothing to clean up. Skipping.';
+    return;
+  end if;
+
   if ps_dept is null or ps_studies is null then
     raise exception 'Aborting: could not resolve Process Safety department (%) or Process Safety Studies system (%).', ps_dept, ps_studies;
   end if;

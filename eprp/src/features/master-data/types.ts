@@ -44,6 +44,8 @@ export interface MasterFieldConfig {
   type: "text" | "email" | "tel" | "textarea" | "number" | "reference";
   required?: boolean;
   placeholder?: string;
+  /** Helper text under the control, for fields whose scope needs explaining. */
+  description?: string;
   /** For `type: "reference"` — the master-data kind this field points to. */
   refKind?: MasterKind;
   /**

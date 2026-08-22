@@ -21,6 +21,7 @@ import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
 import type {
   Project,
+  ReportSignatory,
   WeeklyActivity,
   WeeklyEntry,
   WeeklyPlanItem,
@@ -38,6 +39,50 @@ import { useWeeklyNameLookup } from "./weekly-department-section";
 import { reachableWeeklyUpdates } from "./weekly-insights";
 import { WeeklyWorkspaceHeader } from "./weekly-workspace-header";
 import { weeklyCommentLabel } from "../weekly-update";
+
+/**
+ * One sign-off role, as it should print.
+ *
+ * Precedence: the saved snapshot verbatim, then the legacy contact column for
+ * reports written before the snapshot existed, then "Not recorded" — never a
+ * guessed name and never the signed-in account. Job titles print beside the
+ * name because that is what the paper block shows.
+ */
+function SignoffCell({
+  label,
+  people,
+  legacyName,
+}: {
+  label: string;
+  people: ReportSignatory[] | undefined;
+  legacyName: string | undefined;
+}) {
+  /*
+   * Each signatory is its own block, never joined into one string.
+   * Concatenating them ("A — Eng; B — Mgr") reads as a sentence rather than a
+   * signature list, and on paper it has to sit above a signature line per
+   * person — which a single run of text cannot provide.
+   */
+  const rendered = people?.length
+    ? people.map((person) => (
+        <span key={person.id} className="block">
+          <span className="font-medium">{person.name}</span>
+          {person.title && (
+            <span className="block text-xs text-muted-foreground">{person.title}</span>
+          )}
+        </span>
+      ))
+    : null;
+
+  return (
+    <div className="grid gap-1">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="grid gap-1.5 text-sm">
+        {rendered ?? <span>{legacyName ?? "Not recorded"}</span>}
+      </dd>
+    </div>
+  );
+}
 
 function Cell({ label, value }: { label: string; value: string }) {
   return (
@@ -748,20 +793,27 @@ export function WeeklyReportPreview({
 
         <Section title="Report Information">
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Cell
+            {/*
+              Sign-off prints from the SNAPSHOT saved in the workspace, falling
+              back to the legacy contact-id columns for reports saved before the
+              snapshot column existed. The snapshot is authoritative because it
+              is what the author signed — re-resolving a Contact would let a
+              later edit rewrite an issued report.
+            */}
+            <SignoffCell
               label="Prepared By"
-              value={getContactById(report.preparedByContactId)?.name ?? "Not recorded"}
+              people={report.signatories?.prepared}
+              legacyName={getContactById(report.preparedByContactId)?.name}
             />
-            <Cell
+            <SignoffCell
               label="Reviewed By"
-              value={getContactById(report.reviewedByContactId)?.name ?? "Not recorded"}
+              people={report.signatories?.reviewed}
+              legacyName={getContactById(report.reviewedByContactId)?.name}
             />
-            <Cell
+            <SignoffCell
               label="Approved By"
-              value={
-                getContactById(report.approvedByContactId)?.name ??
-                "Not recorded"
-              }
+              people={report.signatories?.approved}
+              legacyName={getContactById(report.approvedByContactId)?.name}
             />
             <Cell label="Created" value={formatDate(report.createdAt)} />
             <Cell label="Last Updated" value={formatDate(report.updatedAt)} />

@@ -1,5 +1,43 @@
 -- EPRP Phase 9 — Monthly management-report consolidation.
 -- Monthly rows snapshot selected Weekly entries without changing their source.
+--
+-- ============================ CORRECTED IN PLACE ============================
+-- 2026-08-20 (P0.5). This file is APPLIED. It is edited here, after the fact,
+-- with the project owner's explicit approval, and the edit is recorded rather
+-- than made silently.
+--
+-- WHAT WAS WRONG
+--   Four calls to public.weekly_can_access_scope() passed FOUR uuid arguments
+--   (project, department, system, discipline) across lines 145, 151 and 156.
+--   That function has only ever existed with THREE — defined in
+--   20260810000002_weekly_rls.sql and redefined in
+--   20260810000003_identity_and_admin_limits.sql. No four-argument overload
+--   exists anywhere in the migration set.
+--
+--   The original run therefore failed statement-by-statement: everything up to
+--   line 142 was applied, line 143 raised 'function ... does not exist', and
+--   lines 147-159 never ran. 20260812000002_monthly_rls_repair.sql recreated
+--   exactly that tail with the correct signature, which is why the live
+--   database is correct while this file was not replayable. `supabase db reset`
+--   and any new environment built from migrations failed here.
+--
+-- WHAT CHANGED
+--   The four calls now pass three arguments. `system_id` is dropped from the
+--   call only; the COLUMN is untouched on both tables and remains Monthly
+--   context, exactly as 20260812000002's own header states.
+--
+--   Line 156 additionally gains the `department_id is not null` guard that
+--   20260812000002 applied to the same policy. Without it a replayed database
+--   would hold a policy subtly different from the live one — which is the very
+--   failure this correction exists to prevent. The target of this edit is
+--   "reproduces the live database", not "compiles".
+--
+-- EFFECT ON THE LIVE DATABASE
+--   None. Applied migrations are not re-run. On a fresh environment this file
+--   now creates the correct policies, and 20260812000002 then drops and
+--   recreates the same subset to the same definitions — the two compose to an
+--   identical end state either way.
+-- ============================================================================
 
 create table public.monthly_reports (
   id uuid primary key default gen_random_uuid(),
@@ -142,18 +180,18 @@ create policy monthly_reports_delete on public.monthly_reports for delete to aut
 create policy monthly_comments_select on public.monthly_comments for select to authenticated using (public.weekly_can_access_project(public.monthly_report_project(monthly_report_id)));
 create policy monthly_comments_insert on public.monthly_comments for insert to authenticated with check (
   public.monthly_can_manage_project(public.monthly_report_project(monthly_report_id)) or
-  (department_id is not null and public.weekly_can_access_scope(public.monthly_report_project(monthly_report_id), department_id, system_id, discipline_id))
+  (department_id is not null and public.weekly_can_access_scope(public.monthly_report_project(monthly_report_id), department_id, discipline_id))
 );
 create policy monthly_comments_update on public.monthly_comments for update to authenticated using (
   public.monthly_can_manage_project(public.monthly_report_project(monthly_report_id)) or created_by_contact_id = public.current_contact_id()
 ) with check (
   public.monthly_can_manage_project(public.monthly_report_project(monthly_report_id)) or
-  (department_id is not null and public.weekly_can_access_scope(public.monthly_report_project(monthly_report_id), department_id, system_id, discipline_id))
+  (department_id is not null and public.weekly_can_access_scope(public.monthly_report_project(monthly_report_id), department_id, discipline_id))
 );
 create policy monthly_comments_delete on public.monthly_comments for delete to authenticated using (public.monthly_can_manage_project(public.monthly_report_project(monthly_report_id)) or created_by_contact_id = public.current_contact_id());
 
 create policy monthly_department_summaries_select on public.monthly_department_summaries for select to authenticated using (public.weekly_can_access_project(public.monthly_report_project(monthly_report_id)));
-create policy monthly_department_summaries_write on public.monthly_department_summaries for all to authenticated using (public.monthly_can_manage_project(public.monthly_report_project(monthly_report_id)) or public.weekly_can_access_scope(public.monthly_report_project(monthly_report_id), department_id, system_id, discipline_id)) with check (public.monthly_can_manage_project(public.monthly_report_project(monthly_report_id)) or public.weekly_can_access_scope(public.monthly_report_project(monthly_report_id), department_id, system_id, discipline_id));
+create policy monthly_department_summaries_write on public.monthly_department_summaries for all to authenticated using (public.monthly_can_manage_project(public.monthly_report_project(monthly_report_id)) or (department_id is not null and public.weekly_can_access_scope(public.monthly_report_project(monthly_report_id), department_id, discipline_id))) with check (public.monthly_can_manage_project(public.monthly_report_project(monthly_report_id)) or (department_id is not null and public.weekly_can_access_scope(public.monthly_report_project(monthly_report_id), department_id, discipline_id)));
 
 create policy monthly_plan_items_select on public.monthly_plan_items for select to authenticated using (public.weekly_can_access_project(public.monthly_report_project(monthly_report_id)));
 create policy monthly_plan_items_write on public.monthly_plan_items for all to authenticated using (public.monthly_can_manage_project(public.monthly_report_project(monthly_report_id))) with check (public.monthly_can_manage_project(public.monthly_report_project(monthly_report_id)));

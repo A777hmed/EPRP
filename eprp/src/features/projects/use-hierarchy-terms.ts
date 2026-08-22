@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { useMasterData } from "@/features/master-data";
+import { useMasterData } from "@/features/master-data/use-master-data";
 import { projectService } from "@/services/project-service";
 import {
   DEFAULT_HIERARCHY_TERMS,

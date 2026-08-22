@@ -20,6 +20,7 @@ import {
 } from "@/components/shared";
 import type { Contact, Discipline } from "@/types";
 import { listProjectsSync } from "@/services/project-service";
+import { useHierarchyTermsByProjectId } from "@/features/projects/use-hierarchy-terms";
 import {
   withProjectContext,
   type ProjectLinkContext,
@@ -55,6 +56,7 @@ export function DisciplineDetailView({
   disciplineId,
   context = {},
 }: DisciplineDetailViewProps) {
+  const terms = useHierarchyTermsByProjectId(context.projectId);
   const [discipline, setDiscipline] = React.useState<
     Discipline | null | undefined
   >();
@@ -68,18 +70,28 @@ export function DisciplineDetailView({
 
   React.useEffect(reload, [reload]);
 
-  const actions = useMasterDataActions("discipline", { onMutated: reload });
+  const actions = useMasterDataActions("discipline", {
+    onMutated: reload,
+    displayTerms: context.projectId ? terms : undefined,
+  });
 
   if (discipline === undefined) {
-    return <LoadingState variant="page" label="Loading discipline…" />;
+    return (
+      <LoadingState
+        variant="page"
+        label={`Loading ${context.projectId ? terms.singularLower : "discipline"}…`}
+      />
+    );
   }
 
   if (discipline === null) {
     return (
       <EmptyState
         icon={FolderX}
-        title="Discipline not found"
-        description={`No discipline exists with id “${disciplineId}”.`}
+        title={`${context.projectId ? terms.singular : "Discipline"} not found`}
+        description={`No ${
+          context.projectId ? terms.singularLower : "discipline"
+        } exists with id “${disciplineId}”.`}
         action={
           <div className="flex flex-wrap justify-center gap-2">
             {context.returnTo && (
@@ -88,7 +100,9 @@ export function DisciplineDetailView({
               </Button>
             )}
             <Button variant="outline" asChild>
-              <Link href="/disciplines">Back to Disciplines</Link>
+              <Link href="/disciplines">
+                Back to {context.projectId ? terms.plural : "Disciplines"}
+              </Link>
             </Button>
           </div>
         }
@@ -118,7 +132,10 @@ export function DisciplineDetailView({
       <PageHeader
         eyebrow="Master Data"
         title={discipline.name}
-        description={discipline.description ?? "Discipline master data."}
+        description={
+          discipline.description ??
+          `${context.projectId ? terms.singular : "Discipline"} master data.`
+        }
         actions={
           <>
             <Button variant="outline" asChild>
@@ -192,7 +209,9 @@ export function DisciplineDetailView({
 
         <SectionCard
           title="Contacts"
-          description="People in the department that owns this discipline."
+          description={`People in the department that owns this ${
+            context.projectId ? terms.singularLower : "discipline"
+          }.`}
           className="xl:col-span-2"
           action={
             <Button variant="outline" size="sm" asChild>
@@ -206,7 +225,9 @@ export function DisciplineDetailView({
           {relatedContacts.length === 0 ? (
             <EmptyState
               title="No contacts yet"
-              description="Add a contact to staff this discipline."
+              description={`Add a contact to staff this ${
+                context.projectId ? terms.singularLower : "discipline"
+              }.`}
               className="py-6"
             />
           ) : (
@@ -258,7 +279,9 @@ export function DisciplineDetailView({
 
         <SectionCard
           title="Used by projects"
-          description="Projects with this discipline in scope."
+          description={`Projects with this ${
+            context.projectId ? terms.singularLower : "discipline"
+          } in scope.`}
           className="xl:col-span-3"
         >
           {usedByProjects.length === 0 ? (

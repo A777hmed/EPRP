@@ -37,9 +37,15 @@ function stepTone(status: ProjectStepStatus, selected: boolean) {
 
 /**
  * Horizontal setup stepper. Steps run Project Info → Departments → Systems →
- * Disciplines → Contacts → Review; each shows its own completion progress,
- * and a step stays locked until every earlier step is finished. On narrow
- * screens the row scrolls sideways so the sequence stays readable.
+ * Disciplines → Contacts → Project Team Summary → Review; each shows its own
+ * completion progress, and a step stays locked until every earlier step is
+ * finished.
+ *
+ * Sizing: the steps share the width evenly and shrink together down to a
+ * readable floor, below which the strip scrolls sideways inside its own box.
+ * They are deliberately NOT sized to their content — one long label would
+ * then set the width for all seven, which is what pushed the last step out of
+ * alignment when "Project Team Summary" was added.
  */
 export function ProjectWorkflowNav({
   project,
@@ -63,10 +69,10 @@ export function ProjectWorkflowNav({
         </p>
       </div>
 
-      {/* The scroll container and the min-width row must be separate elements,
-          or the row overflows its parent instead of scrolling inside it. */}
+      {/* The scroll container and the row must stay separate elements, or the
+          row overflows its parent instead of scrolling inside it. */}
       <div className="overflow-x-auto pb-1">
-        <ol className="flex min-w-max items-stretch gap-1">
+        <ol className="flex w-full items-stretch gap-1">
         {projectWorkflowSteps.map((step, index) => {
           const status = statuses[index];
           const selected = activeStep === step.id;
@@ -75,7 +81,7 @@ export function ProjectWorkflowNav({
 
           const body = (
             <>
-              <span className="flex items-center gap-2">
+              <span className="flex min-h-9 items-start gap-2">
                 <span
                   aria-hidden="true"
                   className={cn(
@@ -95,11 +101,16 @@ export function ProjectWorkflowNav({
                     index + 1
                   )}
                 </span>
-                <span className="whitespace-nowrap">
+                {/* Wraps rather than truncates: a clipped "Project Team Su…"
+                    is worse than two short lines. */}
+                <span className="min-w-0 leading-tight text-pretty">
                   {localizeProjectWorkflowStep(step, terms).label}
                 </span>
               </span>
-              <span className="mt-2 block space-y-1">
+              {/* `mt-auto` pins the progress to the bottom of the stretched
+                  tab, so the bars and counts stay on one line across the strip
+                  even when a label needs two lines. */}
+              <span className="mt-auto block space-y-1 pt-2">
                 <Progress
                   value={status.percent}
                   className={cn(
@@ -122,15 +133,20 @@ export function ProjectWorkflowNav({
           );
 
           const shared =
-            "flex w-40 flex-col rounded-lg px-2.5 py-2 text-sm transition-colors";
+            "flex w-full min-w-0 flex-col rounded-lg px-2 py-2 text-sm transition-colors";
 
           return (
-            <li key={step.id} className="flex items-stretch gap-1">
+            <li
+              key={step.id}
+              /* Equal share of the row, never below a readable floor. Once the
+                 floors no longer fit, the wrapper above scrolls. */
+              className="flex flex-1 basis-0 items-stretch gap-1 min-w-28"
+            >
               {index > 0 && (
                 <span
                   aria-hidden="true"
                   className={cn(
-                    "my-auto h-px w-3 shrink-0 sm:w-5",
+                    "my-auto h-px w-2 shrink-0 sm:w-4",
                     statuses[index - 1].complete ? "bg-success" : "bg-border"
                   )}
                 />

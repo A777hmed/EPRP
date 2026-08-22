@@ -21,6 +21,7 @@
 
 import { parseISO } from "date-fns";
 
+import { APPROVED_REPORT_STATUSES } from "@/config/workflows";
 import {
   ENTRY_STATUS_META,
   PRIORITY_META,
@@ -63,7 +64,12 @@ export const NOT_REPORTED = "Not Reported";
  * NOT: an archived report is withdrawn from active use (§10.2 rule 6), so it
  * remains readable as a fallback position but must not carry a portfolio total.
  */
-export const APPROVED_MONTHLY_STATUSES: ReportStatus[] = ["approved", "finalized", "locked"];
+/**
+ * Retained as the Executive tier's name for the shared rule. It is an ALIAS,
+ * not a second definition — P0.4 moved the list to `config/workflows.ts` so
+ * compilation, visibility and aggregation cannot drift apart.
+ */
+export const APPROVED_MONTHLY_STATUSES: ReportStatus[] = APPROVED_REPORT_STATUSES;
 
 export function isApprovedMonthly(report: MonthlyReport): boolean {
   return APPROVED_MONTHLY_STATUSES.includes(report.status);

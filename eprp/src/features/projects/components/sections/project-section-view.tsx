@@ -40,6 +40,9 @@ import { OrganizationChartSection } from "./organization-chart-section";
 import { useHierarchyTerms } from "../../use-hierarchy-terms";
 import { ProjectScopeSection } from "./project-scope-section";
 import { ProjectSectionLayout } from "./project-section-layout";
+import { ProjectDocumentsPanel } from "../project-documents-panel";
+import { MilestonesPanel } from "../milestones/milestones-panel";
+import { DeliverablesPanel } from "../deliverables/deliverables-panel";
 
 export interface ProjectSectionViewProps {
   projectId: string;
@@ -166,6 +169,10 @@ function SectionBody({
       );
     case "kpis":
       return <KpiSection project={project} />;
+    case "milestones":
+      return <MilestonesSection project={project} />;
+    case "deliverables":
+      return <DeliverablesSection project={project} />;
     case "weekly-reports":
       return (
         <WeeklyReportsSection project={project} reports={weeklyReports} />
@@ -173,6 +180,7 @@ function SectionBody({
     case "monthly-reports":
       return <MonthlyReportsSection project={project} />;
     case "documents":
+      return <DocumentsSection project={project} />;
     case "attachments":
       return <RecordsPlaceholder section={section} />;
     case "history":
@@ -453,6 +461,39 @@ function RecordsPlaceholder({ section }: { section: ProjectSectionId }) {
         description={`${definition.label} for this project will be listed here once file storage ships.`}
         className="py-8"
       />
+    </ProjectSectionLayout>
+  );
+}
+
+function MilestonesSection({ project }: { project: Project }) {
+  return (
+    <ProjectSectionLayout
+      title="Master Milestones"
+      description="The one register a milestone exists in. Weekly and Monthly report against these — they never create their own."
+    >
+      <MilestonesPanel project={project} />
+    </ProjectSectionLayout>
+  );
+}
+
+function DeliverablesSection({ project }: { project: Project }) {
+  return (
+    <ProjectSectionLayout
+      title="Master Deliverables"
+      description="Submittable items and their client review position. Each links to the milestone it serves — the milestone register stays the only place a milestone is defined."
+    >
+      <DeliverablesPanel project={project} />
+    </ProjectSectionLayout>
+  );
+}
+
+function DocumentsSection({ project }: { project: Project }) {
+  return (
+    <ProjectSectionLayout
+      title="Project Reference Documents"
+      description="Official scope, planning, contract and other controlled Project references."
+    >
+      <ProjectDocumentsPanel projectId={project.id} />
     </ProjectSectionLayout>
   );
 }

@@ -3,6 +3,8 @@ import {
   CalendarDays,
   CalendarRange,
   Contact,
+  FileCheck2,
+  Flag,
   FolderOpen,
   Gauge,
   History,
@@ -39,6 +41,8 @@ export type ProjectSectionId =
   | "disciplines"
   | "contacts"
   | "kpis"
+  | "milestones"
+  | "deliverables"
   | "weekly-reports"
   | "monthly-reports"
   | "documents"
@@ -115,6 +119,22 @@ export const projectSections: ProjectSection[] = [
     description: "Baseline progress and schedule performance.",
   },
   {
+    id: "milestones",
+    label: "Milestones",
+    icon: Flag,
+    group: "Monitoring",
+    description:
+      "The project's milestone register, and the updates reported against it.",
+  },
+  {
+    id: "deliverables",
+    label: "Deliverables",
+    icon: FileCheck2,
+    group: "Monitoring",
+    description:
+      "Submittable items, the milestones they serve, and where each stands with the client.",
+  },
+  {
     id: "weekly-reports",
     label: "Weekly Reports",
     icon: CalendarDays,
@@ -130,10 +150,10 @@ export const projectSections: ProjectSection[] = [
   },
   {
     id: "documents",
-    label: "Documents",
+    label: "Reference Documents",
     icon: FolderOpen,
     group: "Records",
-    description: "Generated and uploaded project documents.",
+    description: "Official, revision-aware project reference documents.",
   },
   {
     id: "attachments",

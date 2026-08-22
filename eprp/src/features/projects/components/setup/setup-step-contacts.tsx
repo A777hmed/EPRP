@@ -11,7 +11,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EmptyState, SectionCard } from "@/components/shared";
-import { ManagedMultiSelect } from "@/features/master-data";
+import {
+  ManagedMultiSelect,
+  ManagedPersonSelect,
+} from "@/features/master-data";
 import type {
   Contact,
   Discipline,
@@ -19,8 +22,9 @@ import type {
   Project,
   ProjectTeamMember,
 } from "@/types";
-import Link from "next/link";
-import { Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +32,14 @@ import {
   type ProjectLinkContext,
 } from "../../project-link-context";
 import type { HierarchyTerms } from "@/config/project-terminology";
-import { departmentManager } from "../../assignment-rules";
+import {
+  compareTeamDisplayOrder,
+  departmentManager,
+  managerConflict,
+  projectTeamPeople,
+  removeScopedAssignment,
+  setAssignment,
+} from "../../assignment-rules";
 import { DepartmentTeamAssignments } from "./department-team-assignments";
 import { LinkedRecordRow } from "./linked-record-row";
 
@@ -41,13 +52,16 @@ export interface SetupStepContactsProps {
   disciplines: Discipline[];
   departmentName: (id: string) => string;
   onDraftChange: (patch: Partial<Project>) => void;
+  initialDisciplineId?: string;
+  onBeforeAddContact: () => Promise<boolean>;
 }
 
 /**
  * Step 5 — build the project team, scoped to a department and discipline.
  *
- * Choosing a discipline narrows the contact list to that discipline's
- * department, so a person is only ever linked where they actually work.
+ * Choosing a discipline fixes the Project assignment scope. Team Members may
+ * come from another home Department; the assignment remains explicit and the
+ * Person record is never moved.
  */
 export function SetupStepContacts({
   project,
@@ -56,8 +70,11 @@ export function SetupStepContacts({
   disciplines,
   departmentName,
   onDraftChange,
+  initialDisciplineId,
+  onBeforeAddContact,
   terms,
 }: SetupStepContactsProps) {
+  const router = useRouter();
   const team = React.useMemo(() => project.team ?? [], [project.team]);
 
   // Disciplines actually linked to this project, with their department.
@@ -75,8 +92,14 @@ export function SetupStepContacts({
   }, [project.disciplines]);
 
   const [disciplineId, setDisciplineId] = React.useState(
-    () => projectDisciplines[0]?.id ?? ""
+    () =>
+      projectDisciplines.some(
+        (discipline) => discipline.id === initialDisciplineId
+      )
+        ? (initialDisciplineId ?? "")
+        : (projectDisciplines[0]?.id ?? "")
   );
+  const [leavingForContact, setLeavingForContact] = React.useState(false);
   const activeDiscipline = projectDisciplines.find(
     (discipline) => discipline.id === disciplineId
   );
@@ -85,9 +108,53 @@ export function SetupStepContacts({
   const teamForDiscipline = team.filter(
     (member) => member.disciplineId === disciplineId
   );
+  const activeManager = departmentManager(project, activeDepartmentId);
+
+  const setDepartmentManager = (contactId: string) => {
+    // Exactly one manager per department: `setAssignment` seats the new one and
+    // demotes the incumbent to Team Member, keeping them on the team with
+    // their scope assignments intact. Name them so the swap is never silent.
+    const incumbent = managerConflict(project, activeDepartmentId, contactId);
+    if (incumbent) {
+      toast.info(
+        `${contactName(incumbent.contactId)} is no longer Department Manager and stays on the team as a Team Member. A department has exactly one manager.`
+      );
+    }
+
+    const alreadyAssigned = team.some(
+      (member) =>
+        member.departmentId === activeDepartmentId &&
+        member.contactId === contactId
+    );
+    const nextTeam: ProjectTeamMember[] = alreadyAssigned
+      ? team
+      : [
+          ...team,
+          {
+            contactId,
+            disciplineId,
+            departmentId: activeDepartmentId,
+            assignmentRole: "team_member",
+          },
+        ];
+
+    onDraftChange({
+      team: setAssignment(
+        { ...project, team: nextTeam },
+        activeDepartmentId,
+        contactId,
+        { assignmentRole: "department_manager" }
+      ),
+    });
+  };
 
   const setForDiscipline = (ids: string[]) => {
     const others = team.filter((member) => member.disciplineId !== disciplineId);
+    const managerRows = team.filter(
+      (member) =>
+        member.disciplineId === disciplineId &&
+        member.assignmentRole === "department_manager"
+    );
 
     // Rebuilding every row from the picker used to discard the assignment role,
     // functional title and reporting line of people who were already selected,
@@ -106,7 +173,9 @@ export function SetupStepContacts({
     );
     const manager = departmentManager(project, activeDepartmentId);
 
-    const next: ProjectTeamMember[] = ids.map((contactId) => {
+    const next: ProjectTeamMember[] = ids
+      .filter((contactId) => contactId !== activeManager?.contactId)
+      .map((contactId) => {
       const kept = existing.get(contactId);
       if (kept) return kept;
       const sibling = inDepartment.get(contactId);
@@ -121,17 +190,82 @@ export function SetupStepContacts({
         reportsToContactId: sibling?.reportsToContactId ?? manager?.contactId,
       };
     });
-    onDraftChange({ team: [...others, ...next] });
+    onDraftChange({ team: [...others, ...managerRows, ...next] });
   };
 
   const contactName = (id: string) =>
     contacts.find((contact) => contact.id === id)?.name ?? id;
-  const contactMeta = (id: string) => {
+  /*
+   * `assignmentDepartmentIds` is every department this project assigns the
+   * person into — a person may hold scope in more than one. Their Home
+   * Department comes from the Person record and is never rewritten by an
+   * assignment, so the two disagreeing is exactly the cross-department case
+   * rather than a defect.
+   */
+  const contactMeta = (id: string, assignmentDepartmentIds: string[] = []) => {
     const contact = contacts.find((candidate) => candidate.id === id);
-    return [contact?.position, contact?.email].filter(Boolean).join(" · ");
+    const homeDepartment = contact?.departmentId
+      ? departmentName(contact.departmentId)
+      : "Not assigned";
+    const crossDepartment =
+      Boolean(contact?.departmentId) &&
+      assignmentDepartmentIds.length > 0 &&
+      !assignmentDepartmentIds.includes(contact!.departmentId!);
+    return [
+      contact?.position,
+      contact?.email,
+      `Home Department: ${homeDepartment}${
+        crossDepartment ? " · Cross-department assignment" : ""
+      }`,
+    ]
+      .filter(Boolean)
+      .join(" · ");
   };
+
+  /**
+   * Drop ONE scope assignment. `removeScopedAssignment` also repairs reporting
+   * lines, but it matches on department; a legacy row saved without one is
+   * removed by identity instead so it stays removable.
+   */
+  const removeAssignmentRow = (
+    contactId: string,
+    row: ProjectTeamMember
+  ): ProjectTeamMember[] =>
+    row.departmentId
+      ? removeScopedAssignment(
+          project,
+          row.departmentId,
+          contactId,
+          row.disciplineId
+        )
+      : team.filter(
+          (candidate) =>
+            !(
+              candidate.contactId === contactId &&
+              candidate.departmentId === undefined &&
+              (candidate.disciplineId ?? undefined) ===
+                (row.disciplineId ?? undefined)
+            )
+        );
   const disciplineName = (id: string) =>
     disciplines.find((discipline) => discipline.id === id)?.name ?? id;
+
+  const returnToCurrentDiscipline = context.returnTo
+    ? `${context.returnTo}${context.returnTo.includes("?") ? "&" : "?"}disciplineId=${encodeURIComponent(disciplineId)}`
+    : undefined;
+  const addContactHref = withProjectContext("/contacts/new", {
+    ...context,
+    sourceType: "discipline",
+    parentId: disciplineId,
+    departmentId: activeDepartmentId,
+    returnTo: returnToCurrentDiscipline,
+  });
+  const openAddContact = async () => {
+    setLeavingForContact(true);
+    const saved = await onBeforeAddContact();
+    if (saved) router.push(addContactHref);
+    else setLeavingForContact(false);
+  };
 
   // Departments that actually have people on them — assignment roles are per
   // department, while the picker above works per discipline.
@@ -162,23 +296,20 @@ export function SetupStepContacts({
     <div className="space-y-4">
       <SectionCard
         title="Assign the project team"
-        description={`Contacts are offered from the department behind the selected ${terms.singularLower}.`}
+        description={`The Department Manager belongs to the selected Department. Team Members may be assigned explicitly from any home Department without changing their Person record.`}
         action={
-          <Button variant="outline" size="sm" asChild>
-            <Link
-              href={withProjectContext("/contacts/new", {
-                ...context,
-                sourceType: "discipline",
-                parentId: disciplineId,
-              })}
-            >
-              <Plus data-icon="inline-start" aria-hidden="true" />
-              Add Contact
-            </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={openAddContact}
+            disabled={leavingForContact}
+          >
+            <Plus data-icon="inline-start" aria-hidden="true" />
+            {leavingForContact ? "Saving…" : "Add Contact"}
           </Button>
         }
       >
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 lg:grid-cols-3">
           <div className="space-y-1.5">
             <Label htmlFor="setup-discipline">{terms.singular}</Label>
             <Select value={disciplineId} onValueChange={setDisciplineId}>
@@ -199,25 +330,76 @@ export function SetupStepContacts({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="setup-contacts">Team members</Label>
-            <ManagedMultiSelect
-              kind="contact"
-              value={teamForDiscipline.map((member) => member.contactId)}
-              onChange={setForDiscipline}
+            <Label htmlFor="setup-department-manager">
+              Department Manager
+            </Label>
+            <ManagedPersonSelect
+              value={activeManager?.contactId ?? ""}
+              onChange={setDepartmentManager}
               filter={(record: MasterRecordBase) =>
                 (record as Contact).departmentId === activeDepartmentId
               }
-              emptyLabel={`No contacts belong to this ${terms.singularLower}'s department.`}
-              placeholder="Select people…"
-              controlProps={{ id: "setup-contacts" }}
+              placeholder="Select department manager…"
+              searchPlaceholder="Search department contacts…"
+              emptyLabel="No contacts belong to this department yet."
+              clearable={false}
+              controlProps={{ id: "setup-department-manager" }}
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="setup-team-members">Team Members</Label>
+            <ManagedMultiSelect
+              kind="contact"
+              value={teamForDiscipline
+                .filter(
+                  (member) =>
+                    member.assignmentRole !== "department_manager"
+                )
+                .map((member) => member.contactId)}
+              onChange={setForDiscipline}
+              filter={(record: MasterRecordBase) =>
+                record.id !== activeManager?.contactId
+              }
+              /* Cross-department people stay in the SAME list — assigning one
+                 is legal and creates only a project scope assignment — but the
+                 headings make it obvious which side of the line someone is on
+                 before they are picked. Their Person record and Home
+                 Department are untouched either way. */
+              optionGroup={(record: MasterRecordBase) =>
+                (record as Contact).departmentId === activeDepartmentId
+                  ? "Same Department"
+                  : "Cross-Department"
+              }
+              optionGroupOrder={["Same Department", "Cross-Department"]}
+              optionSublabel={(record: MasterRecordBase) => {
+                const contact = record as Contact;
+                const homeDepartment = contact.departmentId
+                  ? departmentName(contact.departmentId)
+                  : "Not assigned";
+                return `${contact.position ? `${contact.position} · ` : ""}Home: ${homeDepartment}${
+                  contact.departmentId &&
+                  contact.departmentId !== activeDepartmentId
+                    ? " · Cross-department"
+                    : ""
+                }`;
+              }}
+              emptyLabel="No people are available."
+              placeholder="Select people…"
+              controlProps={{ id: "setup-team-members" }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Selecting someone from another home Department adds only this
+              Project scope assignment; it does not move or duplicate the
+              Person.
+            </p>
           </div>
         </div>
       </SectionCard>
 
       <SectionCard
         title="Project team"
-        description={`Everyone linked to this project, grouped by ${terms.singularLower}.`}
+        description={`One row per person. Someone covering several ${terms.pluralLower} holds several assignments — they are listed together, not repeated as separate people.`}
       >
         {team.length === 0 ? (
           <EmptyState
@@ -226,44 +408,60 @@ export function SetupStepContacts({
             className="py-8"
           />
         ) : (
-          <ul className="space-y-4">
-            {projectDisciplines
-              .filter((discipline) =>
-                team.some((member) => member.disciplineId === discipline.id)
+          <ul className="space-y-2">
+            {projectTeamPeople(project)
+              .sort((left, right) =>
+                compareTeamDisplayOrder(left, right, contactName)
               )
-              .map((discipline) => (
-                <li key={discipline.id}>
-                  <p className="text-xs text-muted-foreground">
-                    {disciplineName(discipline.id)} ·{" "}
-                    {departmentName(discipline.departmentId)}
-                  </p>
-                  <ul className="mt-1 space-y-2">
-                    {team
-                      .filter((member) => member.disciplineId === discipline.id)
-                      .map((member) => (
-                        <li key={`${discipline.id}-${member.contactId}`}>
-                          <LinkedRecordRow
-                            kind="contact"
-                            id={member.contactId}
-                            name={contactName(member.contactId)}
-                            meta={contactMeta(member.contactId)}
-                            context={context}
-                            onRemove={() =>
+              .map((person) => (
+                <li key={person.contactId}>
+                  <LinkedRecordRow
+                    kind="contact"
+                    id={person.contactId}
+                    name={contactName(person.contactId)}
+                    meta={contactMeta(person.contactId, person.departmentIds)}
+                    context={context}
+                  >
+                    {/* Each scope assignment is removable on its own. Removing
+                        one leaves the person and their other assignments in
+                        place — the Person record is never touched. */}
+                    <ul className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      {person.rows.map((row) => (
+                        <li
+                          key={`${row.departmentId ?? ""}-${row.disciplineId ?? ""}`}
+                          className="flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs"
+                        >
+                          <span className="truncate">
+                            {row.disciplineId
+                              ? disciplineName(row.disciplineId)
+                              : "No scope item"}
+                            <span className="ml-1 text-muted-foreground">
+                              {departmentName(row.departmentId ?? "")}
+                            </span>
+                          </span>
+                          <button
+                            type="button"
+                            className="rounded-sm text-muted-foreground hover:text-foreground"
+                            aria-label={`Remove ${
+                              row.disciplineId
+                                ? disciplineName(row.disciplineId)
+                                : "assignment"
+                            } from ${contactName(person.contactId)}`}
+                            onClick={() =>
                               onDraftChange({
-                                team: team.filter(
-                                  (candidate) =>
-                                    !(
-                                      candidate.disciplineId ===
-                                        discipline.id &&
-                                      candidate.contactId === member.contactId
-                                    )
+                                team: removeAssignmentRow(
+                                  person.contactId,
+                                  row
                                 ),
                               })
                             }
-                          />
+                          >
+                            <X className="size-3" aria-hidden="true" />
+                          </button>
                         </li>
                       ))}
-                  </ul>
+                    </ul>
+                  </LinkedRecordRow>
                 </li>
               ))}
           </ul>

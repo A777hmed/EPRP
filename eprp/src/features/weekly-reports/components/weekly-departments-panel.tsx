@@ -73,6 +73,12 @@ export function WeeklyDepartmentsPanel({
         </p>
       ) : (
         workspace.departments.map((section) => (
+          /*
+           * A stable anchor per department, so a distributed link can land on
+           * the right one. Navigation only — access is unchanged and still
+           * decided by the viewer's scope and by row-level security.
+           */
+          <div key={section.departmentId} id={`dept-${section.departmentId}`}>
           <WeeklyDepartmentSection
             key={section.departmentId}
             reportId={reportId}
@@ -89,6 +95,7 @@ export function WeeklyDepartmentsPanel({
             onEntrySaved={onEntrySaved}
             onEntryDeleted={onEntryDeleted}
           />
+          </div>
         ))
       )}
 

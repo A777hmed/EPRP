@@ -32,7 +32,10 @@ import {
   projectToFormValues,
   type ProjectFormValues,
 } from "../../schemas/project-form";
-import { validateAssignments } from "../../assignment-rules";
+import {
+  duplicateManagerIssues,
+  validateAssignments,
+} from "../../assignment-rules";
 import { useHierarchyTerms } from "../../use-hierarchy-terms";
 import { useProjectWorkflow } from "../../use-project-workflow";
 import { ProjectForm } from "../project-form";
@@ -43,6 +46,7 @@ import { SetupStepContacts } from "./setup-step-contacts";
 import { SetupStepDepartments } from "./setup-step-departments";
 import { SetupStepDisciplines } from "./setup-step-disciplines";
 import { SetupStepReview } from "./setup-step-review";
+import { SetupStepTeam } from "./setup-step-team";
 import { SetupStepSystems } from "./setup-step-systems";
 import type { Project } from "@/types";
 import type { ProjectLinkContext } from "../../project-link-context";
@@ -51,6 +55,8 @@ export interface ProjectSetupViewProps {
   /** Absent on /projects/new — the project is created by the first step. */
   projectId?: string;
   step: ProjectWorkflowStepId;
+  /** Scope item to restore when returning from Add/Edit Contact. */
+  initialDisciplineId?: string;
 }
 
 /**
@@ -60,7 +66,11 @@ export interface ProjectSetupViewProps {
  * is carried in the URL for every step after it, so the wizard can be left
  * and resumed at any point.
  */
-export function ProjectSetupView({ projectId, step }: ProjectSetupViewProps) {
+export function ProjectSetupView({
+  projectId,
+  step,
+  initialDisciplineId,
+}: ProjectSetupViewProps) {
   const [project, setProject] = React.useState<Project | null | undefined>(
     projectId ? undefined : null
   );
@@ -137,6 +147,7 @@ export function ProjectSetupView({ projectId, step }: ProjectSetupViewProps) {
       project={project}
       usedCodes={usedCodes}
       step={step}
+      initialDisciplineId={initialDisciplineId}
       onInfoSaved={handleInfoSaved}
     />
   );
@@ -147,11 +158,13 @@ function SetupShell({
   project,
   usedCodes,
   step,
+  initialDisciplineId,
   onInfoSaved,
 }: {
   project: Project | null;
   usedCodes: string[];
   step: ProjectWorkflowStepId;
+  initialDisciplineId?: string;
   onInfoSaved: (updated: Project) => void;
 }) {
   const router = useRouter();
@@ -228,6 +241,37 @@ function SetupShell({
       }
     };
 
+    /*
+     * Positions-only save. `updateProject` acts on the keys it is given, so
+     * Steps 2-6 scope and the rest of Project Info are untouched. `onInfoSaved`
+     * refreshes the stepper; ProjectForm keeps its own state, so unsaved edits
+     * elsewhere on the form survive.
+     */
+    const handleSavePositions = async (
+      positions: ProjectFormValues["additionalPositions"]
+    ): Promise<ProjectFormValues["additionalPositions"]> => {
+      if (!project) return positions;
+      const updated = await projectService.updateProject(project.id, {
+        positions: positions
+          .filter((position) => position.jobTitleId && position.contactId)
+          .map((position, index) => ({
+            id: position.id || undefined,
+            jobTitleId: position.jobTitleId ?? "",
+            contactId: position.contactId ?? "",
+            notes: position.notes?.trim() || undefined,
+            sortOrder: index,
+          })),
+      });
+      onInfoSaved(updated);
+      // Hand back the stored rows so the form adopts their ids.
+      return (updated.positions ?? []).map((position) => ({
+        id: position.id ?? "",
+        jobTitleId: position.jobTitleId,
+        contactId: position.contactId,
+        notes: position.notes ?? "",
+      }));
+    };
+
     const handleSaveDraft = async (values: ProjectFormValues) => {
       if (project) {
         const updated = await projectService.updateProject(
@@ -254,7 +298,10 @@ function SetupShell({
         {project && <ProjectWorkflowNav project={project} activeStep={step} />}
         <ProjectForm
           projectId={project?.id}
-        project={project}
+          project={project}
+          // The wizard's own step trail, so Linked Scope returns here rather
+          // than to the generic Project Edit page.
+          linkContext={context}
           initialValues={
             project ? projectToFormValues(project) : emptyProjectFormValues()
           }
@@ -264,6 +311,7 @@ function SetupShell({
           }
           onSubmit={handleSubmit}
           onSaveDraft={handleSaveDraft}
+          onSavePositions={project ? handleSavePositions : undefined}
           onCancel={() =>
             router.push(project ? `/projects/${project.id}` : "/projects")
           }
@@ -311,6 +359,7 @@ function SetupShell({
       project={project}
       current={current}
       step={step}
+      initialDisciplineId={initialDisciplineId}
       dirty={dirty}
       saving={saving}
       setSaving={setSaving}
@@ -328,6 +377,7 @@ function LoadedSteps({
   project,
   current,
   step,
+  initialDisciplineId,
   dirty,
   saving,
   setSaving,
@@ -341,6 +391,7 @@ function LoadedSteps({
   project: Project;
   current: Project;
   step: ProjectWorkflowStepId;
+  initialDisciplineId?: string;
   dirty: boolean;
   saving: boolean;
   setSaving: (value: boolean) => void;
@@ -367,12 +418,29 @@ function LoadedSteps({
    * assignment be written.
    */
   const teamEdited = current.team !== project.team;
-  const assignmentIssues = teamEdited ? validateAssignments(current) : [];
+  /*
+   * Two Department Managers in one department blocks EVERY save, edited team
+   * or not. It is a hard integrity rule with a one-click fix in the Department
+   * Manager selector, so unlike the rest it is not something the user can be
+   * left sitting on. `validateAssignments` already reports it, so it is only
+   * added separately on the un-edited path.
+   */
+  const assignmentIssues = teamEdited
+    ? validateAssignments(current)
+    : duplicateManagerIssues(current);
 
   const save = async (): Promise<boolean> => {
     if (assignmentIssues.length > 0) {
+      // Name the department and say what is actually wrong. The old message
+      // gave a count and left the user to find the problem themselves.
+      const [first, ...rest] = assignmentIssues;
       toast.error(
-        `Fix ${assignmentIssues.length} assignment problem(s) on the Contacts step before saving.`
+        `${workflow.departmentName(first.departmentId)}: ${first.message}`,
+        rest.length > 0
+          ? {
+              description: `${rest.length} further assignment problem(s) to fix on the Contacts step.`,
+            }
+          : undefined
       );
       return false;
     }
@@ -464,6 +532,7 @@ function LoadedSteps({
         <SetupStepDepartments
           project={current}
           context={context}
+          departments={workflow.departments}
           departmentName={workflow.departmentName}
           onDraftChange={applyDraft}
         />
@@ -495,6 +564,17 @@ function LoadedSteps({
           disciplines={workflow.disciplines}
           departmentName={workflow.departmentName}
           onDraftChange={applyDraft}
+          terms={workflow.terms}
+          initialDisciplineId={initialDisciplineId}
+          onBeforeAddContact={dirty ? save : async () => true}
+        />
+      )}
+      {step === "team" && (
+        <SetupStepTeam
+          project={current}
+          contacts={workflow.contacts}
+          disciplines={workflow.disciplines}
+          departmentName={workflow.departmentName}
           terms={workflow.terms}
         />
       )}

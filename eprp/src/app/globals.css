@@ -3732,3 +3732,262 @@ html:has(.cal-stage) { --epr-rail: var(--dash-ground); }
 @media (max-width: 900px) {
   .dash-card { grid-column: 1 / -1; }
 }
+
+/* ==========================================================================
+   Weekly — Distribution & Follow-up.
+
+   An operational control table, not a dashboard: dense rows, one department
+   per line, the next action on the row it belongs to. Screen only.
+   ========================================================================== */
+
+.wd-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 8px 11px;
+  border-radius: 7px;
+  background: #fdf6e8;
+  color: #92600b;
+  font-size: .72rem;
+}
+.wd-notice svg { width: 14px; height: 14px; flex: none; }
+
+.wd-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.wd-count {
+  display: grid;
+  gap: 1px;
+  padding: 8px 10px;
+  border: 1px solid #e3e9f1;
+  border-left: 3px solid #cbd5e1;
+  border-radius: 8px;
+  background: white;
+}
+.wd-count b { color: #12263f; font-size: 1.15rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.wd-count span { color: #64748b; font-size: .6rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.wd-count.is-info { border-left-color: #0d59a8; }
+.wd-count.is-good { border-left-color: #12805c; }
+.wd-count.is-bad { border-left-color: #b0343c; }
+.wd-count.is-bad b { color: #b0343c; }
+.wd-count.is-idle { border-left-color: #94a3b8; }
+
+.wd-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+
+.wd-empty {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: #8fa0b4;
+  font-size: .74rem;
+}
+
+.wd-table-wrap { overflow-x: auto; border: 1px solid #e3e9f1; border-radius: 8px; }
+.wd-table { width: 100%; border-collapse: collapse; font-size: .73rem; }
+.wd-table th {
+  position: sticky;
+  top: 0;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e3e9f1;
+  background: #f7f9fc;
+  color: #64748b;
+  font-size: .59rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.wd-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; color: #2c4a72; vertical-align: middle; }
+.wd-table tbody tr:last-child td { border-bottom: 0; }
+.wd-table tbody tr:hover td { background: #f9fbfd; }
+.wd-dept { color: #12263f; font-weight: 700; white-space: nowrap; }
+.wd-when { color: #5b7290; font-size: .69rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.wd-none { color: #a3b1c2; }
+
+.wd-due { display: inline-flex; align-items: center; gap: 5px; }
+.wd-due svg { width: 12px; height: 12px; }
+.wd-due.is-late { color: #b0343c; font-weight: 700; }
+
+.wd-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: .59rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.wd-chip.is-idle { background: #eef2f7; color: #64748b; }
+.wd-chip.is-info { background: #eaf3fc; color: #0d59a8; }
+.wd-chip.is-good { background: #e7f5ef; color: #0f6b4e; }
+.wd-chip.is-warn { background: #fdf3e4; color: #92600b; }
+.wd-chip.is-bad { background: #fdecee; color: #b0343c; }
+
+.wd-actions { display: flex; gap: 4px; white-space: nowrap; }
+.wd-actions button,
+.wd-actions a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid #e3e9f1;
+  border-radius: 6px;
+  background: white;
+  color: #5b718c;
+  font-size: .65rem;
+  font-weight: 600;
+}
+.wd-actions button:hover,
+.wd-actions a:hover { border-color: #b9cde2; background: #f4f8fc; color: #0d59a8; }
+.wd-actions svg { width: 12px; height: 12px; }
+
+/* --------------------------------- Dialog ---------------------------------- */
+
+.wd-dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgb(18 38 63 / 34%);
+}
+.wd-dialog {
+  width: min(100%, 30rem);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 11px;
+  background: white;
+  box-shadow: 0 18px 44px rgb(18 38 63 / 22%);
+  overflow: hidden;
+}
+.wd-dialog > header {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 13px 16px;
+  border-bottom: 1px solid #eef2f7;
+}
+.wd-dialog > header b { color: #0d4384; font-size: .92rem; font-weight: 800; }
+.wd-dialog > header small { color: #94a3b8; font-size: .68rem; }
+.wd-dialog-body { flex: 1; min-height: 0; display: grid; gap: 14px; padding: 15px 16px; overflow-y: auto; }
+.wd-dialog > footer { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid #eef2f7; background: #fbfcfe; }
+
+.wd-field { display: grid; gap: 5px; }
+.wd-field > span { color: #64748b; font-size: .6rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.wd-field > small { color: #94a3b8; font-size: .65rem; }
+.wd-field input {
+  padding: 7px 9px;
+  border: 1px solid #c9d8e7;
+  border-radius: 6px;
+  background: white;
+  color: #17477d;
+  font: inherit;
+  font-size: .76rem;
+}
+
+.wd-recipients { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; max-height: 168px; overflow-y: auto; }
+.wd-recipients li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 3px 10px;
+  padding: 7px 10px;
+  border: 1px solid #eef2f7;
+  border-radius: 7px;
+}
+.wd-recipients b { color: #12263f; font-size: .75rem; }
+.wd-recipients em { grid-column: 1; color: #7d8fa4; font-size: .65rem; font-style: normal; }
+.wd-recipients i { grid-row: 1 / span 2; color: #0d59a8; font-size: .65rem; font-style: normal; font-weight: 700; white-space: nowrap; }
+
+.wd-delivery { margin: 0; color: #5b7290; font-size: .72rem; line-height: 1.5; }
+
+@media print { .wd-notice, .wd-summary, .wd-toolbar, .wd-table-wrap, .wd-dialog-scrim { display: none !important; } }
+
+/* ------------------- Weekly distribution — recipients (1B) ----------------- */
+
+.wd-person { display: grid; gap: 0; line-height: 1.35; }
+.wd-person b { color: #12263f; font-size: .72rem; font-weight: 600; }
+.wd-person a { color: #0d59a8; font-size: .64rem; }
+.wd-person a:hover { text-decoration: underline; }
+.wd-person em { color: #a3b1c2; font-size: .62rem; font-style: normal; }
+
+.wd-people { display: grid; gap: 6px; }
+.wd-more {
+  justify-self: start;
+  padding: 1px 7px;
+  border: 1px solid #e3e9f1;
+  border-radius: 999px;
+  background: white;
+  color: #0d59a8;
+  font-size: .61rem;
+  font-weight: 700;
+}
+.wd-more:hover { border-color: #b9cde2; background: #f4f8fc; }
+
+/* An unassigned department gets the fix, not a dash. */
+.wd-unassigned { display: grid; gap: 2px; color: #92600b; font-size: .68rem; }
+.wd-unassigned a { color: #0d59a8; font-size: .63rem; font-weight: 700; }
+.wd-unassigned a:hover { text-decoration: underline; }
+
+.wd-emails { white-space: nowrap; }
+
+.wd-blocked {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fdf6e8;
+  color: #92600b;
+  font-size: .71rem;
+  line-height: 1.5;
+}
+.wd-blocked svg { width: 15px; height: 15px; flex: none; margin-top: 1px; }
+.wd-blocked b { color: #7a4f08; }
+.wd-blocked a { display: inline-block; margin-left: 6px; color: #0d59a8; font-weight: 700; }
+.wd-blocked a:hover { text-decoration: underline; }
+
+.wd-recipients li.is-blocked { border-color: #f0d9a8; background: #fffdf7; }
+.wd-recipients u {
+  grid-column: 1 / -1;
+  color: #92600b;
+  font-size: .62rem;
+  text-decoration: none;
+}
+
+/* ---------------------- Departments in Weekly Scope ------------------------ */
+
+.wd-scope { display: grid; gap: 8px; margin-bottom: 12px; }
+.wd-scope-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.wd-scope-head b { color: #12263f; font-size: .74rem; font-weight: 700; }
+.wd-scope-head small { color: #94a3b8; font-size: .64rem; }
+.wd-scope-head button { margin-left: auto; }
+.wd-scope-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.wd-scope-list label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid #e3e9f1;
+  border-radius: 999px;
+  background: white;
+  color: #5b7290;
+  font-size: .7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.wd-scope-list label:has(input:checked) { border-color: #0d59a8; background: #eaf3fc; color: #0d4384; }
+.wd-scope-list input { accent-color: #0d59a8; }

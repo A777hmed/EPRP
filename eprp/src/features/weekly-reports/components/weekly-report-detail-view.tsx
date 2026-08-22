@@ -25,11 +25,14 @@ import {
 import { REPORT_STATUS_META } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { weeklyWorkflow, type WorkflowStatus } from "@/config/workflows";
-import { getProjectTypeById } from "@/features/master-data";
+import { getProjectTypeById, useMasterData } from "@/features/master-data";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
 import type {
+  Contact,
+  Department,
   Project,
+  ReportSignatory,
   ReportStatus,
   WeeklyActivity,
   WeeklyEntry,
@@ -48,7 +51,14 @@ import { buildWeeklyWorkspace } from "../workspace";
 import { countReceived, isEditableReport } from "../utils";
 import { ActivitiesTable } from "./activities-table";
 import { useWeeklyNameLookup } from "./weekly-department-section";
+import { WeeklySignoffPanel, useContactTitle } from "./weekly-signoff-panel";
 import { WeeklyDepartmentsPanel } from "./weekly-departments-panel";
+import { resolveDepartmentRecipients } from "../weekly-recipients";
+import {
+  WeeklyDistributionPanel,
+  distributionStateOf,
+  type DistributionRow,
+} from "./weekly-distribution-panel";
 import { WeeklyLookahead } from "./weekly-lookahead";
 import { WeeklyProgressSummary } from "./weekly-progress-summary";
 import { WeeklyProjectEntries } from "./weekly-project-entries";
@@ -168,6 +178,42 @@ export function WeeklyReportDetailView({
    * Called before the early returns below — it is a hook.
    */
   const names = useWeeklyNameLookup();
+  /*
+   * The clock for 'overdue', read once when the view mounts.
+   *
+   * A lazy state initialiser, not a call in the render body: reading the clock
+   * on every render would let a row flip to Overdue mid-interaction. It settles
+   * on reload, which is when the rest of this view refreshes anyway.
+   */
+  const [nowMs] = React.useState(() => Date.now());
+  const { records: contactRecords } = useMasterData("contact");
+  const { records: departmentRecords } = useMasterData("department");
+  const contacts = contactRecords as Contact[];
+
+  /*
+   * Prepared By seed — the project's Reporting Coordinator.
+   *
+   * Read from PROJECT RESPONSIBILITY, never from the signed-in account: who is
+   * looking at a report says nothing about who prepared it, and defaulting to
+   * the logged-in System Administrator is exactly the behaviour this replaces.
+   * Empty when the project has no coordinator recorded, which prints a blank
+   * signature line rather than inventing a name.
+   */
+  const titleOf = useContactTitle();
+  const defaultPrepared = React.useMemo<ReportSignatory[]>(() => {
+    const coordinatorId = project?.reportingCoordinatorId;
+    if (!coordinatorId) return [];
+    const contact = contacts.find((entry) => entry.id === coordinatorId);
+    if (!contact) return [];
+    return [
+      {
+        id: contact.id,
+        contactId: contact.id,
+        name: contact.name,
+        title: titleOf(contact),
+      },
+    ];
+  }, [project?.reportingCoordinatorId, contacts, titleOf]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -405,6 +451,49 @@ export function WeeklyReportDetailView({
   }
 
   const received = countReceived(submissions);
+
+  /*
+   * Distribution rows: one per in-scope department, from data that already
+   * exists. The department-level submission (no scope item) carries the
+   * distribution timing, because that is the row seeded for the department when
+   * the Weekly was created. Manager and contributors resolve from project
+   * assignments where recorded and say so plainly where they are not.
+   */
+  /*
+   * Distribution rows: one per department in the WEEKLY SCOPE.
+   *
+   * Recipients come from the project ROSTER (Project.team, scoped to the
+   * department) plus the department master-data lead — not from past
+   * submissions. Phase 1 read submissions, which reports history rather than
+   * assignment and is empty for a Weekly nobody has filled in yet.
+   */
+  const distributionRows: DistributionRow[] = workspace
+    ? workspace.departments.map((section) => {
+        const recipients = resolveDepartmentRecipients(
+          project,
+          section.departmentId,
+          departmentRecords as Department[],
+          contacts
+        );
+        const submission =
+          section.submissions.find((entry) => !entry.disciplineId) ?? section.submissions[0];
+
+        return {
+          departmentId: section.departmentId,
+          departmentName: recipients.departmentName,
+          recipients,
+          submission,
+          state: distributionStateOf(submission, nowMs),
+          lastActivity:
+            submission?.reviewedAt ?? submission?.submittedAt ?? submission?.sentAt,
+        } satisfies DistributionRow;
+      })
+    : [];
+
+  const handleReloadSubmissions = async () => {
+    const next = await weeklyReportService.listSubmissions(report.id);
+    setSubmissions(next);
+  };
   const allowedTransitions = (
     weeklyWorkflow.transitions[report.status as WorkflowStatus] ?? []
   ).filter((t) => t !== "archived");
@@ -559,6 +648,35 @@ export function WeeklyReportDetailView({
         <PreviousWeekSnapshot previous={previous} names={names} />
       )}
 
+      {/*
+        Distribution & Follow-up.
+
+        Shown only to viewers who may consolidate the project Weekly — Admin,
+        Project Control and Reporting Coordinator. `canConsolidate` is the
+        platform's existing predicate for exactly that authority, so department
+        contributors never see these controls and no new role list is invented.
+      */}
+      {workspace && scope?.canConsolidate && report && (
+        <WeeklyDistributionPanel
+          reportId={report.id}
+          reportNumber={report.reportNumber}
+          projectId={report.projectId}
+          /* Every department assigned to the project — the scope candidates.
+             Sourced from the project, so a department from another project can
+             never appear. */
+          projectDepartments={(project?.departments ?? []).map((assignment) => ({
+            id: assignment.departmentId,
+            name:
+              (departmentRecords as Department[]).find(
+                (record) => record.id === assignment.departmentId
+              )?.name ?? "Department",
+          }))}
+          canEditScope={editability.canEdit}
+          rows={distributionRows}
+          onChanged={handleReloadSubmissions}
+        />
+      )}
+
       {workspace ? (
         <WeeklyDepartmentsPanel
           reportId={report.id}
@@ -657,6 +775,24 @@ export function WeeklyReportDetailView({
         />
       )}
 
+      {/*
+        Sign-off is authored in the WORKSPACE only and printed once, at the end
+        of the PDF. It is deliberately not repeated in the read-only detail view
+        or mid-document.
+      */}
+      {mode === "workspace" && (
+        <WeeklySignoffPanel
+          reportId={report.id}
+          contacts={contacts}
+          defaultPrepared={defaultPrepared}
+          saved={report.signatories}
+          editable={editability.canEdit}
+          onSaved={(signatories) =>
+            setReport((current) => (current ? { ...current, signatories } : current))
+          }
+        />
+      )}
+
       {mode === "detail" && <WeeklyReportInformation report={report} />}
 
       <ConfirmDialog
@@ -667,10 +803,27 @@ export function WeeklyReportDetailView({
         confirmLabel="Archive report"
         destructive
         onConfirm={async () => {
-          await weeklyReportService.archive(report.id);
-          toast.success("Weekly report archived");
-          setArchiveOpen(false);
-          router.push("/weekly-reports");
+          /*
+           * Navigation happens ONLY after the archive actually succeeded.
+           *
+           * This had no catch, so a refused archive left the rejection
+           * unhandled — nothing was shown and the user had to infer the
+           * outcome. Navigating away on failure would be worse still: it would
+           * imply the report had been archived when it had not.
+           */
+          try {
+            await weeklyReportService.archive(report.id);
+            toast.success("Weekly report archived");
+            setArchiveOpen(false);
+            router.push("/weekly-reports");
+          } catch (error) {
+            // Stay on the report. Its status is unchanged and still displayed.
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "Could not archive this weekly report."
+            );
+          }
         }}
       />
     </div>

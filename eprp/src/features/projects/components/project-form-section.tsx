@@ -15,6 +15,8 @@ export interface ProjectFormSectionProps {
   status?: SectionStatus;
   /** Anchor id, so a return link can scroll back to this section. */
   id?: string;
+  /** Extra header control, shown left of the status badge. */
+  action?: React.ReactNode;
   /** Replaces the default two-column field grid when the body is not fields. */
   plain?: boolean;
   children: React.ReactNode;
@@ -26,6 +28,7 @@ export function ProjectFormSection({
   description,
   status,
   id,
+  action,
   plain = false,
   children,
 }: ProjectFormSectionProps) {
@@ -43,11 +46,16 @@ export function ProjectFormSection({
       title={title}
       description={description}
       action={
-        meta && (
-          <StatusBadge tone={meta.tone}>
-            <span className="sr-only">Section status: </span>
-            {badgeText}
-          </StatusBadge>
+        (action || meta) && (
+          <div className="flex items-center gap-2">
+            {action}
+            {meta && (
+              <StatusBadge tone={meta.tone}>
+                <span className="sr-only">Section status: </span>
+                {badgeText}
+              </StatusBadge>
+            )}
+          </div>
         )
       }
     >

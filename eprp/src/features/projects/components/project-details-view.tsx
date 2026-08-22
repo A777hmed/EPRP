@@ -7,7 +7,6 @@ import {
   Archive,
   CalendarDays,
   CalendarRange,
-  FileText,
   FolderX,
   Paperclip,
   PenLine,
@@ -23,7 +22,6 @@ import {
 } from "@/components/shared";
 import { formatDate } from "@/lib/formatters";
 import {
-  getClientById,
   getContactById,
   getDepartmentById,
   getProjectPhaseById,
@@ -34,7 +32,7 @@ import { WeeklyStatusBadge } from "@/features/weekly-reports/components/weekly-s
 import { mockProjectActivity } from "@/data/mock/project-activity.mock";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
-import type { Discipline, Project, WeeklyReport } from "@/types";
+import type { Client, Discipline, Project, System, WeeklyReport } from "@/types";
 import { formatVariance, projectSpi, projectVariance } from "../utils";
 import { ProgressComparison } from "./progress-comparison";
 import { ProjectSummaryHeader } from "./project-summary-header";
@@ -46,6 +44,8 @@ import {
   ProjectSectionNav,
 } from "./project-section-nav";
 import { ConfirmArchiveDialog } from "./confirm-archive-dialog";
+import { departmentManager } from "../assignment-rules";
+import { ProjectDocumentsPanel } from "./project-documents-panel";
 
 function ContactRow({ label, contactId }: { label: string; contactId?: string }) {
   const contact = getContactById(contactId);
@@ -110,6 +110,9 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
   const [weeklyReports, setWeeklyReports] = React.useState<WeeklyReport[]>([]);
   const [archiveOpen, setArchiveOpen] = React.useState(false);
   const { records: disciplineRecords } = useMasterData("discipline");
+  const { records: systemRecords } = useMasterData("system");
+  const { records: clientRecords } = useMasterData("client");
+  const masterSystems = systemRecords as System[];
   const terms = useHierarchyTerms(project);
 
   React.useEffect(() => {
@@ -148,7 +151,9 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
     router.push("/projects");
   };
 
-  const client = getClientById(project.clientId);
+  const client = (clientRecords as Client[]).find(
+    (record) => record.id === project.clientId
+  );
   const projectType = getProjectTypeById(project.projectTypeId);
   const phase = getProjectPhaseById(project.currentPhaseId);
   const variance = projectVariance(project);
@@ -172,6 +177,12 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
     [project.location.site, project.location.city, project.location.country]
       .filter(Boolean)
       .join(", ") || "—";
+  const projectSites =
+    project.sites && project.sites.length > 0
+      ? project.sites
+          .slice()
+          .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+      : [];
 
   return (
     <div className="space-y-6">
@@ -268,7 +279,19 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
                     label="Planned finish"
                     value={formatDate(project.plannedFinishDate)}
                   />
-                  <ConfigRow label="Location" value={location} />
+                  <ConfigRow label="Primary location" value={location} />
+                  {projectSites.length > 1 && (
+                    <ConfigRow
+                      label="Project sites"
+                      value={projectSites
+                        .map((site) =>
+                          [site.name, site.city, site.country]
+                            .filter(Boolean)
+                            .join(", ")
+                        )
+                        .join(" · ")}
+                    />
+                  )}
                 </dl>
               </SectionCard>
 
@@ -405,6 +428,14 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
                 <ul className="space-y-3">
                   {project.departments.map((assignment) => {
                     const dept = getDepartmentById(assignment.departmentId);
+                    const manager = departmentManager(
+                      project,
+                      assignment.departmentId
+                    );
+                    const managerName = getContactById(manager?.contactId)?.name;
+                    const effectiveDescription =
+                      assignment.projectDescription?.trim() ||
+                      dept?.description?.trim();
                     return (
                       <li
                         key={assignment.departmentId}
@@ -413,9 +444,9 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-sm font-medium">
                             {dept?.name ?? assignment.departmentId}
-                            {assignment.leadName && (
+                            {manager && (
                               <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                Lead: {assignment.leadName}
+                                Manager: {managerName ?? manager.contactId}
                               </span>
                             )}
                           </p>
@@ -429,6 +460,11 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
                               : "Reporting optional"}
                           </StatusBadge>
                         </div>
+                        {effectiveDescription && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {effectiveDescription}
+                          </p>
+                        )}
                       </li>
                     );
                   })}
@@ -483,20 +519,33 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
                           {getDepartmentById(assignment.departmentId)?.name ??
                             assignment.departmentId}
                         </p>
-                        <ul className="mt-1 flex flex-wrap gap-1.5">
-                          {assignment.systems.map((system) => (
-                            <li
-                              key={system.id}
-                              className="rounded-md bg-muted px-2 py-0.5 text-xs"
-                            >
-                              {system.name}
-                              {system.code && (
-                                <span className="ml-1 font-mono text-muted-foreground">
-                                  {system.code}
-                                </span>
-                              )}
-                            </li>
-                          ))}
+                        <ul className="mt-1 space-y-1.5">
+                          {assignment.systems.map((system) => {
+                            const masterDescription = masterSystems.find(
+                              (record) => record.id === system.id
+                            )?.description;
+                            const effectiveDescription =
+                              system.projectDescription?.trim() ||
+                              masterDescription?.trim();
+                            return (
+                              <li
+                                key={system.id}
+                                className="rounded-md bg-muted px-2 py-1.5 text-xs"
+                              >
+                                {system.name}
+                                {system.code && (
+                                  <span className="ml-1 font-mono text-muted-foreground">
+                                    {system.code}
+                                  </span>
+                                )}
+                                {effectiveDescription && (
+                                  <p className="mt-1 text-muted-foreground">
+                                    {effectiveDescription}
+                                  </p>
+                                )}
+                              </li>
+                            );
+                          })}
                         </ul>
                       </li>
                     ))}
@@ -605,15 +654,10 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
 
           <Section id="documents">
             <SectionCard
-              title="Documents"
-              description="Generated and uploaded project documents."
+              title="Project Reference Documents"
+              description="Official scope, planning, contract and other controlled Project references."
             >
-              <EmptyState
-                icon={FileText}
-                title="No documents yet"
-                description="Exported reports and project documents will be listed here."
-                className="py-8"
-              />
+              <ProjectDocumentsPanel projectId={project.id} />
             </SectionCard>
           </Section>
 

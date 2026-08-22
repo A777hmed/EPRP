@@ -10,6 +10,10 @@ import type {
   WeeklySubmission,
 } from "@/types";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import {
+  parseSignatorySnapshot,
+  serializeSignatorySnapshot,
+} from "@/lib/report-signatories";
 import type {
   WeeklyActivityRow,
   WeeklyEntryRow,
@@ -100,6 +104,8 @@ function rowToSubmission(row: WeeklySubmissionRow): WeeklySubmission {
     blockers: row.blockers ?? [],
     submittedByContactId: row.submitted_by_contact_id ?? undefined,
     submittedAt: row.submitted_at ?? undefined,
+    sentAt: row.sent_at ?? undefined,
+    dueAt: row.due_at ?? undefined,
   };
 }
 
@@ -180,6 +186,10 @@ function rowToReport(
     preparedByContactId: row.prepared_by_contact_id ?? undefined,
     reviewedByContactId: row.reviewed_by_contact_id ?? undefined,
     approvedByContactId: row.approved_by_contact_id ?? undefined,
+    // Defensive parse: the column is JSON, so its shape is not guaranteed by
+    // the type system. A malformed block is dropped rather than allowed to
+    // throw and take the whole report down with it.
+    signatories: parseSignatorySnapshot(row.signatories),
     disciplineIds: row.discipline_ids,
     manHoursToDate: row.man_hours_to_date ?? undefined,
     hseStatus: (row.hse_status as WeeklyReport["hseStatus"]) ?? undefined,
@@ -349,6 +359,8 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
         getWeekNumber(anchor)
       );
     }
+    if (input.signatories !== undefined)
+      patch.signatories = serializeSignatorySnapshot(input.signatories);
     if (input.preparedByContactId !== undefined)
       patch.prepared_by_contact_id = input.preparedByContactId || null;
     if (input.reviewedByContactId !== undefined)
@@ -429,14 +441,15 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
   },
 
   async archive(id) {
-    const { error } = await client()
-      .from("weekly_reports")
-      .update({
-        status: "archived",
-        active: false,
-        archived_at: new Date().toISOString(),
-      })
-      .eq("id", id);
+    /*
+     * Routed through the same controlled function as every other transition:
+     * the status guard refuses a direct write, and the function sets `active`
+     * and `archived_at` alongside the status so the three cannot drift apart.
+     */
+    const { error } = await client().rpc("set_weekly_report_status", {
+      p_report: id,
+      p_to: "archived",
+    });
     if (error) throw new Error(error.message);
     const archived = await supabaseWeeklyReportService.getById(id);
     if (!archived) throw new Error(`Weekly report ${id} not found`);
@@ -446,19 +459,22 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
   async changeStatus(id, to: ReportStatus) {
     const current = await supabaseWeeklyReportService.getById(id);
     if (!current) throw new Error(`Weekly report ${id} not found`);
+
+    /*
+     * These two checks are PRE-FLIGHT only, kept so the UI can refuse early and
+     * list every unmet condition rather than surfacing one database error.
+     *
+     * They are no longer the boundary. P0.3 moved enforcement into
+     * `set_weekly_report_status()`, which re-proves authority, transition shape
+     * and stage conditions in the database, and a BEFORE UPDATE trigger refuses
+     * any status write that does not come through it. Deleting these would lose
+     * the good error message; trusting them would lose the boundary.
+     */
     if (to !== "archived" && !canTransition("weekly", current.status, to)) {
       throw new Error(
         `Cannot move a weekly report from ${current.status} to ${to}.`
       );
     }
-
-    /*
-     * Shape is not sufficient. `canTransition` only says the step is allowed in
-     * sequence; it never asked whether the report earned it, which is how a
-     * real report reached Locked with no reviewer, no approver and 1 of 2
-     * submissions. Check the stage's actual conditions here, in the service, so
-     * no UI or script can bypass them.
-     */
     if (to !== "archived") {
       const submissions = await supabaseWeeklyReportService.listSubmissions(id);
       const guard = checkWeeklyTransition(to, {
@@ -471,14 +487,93 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
         );
       }
     }
-    const { error } = await client()
-      .from("weekly_reports")
-      .update({ status: to })
-      .eq("id", id);
+
+    const { error } = await client().rpc("set_weekly_report_status", {
+      p_report: id,
+      p_to: to,
+    });
     if (error) throw new Error(error.message);
     const updated = await supabaseWeeklyReportService.getById(id);
     if (!updated) throw new Error(`Weekly report ${id} not found`);
     return updated;
+  },
+
+  async startCollection(reportId, departmentIds, dueAt) {
+    if (departmentIds.length === 0) {
+      return supabaseWeeklyReportService.listSubmissions(reportId);
+    }
+    /*
+     * Only sent_at and due_at are written. Status is deliberately untouched:
+     * distributing a Weekly does not mean the department has begun it, and
+     * overwriting an in-progress or submitted row here would silently undo
+     * work. Re-sending simply re-stamps the timing.
+     */
+    const { error } = await client()
+      .from("weekly_submissions")
+      .update({ sent_at: new Date().toISOString(), due_at: dueAt })
+      .eq("weekly_report_id", reportId)
+      .in("department_id", departmentIds);
+    if (error) throw new Error(error.message);
+    return supabaseWeeklyReportService.listSubmissions(reportId);
+  },
+
+  async setDepartmentScope(reportId, departmentIds) {
+    const existing = await supabaseWeeklyReportService.listSubmissions(reportId);
+    const wanted = new Set(departmentIds);
+    const held = new Set(existing.map((s) => s.departmentId));
+
+    const toAdd = departmentIds.filter((id) => !held.has(id));
+    if (toAdd.length > 0) {
+      const { error } = await client()
+        .from("weekly_submissions")
+        .insert(
+          toAdd.map((departmentId) => ({
+            weekly_report_id: reportId,
+            department_id: departmentId,
+            status: "pending",
+            accomplishments: [],
+            planned_next_week: [],
+            blockers: [],
+          }))
+        );
+      if (error) throw new Error(error.message);
+    }
+
+    /*
+     * Removal never destroys work. A row is dropped only while it is untouched:
+     * still pending, never submitted, and carrying no written input. Anything
+     * else is refused and reported back by department id.
+     */
+    const refusedDepartmentIds: string[] = [];
+    const removable: string[] = [];
+    for (const submission of existing) {
+      if (wanted.has(submission.departmentId)) continue;
+      const untouched =
+        submission.status === "pending" &&
+        !submission.submittedAt &&
+        !submission.summary &&
+        !submission.keyAchievement &&
+        !submission.nextWeekPlan &&
+        submission.progressPercent === undefined &&
+        submission.accomplishments.length === 0 &&
+        submission.plannedNextWeek.length === 0 &&
+        submission.blockers.length === 0;
+      if (untouched) removable.push(submission.id);
+      else refusedDepartmentIds.push(submission.departmentId);
+    }
+
+    if (removable.length > 0) {
+      const { error } = await client()
+        .from("weekly_submissions")
+        .delete()
+        .in("id", removable);
+      if (error) throw new Error(error.message);
+    }
+
+    return {
+      submissions: await supabaseWeeklyReportService.listSubmissions(reportId),
+      refusedDepartmentIds,
+    };
   },
 
   async listSubmissions(reportId) {

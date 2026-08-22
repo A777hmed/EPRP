@@ -46,3 +46,9 @@ next-env.d.ts
 # Local CLI state written by `supabase link` / `db push`. Machine-specific,
 # may hold connection details — never commit.
 supabase/.temp/
+
+# Database dumps. These contain real business data and user records.
+backup_*.sql
+*.dump
+
+supabase/.branches/

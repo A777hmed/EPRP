@@ -19,6 +19,7 @@ import {
   type ProjectLinkContext,
 } from "@/features/projects/project-link-context";
 import { linkRecordToProject } from "@/features/projects/link-record-to-project";
+import { useHierarchyTermsByProjectId } from "@/features/projects/use-hierarchy-terms";
 import {
   nextStepId,
   projectWorkflowHref,
@@ -66,13 +67,14 @@ function presetsForKind(
   context: ProjectLinkContext
 ): Record<string, string> | undefined {
   const departmentId =
-    context.sourceType === "department"
+    context.departmentId ??
+    (context.sourceType === "department"
       ? context.parentId
       : context.sourceType === "system"
         ? getSystemById(context.parentId)?.departmentId
         : context.sourceType === "discipline"
           ? getDisciplineById(context.parentId)?.departmentId
-          : undefined;
+          : undefined);
   if (!departmentId) return undefined;
   // Only these kinds carry a department reference on the record itself.
   return kind === "system" || kind === "discipline" || kind === "contact"
@@ -95,6 +97,13 @@ export function MasterDataPageForm({
 }: MasterDataPageFormProps) {
   const router = useRouter();
   const config = MASTER_KIND_CONFIG[kind];
+  const projectTerms = useHierarchyTermsByProjectId(context.projectId);
+  const contextualDiscipline = kind === "discipline" && Boolean(context.projectId);
+  const singular = contextualDiscipline ? projectTerms.singular : config.singular;
+  const plural = contextualDiscipline ? projectTerms.plural : config.plural;
+  const singularLower = contextualDiscipline
+    ? projectTerms.singularLower
+    : config.singular.toLowerCase();
   const service = getMasterService(kind);
   const isEdit = recordId !== undefined;
 
@@ -121,6 +130,7 @@ export function MasterDataPageForm({
    */
   const lifecycle = useMasterDataActions(kind, {
     onMutated: () => router.push(basePath),
+    displayTerms: contextualDiscipline ? projectTerms : undefined,
   });
 
   const nextStep = context.currentStep
@@ -132,18 +142,18 @@ export function MasterDataPageForm({
       : undefined;
 
   if (isEdit && record === undefined) {
-    return <LoadingState variant="page" label={`Loading ${config.singular.toLowerCase()}…`} />;
+    return <LoadingState variant="page" label={`Loading ${singularLower}…`} />;
   }
 
   if (isEdit && record === null) {
     return (
       <EmptyState
         icon={FileX}
-        title={`${config.singular} not found`}
-        description={`No ${config.singular.toLowerCase()} exists with id “${recordId}”.`}
+        title={`${singular} not found`}
+        description={`No ${singularLower} exists with id “${recordId}”.`}
         action={
           <Button variant="outline" asChild>
-            <Link href={basePath}>Back to {config.plural}</Link>
+            <Link href={basePath}>Back to {plural}</Link>
           </Button>
         }
       />
@@ -195,7 +205,7 @@ export function MasterDataPageForm({
     }
 
     toast.success(
-      `${config.singular} ${mode === "create" ? `“${saved.name}” created` : "updated"}${
+      `${singular} ${mode === "create" ? `“${saved.name}” created` : "updated"}${
         linked ? " and linked to the project" : ""
       }`
     );
@@ -216,11 +226,11 @@ export function MasterDataPageForm({
     <div className="space-y-6">
       <PageHeader
         eyebrow={eyebrow}
-        title={isEdit ? `Edit ${record?.name}` : `New ${config.singular}`}
+        title={isEdit ? `Edit ${record?.name}` : `New ${singular}`}
         description={
           isEdit
-            ? `Update this ${config.singular.toLowerCase()}.`
-            : `Create a new ${config.singular.toLowerCase()}.`
+            ? `Update this ${singularLower}.`
+            : `Create a new ${singularLower}.`
         }
         actions={
           isEdit && record ? (
@@ -256,7 +266,7 @@ export function MasterDataPageForm({
         recordName={record?.name}
       />
       <SectionCard
-        title={`${config.singular} details`}
+        title={`${singular} details`}
         className="max-w-3xl"
       >
         <MasterDataForm

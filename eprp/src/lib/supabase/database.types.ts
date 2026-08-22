@@ -138,13 +138,155 @@ export interface ProjectRow extends Timestamps {
   include_signature_section: boolean;
 }
 
+export interface ProjectSiteRow extends Timestamps {
+  id: string;
+  project_id: string;
+  name: string;
+  country: string | null;
+  city: string | null;
+  is_primary: boolean;
+  sort_order: number;
+}
+
+/** Additional project positions — see 20260818000001_project_positions.sql. */
+export interface ProjectPositionRow extends Timestamps {
+  id: string;
+  project_id: string;
+  job_title_id: string;
+  contact_id: string;
+  notes: string | null;
+  sort_order: number;
+}
+
+/** Phase 13.2 — see 20260819000003_master_milestones.sql. */
+export interface MasterMilestoneRow extends Timestamps {
+  id: string;
+  project_id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  department_id: string | null;
+  system_id: string | null;
+  discipline_id: string | null;
+  baseline_date: string | null;
+  priority: string;
+  owner_contact_id: string | null;
+  source: string;
+  source_document_id: string | null;
+  active: boolean;
+  archived_at: string | null;
+}
+
+export interface MilestoneUpdateRow {
+  id: string;
+  milestone_id: string;
+  source: string;
+  weekly_report_id: string | null;
+  monthly_report_id: string | null;
+  department_id: string | null;
+  discipline_id: string | null;
+  status: string;
+  progress_percent: number | null;
+  forecast_date: string | null;
+  actual_date: string | null;
+  narrative: string | null;
+  approval_status: string;
+  approved_by_contact_id: string | null;
+  approved_at: string | null;
+  decision_note: string | null;
+  is_regression: boolean;
+  regression_reason: string | null;
+  submitted_by_contact_id: string | null;
+  submitted_at: string;
+}
+
+/** Phase 13.3 — see 20260819000004_master_deliverables.sql. */
+export interface MasterDeliverableRow extends Timestamps {
+  id: string;
+  project_id: string;
+  code: string;
+  title: string;
+  description: string | null;
+  department_id: string | null;
+  system_id: string | null;
+  discipline_id: string | null;
+  owner_contact_id: string | null;
+  /** References master_milestones — never a copy of anything on it. */
+  milestone_id: string | null;
+  planned_submission_date: string | null;
+  revision: string | null;
+  document_id: string | null;
+  active: boolean;
+  archived_at: string | null;
+}
+
+export interface DeliverableUpdateRow {
+  id: string;
+  deliverable_id: string;
+  source: string;
+  weekly_report_id: string | null;
+  monthly_report_id: string | null;
+  department_id: string | null;
+  discipline_id: string | null;
+  /** D6 — REPORTED DATA: what the client did. Not a decision of ours. */
+  client_review_status: string;
+  client_review_date: string | null;
+  client_reference: string | null;
+  forecast_date: string | null;
+  actual_submission_date: string | null;
+  revision: string | null;
+  narrative: string | null;
+  /** D6 — GOVERNANCE: whether Project Control accepts the report above. */
+  approval_status: string;
+  approved_by_contact_id: string | null;
+  approved_at: string | null;
+  decision_note: string | null;
+  submitted_by_contact_id: string | null;
+  submitted_at: string;
+}
+
+export interface ProjectDocumentRow {
+  id: string;
+  project_id: string;
+  title: string;
+  document_type: string;
+  document_number: string | null;
+  revision: string | null;
+  issue_date: string | null;
+  /** Phase 13.1 — see 20260819000001_reference_input_metadata.sql. */
+  effective_date: string | null;
+  source: string | null;
+  superseded_by_document_id: string | null;
+  /** Phase 13.1 two-stage delete — see 20260819000002_document_soft_delete.sql. */
+  deleted_at: string | null;
+  deleted_by: string | null;
+  deleted_by_name: string | null;
+  delete_reason: string | null;
+  status: string;
+  notes: string | null;
+  file_name: string;
+  mime_type: string;
+  file_size: number;
+  storage_path: string;
+  uploaded_by: string | null;
+  uploaded_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ProjectDepartmentRow {
   id: string;
   project_id: string;
   department_id: string;
+  project_description: string | null;
   lead_name: string | null;
   reporting_required: boolean;
-  systems: { id: string; name: string; code?: string }[];
+  systems: {
+    id: string;
+    name: string;
+    code?: string;
+    projectDescription?: string;
+  }[];
   created_at: string;
   updated_at: string;
 }
@@ -227,6 +369,13 @@ export interface WeeklyReportRow {
   overall_progress_status: string | null;
   /** Report-level Executive Summary (spec section 5). */
   summary: string | null;
+  /**
+   * Sign-off snapshot — `{ prepared: [...], reviewed: [...], approved: [...] }`.
+   * `unknown` because the column is jsonb and its shape is enforced by a
+   * database check constraint, not by this type; readers must parse it
+   * defensively. See migration 20260816000001_weekly_signatories.sql.
+   */
+  signatories: unknown;
   active: boolean;
   archived_at: string | null;
   created_at: string;
@@ -259,6 +408,9 @@ export interface WeeklySubmissionRow {
   blockers: string[];
   submitted_by_contact_id: string | null;
   submitted_at: string | null;
+  /** Distribution timing — see 20260816000002_weekly_distribution.sql. */
+  sent_at: string | null;
+  due_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -480,6 +632,53 @@ export interface Database {
       systems: TableDef<SystemRow, Writable<SystemRow> & { name: string; code: string }, Writable<SystemRow>>;
       disciplines: TableDef<DisciplineRow, Writable<DisciplineRow> & { name: string; code: string }, Writable<DisciplineRow>>;
       projects: TableDef<ProjectRow, Writable<ProjectRow>, Writable<ProjectRow>>;
+      project_sites: TableDef<
+        ProjectSiteRow,
+        Writable<ProjectSiteRow>,
+        Writable<ProjectSiteRow>
+      >;
+      project_positions: TableDef<
+        ProjectPositionRow,
+        Writable<ProjectPositionRow>,
+        Writable<ProjectPositionRow>
+      >;
+      master_milestones: TableDef<
+        MasterMilestoneRow,
+        Writable<MasterMilestoneRow>,
+        Writable<MasterMilestoneRow>
+      >;
+      milestone_updates: TableDef<
+        MilestoneUpdateRow,
+        Omit<MilestoneUpdateRow, "id" | "submitted_at"> & {
+          id?: string;
+          submitted_at?: string;
+        },
+        Partial<MilestoneUpdateRow>
+      >;
+      master_deliverables: TableDef<
+        MasterDeliverableRow,
+        Writable<MasterDeliverableRow>,
+        Writable<MasterDeliverableRow>
+      >;
+      deliverable_updates: TableDef<
+        DeliverableUpdateRow,
+        Omit<DeliverableUpdateRow, "id" | "submitted_at"> & {
+          id?: string;
+          submitted_at?: string;
+        },
+        Partial<DeliverableUpdateRow>
+      >;
+      project_documents: TableDef<
+        ProjectDocumentRow,
+        Omit<
+          ProjectDocumentRow,
+          "created_at" | "updated_at" | "uploaded_by" | "uploaded_by_name"
+        > & {
+          uploaded_by?: string | null;
+          uploaded_by_name?: string | null;
+        },
+        Partial<ProjectDocumentRow>
+      >;
       project_departments: TableDef<ProjectDepartmentRow, Omit<ProjectDepartmentRow, "id" | "created_at" | "updated_at">, Partial<ProjectDepartmentRow>>;
       project_contacts: TableDef<ProjectContactRow, Omit<ProjectContactRow, "id" | "created_at" | "updated_at">, Partial<ProjectContactRow>>;
       project_delegations: TableDef<ProjectDelegationRow, Omit<ProjectDelegationRow, "id" | "created_at" | "updated_at" | "created_by">, Partial<ProjectDelegationRow>>;

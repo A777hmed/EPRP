@@ -14,6 +14,7 @@ import {
   MoreHorizontal,
   PenLine,
   Plus,
+  Printer,
   SearchX,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -63,6 +64,42 @@ import {
 } from "@/features/weekly-reports/utils";
 import { ConfirmDialog } from "@/components/shared";
 import { WeeklyStatusBadge } from "./weekly-status-badge";
+
+/**
+ * Schedule variance for a register row.
+ *
+ * Derived here rather than stored: actual less planned is the same arithmetic
+ * the Dashboard and the Executive Report already use, and duplicating it as a
+ * column on the report record would create a second figure that could drift
+ * from the two it is computed from.
+ *
+ * "Not recorded" is shown when either side is absent — never 0, which would
+ * assert a position that was never reported.
+ */
+function VarianceCell({
+  planned,
+  actual,
+}: {
+  planned: number | null | undefined;
+  actual: number | null | undefined;
+}) {
+  if (planned === null || planned === undefined || actual === null || actual === undefined) {
+    return <span className="text-muted-foreground">Not recorded</span>;
+  }
+  const variance = Math.round((actual - planned) * 10) / 10;
+  const tone =
+    variance < -3
+      ? "text-destructive"
+      : variance < 0
+        ? "text-warning"
+        : "text-success";
+  return (
+    <span className={`font-medium ${tone}`}>
+      {variance > 0 ? "+" : variance < 0 ? "−" : ""}
+      {Math.abs(variance)}%
+    </span>
+  );
+}
 
 interface Filters {
   query: string;
@@ -183,12 +220,31 @@ export function WeeklyReportsView() {
     router.push(`/weekly-reports/${copy.id}`);
   };
 
+  /*
+   * A failed archive must never look like a successful one.
+   *
+   * This awaited the service with no catch, so when the database refused the
+   * transition the rejection escaped as an unhandled promise: no error toast,
+   * no success toast, nothing. The report stayed exactly as it was and the user
+   * had no way to know why. Matches the Monthly handler's shape, which already
+   * did this correctly.
+   */
   const handleArchive = async () => {
     if (!archiveTarget) return;
-    await weeklyReportService.archive(archiveTarget.id);
-    toast.success("Weekly report archived");
-    setArchiveTarget(null);
-    reload();
+    try {
+      await weeklyReportService.archive(archiveTarget.id);
+      toast.success("Weekly report archived");
+      setArchiveTarget(null);
+      reload();
+    } catch (error) {
+      // The report keeps its current status and stays in the list. The message
+      // comes from the database rule that refused it, so it says which.
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not archive this weekly report."
+      );
+    }
   };
 
   const activeFilters =
@@ -327,6 +383,7 @@ export function WeeklyReportsView() {
                 <TableHead>Period</TableHead>
                 <TableHead className="text-right">Planned</TableHead>
                 <TableHead className="text-right">Actual</TableHead>
+                <TableHead className="text-right">Variance</TableHead>
                 <TableHead>Submissions</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Updated</TableHead>
@@ -365,6 +422,12 @@ export function WeeklyReportsView() {
                     <TableCell className="text-right tabular-nums">
                       {report.actualProgress}%
                     </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <VarianceCell
+                        planned={report.plannedProgress}
+                        actual={report.actualProgress}
+                      />
+                    </TableCell>
                     <TableCell className="tabular-nums">
                       {got}/{total}
                     </TableCell>
@@ -397,6 +460,11 @@ export function WeeklyReportsView() {
                           >
                             <Link href={`/weekly-reports/${report.id}/edit`}>
                               <PenLine aria-hidden="true" /> Edit
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href={`/weekly-reports/${report.id}/preview`}>
+                              <Printer aria-hidden="true" /> Preview / PDF
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem

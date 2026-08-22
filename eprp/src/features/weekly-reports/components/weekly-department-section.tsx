@@ -667,11 +667,18 @@ function UpdateEditor({
                 Optional
               </span>
             </FieldLabel>
+            {/*
+              Candidates are the people who hold THIS scope item, then everyone
+              else the project assigned to the department. `department` used to
+              be hardwired to `[]`, so any item without its own named assignee
+              showed an empty picker even when the department was fully staffed
+              — the "unexplained empty selector" this fixes.
+            */}
             <ScopedPersonSelect
               value={draft.responsibleContactId}
               onChange={(id) => set("responsibleContactId", id)}
               responsible={responsible}
-              department={[]}
+              department={items.departmentPeople}
               names={names}
               disabled={saving}
               label="Responsible person"
@@ -691,6 +698,15 @@ function UpdateEditor({
               value={draft.targetDate}
               onChange={(event) => set("targetDate", event.target.value)}
             />
+            {/* Relevance travels with STATUS: a target matters while work is
+                open, and is never demanded once it has been handed over. The
+                field stays editable in every state so an old date can still be
+                corrected — only the expectation changes, not the ability. */}
+            <FieldDescription>
+              {draft.status === "submitted" || draft.status === "approved"
+                ? "Not needed once submitted or approved."
+                : "When should this scope reach its next state?"}
+            </FieldDescription>
           </Field>
         </div>
       )}
@@ -880,6 +896,8 @@ interface ScopeItemCardProps {
   names: WeeklyNameLookup;
   canEdit: boolean;
   canManageComments: boolean;
+  /** Department-wide assignees, offered after the item's own holders. */
+  departmentPeople: ScopeItemResponsibility[];
   viewerContactId?: string;
   onSaved: (submission: WeeklySubmission) => void;
   onEntrySaved: (entry: WeeklyEntry) => void;
@@ -901,6 +919,7 @@ function ScopeItemCard({
   names,
   canEdit,
   canManageComments,
+  departmentPeople,
   viewerContactId,
   onSaved,
   onEntrySaved,
@@ -1017,7 +1036,7 @@ function ScopeItemCard({
               systemId: row.systemId,
               entries: row.entries,
               responsible: row.responsible,
-              departmentPeople: [],
+              departmentPeople,
               canManageComments,
               names,
               onEntrySaved,
@@ -1069,16 +1088,44 @@ function ScopeItemsBlock({
   onEntrySaved,
   onEntryDeleted,
 }: ScopeItemsBlockProps) {
-  const rows = React.useMemo(() => {
+  /*
+   * Grouped by SYSTEM, because that is the reporting hierarchy the business
+   * reads: Department → System → Program & Study / Discipline. The previous
+   * flat alphabetical list interleaved items from different Systems and left
+   * the System as a caption inside each row — a dozen items read as one
+   * undifferentiated pile, which is exactly the "flat/confusing list" problem.
+   *
+   * Within a System: still-in-scope items first, then alphabetical. Items with
+   * no System land in a trailing "No System assigned" group rather than being
+   * silently mixed in.
+   */
+  const groups = React.useMemo(() => {
     const label = (row: ScopeItemRow) =>
       names.scopeItem(row.scopeItemId)?.name ?? "";
-    // Still-in-scope items first; alphabetical within each group, which is how
-    // someone looks one up. The derivation keeps no meaningful order of its own.
-    return [...section.scopeItems].sort(
+    const sorted = [...section.scopeItems].sort(
       (a, b) =>
         Number(a.detached) - Number(b.detached) ||
         label(a).localeCompare(label(b))
     );
+    const bySystem = new Map<string, ScopeItemRow[]>();
+    for (const row of sorted) {
+      const key = row.systemId ?? "";
+      const list = bySystem.get(key);
+      if (list) list.push(row);
+      else bySystem.set(key, [row]);
+    }
+    return [...bySystem.entries()]
+      .map(([systemId, rows]) => ({
+        systemId,
+        system: names.system(systemId || undefined),
+        rows,
+      }))
+      .sort((a, b) => {
+        // The unassigned group always trails; named Systems alphabetical.
+        if (!a.systemId) return 1;
+        if (!b.systemId) return -1;
+        return (a.system?.name ?? "").localeCompare(b.system?.name ?? "");
+      });
   }, [section.scopeItems, names]);
 
   return (
@@ -1092,28 +1139,46 @@ function ScopeItemsBlock({
         )}
       </div>
 
-      {rows.length === 0 ? (
+      {groups.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {section.seesWholeDepartment
             ? `No ${scopeItemLabelPlural.toLowerCase()} are assigned to this department in this project. Add them in Project Setup.`
             : `You hold no ${scopeItemLabel.toLowerCase()} assignments in this department.`}
         </p>
       ) : (
-        <div className="space-y-1.5">
-          {rows.map((row) => (
-            <ScopeItemCard
-              key={row.scopeItemId}
-              reportId={reportId}
-              departmentId={section.departmentId}
-              row={row}
-              names={names}
-              canEdit={canEdit}
-              canManageComments={section.seesWholeDepartment}
-              viewerContactId={viewerContactId}
-              onSaved={onSaved}
-              onEntrySaved={onEntrySaved}
-              onEntryDeleted={onEntryDeleted}
-            />
+        <div className="space-y-3">
+          {groups.map((group) => (
+            <div key={group.systemId || "no-system"} className="space-y-1.5">
+              <div className="flex items-baseline gap-2 border-l-2 border-primary/40 pl-2">
+                <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                  {group.system?.name ?? "No System assigned"}
+                </span>
+                {group.system?.code && (
+                  <span className="font-mono text-[0.65rem] text-muted-foreground/70">
+                    {group.system.code}
+                  </span>
+                )}
+                <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                  {group.rows.filter((row) => row.reported).length}/{group.rows.length} reported
+                </span>
+              </div>
+              {group.rows.map((row) => (
+                <ScopeItemCard
+                  key={row.scopeItemId}
+                  reportId={reportId}
+                  departmentId={section.departmentId}
+                  row={row}
+                  names={names}
+                  canEdit={canEdit}
+                  canManageComments={section.seesWholeDepartment}
+                  departmentPeople={section.eligiblePeople}
+                  viewerContactId={viewerContactId}
+                  onSaved={onSaved}
+                  onEntrySaved={onEntrySaved}
+                  onEntryDeleted={onEntryDeleted}
+                />
+              ))}
+            </div>
           ))}
         </div>
       )}

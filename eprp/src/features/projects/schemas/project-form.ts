@@ -41,13 +41,35 @@ export const systemAssignmentSchema = z.object({
   id: z.string(),
   name: z.string().trim().max(120),
   code: optionalText,
+  projectDescription: z.string().trim().max(2000).optional().or(z.literal("")),
 });
 
 export const departmentAssignmentSchema = z.object({
   departmentId: z.string(),
+  projectDescription: z.string().trim().max(2000).optional().or(z.literal("")),
   leadName: optionalText,
   reportingRequired: z.boolean(),
   systems: z.array(systemAssignmentSchema),
+});
+
+/**
+ * One row of the Additional Project Roles / Positions table.
+ *
+ * Blank rows are tolerated while editing — the user adds a row before picking
+ * either side of it — and are dropped on save rather than rejected.
+ */
+export const additionalProjectPositionSchema = z.object({
+  id: z.string().optional().or(z.literal("")),
+  jobTitleId: z.string().optional().or(z.literal("")),
+  contactId: z.string().optional().or(z.literal("")),
+  notes: z.string().trim().max(300).optional().or(z.literal("")),
+});
+
+export const additionalProjectSiteSchema = z.object({
+  id: z.string().optional().or(z.literal("")),
+  name: optionalText,
+  country: optionalText,
+  city: optionalText,
 });
 
 const codePattern = /^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*$/;
@@ -85,6 +107,8 @@ function createBaseSchema() {
     clientRepresentativeId: z.string().optional().or(z.literal("")),
     reportingCoordinatorId: z.string().optional().or(z.literal("")),
     projectSponsorId: z.string().optional().or(z.literal("")),
+    /** Open-ended positions beside the five fixed roles above. */
+    additionalPositions: z.array(additionalProjectPositionSchema),
 
     // 4 — Status & progress
     status: z.enum(lifecycleValues, "Select a project status"),
@@ -121,9 +145,11 @@ function createBaseSchema() {
     timeZone: z.string(),
 
     // 6 — Contact & location
+    primarySiteId: z.string().optional().or(z.literal("")),
     site: optionalText,
     country: optionalText,
     city: optionalText,
+    additionalSites: z.array(additionalProjectSiteSchema),
     clientContactName: optionalText,
     clientContactEmail: z.string().trim().optional().or(z.literal("")),
     clientContactPhone: optionalText,
@@ -378,6 +404,34 @@ function addFinalIssues(values: BaseValues, ctx: z.RefinementCtx): void {
   // Location
   require(["country"], !!values.country?.trim(), "Country is required");
   require(["site"], !!values.site?.trim(), "Project location is required");
+  values.additionalSites.forEach((site, index) => {
+    require(
+      ["additionalSites", index, "name"],
+      !!site.name?.trim(),
+      "Site name is required"
+    );
+  });
+
+  /*
+   * Responsibility — additional positions.
+   *
+   * Both halves are required per row. A row used to be dropped on save when
+   * either was blank, which is how a Note ended up carrying the role: the user
+   * typed "Site Manager" into Note, left Position empty, and the row silently
+   * disappeared. Flagging it names the real problem instead.
+   */
+  values.additionalPositions.forEach((position, index) => {
+    require(
+      ["additionalPositions", index, "jobTitleId"],
+      !!position.jobTitleId,
+      "Select the position this person holds. A Note cannot stand in for it."
+    );
+    require(
+      ["additionalPositions", index, "contactId"],
+      !!position.contactId,
+      "Select the person who holds this position"
+    );
+  });
 
   // Departments, systems, disciplines, and contacts are scope rather than
   // project attributes: the setup wizard owns them and enforces its own
@@ -428,6 +482,7 @@ export function emptyProjectFormValues(): ProjectFormValues {
     clientRepresentativeId: "",
     reportingCoordinatorId: "",
     projectSponsorId: "",
+    additionalPositions: [],
     status: "planning",
     overallStatus: "on_track",
     plannedProgress: Number.NaN,
@@ -442,9 +497,11 @@ export function emptyProjectFormValues(): ProjectFormValues {
     currency: "EGP",
     workingWeek: "Sun – Thu",
     timeZone: "Africa/Cairo",
+    primarySiteId: "",
     site: "",
     country: "Egypt",
     city: "",
+    additionalSites: [],
     clientContactName: "",
     clientContactEmail: "",
     clientContactPhone: "",
@@ -462,6 +519,20 @@ export function emptyProjectFormValues(): ProjectFormValues {
 
 /** Map a stored project into form values (Edit mode). */
 export function projectToFormValues(project: Project): ProjectFormValues {
+  const orderedSites = (project.sites ?? [])
+    .slice()
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  const primarySite =
+    orderedSites.find((site) => site.isPrimary) ?? orderedSites[0];
+  const additionalSites = orderedSites
+    .filter((site) => site !== primarySite)
+    .map((site) => ({
+      id: site.id ?? "",
+      name: site.name,
+      country: site.country ?? "",
+      city: site.city ?? "",
+    }));
+
   return {
     name: project.name,
     code: project.code,
@@ -482,6 +553,15 @@ export function projectToFormValues(project: Project): ProjectFormValues {
     clientRepresentativeId: project.clientRepresentativeId ?? "",
     reportingCoordinatorId: project.reportingCoordinatorId ?? "",
     projectSponsorId: project.projectSponsorId ?? "",
+    additionalPositions: (project.positions ?? [])
+      .slice()
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((position) => ({
+        id: position.id ?? "",
+        jobTitleId: position.jobTitleId,
+        contactId: position.contactId,
+        notes: position.notes ?? "",
+      })),
     status: project.status,
     overallStatus: project.overallStatus,
     plannedProgress: project.plannedProgress,
@@ -496,20 +576,24 @@ export function projectToFormValues(project: Project): ProjectFormValues {
     currency: project.reporting.currency,
     workingWeek: project.reporting.workingWeek,
     timeZone: project.reporting.timeZone,
-    site: project.location.site ?? "",
-    country: project.location.country ?? "",
-    city: project.location.city ?? "",
+    primarySiteId: primarySite?.id ?? "",
+    site: primarySite?.name ?? project.location.site ?? "",
+    country: primarySite?.country ?? project.location.country ?? "",
+    city: primarySite?.city ?? project.location.city ?? "",
+    additionalSites,
     clientContactName: project.clientContact.name ?? "",
     clientContactEmail: project.clientContact.email ?? "",
     clientContactPhone: project.clientContact.phone ?? "",
     departments: project.departments.map((d) => ({
       departmentId: d.departmentId,
+      projectDescription: d.projectDescription ?? "",
       leadName: d.leadName ?? "",
       reportingRequired: d.reportingRequired,
       systems: d.systems.map((s) => ({
         id: s.id,
         name: s.name,
         code: s.code ?? "",
+        projectDescription: s.projectDescription ?? "",
       })),
     })),
     projectLogoRef: project.branding.projectLogoRef ?? "",
@@ -608,6 +692,41 @@ export function formValuesToProjectInput(
       workingWeek: values.workingWeek,
       timeZone: values.timeZone,
     },
+    // A row needs both halves to mean anything; half-filled rows are dropped
+    // rather than saved as an unassigned position or a person with no role.
+    positions: values.additionalPositions
+      .filter((position) => position.jobTitleId && position.contactId)
+      .map((position, index) => ({
+        id: blankToUndefined(position.id),
+        jobTitleId: position.jobTitleId ?? "",
+        contactId: position.contactId ?? "",
+        notes: blankToUndefined(position.notes),
+        sortOrder: index,
+      })),
+    sites: [
+      ...(values.site?.trim()
+        ? [
+            {
+              id: blankToUndefined(values.primarySiteId),
+              name: values.site.trim(),
+              country: blankToUndefined(values.country),
+              city: blankToUndefined(values.city),
+              isPrimary: true,
+              sortOrder: 0,
+            },
+          ]
+        : []),
+      ...values.additionalSites
+        .filter((site) => site.name?.trim())
+        .map((site, index) => ({
+          id: blankToUndefined(site.id),
+          name: site.name?.trim() ?? "",
+          country: blankToUndefined(site.country),
+          city: blankToUndefined(site.city),
+          isPrimary: false,
+          sortOrder: index + 1,
+        })),
+    ],
     location: {
       site: blankToUndefined(values.site),
       country: blankToUndefined(values.country),
@@ -620,12 +739,14 @@ export function formValuesToProjectInput(
     },
     departments: values.departments.map((d) => ({
       departmentId: d.departmentId,
+      projectDescription: blankToUndefined(d.projectDescription),
       leadName: blankToUndefined(d.leadName),
       reportingRequired: d.reportingRequired,
       systems: d.systems.map((s) => ({
         id: s.id,
         name: s.name,
         code: blankToUndefined(s.code),
+        projectDescription: blankToUndefined(s.projectDescription),
       })),
     })),
     branding: {

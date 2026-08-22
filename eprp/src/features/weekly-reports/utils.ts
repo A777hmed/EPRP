@@ -1,4 +1,5 @@
 import { recommendScheduleStatus } from "@/lib/reporting";
+import { APPROVED_REPORT_STATUSES } from "@/config/workflows";
 import { SCHEDULE_RECOMMENDATION_META } from "@/lib/constants";
 import type {
   ProgressStatus,
@@ -23,12 +24,16 @@ export const IN_PROGRESS_STATUSES: ReportStatus[] = [
   "returned",
 ];
 
-/** Report statuses considered "signed off". */
-export const SIGNED_OFF_STATUSES: ReportStatus[] = [
-  "approved",
-  "finalized",
-  "locked",
-];
+/**
+ * Report statuses considered "signed off".
+ *
+ * An ALIAS of the shared rule, not a second list. It previously repeated the
+ * same three values under a different name, so a later change to what counts as
+ * approved would have moved compilation, visibility and aggregation while
+ * leaving this display grouping silently behind. Same values as before —
+ * P0.4 removed the duplicate, not the meaning.
+ */
+export const SIGNED_OFF_STATUSES: ReportStatus[] = APPROVED_REPORT_STATUSES;
 
 export function isEditableReport(report: WeeklyReport): boolean {
   return ["draft", "collecting", "returned"].includes(report.status);

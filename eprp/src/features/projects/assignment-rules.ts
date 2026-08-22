@@ -47,6 +47,25 @@ const ROLE_RANK: Record<AssignmentRole, number> = {
   team_member: 1,
 };
 
+/** Presentation-only order: Manager, Lead, Member, then name and stable id. */
+export function compareTeamDisplayOrder(
+  left: { contactId: string; assignmentRole?: AssignmentRole },
+  right: { contactId: string; assignmentRole?: AssignmentRole },
+  contactName: (contactId: string) => string
+): number {
+  const roleDifference =
+    ROLE_RANK[right.assignmentRole ?? DEFAULT_ROLE] -
+    ROLE_RANK[left.assignmentRole ?? DEFAULT_ROLE];
+  if (roleDifference !== 0) return roleDifference;
+
+  const nameDifference = contactName(left.contactId).localeCompare(
+    contactName(right.contactId),
+    undefined,
+    { sensitivity: "base", numeric: true }
+  );
+  return nameDifference || left.contactId.localeCompare(right.contactId);
+}
+
 const roleOf = (member: ProjectTeamMember): AssignmentRole =>
   member.assignmentRole ?? DEFAULT_ROLE;
 
@@ -161,6 +180,70 @@ export function isDuplicateScopedAssignment(
   );
 }
 
+/* --------------------------- Project consolidator -------------------------- */
+
+/**
+ * The two project assignment roles that carry consolidation authority.
+ *
+ * These are the `project_contacts.role` strings written by
+ * `RESPONSIBILITY_ROLES` in `services/supabase-project-service.ts`. They are
+ * **project assignments, not platform roles** — see
+ * `docs/02_PLATFORM_ARCHITECTURE.md` §24.3.
+ */
+export const CONSOLIDATOR_ROLES = [
+  "project_control_manager",
+  "reporting_coordinator",
+] as const;
+
+/**
+ * Whether a person holds Project Control or Reporting Coordinator on THIS
+ * project — the canonical consolidator rule.
+ *
+ * **This is the single TypeScript definition of that rule**, and it is the
+ * exact mirror of `public.is_project_consolidator()` in SQL
+ * (`20260810000003`, made canonical for writes by `20260820000001`). The two
+ * are a matched pair: change one and you must change the other, or read and
+ * write will disagree about who a person is — which is the defect P0.6 exists
+ * to close.
+ *
+ * Both sources are consulted, and the union is deliberate:
+ *
+ * - the project's own singular columns, which carry the primary holder;
+ * - any project assignment carrying one of {@link CONSOLIDATOR_ROLES}, which is
+ *   what makes the relationship many-to-many in both directions.
+ *
+ * The application mirrors the first into the second on every project save, so
+ * for app-created data the two agree; the union is what keeps a directly-created
+ * assignment from being silently ignored.
+ *
+ * Grants nothing on projects the person is not assigned to. Never consulted for
+ * anything narrower — binning a reference document is Project Control Manager
+ * only, and has its own rule.
+ */
+export function isProjectConsolidator(
+  project: Pick<
+    Project,
+    "projectControlManagerId" | "reportingCoordinatorId" | "team"
+  >,
+  contactId: string | null | undefined
+): boolean {
+  if (!contactId) return false;
+
+  if (
+    project.projectControlManagerId === contactId ||
+    project.reportingCoordinatorId === contactId
+  ) {
+    return true;
+  }
+
+  return (project.team ?? []).some(
+    (member) =>
+      member.contactId === contactId &&
+      member.role !== undefined &&
+      (CONSOLIDATOR_ROLES as readonly string[]).includes(member.role)
+  );
+}
+
 /** The single Department Manager for a department, if one is assigned. */
 export function departmentManager(
   project: Project,
@@ -169,6 +252,30 @@ export function departmentManager(
   return departmentAssignments(project, departmentId).find(
     (entry) => entry.assignmentRole === "department_manager"
   );
+}
+
+/**
+ * The incumbent that stands in the way of making `contactId` the Department
+ * Manager, if there is one.
+ *
+ * A department has exactly one manager. The dedicated Department Manager
+ * selector resolves that by promoting and demoting in one deliberate action
+ * (`setAssignment`). Every OTHER path — a per-scope-item role dropdown, a bulk
+ * scope add — is editing one assignment, not declaring a new head of
+ * department, so it must be refused rather than quietly demoting somebody the
+ * user never touched. This is the predicate those callers check first.
+ *
+ * Returns `undefined` when the promotion is legal: nobody holds the role, or
+ * this person already does.
+ */
+export function managerConflict(
+  project: Project,
+  departmentId: string,
+  contactId: string
+): DepartmentAssignmentEntry | undefined {
+  const incumbent = departmentManager(project, departmentId);
+  if (!incumbent || incumbent.contactId === contactId) return undefined;
+  return incumbent;
 }
 
 /**
@@ -328,16 +435,126 @@ export function validateAssignments(project: Project): AssignmentIssue[] {
 }
 
 /**
+ * Departments carrying more than one Department Manager.
+ *
+ * Separated from `validateAssignments` because it is enforced on a different
+ * schedule. The rest of the rules are checked only when the team was edited in
+ * this session — data written before those rules existed must not lock the
+ * user out of unrelated work on departments or systems. Two managers is not in
+ * that category: it is a hard integrity rule with a one-click fix in the
+ * Department Manager selector, so it blocks every save until it is resolved.
+ */
+export function duplicateManagerIssues(project: Project): AssignmentIssue[] {
+  const departmentIds = [
+    ...new Set(
+      teamOf(project)
+        .map((member) => member.departmentId)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+
+  return departmentIds.flatMap((departmentId) => {
+    const managers = departmentAssignments(project, departmentId).filter(
+      (entry) => entry.assignmentRole === "department_manager"
+    );
+    if (managers.length <= 1) return [];
+    return [
+      {
+        departmentId,
+        message:
+          `${managers.length} Department Managers are assigned. A department has ` +
+          "exactly one — pick the correct person in Department Manager; the " +
+          "others become Team Members and keep their scope assignments.",
+      },
+    ];
+  });
+}
+
+/* ----------------------------- People, grouped ---------------------------- */
+
+/** One PERSON on the project, with every scope assignment they hold. */
+export interface ProjectPerson {
+  contactId: string;
+  /** Highest-authority role they hold anywhere on the project. */
+  assignmentRole: AssignmentRole;
+  /** Departments they are assigned into, in first-seen order. */
+  departmentIds: string[];
+  /** Every underlying assignment row, one per scope item. */
+  rows: ProjectTeamMember[];
+}
+
+/**
+ * The project team collapsed to one entry per person.
+ *
+ * `project.team` holds one row per (person, scope item), so somebody covering
+ * five Programs & Studies has five rows. Listing those rows directly renders
+ * the same Person five times and reads as five duplicate people — the row
+ * count is a count of assignments, never of people. Every screen that shows
+ * "who is on this project" groups through here instead; the assignments
+ * themselves are kept intact in `rows` and are never merged away.
+ */
+export function projectTeamPeople(project: Project): ProjectPerson[] {
+  const grouped = new Map<string, ProjectPerson>();
+
+  for (const member of teamOf(project)) {
+    const existing = grouped.get(member.contactId);
+    if (!existing) {
+      grouped.set(member.contactId, {
+        contactId: member.contactId,
+        assignmentRole: roleOf(member),
+        departmentIds: member.departmentId ? [member.departmentId] : [],
+        rows: [member],
+      });
+      continue;
+    }
+
+    existing.rows.push(member);
+    if (ROLE_RANK[roleOf(member)] > ROLE_RANK[existing.assignmentRole]) {
+      existing.assignmentRole = roleOf(member);
+    }
+    if (
+      member.departmentId &&
+      !existing.departmentIds.includes(member.departmentId)
+    ) {
+      existing.departmentIds.push(member.departmentId);
+    }
+  }
+
+  return [...grouped.values()];
+}
+
+/**
  * Delegation date rules, validated by business meaning rather than by banning
  * the past outright — an existing delegation may legitimately have started or
  * ended earlier, and that history must stay editable.
  *
- * Only two things are genuinely invalid:
- *  - a period that ends before it begins, which is never meaningful;
- *  - an *active* delegation whose period has already elapsed, which claims
- *    authority it cannot hold. Revoking it (active = false) records that it
- *    once applied and is accepted.
+ * A newly added delegation cannot begin in the past. A persisted delegation
+ * carries an id and may legitimately have a historical start date, so it is
+ * not rewritten or rejected merely for being old.
  */
+export function delegationDateIssues(
+  delegation: ProjectDelegation,
+  today: string = new Date().toISOString().slice(0, 10)
+): string[] {
+  if (!delegation.startDate || !delegation.endDate) {
+    return ["A delegation needs both a start date and an end date."];
+  }
+
+  const issues: string[] = [];
+  if (!delegation.id && delegation.startDate < today) {
+    issues.push("A new delegation cannot start before today.");
+  }
+  if (delegation.endDate < delegation.startDate) {
+    issues.push("Delegation end date cannot be before its start date.");
+  }
+  if (delegation.active && delegation.endDate < today) {
+    issues.push(
+      "This delegation is still marked active but its period has already ended. Extend the end date, or revoke it."
+    );
+  }
+  return issues;
+}
+
 export function validateDelegations(
   project: Project,
   today: string = new Date().toISOString().slice(0, 10)
@@ -351,20 +568,8 @@ export function validateDelegations(
       message,
     });
 
-    if (!delegation.startDate || !delegation.endDate) {
-      issues.push(at("A delegation needs both a start date and an end date."));
-      continue;
-    }
-    if (delegation.endDate < delegation.startDate) {
-      issues.push(at("Delegation end date cannot be before its start date."));
-      continue;
-    }
-    if (delegation.active && delegation.endDate < today) {
-      issues.push(
-        at(
-          "This delegation is still marked active but its period has already ended. Extend the end date, or revoke it."
-        )
-      );
+    for (const message of delegationDateIssues(delegation, today)) {
+      issues.push(at(message));
     }
   }
 
@@ -593,6 +798,21 @@ export function setScopedAssignment(
     if (collides) return team;
   }
 
+  /*
+   * Exactly one Department Manager per department, per project.
+   *
+   * This edits a single scope row, so promoting through it would add a second
+   * manager beside the incumbent. Refuse the whole patch and leave the team
+   * as it was; the caller surfaces `managerConflict` as a message rather than
+   * appearing to accept a change it silently dropped.
+   */
+  if (
+    patch.assignmentRole === "department_manager" &&
+    managerConflict(project, departmentId, contactId)
+  ) {
+    return team;
+  }
+
   return team.map((member) =>
     sameScope(member, departmentId, contactId, disciplineId)
       ? {
@@ -659,6 +879,15 @@ export function addScopedAssignments(
   const assignmentRole = options.assignmentRole ?? DEFAULT_ROLE;
   const team = teamOf(project);
   const additions: ProjectTeamMember[] = [];
+
+  // Same single-manager rule as `setScopedAssignment`: a bulk scope add may
+  // not install a second Department Manager alongside the incumbent.
+  if (
+    assignmentRole === "department_manager" &&
+    managerConflict(project, departmentId, contactId)
+  ) {
+    return team;
+  }
 
   for (const disciplineId of disciplineIds) {
     const candidate = {

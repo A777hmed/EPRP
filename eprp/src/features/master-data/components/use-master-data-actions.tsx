@@ -4,6 +4,7 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import type { MasterRecordBase } from "@/types";
+import type { HierarchyTerms } from "@/config/project-terminology";
 import { getMasterService, MASTER_KIND_CONFIG } from "../services";
 import type { MasterKind } from "../types";
 import {
@@ -21,11 +22,15 @@ import {
  */
 export function useMasterDataActions(
   kind: MasterKind,
-  options: { onMutated?: () => void } = {}
+  options: { onMutated?: () => void; displayTerms?: HierarchyTerms } = {}
 ) {
   const service = getMasterService(kind);
   const config = MASTER_KIND_CONFIG[kind];
-  const kindLabel = config.plural.toLowerCase();
+  const singular = options.displayTerms?.singular ?? config.singular;
+  const plural = options.displayTerms?.plural ?? config.plural;
+  const singularLower =
+    options.displayTerms?.singularLower ?? singular.toLowerCase();
+  const kindLabel = options.displayTerms?.pluralLower ?? plural.toLowerCase();
   const { onMutated } = options;
 
   const [archiveTarget, setArchiveTarget] =
@@ -60,7 +65,7 @@ export function useMasterDataActions(
         onConfirm={async () => {
           if (!archiveTarget) return;
           await service.archive(archiveTarget.id);
-          toast.success(`${config.singular} archived`);
+          toast.success(`${singular} archived`);
           setArchiveTarget(null);
           onMutated?.();
         }}
@@ -73,7 +78,7 @@ export function useMasterDataActions(
         onConfirm={async () => {
           if (!restoreTarget) return;
           await service.restore(restoreTarget.id);
-          toast.success(`${config.singular} restored`);
+          toast.success(`${singular} restored`);
           setRestoreTarget(null);
           onMutated?.();
         }}
@@ -86,7 +91,7 @@ export function useMasterDataActions(
         onConfirm={async () => {
           if (!deleteTarget) return;
           await service.delete(deleteTarget.id);
-          toast.success(`${config.singular} deleted`);
+          toast.success(`${singular} deleted`);
           setDeleteTarget(null);
           onMutated?.();
         }}
@@ -95,13 +100,13 @@ export function useMasterDataActions(
         open={blocked !== null}
         onOpenChange={(o) => !o && setBlocked(null)}
         name={blocked?.record.name ?? ""}
-        kindLabel={config.singular.toLowerCase()}
+        kindLabel={singularLower}
         usedBy={blocked?.usedBy ?? []}
         canArchive={blocked?.record.active ?? false}
         onArchive={async () => {
           if (!blocked) return;
           await service.archive(blocked.record.id);
-          toast.success(`${config.singular} archived`);
+          toast.success(`${singular} archived`);
           setBlocked(null);
           onMutated?.();
         }}

@@ -180,7 +180,7 @@ export function DepartmentDetailView({
             <DetailRow label="Code">
               <span className="font-mono text-xs">{department.code}</span>
             </DetailRow>
-            <DetailRow label="Department Lead">
+            <DetailRow label="Default Department Lead (master)">
               {lead ? lead.name : "—"}
             </DetailRow>
             <DetailRow label="Status">

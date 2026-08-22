@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { EmptyState, SectionCard } from "@/components/shared";
 import { ManagedMultiSelect } from "@/features/master-data";
 import type {
@@ -52,10 +53,14 @@ export function SetupStepSystems({
             // Snapshot name/code, matching how assignments are stored.
             systems: ids.map((id) => {
               const record = systems.find((system) => system.id === id);
+              const existing = assignment.systems.find(
+                (system) => system.id === id
+              );
               return {
                 id,
-                name: record?.name ?? id,
-                code: record?.code,
+                name: record?.name ?? existing?.name ?? id,
+                code: record?.code ?? existing?.code,
+                projectDescription: existing?.projectDescription,
               };
             }),
           }
@@ -63,6 +68,26 @@ export function SetupStepSystems({
     );
     onDraftChange({ departments: next });
   };
+
+  const patchSystemDescription = (
+    departmentId: string,
+    systemId: string,
+    projectDescription: string
+  ) =>
+    onDraftChange({
+      departments: assignments.map((assignment) =>
+        assignment.departmentId === departmentId
+          ? {
+              ...assignment,
+              systems: assignment.systems.map((system) =>
+                system.id === systemId
+                  ? { ...system, projectDescription }
+                  : system
+              ),
+            }
+          : assignment
+      ),
+    });
 
   if (assignments.length === 0) {
     return (
@@ -139,7 +164,36 @@ export function SetupStepSystems({
                             .map((s) => s.id)
                         )
                       }
-                    />
+                    >
+                      <div className="mt-3 space-y-1">
+                        <Label
+                          htmlFor={`system-description-${assignment.departmentId}-${system.id}`}
+                          className="text-xs text-muted-foreground"
+                        >
+                          System Scope in This Project (optional)
+                        </Label>
+                        <Textarea
+                          id={`system-description-${assignment.departmentId}-${system.id}`}
+                          value={system.projectDescription ?? ""}
+                          rows={2}
+                          placeholder={
+                            systems.find((record) => record.id === system.id)
+                              ?.description ??
+                            "Add scope or notes specific to this project"
+                          }
+                          onChange={(event) =>
+                            patchSystemDescription(
+                              assignment.departmentId,
+                              system.id,
+                              event.target.value
+                            )
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Leave blank to use the shared System description.
+                        </p>
+                      </div>
+                    </LinkedRecordRow>
                   </li>
                 ))}
               </ul>

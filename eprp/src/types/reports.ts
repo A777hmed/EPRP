@@ -16,6 +16,37 @@ import type {
   WeeklyUpdateType,
 } from "./core";
 
+/* -------------------------------- Sign-off --------------------------------- */
+
+/**
+ * One person on a report's signature block.
+ *
+ * Declared HERE rather than imported from `features/executive-reports`:
+ * `executive-signatories.ts` imports `PreparedBy` from `executive-data.ts`,
+ * which imports from `@/types` — so importing it back into this file would
+ * close a module cycle. The two declarations are structurally identical, which
+ * is what lets the shared editor and parser serve both report tiers.
+ *
+ * `contactId` is provenance only. It is deliberately NOT a foreign key: the
+ * name and title are a COPY taken at save time, so correcting a Contact later
+ * cannot rewrite a report that was already signed.
+ */
+export interface ReportSignatory {
+  id: string;
+  name: string;
+  /** Job title as it should PRINT, snapshotted at save time. */
+  title?: string;
+  /** Where the name was picked from. Never re-resolved on read. */
+  contactId?: string;
+  projects?: string[];
+}
+
+export type ReportSignatoryRole = "prepared" | "reviewed" | "approved";
+
+export type SignatorySnapshot = Partial<
+  Record<ReportSignatoryRole, ReportSignatory[]>
+>;
+
 /** File attached to a report, submission, or comment. */
 export interface Attachment {
   id: string;
@@ -81,6 +112,10 @@ export interface WeeklySubmission {
   returnReason?: string;
   reviewedByContactId?: string;
   reviewedAt?: IsoDateTime;
+  /** When collection started for this department. Absent means Not Sent. */
+  sentAt?: IsoDateTime;
+  /** When this department's input is due. Overdue is derived, never stored. */
+  dueAt?: IsoDateTime;
   accomplishments: string[];
   plannedNextWeek: string[];
   blockers: string[];
@@ -173,6 +208,16 @@ export interface WeeklyReport extends ReportBase {
   entryIds: string[];
   /** Major activities completed this week (Phase W2). */
   activityIds: string[];
+  /**
+   * Sign-off SNAPSHOT — name and job title copied at save time.
+   *
+   * Takes precedence over the `preparedBy/reviewedBy/approvedByContactId`
+   * columns on `ReportBase`, which remain for reports saved before the
+   * snapshot column existed. Holds no foreign key, so editing or deleting a
+   * Contact cannot alter an issued report. Shape is shared with the Executive
+   * Report rather than duplicated — see `executive-signatories.ts`.
+   */
+  signatories?: SignatorySnapshot;
 }
 
 /* --------------------------------- Monthly -------------------------------- */

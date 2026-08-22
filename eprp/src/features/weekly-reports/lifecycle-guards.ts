@@ -45,9 +45,21 @@ export interface GuardResult {
   overridden: boolean;
 }
 
-/** A submission counts as complete once the department's lead accepts it. */
+/**
+ * A submission counts as complete once the department's lead accepts it, which
+ * `SubmissionStatus` spells `approved`.
+ *
+ * This compared against `"accepted"` — a value that exists nowhere. The column
+ * constraint `weekly_submissions_status_valid` admits
+ * `pending | in_progress | submitted | returned | approved`, and
+ * {@link SubmissionStatus} says the same. The comparison could therefore never
+ * match, so `needsAllSubmissions` always failed and **no Weekly report could
+ * ever reach `under_review`, `approved`, `finalized` or `locked`** through the
+ * application. Corrected in P0.3, because P0.3 mirrors these conditions into
+ * SQL and would otherwise have made an unsatisfiable rule authoritative.
+ */
 function acceptedCount(submissions: { status: string }[]): number {
-  return submissions.filter((s) => s.status === "accepted").length;
+  return submissions.filter((s) => s.status === "approved").length;
 }
 
 /**
@@ -67,7 +79,7 @@ function unmetConditions(to: ReportStatus, ctx: LifecycleContext): string[] {
       unmet.push("No department submissions exist for this report.");
     } else if (accepted < total) {
       unmet.push(
-        `${accepted} of ${total} department submissions accepted — all are required.`
+        `${accepted} of ${total} department submissions approved — all are required.`
       );
     }
   };

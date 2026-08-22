@@ -10,6 +10,7 @@ import type {
   Priority,
   ProgressStatus,
   ReportStatus,
+  SignatorySnapshot,
   SubmissionStatus,
   WeeklyActivity,
   WeeklyEntry,
@@ -72,6 +73,11 @@ export interface WeeklyActivityInput {
 
 export interface WeeklyReportUpdateInput {
   periodStart?: IsoDate;
+  /**
+   * Sign-off snapshot. Supersedes the three contact-id fields below, which
+   * remain for reports saved before the snapshot column existed.
+   */
+  signatories?: SignatorySnapshot;
   preparedByContactId?: string;
   reviewedByContactId?: string;
   approvedByContactId?: string;
@@ -193,7 +199,31 @@ export interface WeeklyReportService {
   duplicate(id: string): Promise<WeeklyReport>;
   archive(id: string): Promise<WeeklyReport>;
   changeStatus(id: string, to: ReportStatus): Promise<WeeklyReport>;
+  /**
+   * Set which departments are in this Weekly's scope.
+   *
+   * The scope IS the set of department submission rows, so this adds rows for
+   * newly selected departments and removes rows for deselected ones. Removal is
+   * GUARDED: a department that has already started or submitted is never
+   * silently deleted, and its id is returned so the caller can say so.
+   */
+  setDepartmentScope(
+    reportId: string,
+    departmentIds: string[]
+  ): Promise<{ submissions: WeeklySubmission[]; refusedDepartmentIds: string[] }>;
   listSubmissions(reportId: string): Promise<WeeklySubmission[]>;
+  /**
+   * Start collection for the named departments.
+   *
+   * Stamps  and  on their submission rows and nothing else —
+   * no status is written, because a department that has been SENT the Weekly has
+   * not yet started it. The row stays 'pending' until the department itself acts.
+   */
+  startCollection(
+    reportId: string,
+    departmentIds: string[],
+    dueAt: string
+  ): Promise<WeeklySubmission[]>;
   /** Replace the report's department updates with exactly these rows. */
   saveSubmissions(
     reportId: string,
@@ -477,6 +507,31 @@ const mockWeeklyReportService: WeeklyReportService = {
     };
     reportStore.set(id, updated);
     return clone(updated);
+  },
+
+  async startCollection(reportId, departmentIds, dueAt) {
+    await delay();
+    const now = new Date().toISOString();
+    for (const submission of submissionStore.values()) {
+      if (submission.weeklyReportId !== reportId) continue;
+      if (!departmentIds.includes(submission.departmentId)) continue;
+      submission.sentAt = now;
+      submission.dueAt = dueAt;
+    }
+    return mockWeeklyReportService.listSubmissions(reportId);
+  },
+
+  /*
+   * Mock parity only. The demo store seeds a fixed department scope and the
+   * Supabase path owns the real one, so this reports the current scope back
+   * unchanged rather than pretending to edit a store that has no such concept.
+   */
+  async setDepartmentScope(reportId) {
+    await delay();
+    return {
+      submissions: await mockWeeklyReportService.listSubmissions(reportId),
+      refusedDepartmentIds: [],
+    };
   },
 
   async listSubmissions(reportId) {

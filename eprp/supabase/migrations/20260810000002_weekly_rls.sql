@@ -46,9 +46,16 @@ begin
     from public.profiles
    where role = 'system_admin' and active;
 
-  if admins = 0 then
+  -- P1.0: the lockout risk this guard exists for requires accounts to lock
+  -- out. On an empty profiles table there are none, so the check is skipped
+  -- rather than failing a fresh environment. Protection is unchanged whenever
+  -- any profile exists.
+  if admins = 0 and exists (select 1 from public.profiles) then
     raise exception
       'Refusing to enable Weekly RLS: no active system_admin profile exists, so this would lock every account out.';
+  end if;
+  if not exists (select 1 from public.profiles) then
+    raise notice 'Fresh environment: no profiles exist yet, so no account can be locked out. Lockout check not applicable.';
   end if;
 
   raise notice 'Lockout pre-check passed: % active system_admin profile(s).', admins;

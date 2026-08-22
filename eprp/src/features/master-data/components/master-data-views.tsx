@@ -54,7 +54,7 @@ export function DepartmentsListView(props: MasterListViewProps = {}) {
     },
     codeColumn,
     {
-      header: "Department Lead",
+      header: "Default Department Lead",
       render: (r) => getContactById((r as Department).leadContactId)?.name ?? "—",
     },
   ];

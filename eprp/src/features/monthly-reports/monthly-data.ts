@@ -22,6 +22,23 @@ import type {
   WeeklySubmission,
 } from "@/types";
 
+import type { MonthlyCompilationResult } from "@/services/monthly-report-service";
+
+/**
+ * What to tell the user after a compilation run.
+ *
+ * A Weekly that is visible but not yet approved is deliberately not compiled
+ * (P0.4). Saying so is the difference between a rule and an apparent bug.
+ */
+export function compilationMessage(result: MonthlyCompilationResult): string {
+  const base =
+    result.compiledFromReports === 0
+      ? "No approved Weekly Reports for this month."
+      : `Monthly items updated from ${result.compiledFromReports} approved Weekly Report${result.compiledFromReports === 1 ? "" : "s"}.`;
+  if (result.skippedUnapprovedReports === 0) return base;
+  return `${base} ${result.skippedUnapprovedReports} Weekly Report${result.skippedUnapprovedReports === 1 ? " was" : "s were"} not compiled - not yet approved (${result.skippedStatuses.join(", ")}).`;
+}
+
 /** Text used everywhere a real value is genuinely absent. */
 export const NOT_RECORDED = "Not recorded";
 

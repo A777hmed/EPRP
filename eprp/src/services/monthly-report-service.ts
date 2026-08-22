@@ -1,4 +1,5 @@
 import { format, parseISO, startOfMonth } from "date-fns";
+import { isApprovedReportStatus } from "@/config/workflows";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { MonthlyComment, MonthlyDepartmentSummary, MonthlyPlanItem, MonthlyReport, WeeklyEntry } from "@/types";
@@ -12,12 +13,41 @@ export type MonthlyCommentInput = Omit<MonthlyComment, "id" | "monthlyReportId" 
 export type MonthlyPlanItemInput = Omit<MonthlyPlanItem, "id" | "monthlyReportId" | "createdAt" | "updatedAt"> & { id?: string };
 export type MonthlySummaryInput = Omit<MonthlyDepartmentSummary, "id" | "monthlyReportId" | "createdAt" | "updatedAt" | "createdByContactId" | "updatedByContactId">;
 
+/** What one compilation run did, and what it left out and why. */
+export interface MonthlyCompilationResult {
+  comments: MonthlyComment[];
+  /** Weekly reports in the month that were eligible and were read. */
+  compiledFromReports: number;
+  /** Weekly reports in the month skipped because they are not yet approved. */
+  skippedUnapprovedReports: number;
+  /** The distinct statuses that caused a skip, for an honest message. */
+  skippedStatuses: string[];
+}
+
 export interface MonthlyReportService {
   list(projectId?: string): Promise<MonthlyReport[]>;
   getById(id: string): Promise<MonthlyReport | null>;
   create(projectId: string, reportingMonth: string): Promise<MonthlyReport>;
-  update(id: string, input: Partial<Pick<MonthlyReport, "executiveSummary" | "plannedProgress" | "actualProgress" | "hseStatus" | "qualityStatus" | "overallProgressStatus" | "preparedByContactId" | "reviewedByContactId" | "approvedByContactId" | "status">> & { reportNumber?: string }): Promise<MonthlyReport>;
-  compileFromWeeklies(reportId: string): Promise<MonthlyComment[]>;
+  update(id: string, input: Partial<Pick<MonthlyReport, "executiveSummary" | "plannedProgress" | "actualProgress" | "hseStatus" | "qualityStatus" | "overallProgressStatus" | "preparedByContactId" | "reviewedByContactId" | "approvedByContactId">> & { reportNumber?: string }): Promise<MonthlyReport>;
+  /**
+   * Move the report through its lifecycle.
+   *
+   * Separate from update() because P0.3 made status a governed field: a BEFORE
+   * UPDATE trigger refuses any direct status write, and
+   * set_monthly_report_status() re-proves authority and transition shape in the
+   * database. Leaving status on update() would have produced a call that always
+   * failed at the trigger.
+   */
+  changeStatus(id: string, to: MonthlyReport["status"]): Promise<MonthlyReport>;
+  /**
+   * Compile Weekly-flagged entries into this Monthly Report.
+   *
+   * Reads ONLY Weekly reports whose status is approved, finalized or locked
+   * (P0.4). Returns what it compiled and what it deliberately skipped, so the
+   * caller can say so rather than leaving the user to wonder why a Weekly they
+   * can see did not appear.
+   */
+  compileFromWeeklies(reportId: string): Promise<MonthlyCompilationResult>;
   listComments(reportId: string): Promise<MonthlyComment[]>;
   saveComment(reportId: string, input: MonthlyCommentInput): Promise<MonthlyComment>;
   deleteComment(reportId: string, id: string): Promise<void>;
@@ -44,8 +74,89 @@ const supabaseMonthlyReportService: MonthlyReportService = {
   async list(projectId) { let q=client().from("monthly_reports").select("*").order("reporting_month",{ascending:false}); if(projectId) q=q.eq("project_id",projectId); const {data,error}=await q; if(error) throw new Error(error.message); return (data??[] as MonthlyReportRow[]).map(reportFromRow); },
   async getById(id) { const {data,error}=await client().from("monthly_reports").select("*").eq("id",id).maybeSingle(); if(error) throw new Error(error.message); return data ? reportFromRow(data as MonthlyReportRow) : null; },
   async create(projectId, reportingMonth) { const project=await projectService.getProjectById(projectId); if(!project) throw new Error("Selected project not found"); const month=monthStart(reportingMonth); const date=parseISO(month); const {data,error}=await client().from("monthly_reports").insert({report_number:formatReportNumber("monthly",project.code,date.getFullYear(),date.getMonth()+1),project_id:projectId,reporting_month:month,prepared_by_contact_id:project.reportingCoordinatorId??null,planned_progress:project.plannedProgress,actual_progress:project.actualProgress,status:"draft"}).select("*").single(); if(error) throw new Error(error.message); return reportFromRow(data as MonthlyReportRow); },
-  async update(id,input) { const fields={...(input.reportNumber !== undefined ? {report_number:input.reportNumber.trim()} : {}),...(input.executiveSummary !== undefined ? {executive_summary:input.executiveSummary} : {}),...(input.plannedProgress !== undefined ? {planned_progress:input.plannedProgress} : {}),...(input.actualProgress !== undefined ? {actual_progress:input.actualProgress} : {}),...(input.hseStatus !== undefined ? {hse_status:input.hseStatus} : {}),...(input.qualityStatus !== undefined ? {quality_status:input.qualityStatus} : {}),...(input.overallProgressStatus !== undefined ? {overall_progress_status:input.overallProgressStatus} : {}),...(input.preparedByContactId !== undefined ? {prepared_by_contact_id:input.preparedByContactId||null} : {}),...(input.reviewedByContactId !== undefined ? {reviewed_by_contact_id:input.reviewedByContactId||null} : {}),...(input.approvedByContactId !== undefined ? {approved_by_contact_id:input.approvedByContactId||null} : {}),...(input.status !== undefined ? {status:input.status} : {})}; const {data,error}=await client().from("monthly_reports").update(fields).eq("id",id).select("*").single(); if(error) throw new Error(error.message); return reportFromRow(data as MonthlyReportRow); },
-  async compileFromWeeklies(reportId) { const report=await this.getById(reportId); if(!report) throw new Error("Monthly report not found"); const weeklies=(await weeklyReportService.list()).filter(w=>w.projectId===report.projectId && w.periodStart.slice(0,7)===report.reportingMonth.slice(0,7)); const rows=(await Promise.all(weeklies.map(async weekly=>(await weeklyReportService.listEntries(weekly.id)).filter(e=>e.includeInMonthly).map(e=>({weekly,e}))))).flat(); if(rows.length===0) return this.listComments(reportId); const payload=rows.map(({weekly,e})=>({monthly_report_id:reportId,source_weekly_entry_id:e.id,source_weekly_report_id:weekly.id,source_kind:"weekly",week_number:weekly.weekNumber,department_id:e.departmentId??null,system_id:e.systemId??null,discipline_id:e.disciplineId??null,update_type:monthlyType(e),original_text:e.description,presentation_text:null,priority:e.priority,status:e.status,responsible_contact_id:e.ownerContactId??null,target_date:e.dueDate??null,include_in_final:true,escalate_to_management:e.entryType==="decision",is_major_achievement:e.updateType==="achievement",created_by_contact_id:e.createdByContactId??null,source_created_at:e.createdAt})); const {error}=await client().from("monthly_comments").upsert(payload,{onConflict:"source_weekly_entry_id",ignoreDuplicates:true}); if(error) throw new Error(error.message); return this.listComments(reportId); },
+  async update(id,input) { const fields={...(input.reportNumber !== undefined ? {report_number:input.reportNumber.trim()} : {}),...(input.executiveSummary !== undefined ? {executive_summary:input.executiveSummary} : {}),...(input.plannedProgress !== undefined ? {planned_progress:input.plannedProgress} : {}),...(input.actualProgress !== undefined ? {actual_progress:input.actualProgress} : {}),...(input.hseStatus !== undefined ? {hse_status:input.hseStatus} : {}),...(input.qualityStatus !== undefined ? {quality_status:input.qualityStatus} : {}),...(input.overallProgressStatus !== undefined ? {overall_progress_status:input.overallProgressStatus} : {}),...(input.preparedByContactId !== undefined ? {prepared_by_contact_id:input.preparedByContactId||null} : {}),...(input.reviewedByContactId !== undefined ? {reviewed_by_contact_id:input.reviewedByContactId||null} : {}),...(input.approvedByContactId !== undefined ? {approved_by_contact_id:input.approvedByContactId||null} : {})}; const {data,error}=await client().from("monthly_reports").update(fields).eq("id",id).select("*").single(); if(error) throw new Error(error.message); return reportFromRow(data as MonthlyReportRow); },
+  async changeStatus(id,to) { const {error}=await client().rpc("set_monthly_report_status",{p_report:id,p_to:to}); if(error) throw new Error(error.message); const updated=await supabaseMonthlyReportService.getById(id); if(!updated) throw new Error("Monthly report not found"); return updated; },
+  async compileFromWeeklies(reportId) {
+    const report = await this.getById(reportId);
+    if (!report) throw new Error("Monthly report not found");
+
+    const month = report.reportingMonth.slice(0, 7);
+    const inMonth = (await weeklyReportService.list()).filter(
+      (w) => w.projectId === report.projectId && w.periodStart.slice(0, 7) === month
+    );
+
+    /*
+     * P0.4 — the compilation basis.
+     *
+     * Monthly compiles APPROVED Weekly data only. This previously filtered by
+     * project and month alone, so a draft or in-collection Weekly was compiled
+     * into the Monthly and from there fed the Executive tier's approved-only
+     * aggregates: an unapproved position reaching leadership through a tier that
+     * believed everything it received had been approved.
+     *
+     * The status set is the shared one, not a local list, so compilation,
+     * visibility and aggregation cannot drift apart. The database enforces the
+     * same rule independently through guard_monthly_comment_source().
+     */
+    const eligible = inMonth.filter((w) => isApprovedReportStatus(w.status));
+    const skipped = inMonth.filter((w) => !isApprovedReportStatus(w.status));
+
+    const rows = (
+      await Promise.all(
+        eligible.map(async (weekly) =>
+          (await weeklyReportService.listEntries(weekly.id))
+            .filter((e) => e.includeInMonthly)
+            .map((e) => ({ weekly, e }))
+        )
+      )
+    ).flat();
+
+    const summary = {
+      compiledFromReports: eligible.length,
+      skippedUnapprovedReports: skipped.length,
+      skippedStatuses: [...new Set(skipped.map((w) => w.status))].sort(),
+    };
+
+    if (rows.length === 0) {
+      return { comments: await this.listComments(reportId), ...summary };
+    }
+
+    const payload = rows.map(({ weekly, e }) => ({
+      monthly_report_id: reportId,
+      source_weekly_entry_id: e.id,
+      source_weekly_report_id: weekly.id,
+      source_kind: "weekly",
+      week_number: weekly.weekNumber,
+      department_id: e.departmentId ?? null,
+      system_id: e.systemId ?? null,
+      discipline_id: e.disciplineId ?? null,
+      update_type: monthlyType(e),
+      original_text: e.description,
+      presentation_text: null,
+      priority: e.priority,
+      status: e.status,
+      responsible_contact_id: e.ownerContactId ?? null,
+      target_date: e.dueDate ?? null,
+      include_in_final: true,
+      escalate_to_management: e.entryType === "decision",
+      is_major_achievement: e.updateType === "achievement",
+      created_by_contact_id: e.createdByContactId ?? null,
+      source_created_at: e.createdAt,
+    }));
+
+    /*
+     * Idempotent: source_weekly_entry_id carries a UNIQUE constraint, and
+     * ignoreDuplicates leaves an already-compiled row exactly as it is —
+     * including any presentation_text an editor has since written on it.
+     * Recompiling adds what is new and rewrites nothing.
+     */
+    const { error } = await client()
+      .from("monthly_comments")
+      .upsert(payload, { onConflict: "source_weekly_entry_id", ignoreDuplicates: true });
+    if (error) throw new Error(error.message);
+
+    return { comments: await this.listComments(reportId), ...summary };
+  },
   async listComments(reportId) { const {data,error}=await client().from("monthly_comments").select("*").eq("monthly_report_id",reportId).order("created_at"); if(error) throw new Error(error.message); return (data??[] as MonthlyCommentRow[]).map(commentFromRow); },
   async saveComment(reportId,input) {
     const text=input.originalText.trim();

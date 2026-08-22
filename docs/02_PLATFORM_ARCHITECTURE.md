@@ -12,6 +12,8 @@ It sits beneath [`01_PROJECT_VISION.md`](01_PROJECT_VISION.md), which defines th
 
 > **Scope within the set.** This document covers the platform's structural and data architecture: tiers, ownership, hierarchy, isolation, and the architecture of the permission model. Role definitions and the operating detail of approvals live in [`05_PERMISSION_MODEL.md`](05_PERMISSION_MODEL.md); the concrete schema will live in `06_DATABASE_SCHEMA.md` when written.
 
+> **Locked decisions.** [§24](#24-locked-decisions--p0-architecture-review-2026-08-20) records the decisions locked at the P0 architecture review of 2026-08-20 and is the source of truth for the phases that follow it. Three of them amend text earlier in this document — §5 rule 4, §9.2 step 2, and §8.1/§8.3 — and each amendment is named there. **Where §24 and an earlier section disagree, §24 governs.**
+
 ---
 
 ## 2. Architectural principles
@@ -143,7 +145,7 @@ Isolation is structural. It is a property of how entities are related, not a fil
 1. Every Tier 2, 3, and 4 entity resolves to exactly one project, directly or through its owner.
 2. No project-scoped entity may reference a project-scoped entity belonging to a different project.
 3. Cross-project relationships exist **only** through Tier 1 master data. Two projects may both assign the same department; that is the whole of their connection.
-4. Access is granted per project. Assignment to one project confers nothing on another.
+4. **Write** access is granted per project. Assignment to one project confers no authority on another. *(Amended by [§24.2](#242-visibility-model-d-2--amends-5-rule-4-and-92-step-2): **read** access is platform-wide, subject to the Tier A / Tier B split. Isolation of authority is unchanged — only the read gate was separated from it.)*
 5. Aggregation across projects — portfolio views, analytics, the Chairman Dashboard — reads *approved outputs* across projects. It never dissolves the boundary between them.
 6. Archiving or removing a project affects nothing outside it, and never removes the Tier 1 master data it referenced or the Tier 0 audit record of it.
 
@@ -251,6 +253,13 @@ Roles are Tier 0. They are defined by the platform and assigned to accounts.
 
 **Delegate is not a role.** It is a temporary, time-bounded grant of another account's authority (§9.4). Modelling it as a role would make it permanent and unscoped.
 
+> **Amended by [§24.3](#243-consolidator-authority-d-3--amends-81-and-83).**
+> **Reporting Coordinator is a project assignment, not a platform role**, and
+> the same is true of Project Control Manager. Level 4 above is superseded on
+> that point. Both are held *on named projects*, many-to-many in both
+> directions, and together they form the single **project consolidator** rule
+> that governs the reporting cycle. Everything else in this table stands.
+
 ### 8.2 The hierarchy is not a ladder
 
 Roles are **not** strictly nested. A higher level does not automatically include everything below it.
@@ -281,7 +290,7 @@ An access decision is valid only when all three permit it. A Department Lead's a
 
 ### 9.2 Resolution order
 
-Every decision resolves in this fixed order. **Any step failing denies access; no later step can restore it.**
+Every **write, send, approve or manage** decision resolves in this fixed order. **Any step failing denies access; no later step can restore it.**
 
 ```text
 1. Is the account active?                          no → deny
@@ -291,6 +300,12 @@ Every decision resolves in this fixed order. **Any step failing denies access; n
 5. Does the entity's state permit this action?     no → deny   (approved / locked / archived)
 6. → allow
 ```
+
+**Read resolves separately.** Steps 2 and 3 do not gate reading — see
+[§24.2](#242-visibility-model-d-2--amends-5-rule-4-and-92-step-2), which
+amends this section. An active account may read Tier A data on any project, and
+Tier B data once the parent report is Approved, Finalized or Locked. Steps 1
+and 5 still apply to reads; steps 2, 3 and 4 apply in full to everything else.
 
 Step 5 is not an afterthought. Immutability outranks permission: **no role, including System Administrator, may modify approved data in place.** The correct action is a new revision.
 
@@ -762,8 +777,16 @@ Recorded so each is resolved deliberately rather than absorbed silently, per `CL
 
 | # | Current state | This architecture requires |
 |---|---|---|
-| 1 | Access control grants every authenticated user full reach across all projects and master data | Three-axis resolution per §9, enforced at the data boundary |
-| 2 | The permission matrix exists as configuration but is consulted by nothing | Permissions enforced per §9.3 |
+| 1 | Access control grants every authenticated user full **write** reach across projects, project assignments and master data — an escalation path, not only an audit gap | Read per §24.2; write per §9 resolution, enforced at the data boundary. **P0.1 and P0.2** |
+| 2 | The permission matrix exists as configuration but is consulted in only three places | Permissions enforced per §9.3 and §24.5. **P0.3**; the remainder is P1 |
+| 2a | Project Control / Reporting Coordinator authority is implemented three times, and the three disagree | One canonical consolidator rule shared by database and application, per §24.3. **P0.6** |
+| 2b | Monthly compiles from Weekly reports at any state, including drafts | Approved / Finalized / Locked Weekly data only, per §12.3 rule 1 and §24.4. **P0.4** |
+| 2c | Milestone and deliverable data is read by the Dashboard and Executive tiers from report plan items rather than from the governed registers | One register per fact, per §24.4. **Phase 13.4** — not P0 |
+| ~~2e~~ | ~~Executive narrative has two different visibility rules~~ | **Resolved** by the §24.2.3 lock and migration `20260820000004`. `executive_reports` now opens from Approved onward via the shared definition; `executive_notes`, having no lifecycle, is scoped to Executive authors and project members. Write authority unchanged. Runtime validation deferred with the rest of P0 |
+| 2f | Approved Executive reports are readable platform-wide at the data boundary, but every `/executive-reports` route is still gated to three roles by `canViewExecutivePortfolio()` | The UI gate should match §24.2.3, so a View-Only reader can open approved Executive output. **P1 UI work** — deliberately outside P0 |
+| 2h | Monthly Reports KPI card still counts a report under "Approved / Finalized" after it has been archived — persists through a hard refresh, so it is a derivation defect, not a cache artefact. Both listed reports correctly show Archived | The KPI must exclude archived reports, or state that it includes them. **Deferred by owner 2026-08-22 to the final Monthly UI/UX cleanup.** Display-only: no data, policy or lifecycle rule is wrong |
+| 2g | The platform currently holds **test transactional data**, including 4 Monthly comments compiled from a never-approved Weekly. Deploying P0.2 makes the approved Monthly platform-wide readable, publishing those rows | **MANDATORY PRE-HANDOVER DATA RESET** — see §25. Owner decision 2026-08-21: accepted for the current test dataset, which is retained because it is useful for functional and runtime validation. **Not a P0 blocker.** The reset is a delivery gate, not optional cleanup |
+| 2d | `can_manage_project_setup()` admits the `project_control_admin` platform role (§8.1 level 2, all-projects scope); the twelve tables gated on `weekly_can_manage_project()` — `project_departments` among them — do not. A Project Control Admin not named on a project can edit its record and assignments but **not** its department scope, so project setup would partially fail for such an account | One manage rule across all project-scoped tables. **P1** — pre-dates P0.1, fails CLOSED (denies, never escalates), and must be fixed before a non-admin Project Control account is onboarded |
 | 3 | The stored role set (`reviewer`, `approver`, `department_user`, `viewer`, `executive`) differs from both this document and `05_PERMISSION_MODEL.md` §8 | The eight canonical roles of §8.1. Legacy roles are re-scoped or retired, with existing accounts mapped explicitly |
 | 4 | Some project structure is stored in a form that does not enforce referential integrity | Structural references per §4.4 and §5 |
 | 5 | Report content exists in more than one competing shape | One owned content model per §13.1 |
@@ -790,3 +813,301 @@ Recorded so each is resolved deliberately rather than absorbed silently, per `CL
 | [`05_PERMISSION_MODEL.md`](05_PERMISSION_MODEL.md) | Roles, responsibility, delegation |
 
 This document is the authority on **data ownership and structure**. `01_PROJECT_VISION.md` is the authority on **product scope**. Where any other document or implementation implies a different ownership or relationship, this document governs.
+
+---
+
+## 24. Locked decisions — P0 architecture review, 2026-08-20
+
+Decisions taken by the project owner at the close of the P0 architecture review
+and **locked**. This section is the source of truth for the phases that follow.
+
+Three of them **amend** clauses earlier in this document. Each amendment is
+named below rather than applied silently, per `CLAUDE.md`. Where §24 and an
+earlier section disagree, **§24 governs** and the earlier text is read as
+superseded on that point only.
+
+### 24.1 The canonical end-to-end chain (D-1)
+
+```text
+Create Project → complete Setup → Activate → Weekly → Monthly
+              → Project Executive → Portfolio Executive → Dashboard / Archive
+                            ▲
+              Master Milestones / Master Deliverables
+              (governed registers; Weekly and Monthly report AGAINST them)
+```
+
+Fixed properties of the chain:
+
+1. Every project is an **independent workspace and dataset**. §5 isolation is
+   unchanged.
+2. **Project Executive is per project.** Portfolio Executive consolidates
+   approved Project Executive data across projects. This supersedes the
+   as-built decision recorded in the Executive portfolio route
+   ("one portfolio report per period — never one report per project").
+3. Weekly and Monthly **update the same project data** and integrate with the
+   Master Milestone and Master Deliverable registers. They do not maintain
+   parallel copies.
+4. Dashboard serves a **Portfolio view and a selected-Project view from the
+   same approved source data**.
+5. Old reports remain reachable in **Archive**. Nothing consequential is
+   deleted.
+
+### 24.2 Visibility model (D-2) — **amends §5 rule 4 and §9.2 step 2**
+
+Read and write are governed by **different** gates. This is the change; the
+earlier text collapsed them into one.
+
+| | Gate |
+|---|---|
+| **View** | Every authenticated account may view all projects and platform data, subject to 24.2.1 below. Project assignment is **not** required to read. |
+| **Write / send / approve / manage** | Limited to the account's role **and** its assigned project **and**, for department-scoped entities, its assigned department. §9.2 resolves unchanged for these actions. |
+
+**24.2.1 Two visibility tiers.** Cross-project visibility does **not** extend to
+work in progress.
+
+- **Tier A — visible to every authenticated account, at any state.** Project
+  structure and the official record: project identity and setup, departments,
+  systems, work-level items, contacts, sites, positions, reference documents,
+  calendar events, and the Master Milestone and Master Deliverable
+  **registers**.
+- **Tier B — raw and in-progress report content.** Report **headers**,
+  department submissions, activities, narrative entries, plan items, monthly
+  comments and department summaries, and the update streams reported against
+  milestones and deliverables. Visible to an unassigned reader **only once the
+  parent report is Approved, Finalized or Locked.** Assigned contributors keep
+  their existing scoped access at every state, unchanged.
+
+**The Tier B threshold is Approved onward, not Under Review.** A report under
+review is still in progress; exposing it platform-wide would publish a position
+that Project Control has not yet accepted. This aligns Tier B with §12.3 rule 1
+and with the approved-status set the Executive tier already applies.
+
+> **Amended 2026-08-20 during P0.2 — report headers moved from Tier A to
+> Tier B.** This section originally placed headers in Tier A so a reader could
+> always see that a report exists and what state it is in. That is not
+> implementable at row grain: `weekly_reports.summary` *is* the report-level
+> Executive Summary narrative, and `monthly_reports.executive_summary` likewise,
+> so publishing the header row publishes the unapproved narrative with it. Row
+> Level Security is row-level, not column-level.
+>
+> Moving headers to Tier B is more faithful to the reason stated above than the
+> original clause was. The cost is that an unassigned reader does not see draft
+> report headers in the register at all. That is a UI completeness gap, not a
+> security one; closing it needs a register **view** exposing state without
+> narrative, which is P1 work.
+
+> **`archived` is deliberately outside the approved set.** `archive()`
+> overwrites `status` with `archived`, and `draft → archived` is a legal
+> transition, so an archived row does not imply the report was ever approved.
+> Including it would publish abandoned drafts. The consequence — an
+> archived-but-previously-approved report loses platform-wide visibility — is a
+> real gap for the Archive phase, which needs a durable "was approved" marker
+> rather than a status field that erases its own history.
+
+**24.2.2 Visibility never confers authority.** A view-only reader gains no
+edit, send, approve or manage right anywhere, on any tier, in any state.
+Widening read must never widen write.
+
+**24.2.3 Executive content follows the same publication principle.** *(Locked
+2026-08-20.)* The Executive tier is not exempt from Tier B:
+
+- Draft and in-progress Executive content stays **scoped to its authorized
+  project and reporting users**.
+- Approved, finalized or locked Executive content becomes **platform-wide
+  read-only**.
+- Draft Executive narrative is **never** exposed platform-wide.
+- Write and manage authority is unchanged and stays project-scoped; a portfolio
+  record, having no project, keeps its existing author-role gate.
+
+Two consequences worth stating, because they run in opposite directions:
+
+- `executive_reports` was readable by **every** authenticated account at any
+  state, drafts included — `executive_summary` is the leadership narrative
+  itself. It now opens only from Approved onward, using the same shared
+  definition of "approved" as every other tier.
+- `executive_notes` has **no status column and no link to a report**, so it has
+  no approval state to gate on. Under this principle such content is
+  in-progress for its whole life, so portfolio notes — previously readable by
+  every authenticated account — are now scoped to Executive authors. If notes
+  should ever be publishable, the fix is to give them a lifecycle, not to widen
+  a policy over content that has none.
+
+### 24.3 Consolidator authority (D-3) — **amends §8.1 and §8.3**
+
+**Project Control and Reporting Coordinator are project assignments, not
+platform roles.** §8.1 lists Reporting Coordinator among the canonical platform
+roles; on this point §8.1 is superseded. A person holds them *on named
+projects*, several people may hold them on one project, and one person may hold
+them on several.
+
+**One canonical rule, used by every layer.** An account is a **project
+consolidator** on a project when it holds either of the project's own
+consolidation responsibilities, **or** a project assignment carrying the
+Project Control Manager or Reporting Coordinator responsibility. The database
+and the application must resolve this from **one shared definition**; two
+implementations of it is a defect, not a design.
+
+Consequences:
+
+1. The consolidator rule governs who manages the reporting cycle, and who
+   approves and finalizes official project reporting data.
+2. **Department Manager, or an active Delegate, submits department data.**
+   Submission authority and approval authority are never the same authority.
+3. **No self-assignment.** No account may grant itself, or any other account, a
+   consolidation or department-manager assignment on a project it does not
+   already manage. Assignment is a managed act (§9.4 constraint 1 applied to
+   assignment as well as delegation).
+
+### 24.4 Governed sources of truth (D-4)
+
+Restated here because P0 found live violations of §12.3 and principle 7:
+
+| Fact | Single owner |
+|---|---|
+| Milestone identity, and its current state | The Master Milestone register and its update stream. **No report tier holds a competing milestone list.** |
+| Deliverable identity, and its client-review position | The Master Deliverable register and its update stream |
+| Departmental weekly input | The Weekly tier |
+| Consolidated monthly position | The Monthly tier, compiled from **Approved, Finalized or Locked Weekly data only**, plus Monthly-owned additions |
+| Project and portfolio executive position | Compiled from approved data of the tier below |
+| Reported progress | The reporting tiers. A stored progress figure on the project record is a cache, never authoritative (principle 7) |
+
+**24.4.1 One definition of "approved".** Three rules depend on it —
+compilation (§12.3 rule 1), visibility (§24.2.1) and aggregation — and they must
+never disagree. The set is **`approved`, `finalized`, `locked`**, and it is
+defined once per layer:
+
+| Layer | Definition |
+|---|---|
+| Application | `APPROVED_REPORT_STATUSES` in `src/config/workflows.ts` |
+| Database | `public.report_status_is_approved(text)` |
+
+Everything else aliases those two. `APPROVED_MONTHLY_STATUSES` in the Executive
+tier and `SIGNED_OFF_STATUSES` in the Weekly tier are **aliases, not second
+lists** — before P0.4 they were independent copies, so a later change to what
+counts as approved would have moved some rules and silently left others behind.
+
+**`archived` is excluded**, for the reason given in §24.2.1: `archive()`
+overwrites `status`, and `draft → archived` is legal, so archived does not imply
+ever-approved. Compiling it would raise abandoned drafts into the official
+record.
+
+**Previously compiled content is never deleted to satisfy this rule.** A Monthly
+row whose source Weekly is not *currently* approved — because it never was, or
+because it has since been returned or archived — is history: the Monthly said
+what it said at the time, and principle 6 and §24.1 rule 5 both forbid
+overwriting that. Such rows are counted and reported, never removed. What to do
+about any of them — leave, annotate, or issue a Monthly revision — is an owner
+decision.
+
+### 24.5 Enforcement (D-5) — restates §9.3 as a P0 requirement
+
+Report lifecycle transitions and every write authority above are enforced **at
+the data boundary**. Guards that exist only in client-side code are
+pre-flight guidance, not enforcement, and do not satisfy §9.3.
+
+### 24.6 Frozen scope
+
+**Phase 13.1, 13.2 and 13.3 architecture is frozen.** The Reference Input
+metadata model, the Master Milestone identity/state split, and the Master
+Deliverable identity/state split with its two distinct approvals are not
+reopened except to fix a confirmed P0 defect.
+
+### 24.7 P0 scope, and what it deliberately excludes
+
+P0 addresses only blockers to the chain in 24.1 and to the model in 24.2–24.3.
+
+| # | P0 item | Closes |
+|---|---|---|
+| P0.5 | Migration replay defect | Reproducibility of the schema |
+| P0.6 | One canonical consolidator rule across SQL and application | 24.3 |
+| P0.1 | Close privilege escalation on project and project-assignment records | 24.3 item 3 |
+| P0.2 | Read policy for platform-wide visibility, with Tier A / Tier B | 24.2 |
+| P0.3 | Server-side Weekly and Monthly lifecycle enforcement | 24.5 |
+| P0.4 | Monthly compiles only Approved / Finalized / Locked Weekly data | 24.4, §12.3 rule 1 |
+
+**Not in P0, and not to be started before it is accepted:** Reporting
+Integration (13.4), Project Executive, the Activate workflow, delegation
+authority wiring, notifications, Archive UI, attachments, the remaining
+open-policy tables, and any UI redesign.
+
+---
+
+## 25. Pre-Handover Data Reset — MANDATORY DELIVERY GATE
+
+*Locked by the project owner, 2026-08-21, during P0 pre-flight.*
+
+The platform is carrying **test transactional data**. It is retained deliberately
+— it is what makes functional and runtime validation possible — and it is
+**not** to be cleaned up now.
+
+**It must be removed before final handover.** This is a delivery gate, not
+housekeeping: the platform cannot be handed over holding invented projects,
+reports and comments that a reader would take for real business records.
+
+### 25.1 What triggered this
+
+P0 pre-flight found 4 Monthly comments compiled from a Weekly at status
+`collecting` — the P0.4 defect visible in live data. P0.4 preserves such rows by
+design (§24.4: previously compiled content is never deleted), and P0.2 makes an
+approved Monthly platform-wide readable. Those two locked decisions together
+would publish content derived from a never-approved Weekly.
+
+The owner accepted that consequence **because the data is test data**. That
+acceptance is valid only for as long as it *is* test data, which is precisely
+why the reset is recorded as mandatory rather than left implicit.
+
+### 25.2 What the reset must remove
+
+Transactional and reporting records — the things a user created while exercising
+the platform:
+
+- Weekly reports, submissions, activities, entries, plan items
+- Monthly reports, comments, department summaries, plan items
+- Executive reports and executive notes
+- Milestone and deliverable **update streams**
+- Projects and their scoped links, where those projects are test projects
+- Project events and attendees
+- Uploaded reference documents, and the corresponding objects in storage
+
+### 25.3 What the reset must PRESERVE
+
+- The **schema** in full — tables, columns, constraints, indexes
+- **Every RLS policy, function and trigger.** The reset must not become an
+  opportunity to relax the security model, and the policy count should be
+  verified identical before and after
+- **Required configuration and master data** — the boundary here is an owner
+  decision at the time, not a rule this document can fix in advance.
+  Departments, systems, disciplines, project types, phases, job titles and
+  clients may be genuine organisational master data or may be test values, and
+  only the owner can say which
+- **At least one active System Administrator.** The `profiles` guard enforces a
+  floor of one, and several migrations refuse to run without one
+
+### 25.3a Known inconsistent rows to resolve at reset
+
+`M-2026-09` carries `status = archived` with `active = true` and
+`archived_at = NULL` — the three fields disagree. It predates the controlled
+writer, which sets all three together, so nothing can produce this state now.
+
+Owner decision 2026-08-22: **not repaired**, because it is test data and the
+reset removes it. Recorded so it is not later mistaken for a defect in the
+current lifecycle code, and so that whoever performs the reset knows to check
+for others like it rather than assuming the three fields always agree.
+
+### 25.4 Two technical constraints that will surprise whoever does this
+
+1. **`master_milestones` and `master_deliverables` have no DELETE policy, and
+   the update streams are append-only — by design (13.2 / 13.3).** They cannot
+   be cleared through the application or as `authenticated` at all. The reset
+   needs owner-level or service-role access, and doing it must be a deliberate,
+   recorded act rather than a script someone runs casually.
+2. **Uploaded files are not in any database backup.** `storage.objects` holds
+   metadata; the files live in Supabase Storage. Clearing rows without clearing
+   the bucket leaves orphaned files, and clearing the bucket is a separate
+   operation.
+
+### 25.5 Done when
+
+A restored copy of the delivered database contains no invented project, report
+or comment; carries the same policy, function and trigger counts as before the
+reset; retains the agreed master data; and admits its administrator.

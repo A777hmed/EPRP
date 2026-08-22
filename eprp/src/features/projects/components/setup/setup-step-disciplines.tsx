@@ -11,15 +11,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EmptyState, SectionCard } from "@/components/shared";
-import { ManagedMultiSelect } from "@/features/master-data";
+import { ManagedMultiSelect, useMasterData } from "@/features/master-data";
 import type {
   Discipline,
   MasterRecordBase,
   Project,
   ProjectDisciplineLink,
+  System,
 } from "@/types";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, Plus, X } from "lucide-react";
+
+import {
+  canCorrectScopeLink,
+  correctScopeLink,
+  misplacedScopeLinks,
+  removeScopeLink,
+  scopeLinkKey,
+} from "../../scope-integrity";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -43,8 +52,8 @@ export interface SetupStepDisciplinesProps {
  * Step 4 — link disciplines to the systems and departments they cover.
  *
  * A discipline is chosen per system: pick the system, then the disciplines
- * working on it. Options are limited to disciplines owned by that system's
- * department, so the Discipline → System → Department chain holds.
+ * working on it. Options are limited to disciplines owned by that exact
+ * system and department, so the Discipline → System → Department chain holds.
  */
 export function SetupStepDisciplines({
   project,
@@ -56,6 +65,12 @@ export function SetupStepDisciplines({
 }: SetupStepDisciplinesProps) {
   const links = project.disciplines ?? [];
   const assignments = project.departments;
+
+  // Integrity is judged against the FULL record set, archived included. The
+  // `disciplines` prop carries active records only, so using it here would
+  // report every archived-but-correctly-linked record as an orphan.
+  const { records: allDisciplineRecords } = useMasterData("discipline");
+  const { records: allSystemRecords } = useMasterData("system");
 
   // Every system on the project, flattened with its owning department.
   const projectSystems = assignments.flatMap((assignment) =>
@@ -75,16 +90,43 @@ export function SetupStepDisciplines({
 
   const setForSystem = (ids: string[]) => {
     const others = links.filter((link) => link.systemId !== systemId);
-    const next: ProjectDisciplineLink[] = ids.map((disciplineId) => ({
-      disciplineId,
-      systemId,
-      departmentId: activeDepartmentId,
-    }));
+    // A link already filed under this system is kept exactly as stored.
+    // Rebuilding it would re-stamp `departmentId` from the active system and
+    // silently relocate a misplaced link, hiding the very problem the panel
+    // below asks the user to resolve deliberately.
+    const existing = new Map(
+      linksForSystem.map((link) => [link.disciplineId, link])
+    );
+    const next: ProjectDisciplineLink[] = ids.map(
+      (disciplineId) =>
+        existing.get(disciplineId) ?? {
+          disciplineId,
+          systemId,
+          departmentId: activeDepartmentId,
+        }
+    );
     onDraftChange({ disciplines: [...others, ...next] });
   };
 
   const disciplineName = (id: string) =>
-    disciplines.find((discipline) => discipline.id === id)?.name ?? id;
+    (allDisciplineRecords as Discipline[]).find(
+      (discipline) => discipline.id === id
+    )?.name ??
+    disciplines.find((discipline) => discipline.id === id)?.name ??
+    id;
+  const systemName = (id?: string) =>
+    id
+      ? ((allSystemRecords as System[]).find((system) => system.id === id)
+          ?.name ?? id)
+      : "No system";
+
+  const misplaced = misplacedScopeLinks(
+    project,
+    allDisciplineRecords as Discipline[]
+  );
+  const misplacedKeys = new Set(
+    misplaced.map((entry) => scopeLinkKey(entry.disciplineId, entry.linkSystemId))
+  );
 
   if (projectSystems.length === 0) {
     return (
@@ -145,15 +187,101 @@ export function SetupStepDisciplines({
               value={linksForSystem.map((link) => link.disciplineId)}
               onChange={setForSystem}
               filter={(record: MasterRecordBase) =>
-                (record as Discipline).departmentId === activeDepartmentId
+                (record as Discipline).departmentId === activeDepartmentId &&
+                (record as Discipline).systemId === systemId
               }
-              emptyLabel={`No ${terms.pluralLower} belong to this system's department.`}
+              emptyLabel={`No ${terms.pluralLower} belong to this system.`}
               placeholder={`Select ${terms.pluralLower}…`}
+              displayTerms={terms}
               controlProps={{ id: "setup-disciplines" }}
             />
           </div>
         </div>
       </SectionCard>
+
+      {misplaced.length > 0 && (
+        <SectionCard
+          title={`${terms.plural} filed under the wrong System`}
+          description={`These project links contradict the Department and System that own the ${terms.singularLower}. Nothing is moved until you choose — the master records themselves are not affected.`}
+        >
+          <ul className="space-y-2">
+            {misplaced.map((entry) => {
+              const correctable = canCorrectScopeLink(project, entry);
+              return (
+                <li
+                  key={scopeLinkKey(entry.disciplineId, entry.linkSystemId)}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/5 p-3"
+                >
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 text-sm font-medium">
+                      <AlertTriangle
+                        className="size-3.5 shrink-0 text-warning"
+                        aria-hidden="true"
+                      />
+                      {disciplineName(entry.disciplineId)}
+                    </p>
+                    {entry.problem === "unknown-record" ? (
+                      <p className="text-xs text-muted-foreground">
+                        No master record exists for this id. It can only be
+                        removed from the project.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Filed under {systemName(entry.linkSystemId)} ·{" "}
+                        {departmentName(entry.linkDepartmentId ?? "")} — owned by{" "}
+                        {systemName(entry.ownerSystemId)} ·{" "}
+                        {departmentName(entry.ownerDepartmentId ?? "")}
+                      </p>
+                    )}
+                    {entry.problem !== "unknown-record" && !correctable && (
+                      <p className="text-xs text-muted-foreground">
+                        Add {systemName(entry.ownerSystemId)} on the Systems step
+                        before it can be moved there.
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {entry.problem !== "unknown-record" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!correctable}
+                        onClick={() =>
+                          onDraftChange({
+                            disciplines: correctScopeLink(project, entry),
+                          })
+                        }
+                      >
+                        <ArrowRightLeft
+                          data-icon="inline-start"
+                          aria-hidden="true"
+                        />
+                        Move to {systemName(entry.ownerSystemId)}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Remove ${disciplineName(entry.disciplineId)} from this project`}
+                      onClick={() =>
+                        onDraftChange({
+                          disciplines: removeScopeLink(
+                            project,
+                            entry.disciplineId,
+                            entry.linkSystemId
+                          ),
+                        })
+                      }
+                    >
+                      <X aria-hidden="true" />
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </SectionCard>
+      )}
 
       <SectionCard
         title={`Linked ${terms.pluralLower}`}
@@ -185,7 +313,20 @@ export function SetupStepDisciplines({
                             kind="discipline"
                             id={link.disciplineId}
                             name={disciplineName(link.disciplineId)}
-                            meta={departmentName(link.departmentId ?? "")}
+                            meta={
+                              misplacedKeys.has(
+                                scopeLinkKey(link.disciplineId, link.systemId)
+                              )
+                                ? `${departmentName(link.departmentId ?? "")} · Wrong System — see the panel above`
+                                : departmentName(link.departmentId ?? "")
+                            }
+                            className={
+                              misplacedKeys.has(
+                                scopeLinkKey(link.disciplineId, link.systemId)
+                              )
+                                ? "border-warning/40 bg-warning/5"
+                                : undefined
+                            }
                             context={context}
                             onRemove={() =>
                               onDraftChange({

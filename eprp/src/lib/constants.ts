@@ -1,11 +1,14 @@
 import type {
   AssignmentRole,
   ActivityStatus,
+  ClientReviewStatus,
   CommentCategory,
   EmploymentType,
   PositionStatus,
   EntryStatus,
   KpiRating,
+  MilestoneApprovalStatus,
+  MilestoneStatus,
   OverallStatus,
   Priority,
   ProgressStatus,
@@ -373,3 +376,54 @@ export const WEEKLY_DELEGABLE_RESPONSIBILITIES: {
   { key: "return_submissions", label: "Return inputs for correction" },
   { key: "complete_department", label: "Mark department weekly input complete" },
 ];
+
+/**
+ * Milestone lifecycle (Phase 13.2).
+ *
+ * The same four values `weekly_plan_items` already stores, so the platform
+ * never carries two milestone status vocabularies. Kept separate from
+ * {@link ACTIVITY_STATUS_META}, which has no delayed state.
+ */
+export const MILESTONE_STATUS_META: Record<
+  MilestoneStatus,
+  { label: string; tone: StatusTone }
+> = {
+  not_started: { label: "Not Started", tone: "neutral" },
+  in_progress: { label: "In Progress", tone: "info" },
+  completed: { label: "Completed", tone: "success" },
+  delayed: { label: "Delayed", tone: "danger" },
+};
+
+/** Whether Project Control has accepted a reported milestone update. */
+export const MILESTONE_APPROVAL_META: Record<
+  MilestoneApprovalStatus,
+  { label: string; tone: StatusTone }
+> = {
+  pending: { label: "Awaiting Approval", tone: "warning" },
+  approved: { label: "Approved", tone: "success" },
+  rejected: { label: "Rejected", tone: "danger" },
+};
+
+/**
+ * Where a deliverable stands with the CLIENT (Phase 13.3).
+ *
+ * D6 — this is reported data about the client, and is never the same thing as
+ * {@link MILESTONE_APPROVAL_META}, which labels our own acceptance of the
+ * report. The labels say "Client …" precisely so the two can never be read as
+ * one field on screen, and they must not share a control.
+ */
+export const CLIENT_REVIEW_META: Record<
+  ClientReviewStatus,
+  { label: string; tone: StatusTone }
+> = {
+  not_submitted: { label: "Not Submitted", tone: "neutral" },
+  submitted: { label: "Submitted to Client", tone: "info" },
+  under_review: { label: "Under Client Review", tone: "info" },
+  approved: { label: "Client Approved", tone: "success" },
+  approved_with_comments: {
+    label: "Approved with Comments",
+    tone: "warning",
+  },
+  rejected: { label: "Client Rejected", tone: "danger" },
+  resubmit: { label: "Resubmit Required", tone: "danger" },
+};

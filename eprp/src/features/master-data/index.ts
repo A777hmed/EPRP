@@ -35,6 +35,10 @@ export {
   type MasterDataDialogProps,
 } from "./components/master-data-dialog";
 export {
+  MasterRecordEditButton,
+  type MasterRecordEditButtonProps,
+} from "./components/master-record-edit-button";
+export {
   MasterDataForm,
   type MasterDataFormProps,
 } from "./components/master-data-form";

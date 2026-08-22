@@ -6,15 +6,13 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { MasterRecordBase } from "@/types";
@@ -25,6 +23,7 @@ import {
   type MasterKind,
 } from "../types";
 import { useMasterData } from "../use-master-data";
+import { ManagedSelect, type ManagedSelectProps } from "./managed-select";
 
 /* ------------------------------ Validation -------------------------------- */
 
@@ -77,6 +76,7 @@ function ReferenceSelect({
   value,
   onChange,
   required,
+  placeholder,
   controlProps,
   scopeKey,
   scopeValue,
@@ -85,7 +85,8 @@ function ReferenceSelect({
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
-  controlProps: Record<string, unknown>;
+  placeholder?: string;
+  controlProps: NonNullable<ManagedSelectProps["controlProps"]>;
   /**
    * Narrows the options to records whose `scopeKey` equals `scopeValue` — the
    * System list is filtered by the chosen Department, so an invalid
@@ -94,18 +95,12 @@ function ReferenceSelect({
   scopeKey?: string;
   scopeValue?: string;
 }) {
-  const { records, activeRecords } = useMasterData(refKind);
-  const config = MASTER_KIND_CONFIG[refKind];
+  const { records } = useMasterData(refKind);
   const selected = records.find((r) => r.id === value);
 
   const inScope = (record: MasterRecordBase) =>
     !scopeKey ||
     (record as unknown as Record<string, unknown>)[scopeKey] === scopeValue;
-
-  // Show active options plus the current value even if archived.
-  const base =
-    selected && !selected.active ? [selected, ...activeRecords] : activeRecords;
-  const options = base.filter(inScope);
 
   /*
    * Changing the Department must not leave a System from the previous one
@@ -118,35 +113,22 @@ function ReferenceSelect({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopeValue]);
 
-  if (scopeKey && !scopeValue) {
-    return (
-      <Select value={undefined} disabled>
-        <SelectTrigger {...controlProps} className="w-full">
-          <SelectValue placeholder="Select a department first…" />
-        </SelectTrigger>
-        <SelectContent />
-      </Select>
-    );
-  }
-
   return (
-    <Select
-      value={value || (required ? undefined : "__none__")}
-      onValueChange={(v) => onChange(v === "__none__" ? "" : v)}
-    >
-      <SelectTrigger {...controlProps} className="w-full">
-        <SelectValue placeholder={`Select ${config.singular.toLowerCase()}…`} />
-      </SelectTrigger>
-      <SelectContent>
-        {!required && <SelectItem value="__none__">Not assigned</SelectItem>}
-        {options.map((r) => (
-          <SelectItem key={r.id} value={r.id}>
-            {r.name}
-            {!r.active ? " (archived)" : ""}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <ManagedSelect
+      kind={refKind}
+      value={value}
+      onChange={onChange}
+      allowClear={!required}
+      clearable={!required}
+      filter={scopeKey ? inScope : undefined}
+      enforceFilter={Boolean(scopeKey)}
+      placeholder={
+        scopeKey && !scopeValue ? "Select a department first…" : placeholder
+      }
+      emptyLabel={scopeKey ? "No matching records in this department." : undefined}
+      controlProps={controlProps}
+      disabled={Boolean(scopeKey && !scopeValue)}
+    />
   );
 }
 
@@ -306,6 +288,7 @@ export function MasterDataForm({
                   value={values[field.key] ?? ""}
                   onChange={(v) => setValue(field.key, v)}
                   required={field.required}
+                  placeholder={field.placeholder}
                   controlProps={controlProps}
                   scopeKey={field.scopeBy?.recordKey}
                   scopeValue={
@@ -328,6 +311,9 @@ export function MasterDataForm({
                   value={values[field.key] ?? ""}
                   onChange={(e) => setValue(field.key, e.target.value)}
                 />
+              )}
+              {field.description && !error && (
+                <FieldDescription>{field.description}</FieldDescription>
               )}
               {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
             </Field>

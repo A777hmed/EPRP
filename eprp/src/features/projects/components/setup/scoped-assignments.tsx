@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Plus, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,9 +16,10 @@ import {
 } from "@/components/ui/select";
 import { ASSIGNMENT_ROLE_META } from "@/lib/constants";
 import { useMasterData } from "@/features/master-data";
-import type { AssignmentRole, Discipline, Project } from "@/types";
+import type { AssignmentRole, Contact, Discipline, Project } from "@/types";
 import {
   addScopedAssignments,
+  managerConflict,
   removeScopedAssignment,
   scopedAssignments,
   setScopedAssignment,
@@ -56,9 +58,35 @@ export function ScopedAssignments({
 }: ScopedAssignmentsProps) {
   const terms = useHierarchyTerms(project);
   const { records } = useMasterData("discipline");
+  const { records: contactRecords } = useMasterData("contact");
   const [adding, setAdding] = React.useState(false);
   const [picked, setPicked] = React.useState<string[]>([]);
   const [bulkRole, setBulkRole] = React.useState<AssignmentRole>("team_member");
+
+  /*
+   * Exactly one Department Manager per department, per project.
+   *
+   * These controls edit ONE scope assignment, so promoting through them would
+   * seat a second manager beside the incumbent. `setScopedAssignment` and
+   * `addScopedAssignments` refuse that and return the team unchanged; without
+   * the message below the control would appear to accept a change that was
+   * silently dropped. Changing who runs the department is the Department
+   * Manager selector's job, and it is named here so the fix is one step away.
+   */
+  const blockedByManager = (role: AssignmentRole): boolean => {
+    if (role !== "department_manager") return false;
+    const incumbent = managerConflict(project, departmentId, contactId);
+    if (!incumbent) return false;
+
+    const incumbentName =
+      (contactRecords as Contact[]).find(
+        (record) => record.id === incumbent.contactId
+      )?.name ?? incumbent.contactId;
+    toast.error(
+      `${incumbentName} is already the Department Manager. A department has exactly one — change it in Department Manager on the Contacts step.`
+    );
+    return true;
+  };
 
   const nameOf = React.useCallback(
     (id: string) =>
@@ -90,6 +118,7 @@ export function ScopedAssignments({
 
   const commitAdd = () => {
     if (picked.length === 0) return;
+    if (blockedByManager(bulkRole)) return;
     onDraftChange({
       team: addScopedAssignments(project, departmentId, contactId, picked, {
         assignmentRole: bulkRole,
@@ -139,7 +168,8 @@ export function ScopedAssignments({
 
                 <Select
                   value={assignment.assignmentRole}
-                  onValueChange={(value) =>
+                  onValueChange={(value) => {
+                    if (blockedByManager(value as AssignmentRole)) return;
                     onDraftChange({
                       team: setScopedAssignment(
                         project,
@@ -148,8 +178,8 @@ export function ScopedAssignments({
                         id,
                         { assignmentRole: value as AssignmentRole }
                       ),
-                    })
-                  }
+                    });
+                  }}
                 >
                   <SelectTrigger
                     className="h-7 w-48 text-xs"

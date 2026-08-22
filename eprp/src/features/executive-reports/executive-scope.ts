@@ -28,6 +28,7 @@
  */
 
 import type { Project } from "@/types";
+import { isProjectConsolidator } from "@/features/projects/assignment-rules";
 
 export interface ExecutiveScopeInput {
   /** The `contacts` row this login is linked to, or null when unlinked. */
@@ -41,12 +42,10 @@ export function canAccessProject(project: Project, scope: ExecutiveScopeInput): 
   if (scope.isAdmin) return true;
   if (!scope.contactId) return false;
 
-  if (
-    project.projectControlManagerId === scope.contactId ||
-    project.reportingCoordinatorId === scope.contactId
-  ) {
-    return true;
-  }
+  // Consolidation authority comes from the canonical rule, not from a second
+  // reading of the project's two singular columns — P0.6. Any other assignment
+  // on the project is reach enough for the portfolio view.
+  if (isProjectConsolidator(project, scope.contactId)) return true;
 
   return (project.team ?? []).some((member) => member.contactId === scope.contactId);
 }

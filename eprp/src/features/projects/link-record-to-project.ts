@@ -47,6 +47,7 @@ export async function linkRecordToProject(
 function resolveDepartmentId(
   context: ProjectLinkContext
 ): string | undefined {
+  if (context.departmentId) return context.departmentId;
   switch (context.sourceType) {
     case "department":
       return context.parentId;

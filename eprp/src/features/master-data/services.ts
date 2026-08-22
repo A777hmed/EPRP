@@ -241,7 +241,7 @@ const mockContactService: MasterDataService<Contact> =
       ...mockDepartmentService
         .getAllSync()
         .filter((d) => d.leadContactId === id)
-        .map((d) => `Department lead: ${d.name}`),
+        .map((d) => `Default department lead: ${d.name}`),
     ],
   });
 
@@ -544,7 +544,11 @@ export const MASTER_KIND_CONFIG: Record<MasterKind, MasterKindConfig> = {
     fields: [
       { key: "name", label: "Client Name", type: "text", required: true },
       { key: "code", label: "Client Code", type: "text" },
-      { key: "shortName", label: "Short Name", type: "text" },
+      {
+        key: "shortName",
+        label: "Client Short Name / Acronym",
+        type: "text",
+      },
       { key: "contactName", label: "Contact Name", type: "text" },
       { key: "contactEmail", label: "Contact Email", type: "email" },
       { key: "contactPhone", label: "Contact Phone", type: "tel" },
@@ -614,9 +618,12 @@ export const MASTER_KIND_CONFIG: Record<MasterKind, MasterKindConfig> = {
       { key: "description", label: "Description", type: "textarea" },
       {
         key: "leadContactId",
-        label: "Department Lead",
+        label: "Default Department Lead",
         type: "reference",
         refKind: "contact",
+        placeholder: "Search person…",
+        description:
+          "Search the shared People list, add a new person inline, or open Manage people. This is the department-wide default only — each project still names its own Department Manager in Project Setup, and setting this does not change anyone's Home Department.",
       },
     ],
   },

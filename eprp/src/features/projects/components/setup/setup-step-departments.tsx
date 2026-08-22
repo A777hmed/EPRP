@@ -2,12 +2,12 @@
 
 import * as React from "react";
 
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { EmptyState, SectionCard } from "@/components/shared";
 import { ManagedMultiSelect } from "@/features/master-data";
-import type { DepartmentAssignment, Project } from "@/types";
+import type { Department, DepartmentAssignment, Project } from "@/types";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 
@@ -21,6 +21,7 @@ import { LinkedRecordRow } from "./linked-record-row";
 export interface SetupStepDepartmentsProps {
   project: Project;
   context: ProjectLinkContext;
+  departments: Department[];
   departmentName: (id: string) => string;
   onDraftChange: (patch: Partial<Project>) => void;
 }
@@ -33,6 +34,7 @@ export interface SetupStepDepartmentsProps {
 export function SetupStepDepartments({
   project,
   context,
+  departments,
   departmentName,
   onDraftChange,
 }: SetupStepDepartmentsProps) {
@@ -49,6 +51,7 @@ export function SetupStepDepartments({
         (id) =>
           assignments.find((a) => a.departmentId === id) ?? {
             departmentId: id,
+            projectDescription: "",
             leadName: "",
             reportingRequired: true,
             systems: [],
@@ -120,42 +123,57 @@ export function SetupStepDepartments({
                   )
                 }
               >
-                <div className="flex flex-wrap items-center gap-4">
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <p className="text-xs text-muted-foreground">
+                      Department Manager is selected on the Contacts step and
+                      applies to this project only.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id={`reporting-${assignment.departmentId}`}
+                        checked={assignment.reportingRequired}
+                        onCheckedChange={(checked) =>
+                          patchAssignment(assignment.departmentId, {
+                            reportingRequired: checked,
+                          })
+                        }
+                      />
+                      <Label
+                        htmlFor={`reporting-${assignment.departmentId}`}
+                        className="font-normal"
+                      >
+                        Weekly input
+                      </Label>
+                    </div>
+                  </div>
                   <div className="space-y-1">
                     <Label
-                      htmlFor={`lead-${assignment.departmentId}`}
+                      htmlFor={`description-${assignment.departmentId}`}
                       className="text-xs text-muted-foreground"
                     >
-                      Department lead
+                      Department Scope in This Project (optional)
                     </Label>
-                    <Input
-                      id={`lead-${assignment.departmentId}`}
-                      value={assignment.leadName ?? ""}
-                      placeholder="Lead name"
-                      className="h-8 w-44"
+                    <Textarea
+                      id={`description-${assignment.departmentId}`}
+                      value={assignment.projectDescription ?? ""}
+                      rows={2}
+                      placeholder={
+                        departments.find(
+                          (department) =>
+                            department.id === assignment.departmentId
+                        )?.description ??
+                        "Add scope or notes specific to this project"
+                      }
                       onChange={(event) =>
                         patchAssignment(assignment.departmentId, {
-                          leadName: event.target.value,
+                          projectDescription: event.target.value,
                         })
                       }
                     />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id={`reporting-${assignment.departmentId}`}
-                      checked={assignment.reportingRequired}
-                      onCheckedChange={(checked) =>
-                        patchAssignment(assignment.departmentId, {
-                          reportingRequired: checked,
-                        })
-                      }
-                    />
-                    <Label
-                      htmlFor={`reporting-${assignment.departmentId}`}
-                      className="font-normal"
-                    >
-                      Weekly input
-                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Leave blank to use the shared Department description.
+                    </p>
                   </div>
                 </div>
               </LinkedRecordRow>

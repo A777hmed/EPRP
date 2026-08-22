@@ -29,6 +29,9 @@ export const FIELD_LABELS: Record<string, string> = {
   clientRepresentativeId: "Client Representative",
   reportingCoordinatorId: "Reporting Coordinator",
   projectSponsorId: "Project Sponsor",
+  additionalPositions: "Additional Project Roles / Positions",
+  jobTitleId: "Position",
+  contactId: "Person",
   status: "Project Status",
   overallStatus: "Overall Status",
   plannedProgress: "Planned Progress",
@@ -43,14 +46,15 @@ export const FIELD_LABELS: Record<string, string> = {
   currency: "Reporting Currency",
   workingWeek: "Working Week",
   timeZone: "Time Zone",
-  site: "Project Location",
+  site: "Primary Site",
   country: "Country",
   city: "City",
+  additionalSites: "Additional Sites",
   clientContactName: "Client Contact Name",
   clientContactEmail: "Client Contact Email",
   clientContactPhone: "Client Contact Phone",
   departments: "Departments",
-  projectLogoRef: "Project Logo",
+  projectLogoRef: "EPROM / Company Logo",
   clientLogoRef: "Client Logo",
   reportHeaderTitle: "Report Header Title",
   reportFooterText: "Report Footer Text",
@@ -68,13 +72,14 @@ const SECTION_OF_FIELD: Record<string, SectionId> = {
   contractStartDate: 2, plannedStartDate: 2, actualStartDate: 2,
   plannedFinishDate: 2, forecastFinishDate: 2, actualFinishDate: 2,
   projectManagerId: 3, projectControlManagerId: 3, clientRepresentativeId: 3,
-  reportingCoordinatorId: 3, projectSponsorId: 3,
+  reportingCoordinatorId: 3, projectSponsorId: 3, additionalPositions: 3,
   status: 4, overallStatus: 4, plannedProgress: 4, actualProgress: 4,
   currentPhaseId: 4, priority: 4,
   weeklyEnabled: 5, monthlyEnabled: 5, executiveEnabled: 5,
   weeklyReportingDay: 5, monthlyCutoffDay: 5, currency: 5, workingWeek: 5,
   timeZone: 5,
-  site: 6, country: 6, city: 6, clientContactName: 6, clientContactEmail: 6,
+  site: 6, country: 6, city: 6, additionalSites: 6,
+  clientContactName: 6, clientContactEmail: 6,
   clientContactPhone: 6,
   departments: 7,
   projectLogoRef: 8, clientLogoRef: 8, reportHeaderTitle: 8,
@@ -89,6 +94,10 @@ export function sectionForPath(path: readonly PropertyKey[]): SectionId {
 /** "departments.0.leadName" → "Department 1 — Lead". */
 export function labelForPath(path: readonly PropertyKey[]): string {
   const [head, di, sub, si, leaf] = path;
+  if (head === "additionalSites" && typeof di === "number") {
+    const suffix = sub === "country" ? "Country" : sub === "city" ? "City" : "Name";
+    return `Additional Site ${di + 1} — ${suffix}`;
+  }
   if (head === "departments" && typeof di === "number") {
     const deptLabel = `Department ${di + 1}`;
     if (sub === "systems" && typeof si === "number") {

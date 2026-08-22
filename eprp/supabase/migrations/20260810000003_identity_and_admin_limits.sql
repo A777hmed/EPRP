@@ -44,6 +44,22 @@ begin
    where lower(btrim(name)) = lower(btrim('Ahmed Morsy Moustafa'))
    limit 1;
 
+  /*
+   * P1.0 — replay safety.
+   *
+   * This step is a ONE-TIME identity linkage for a specific production account.
+   * On a fresh environment neither the named Contact nor any profile exists, so
+   * there is nothing to link and nothing to get wrong. Skipping is correct
+   * there; refusing would only stop the schema from being rebuilt.
+   *
+   * The ambiguity guard below is NOT relaxed: where the contact does exist, a
+   * duplicate name still aborts rather than guessing.
+   */
+  if matches = 0 and not exists (select 1 from public.profiles) then
+    raise notice 'Fresh environment: neither the named Contact nor any profile exists; identity linkage skipped.';
+    return;
+  end if;
+
   if matches = 0 then
     raise exception 'Aborting: the named Contact does not exist. No Contact will be created.';
   end if;

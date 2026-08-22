@@ -707,7 +707,17 @@ function ApprovalPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
   const save = async () => {
     setSaving(true);
     try {
-      await monthlyReportService.update(report.id, { reviewedByContactId: reviewedBy, approvedByContactId: approvedBy, status });
+      /*
+       * Sign-off fields first, then the transition. Status is a governed field
+       * since P0.3 and no longer travels with ordinary column updates; saving
+       * the reviewer and approver before moving the report also means the
+       * stage conditions see the values this save is recording, rather than
+       * the ones it is replacing.
+       */
+      await monthlyReportService.update(report.id, { reviewedByContactId: reviewedBy, approvedByContactId: approvedBy });
+      if (status !== report.status) {
+        await monthlyReportService.changeStatus(report.id, status);
+      }
       await reload();
       toast.success("Approval data saved.");
     } catch (error) {

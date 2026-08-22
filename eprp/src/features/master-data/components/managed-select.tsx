@@ -35,6 +35,8 @@ export interface ManagedSelectProps {
   placeholder?: string;
   /** Offer a "Not assigned" entry inside the list for optional fields. */
   allowClear?: boolean;
+  /** Whether a selected value shows the adjacent clear button. */
+  clearable?: boolean;
   /**
    * Accessible name for the "×" button, e.g. "Clear Project Manager".
    * Defaults to the master-data kind when the field has no distinct name.
@@ -89,6 +91,7 @@ export function ManagedSelect({
   onBlur,
   placeholder,
   allowClear = false,
+  clearable = true,
   clearLabel,
   controlProps,
   onMutated,
@@ -139,7 +142,7 @@ export function ManagedSelect({
 
   // Offered whenever something is stored, including a selection the current
   // filter now excludes — otherwise a stale assignment cannot be removed.
-  const showClear = value !== "";
+  const showClear = clearable && value !== "";
   const clearValue = () => {
     onChange("");
     // Keeps validation in step with the form's onBlur mode, so a required

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 
 import {
   Select,
@@ -30,6 +31,8 @@ export interface ScopedPersonSelectProps {
   names: WeeklyNameLookup;
   disabled?: boolean;
   label?: string;
+  /** Deep-links the empty state at this project's team page when known. */
+  projectId?: string;
 }
 
 /**
@@ -55,6 +58,7 @@ export function ScopedPersonSelect({
   names,
   disabled,
   label = "Owner",
+  projectId,
 }: ScopedPersonSelectProps) {
   const options = React.useMemo(() => {
     const seen = new Set<string>();
@@ -75,11 +79,30 @@ export function ScopedPersonSelect({
     return out;
   }, [responsible, department, value]);
 
+  /*
+   * An empty picker must say WHY it is empty and where to fix it. Rendering a
+   * disabled Select with no options reads as a broken control; this states the
+   * cause and links to the page that resolves it.
+   */
   if (options.length === 0) {
     return (
       <p className="text-xs text-muted-foreground">
-        No one is assigned to this department in Project Setup, so there is
-        nobody to own this yet.
+        No eligible owner —{" "}
+        {projectId ? (
+          <Link
+            href={`/projects/${projectId}/team`}
+            className="font-medium text-primary underline-offset-2 hover:underline"
+          >
+            Manage Project Contacts
+          </Link>
+        ) : (
+          <Link
+            href="/contacts"
+            className="font-medium text-primary underline-offset-2 hover:underline"
+          >
+            Manage Project Contacts
+          </Link>
+        )}
       </p>
     );
   }

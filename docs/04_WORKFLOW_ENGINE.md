@@ -4,6 +4,15 @@
 > the operating detail beneath [`03_REPORTING_ARCHITECTURE.md`](03_REPORTING_ARCHITECTURE.md)
 > §8–§12, which is authoritative on the canonical lifecycle.
 
+> **Locked decisions.** Who may perform each transition below, and who may read
+> a report in each state, are governed by
+> [`02_PLATFORM_ARCHITECTURE.md` §24](02_PLATFORM_ARCHITECTURE.md#24-locked-decisions--p0-architecture-review-2026-08-20).
+> The rules are not restated here — §24 governs. In particular: transitions are
+> enforced at the data boundary (§24.5), a department's raw submission content
+> becomes readable platform-wide only from **Approved** onward (§24.2.1), and
+> submission authority (Department Manager or active Delegate) is never the
+> same authority as approval (project consolidator) (§24.3).
+
 ## 1. Weekly lifecycle
 
 ```text

@@ -18,6 +18,8 @@ export interface ProjectLinkContext {
   sourceType?: "project" | "department" | "system" | "discipline" | "contact";
   /** Id of that parent, so the target can pre-select its relationship. */
   parentId?: string;
+  /** Explicit Department scope; avoids re-deriving it from a lazy cache. */
+  departmentId?: string;
   /** The wizard step the user left, to return to and to continue from. */
   currentStep?: ProjectWorkflowStepId;
   /** Absolute path to return to, including any section anchor. */
@@ -33,12 +35,33 @@ export const PROJECT_EDIT_SECTIONS = {
 
 export type ProjectEditSection = keyof typeof PROJECT_EDIT_SECTIONS;
 
+/**
+ * Return path that lands back on a scope section of the page the user was
+ * actually on.
+ *
+ * The scope sections render inside the project form, and that form is hosted
+ * by two different routes — Project Edit and the Project Setup wizard's
+ * Project Info step. Both render the same anchors, so the anchor is fixed but
+ * the base path is not: assuming Project Edit sends a Setup user out of the
+ * wizard entirely, losing the workflow nav and the step they came from.
+ *
+ * Any anchor already on `basePath` is dropped so the section anchor is not
+ * appended twice.
+ */
+export function projectScopeReturn(
+  basePath: string,
+  section: ProjectEditSection
+): string {
+  const [path] = basePath.split("#");
+  return `${path}#${PROJECT_EDIT_SECTIONS[section]}`;
+}
+
 /** Return path that lands back on a specific Project Edit section. */
 export function projectEditReturn(
   projectId: string,
   section: ProjectEditSection
 ): string {
-  return `/projects/${projectId}/edit#${PROJECT_EDIT_SECTIONS[section]}`;
+  return projectScopeReturn(`/projects/${projectId}/edit`, section);
 }
 
 /** Append the context params to a path, preserving any it already has. */
@@ -51,6 +74,7 @@ export function withProjectContext(
   if (context.projectId) params.set("projectId", context.projectId);
   if (context.sourceType) params.set("sourceType", context.sourceType);
   if (context.parentId) params.set("parentId", context.parentId);
+  if (context.departmentId) params.set("departmentId", context.departmentId);
   if (context.currentStep) params.set("currentStep", context.currentStep);
   if (context.returnTo) params.set("returnTo", context.returnTo);
   const query = params.toString();
@@ -76,6 +100,7 @@ export function readProjectContext(
         ? sourceType
         : undefined,
     parentId: one(searchParams.parentId),
+    departmentId: one(searchParams.departmentId),
     currentStep: step && isProjectWorkflowStep(step) ? step : undefined,
     // Only ever return to an in-app path, never an absolute URL — the value
     // comes from the address bar and is used as a redirect target.

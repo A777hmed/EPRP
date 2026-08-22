@@ -121,12 +121,16 @@ export interface SystemAssignment {
   id: string;
   name: string;
   code?: string;
+  /** Project-specific scope; absent falls back to the System master description. */
+  projectDescription?: string;
 }
 
 /** A department participating in a project, with its systems. */
 export interface DepartmentAssignment {
   departmentId: string;
-  /** Department lead for this project (free text until user management). */
+  /** Project-specific scope; absent falls back to the Department master description. */
+  projectDescription?: string;
+  /** Legacy project-link lead text; structured managers live in project.team. */
   leadName?: string;
   /** Whether this department must submit weekly report input. */
   reportingRequired: boolean;
@@ -221,8 +225,9 @@ export interface ProjectReportingConfig {
 }
 
 export interface ProjectBranding {
-  /** Mock-uploaded logo (data URL) until real file storage exists. */
+  /** EPROM/company logo override (data URL until real logo storage exists). */
   projectLogoRef?: string;
+  /** Client logo override, kept separate from EPROM/company identity. */
   clientLogoRef?: string;
   reportHeaderTitle?: string;
   reportFooterText?: string;
@@ -237,6 +242,278 @@ export interface ProjectLocation {
   site?: string;
   country?: string;
   city?: string;
+}
+
+/**
+ * One additional, admin-configurable position on a project.
+ *
+ * Sits BESIDE the five fixed responsibility roles rather than replacing any of
+ * them. `jobTitleId` is a managed Job Title record and `contactId` a Person
+ * record — this row links them for one project and copies neither, so a
+ * person holding a position here still has exactly one Person record and one
+ * Home Department.
+ */
+export interface ProjectPosition {
+  /** Present for persisted rows; omitted while a new form row is unsaved. */
+  id?: string;
+  jobTitleId: string;
+  contactId: string;
+  notes?: string;
+  sortOrder: number;
+}
+
+/* ------------------------- Master Milestones (13.2) ----------------------- */
+
+export type MilestoneStatus =
+  | "not_started"
+  | "in_progress"
+  | "completed"
+  | "delayed";
+
+export type MilestonePriority = "low" | "medium" | "high" | "critical";
+
+/** Where a milestone identity came from. `schedule` arrives with 13.5. */
+export type MilestoneSource = "manual" | "scope";
+
+/** Which channel proposed an update. `schedule_import` arrives with 13.5. */
+export type MilestoneUpdateSource = "weekly" | "monthly" | "planning";
+
+export type MilestoneApprovalStatus = "pending" | "approved" | "rejected";
+
+/**
+ * A milestone's IDENTITY — what it is, not how it is going.
+ *
+ * Status, progress and forecast are deliberately absent: they are derived from
+ * the latest approved `MilestoneUpdate`, so there is exactly one writable store
+ * of the current figure.
+ */
+export interface MasterMilestone {
+  id: string;
+  projectId: string;
+  code: string;
+  name: string;
+  description?: string;
+  departmentId?: string;
+  systemId?: string;
+  /** Storage name is stable; PSM projects display it as Program & Study. */
+  disciplineId?: string;
+  baselineDate?: IsoDate;
+  priority: MilestonePriority;
+  ownerContactId?: string;
+  source: MilestoneSource;
+  sourceDocumentId?: string;
+  active: boolean;
+  archivedAt?: IsoDateTime;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+/**
+ * One entry in a milestone's append-only state stream.
+ *
+ * The reported facts are immutable once written — a database trigger refuses
+ * any edit to them. Only the approval decision may transition, once.
+ */
+export interface MilestoneUpdate {
+  id: string;
+  milestoneId: string;
+  source: MilestoneUpdateSource;
+  weeklyReportId?: string;
+  monthlyReportId?: string;
+  departmentId?: string;
+  disciplineId?: string;
+  status: MilestoneStatus;
+  progressPercent?: number;
+  forecastDate?: IsoDate;
+  actualDate?: IsoDate;
+  narrative?: string;
+  approvalStatus: MilestoneApprovalStatus;
+  approvedByContactId?: string;
+  approvedAt?: IsoDateTime;
+  decisionNote?: string;
+  /** True when this reported less progress than the current approved figure. */
+  isRegression: boolean;
+  regressionReason?: string;
+  submittedByContactId?: string;
+  submittedAt: IsoDateTime;
+}
+
+/* ------------------------ Master Deliverables (13.3) ---------------------- */
+
+/**
+ * Where a deliverable stands with the CLIENT.
+ *
+ * D6: this is reported data — a fact about what the client did — and is never
+ * the same thing as {@link MilestoneApprovalStatus}, which records whether
+ * Project Control accepts the report. `approved` here means the client
+ * approved, and says nothing about whether we have confirmed that.
+ *
+ * `approved_with_comments` is its own state rather than `approved` plus a note:
+ * it carries an obligation to respond, and collapsing it would lose that.
+ */
+export type ClientReviewStatus =
+  | "not_submitted"
+  | "submitted"
+  | "under_review"
+  | "approved"
+  | "approved_with_comments"
+  | "rejected"
+  | "resubmit";
+
+/** Which channel proposed a deliverable update. */
+export type DeliverableUpdateSource = "weekly" | "monthly" | "planning";
+
+/**
+ * A deliverable's IDENTITY — what it is, not where it stands.
+ *
+ * Client review status, actual submission date and the submitted revision are
+ * deliberately absent: they are derived from the latest approved
+ * {@link DeliverableUpdate}.
+ */
+export interface MasterDeliverable {
+  id: string;
+  projectId: string;
+  code: string;
+  title: string;
+  description?: string;
+  departmentId?: string;
+  systemId?: string;
+  /** Storage name is stable; PSM projects display it as Program & Study. */
+  disciplineId?: string;
+  ownerContactId?: string;
+  /**
+   * The milestone this deliverable serves. A REFERENCE into the master
+   * register — no milestone code, name or date is ever copied onto this record.
+   */
+  milestoneId?: string;
+  plannedSubmissionDate?: IsoDate;
+  /** The revision this is PLANNED at; the submitted one is reported per update. */
+  revision?: string;
+  /** Evidence, held in `project_documents` rather than a second file store. */
+  documentId?: string;
+  active: boolean;
+  archivedAt?: IsoDateTime;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+/**
+ * One entry in a deliverable's append-only state stream.
+ *
+ * Carries two independent statuses by design (D6). `clientReviewStatus` is what
+ * was reported; `approvalStatus` is whether Project Control accepts the report.
+ * A row may legitimately read client-approved / internally-pending, and no UI
+ * may render the two in one control.
+ */
+export interface DeliverableUpdate {
+  id: string;
+  deliverableId: string;
+  source: DeliverableUpdateSource;
+  weeklyReportId?: string;
+  monthlyReportId?: string;
+  departmentId?: string;
+  disciplineId?: string;
+  clientReviewStatus: ClientReviewStatus;
+  clientReviewDate?: IsoDate;
+  /** The client's own transmittal or comment-sheet reference. */
+  clientReference?: string;
+  forecastDate?: IsoDate;
+  actualSubmissionDate?: IsoDate;
+  /** The revision actually submitted, which can differ from the planned one. */
+  revision?: string;
+  narrative?: string;
+  approvalStatus: MilestoneApprovalStatus;
+  approvedByContactId?: string;
+  approvedAt?: IsoDateTime;
+  decisionNote?: string;
+  submittedByContactId?: string;
+  submittedAt: IsoDateTime;
+}
+
+/** How milestone updates become official on a project. */
+export type MilestoneApprovalMode = "manual" | "auto_on_report_finalized";
+
+/** A named physical site belonging to one Project. */
+export interface ProjectSite {
+  /** Present for persisted rows; omitted while a new form row is unsaved. */
+  id?: string;
+  name: string;
+  country?: string;
+  city?: string;
+  isPrimary: boolean;
+  sortOrder: number;
+}
+
+export type ProjectDocumentType =
+  | "scope_of_work"
+  | "baseline_schedule"
+  /** A revision or update to the baseline schedule (Phase 13.1). */
+  | "schedule_update"
+  | "contract_purchase_order"
+  | "approved_proposal"
+  | "organization_chart"
+  | "kickoff_mom"
+  | "other";
+
+/**
+ * Where a reference document came from — distinct from `uploadedBy`, which is
+ * who put it into the platform.
+ */
+export type ProjectDocumentSource =
+  | "client_issued"
+  | "internal"
+  | "contractor"
+  | "other";
+
+export type ProjectDocumentStatus =
+  | "current"
+  | "superseded"
+  | "draft"
+  | "approved"
+  | "cancelled";
+
+/** Metadata for an immutable uploaded revision of an official Project file. */
+export interface ProjectDocument {
+  id: string;
+  projectId: string;
+  title: string;
+  documentType: ProjectDocumentType;
+  documentNumber?: string;
+  revision?: string;
+  issueDate?: IsoDate;
+  /** When the document takes effect, which is not always when it was issued. */
+  effectiveDate?: IsoDate;
+  source?: ProjectDocumentSource;
+  status: ProjectDocumentStatus;
+  /**
+   * The document that replaced this one.
+   *
+   * Set only through `projectDocumentService.supersede()`, which writes it and
+   * `status: "superseded"` in the same statement. A database CHECK enforces
+   * that a document carrying this link is necessarily superseded, so the two
+   * can never disagree.
+   */
+  supersededByDocumentId?: string;
+  notes?: string;
+  /**
+   * Soft-delete discriminator. Present means the document is in Trash.
+   *
+   * Deliberately separate from `status`, which keeps its own value throughout —
+   * a superseded document that is binned is still superseded, and Restore has
+   * to return it to exactly that.
+   */
+  deletedAt?: IsoDateTime;
+  deletedBy?: string;
+  deletedByName?: string;
+  deleteReason?: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  storagePath: string;
+  uploadedBy?: string;
+  uploadedByName?: string;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
 }
 
 export interface ProjectClientContact {
@@ -283,6 +560,13 @@ export interface Project {
   priority: Priority;
 
   reporting: ProjectReportingConfig;
+  /** Additive multi-site model; legacy `location` remains the primary fallback. */
+  sites?: ProjectSite[];
+  /**
+   * Additional project positions beyond the five fixed responsibility roles.
+   * Optional so projects created before it existed stay valid — read as `?? []`.
+   */
+  positions?: ProjectPosition[];
   location: ProjectLocation;
   clientContact: ProjectClientContact;
   departments: DepartmentAssignment[];

@@ -9,6 +9,8 @@ import type {
   ProjectDelegation,
   ProjectDisciplineLink,
   ProjectLifecycleStatus,
+  ProjectPosition,
+  ProjectSite,
   ProjectTeamMember,
   Weekday,
 } from "@/types";
@@ -19,6 +21,8 @@ import type {
   ProjectDepartmentRow,
   ProjectDisciplineRow,
   ProjectRow,
+  ProjectPositionRow,
+  ProjectSiteRow,
 } from "@/lib/supabase/database.types";
 import type { ProjectService } from "./project-service";
 
@@ -181,16 +185,20 @@ export function rowToProject(
   deptRows: ProjectDepartmentRow[],
   disciplineRows: ProjectDisciplineRow[] = [],
   teamRows: ProjectContactRow[] = [],
-  delegationRows: ProjectDelegationRow[] = []
+  delegationRows: ProjectDelegationRow[] = [],
+  siteRows: ProjectSiteRow[] = [],
+  positionRows: ProjectPositionRow[] = []
 ): Project {
   const departments: DepartmentAssignment[] = deptRows.map((d) => ({
     departmentId: d.department_id,
+    projectDescription: d.project_description ?? undefined,
     leadName: d.lead_name ?? undefined,
     reportingRequired: d.reporting_required,
     systems: (d.systems ?? []).map((s) => ({
       id: s.id,
       name: s.name,
       code: s.code,
+      projectDescription: s.projectDescription,
     })),
   }));
 
@@ -231,6 +239,27 @@ export function rowToProject(
       workingWeek: row.working_week,
       timeZone: row.time_zone,
     },
+    sites: siteRows
+      .slice()
+      .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
+      .map((site) => ({
+        id: site.id,
+        name: site.name,
+        country: site.country ?? undefined,
+        city: site.city ?? undefined,
+        isPrimary: site.is_primary,
+        sortOrder: site.sort_order,
+      })),
+    positions: positionRows
+      .slice()
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((position) => ({
+        id: position.id,
+        jobTitleId: position.job_title_id,
+        contactId: position.contact_id,
+        notes: position.notes ?? undefined,
+        sortOrder: position.sort_order,
+      })),
     location: {
       site: row.site ?? undefined,
       country: row.country ?? undefined,
@@ -286,6 +315,158 @@ export function rowToProject(
 
 /* ---------------------------- Join-table writes --------------------------- */
 
+async function replaceProjectSites(
+  projectId: string,
+  sites: ProjectSite[]
+): Promise<void> {
+  const sb = client();
+  const normalized = sites
+    .filter((site) => site.name.trim())
+    .map((site, index) => ({
+      ...site,
+      name: site.name.trim(),
+      country: site.country?.trim() || undefined,
+      city: site.city?.trim() || undefined,
+      sortOrder: index,
+    }));
+
+  if (normalized.length === 0) {
+    const { error } = await sb
+      .from("project_sites")
+      .delete()
+      .eq("project_id", projectId);
+    if (error) throw new Error(error.message);
+    return;
+  }
+
+  const { data: currentData, error: currentError } = await sb
+    .from("project_sites")
+    .select("id")
+    .eq("project_id", projectId);
+  if (currentError) throw new Error(currentError.message);
+  const currentIds = new Set(
+    ((currentData ?? []) as Pick<ProjectSiteRow, "id">[]).map((row) => row.id)
+  );
+
+  const primaryIndex = Math.max(
+    0,
+    normalized.findIndex((site) => site.isPrimary)
+  );
+  const rows = normalized.map((site, index) => ({
+    id:
+      site.id && currentIds.has(site.id)
+        ? site.id
+        : globalThis.crypto.randomUUID(),
+    project_id: projectId,
+    name: site.name,
+    country: site.country ?? null,
+    city: site.city ?? null,
+    // Clear first, then promote exactly one row after the upsert so the
+    // partial unique index also permits changing the primary site.
+    is_primary: false,
+    sort_order: index,
+  }));
+
+  const { error: clearPrimaryError } = await sb
+    .from("project_sites")
+    .update({ is_primary: false })
+    .eq("project_id", projectId);
+  if (clearPrimaryError) throw new Error(clearPrimaryError.message);
+
+  const { error: upsertError } = await sb
+    .from("project_sites")
+    .upsert(rows, { onConflict: "id" });
+  if (upsertError) throw new Error(upsertError.message);
+
+  const keptIds = rows.map((site) => site.id);
+  const { error: deleteError } = await sb
+    .from("project_sites")
+    .delete()
+    .eq("project_id", projectId)
+    .not("id", "in", `(${keptIds.join(",")})`);
+  if (deleteError) throw new Error(deleteError.message);
+
+  const { error: primaryError } = await sb
+    .from("project_sites")
+    .update({ is_primary: true })
+    .eq("project_id", projectId)
+    .eq("id", rows[primaryIndex].id);
+  if (primaryError) throw new Error(primaryError.message);
+}
+
+/**
+ * Replace the project's additional positions.
+ *
+ * Rows carry no meaning beyond (position, person, order), so this is a plain
+ * replace rather than the primary-flag dance `project_sites` needs. Rows the
+ * caller still holds keep their id, so a reorder or a notes edit updates in
+ * place instead of churning the row identity. Neither the Job Title nor the
+ * Person master record is written.
+ */
+async function replaceProjectPositions(
+  projectId: string,
+  positions: ProjectPosition[]
+): Promise<void> {
+  const sb = client();
+  const normalized = positions
+    .filter((position) => position.jobTitleId && position.contactId)
+    .map((position, index) => ({
+      ...position,
+      notes: position.notes?.trim() || undefined,
+      sortOrder: index,
+    }));
+
+  if (normalized.length === 0) {
+    const { error } = await sb
+      .from("project_positions")
+      .delete()
+      .eq("project_id", projectId);
+    if (isMissingTable(error)) return;
+    if (error) throw new Error(error.message);
+    return;
+  }
+
+  const { data: currentData, error: currentError } = await sb
+    .from("project_positions")
+    .select("id")
+    .eq("project_id", projectId);
+  if (isMissingTable(currentError)) return;
+  if (currentError) throw new Error(currentError.message);
+  const currentIds = new Set(
+    ((currentData ?? []) as Pick<ProjectPositionRow, "id">[]).map(
+      (row) => row.id
+    )
+  );
+
+  const rows = normalized.map((position, index) => ({
+    id:
+      position.id && currentIds.has(position.id)
+        ? position.id
+        : globalThis.crypto.randomUUID(),
+    project_id: projectId,
+    job_title_id: position.jobTitleId,
+    contact_id: position.contactId,
+    notes: position.notes ?? null,
+    sort_order: index,
+  }));
+
+  // Remove first: the same person may be moved between positions in one save,
+  // and the (project, position, person) unique index would reject the upsert
+  // while their previous row still exists.
+  const keptIds = rows.map((position) => position.id);
+  const { error: deleteError } = await sb
+    .from("project_positions")
+    .delete()
+    .eq("project_id", projectId)
+    .not("id", "in", `(${keptIds.join(",")})`);
+  if (deleteError) throw new Error(deleteError.message);
+
+  const { error: upsertError } = await sb
+    .from("project_positions")
+    .upsert(rows, { onConflict: "id" });
+  if (upsertError) throw new Error(upsertError.message);
+}
+
 async function replaceDepartments(
   projectId: string,
   departments: DepartmentAssignment[]
@@ -296,9 +477,15 @@ async function replaceDepartments(
   const rows = departments.map((d) => ({
     project_id: projectId,
     department_id: d.departmentId,
+    project_description: d.projectDescription ?? null,
     lead_name: d.leadName ?? null,
     reporting_required: d.reportingRequired,
-    systems: d.systems.map((s) => ({ id: s.id, name: s.name, code: s.code })),
+    systems: d.systems.map((s) => ({
+      id: s.id,
+      name: s.name,
+      code: s.code,
+      projectDescription: s.projectDescription,
+    })),
   }));
   const { error } = await sb.from("project_departments").insert(rows);
   if (error) throw new Error(error.message);
@@ -577,6 +764,44 @@ async function fetchDelegationRows(
   return grouped;
 }
 
+async function fetchProjectPositionRows(
+  projectIds: string[]
+): Promise<Map<string, ProjectPositionRow[]>> {
+  const grouped = new Map<string, ProjectPositionRow[]>();
+  if (projectIds.length === 0) return grouped;
+  const { data, error } = await client()
+    .from("project_positions")
+    .select("*")
+    .in("project_id", projectIds)
+    .order("sort_order", { ascending: true });
+  // Missing table means the additive migration has not been applied yet; the
+  // project still loads and simply shows no additional positions.
+  if (isMissingTable(error)) return grouped;
+  if (error) throw new Error(error.message);
+  for (const row of (data ?? []) as ProjectPositionRow[]) {
+    grouped.set(row.project_id, [...(grouped.get(row.project_id) ?? []), row]);
+  }
+  return grouped;
+}
+
+async function fetchProjectSiteRows(
+  projectIds: string[]
+): Promise<Map<string, ProjectSiteRow[]>> {
+  const grouped = new Map<string, ProjectSiteRow[]>();
+  if (projectIds.length === 0) return grouped;
+  const { data, error } = await client()
+    .from("project_sites")
+    .select("*")
+    .in("project_id", projectIds)
+    .order("sort_order", { ascending: true });
+  if (isMissingTable(error)) return grouped;
+  if (error) throw new Error(error.message);
+  for (const row of (data ?? []) as ProjectSiteRow[]) {
+    grouped.set(row.project_id, [...(grouped.get(row.project_id) ?? []), row]);
+  }
+  return grouped;
+}
+
 /* ------------------------------- Service ---------------------------------- */
 
 export const supabaseProjectService: ProjectService = {
@@ -588,20 +813,30 @@ export const supabaseProjectService: ProjectService = {
     if (error) throw new Error(error.message);
     const rows = (data ?? []) as ProjectRow[];
     const ids = rows.map((r) => r.id);
-    const [deptRows, disciplineRows, teamRows, delegationRows] =
-      await Promise.all([
-        fetchDepartmentRows(ids),
-        fetchDisciplineRows(ids),
-        fetchTeamRows(ids),
-        fetchDelegationRows(ids),
-      ]);
+    const [
+      deptRows,
+      disciplineRows,
+      teamRows,
+      delegationRows,
+      siteRows,
+      positionRows,
+    ] = await Promise.all([
+      fetchDepartmentRows(ids),
+      fetchDisciplineRows(ids),
+      fetchTeamRows(ids),
+      fetchDelegationRows(ids),
+      fetchProjectSiteRows(ids),
+      fetchProjectPositionRows(ids),
+    ]);
     return rows.map((row) =>
       rowToProject(
         row,
         deptRows.get(row.id) ?? [],
         disciplineRows.get(row.id) ?? [],
         teamRows.get(row.id) ?? [],
-        delegationRows.get(row.id) ?? []
+        delegationRows.get(row.id) ?? [],
+        siteRows.get(row.id) ?? [],
+        positionRows.get(row.id) ?? []
       )
     );
   },
@@ -616,19 +851,29 @@ export const supabaseProjectService: ProjectService = {
     if (error) throw new Error(error.message);
     if (!data) return null;
     const row = data as ProjectRow;
-    const [deptRows, disciplineRows, teamRows, delegationRows] =
-      await Promise.all([
-        fetchDepartmentRows([row.id]),
-        fetchDisciplineRows([row.id]),
-        fetchTeamRows([row.id]),
-        fetchDelegationRows([row.id]),
-      ]);
+    const [
+      deptRows,
+      disciplineRows,
+      teamRows,
+      delegationRows,
+      siteRows,
+      positionRows,
+    ] = await Promise.all([
+      fetchDepartmentRows([row.id]),
+      fetchDisciplineRows([row.id]),
+      fetchTeamRows([row.id]),
+      fetchDelegationRows([row.id]),
+      fetchProjectSiteRows([row.id]),
+      fetchProjectPositionRows([row.id]),
+    ]);
     return rowToProject(
       row,
       deptRows.get(row.id) ?? [],
       disciplineRows.get(row.id) ?? [],
       teamRows.get(row.id) ?? [],
-      delegationRows.get(row.id) ?? []
+      delegationRows.get(row.id) ?? [],
+      siteRows.get(row.id) ?? [],
+      positionRows.get(row.id) ?? []
     );
   },
 
@@ -645,6 +890,8 @@ export const supabaseProjectService: ProjectService = {
     await replaceDisciplineLinks(row.id, input.disciplines ?? []);
     await replaceTeam(row.id, input.team ?? []);
     await replaceDelegations(row.id, input.delegations ?? []);
+    await replaceProjectSites(row.id, input.sites ?? []);
+    await replaceProjectPositions(row.id, input.positions ?? []);
     const created = await supabaseProjectService.getProjectById(row.id);
     if (!created) throw new Error("Project was created but could not be read back.");
     return created;
@@ -676,6 +923,12 @@ export const supabaseProjectService: ProjectService = {
     }
     if ("delegations" in input && input.delegations) {
       await replaceDelegations(id, input.delegations);
+    }
+    if ("positions" in input && input.positions) {
+      await replaceProjectPositions(id, input.positions);
+    }
+    if ("sites" in input && input.sites) {
+      await replaceProjectSites(id, input.sites);
     }
     // Responsibility contacts are Project Info fields, so they follow the
     // Project Info payload — never a relation-only update.

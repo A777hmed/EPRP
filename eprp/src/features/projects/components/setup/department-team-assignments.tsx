@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Trash2, UserCog } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -27,8 +28,11 @@ import type {
 } from "@/types";
 import {
   delegationStatus,
+  delegationDateIssues,
+  compareTeamDisplayOrder,
   departmentAssignments,
   departmentManager,
+  managerConflict,
   eligibleDelegates,
   eligibleReportsTo,
   removeAssignment,
@@ -76,7 +80,9 @@ export function DepartmentTeamAssignments({
   onDraftChange,
 }: DepartmentTeamAssignmentsProps) {
   const today = new Date().toISOString().slice(0, 10);
-  const entries = departmentAssignments(project, departmentId);
+  const entries = [...departmentAssignments(project, departmentId)].sort(
+    (left, right) => compareTeamDisplayOrder(left, right, contactName)
+  );
   const manager = departmentManager(project, departmentId);
   const issues = validateDepartmentAssignments(project, departmentId);
   const departmentIssues = issues.filter((issue) => !issue.contactId);
@@ -97,10 +103,28 @@ export function DepartmentTeamAssignments({
   const update = (
     contactId: string,
     patch: Parameters<typeof setAssignment>[3]
-  ) =>
+  ) => {
+    /*
+     * This is the person-level control, so promoting here is a deliberate
+     * "this person now runs the department" action: `setAssignment` seats them
+     * and demotes the incumbent to Team Member, never leaving two managers and
+     * never removing anyone. Say who was demoted — the department keeps
+     * exactly one manager either way, but the user should not have to notice
+     * the change by reading the list afterwards.
+     */
+    if (patch.assignmentRole === "department_manager") {
+      const incumbent = managerConflict(project, departmentId, contactId);
+      if (incumbent) {
+        toast.info(
+          `${contactName(incumbent.contactId)} is no longer Department Manager and stays on the team as a Team Member. A department has exactly one manager.`
+        );
+      }
+    }
+
     onDraftChange({
       team: setAssignment(project, departmentId, contactId, patch),
     });
+  };
 
   const setDelegations = (next: ProjectDelegation[]) =>
     onDraftChange({
@@ -366,6 +390,7 @@ export function DepartmentTeamAssignments({
             {delegations.map((delegation, index) => {
               const status = delegationStatus(delegation, today);
               const meta = STATUS_TONE[status];
+              const dateIssues = delegationDateIssues(delegation, today);
               return (
                 <li
                   key={delegation.id ?? `${delegation.delegateContactId}-${index}`}
@@ -421,12 +446,19 @@ export function DepartmentTeamAssignments({
                       <Input
                         id={`from-${index}`}
                         type="date"
+                        min={delegation.id ? undefined : today}
                         value={delegation.startDate}
-                        onChange={(event) =>
+                        aria-invalid={dateIssues.length > 0 || undefined}
+                        onChange={(event) => {
+                          const startDate = event.target.value;
                           patchDelegation(index, {
-                            startDate: event.target.value,
-                          })
-                        }
+                            startDate,
+                            ...(delegation.endDate &&
+                            delegation.endDate < startDate
+                              ? { endDate: "" }
+                              : {}),
+                          });
+                        }}
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -436,12 +468,26 @@ export function DepartmentTeamAssignments({
                         type="date"
                         min={delegation.startDate}
                         value={delegation.endDate}
+                        aria-invalid={dateIssues.length > 0 || undefined}
                         onChange={(event) =>
                           patchDelegation(index, { endDate: event.target.value })
                         }
                       />
                     </div>
                   </div>
+
+                  {dateIssues.length > 0 && (
+                    <ul
+                      role="alert"
+                      className="space-y-1 rounded-md border border-destructive/30 bg-destructive/5 p-2"
+                    >
+                      {dateIssues.map((message) => (
+                        <li key={message} className="text-sm text-destructive">
+                          {message}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
 
                   <fieldset className="space-y-1.5">
                     <legend className="text-sm font-medium">

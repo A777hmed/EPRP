@@ -9,6 +9,41 @@ import type { ReportStatus } from "@/types";
  */
 
 /**
+ * The statuses that count as APPROVED across every tier.
+ *
+ * One definition, deliberately placed in the workflow config rather than inside
+ * any single feature, because three separate rules depend on it and they must
+ * never disagree:
+ *
+ * 1. **Compilation** — a Monthly Report compiles only approved Weekly data
+ *    (`03_REPORTING_ARCHITECTURE.md` Law 1, `02_PLATFORM_ARCHITECTURE.md`
+ *    §12.3 rule 1 and §24.4).
+ * 2. **Visibility** — Tier B content becomes readable platform-wide from
+ *    approved onward (§24.2.1).
+ * 3. **Aggregation** — the Executive tier totals approved rows only.
+ *
+ * `finalized` and `locked` are past approval, so they qualify.
+ *
+ * **`archived` deliberately does NOT.** `archive()` overwrites `status`, and
+ * `draft → archived` is a legal transition, so an archived row does not imply
+ * the report was ever approved. Treating it as approved would compile and
+ * publish abandoned drafts.
+ *
+ * The SQL mirror is `public.report_status_is_approved(text)`
+ * (`20260820000003`). The two are a matched pair.
+ */
+export const APPROVED_REPORT_STATUSES: ReportStatus[] = [
+  "approved",
+  "finalized",
+  "locked",
+];
+
+/** Whether a report status counts as approved. See {@link APPROVED_REPORT_STATUSES}. */
+export function isApprovedReportStatus(status: ReportStatus): boolean {
+  return APPROVED_REPORT_STATUSES.includes(status);
+}
+
+/**
  * Monthly reports pass through two stages that are not part of the shared
  * {@link ReportStatus} lifecycle: automatic compilation from weekly reports
  * and a department-level review round.
@@ -39,13 +74,23 @@ export const weeklyWorkflow: WorkflowDefinition = {
     "finalized",
     "locked",
   ],
+  /*
+   * Archive is reachable from EVERY live state.
+   *
+   * This table previously allowed it only from draft, locked and rejected,
+   * while the service bypassed the shape check for "archived" entirely — so the
+   * real behaviour lived in a special case rather than here. When P0.3 mirrored
+   * this table into SQL, the special case was lost and archive broke for every
+   * other state. The rule now lives in ONE place: this table, and its SQL
+   * mirror public.report_transition_allowed().
+   */
   transitions: {
     draft: ["collecting", "archived"],
-    collecting: ["under_review"],
-    under_review: ["approved", "returned", "rejected"],
-    returned: ["collecting"],
-    approved: ["finalized", "returned"],
-    finalized: ["locked"],
+    collecting: ["under_review", "archived"],
+    under_review: ["approved", "returned", "rejected", "archived"],
+    returned: ["collecting", "archived"],
+    approved: ["finalized", "returned", "archived"],
+    finalized: ["locked", "archived"],
     locked: ["archived"],
     rejected: ["archived"],
   },
@@ -63,14 +108,15 @@ export const monthlyWorkflow: WorkflowDefinition = {
     "finalized",
     "locked",
   ],
+  /* Archive reachable from every live state — see the Weekly note above. */
   transitions: {
     draft: ["auto_compiled", "archived"],
-    auto_compiled: ["department_review"],
-    department_review: ["under_review", "returned"],
-    under_review: ["approved", "returned", "rejected"],
-    returned: ["department_review"],
-    approved: ["finalized", "returned"],
-    finalized: ["locked"],
+    auto_compiled: ["department_review", "archived"],
+    department_review: ["under_review", "returned", "archived"],
+    under_review: ["approved", "returned", "rejected", "archived"],
+    returned: ["department_review", "archived"],
+    approved: ["finalized", "returned", "archived"],
+    finalized: ["locked", "archived"],
     locked: ["archived"],
     rejected: ["archived"],
   },

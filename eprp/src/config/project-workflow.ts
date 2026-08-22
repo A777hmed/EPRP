@@ -14,7 +14,8 @@ import {
 /**
  * The guided project setup wizard.
  *
- * Project Info → Departments → Systems → Disciplines → Contacts → Review.
+ * Project Info → Departments → Systems → Disciplines → Contacts →
+ * Project Team Summary → Review.
  * Each step depends on the one before it: you cannot scope systems before
  * departments exist, or disciplines before systems. Nothing here is a stored
  * status — every step's state is derived from the saved project, so it stays
@@ -27,6 +28,7 @@ export type ProjectWorkflowStepId =
   | "systems"
   | "disciplines"
   | "contacts"
+  | "team"
   | "review";
 
 export interface ProjectWorkflowStep {
@@ -65,6 +67,12 @@ export const projectWorkflowSteps: ProjectWorkflowStep[] = [
     label: "Contacts",
     description:
       "The project team, scoped to the department and discipline they work in.",
+  },
+  {
+    id: "team",
+    label: "Project Team Summary",
+    description:
+      "Every participant on the project, once, grouped by department.",
   },
   {
     id: "review",
@@ -121,6 +129,7 @@ export function localizeProjectWorkflowStep(
     };
   }
   return step;
+
 }
 
 /** Convenience: look the step up and relabel it in one call. */
@@ -297,6 +306,25 @@ function contactChecks(
  * Review passes only when every other step does — it is the confirmation
  * gate, so it mirrors their outcome rather than adding new requirements.
  */
+/**
+ * Project Team Summary is read-only: it reports what the Contacts step
+ * produced rather than asking for anything new.
+ *
+ * Its check therefore mirrors the Contacts condition instead of inventing a
+ * requirement. Introducing a new gate here would block Review on a step where
+ * the user has nothing to fix — every correction is made back on Contacts.
+ */
+function teamChecks(project: Project): WorkflowCheck[] {
+  const team = project.team ?? [];
+  return [
+    check(
+      "Project team assembled",
+      team.length > 0,
+      "Assign the team on the Contacts step."
+    ),
+  ];
+}
+
 function reviewChecks(earlier: ProjectStepStatus[]): WorkflowCheck[] {
   return earlier.map((status) =>
     check(
@@ -359,6 +387,8 @@ export function evaluateProjectWorkflow(
         return disciplineChecks(project, departmentName, terms);
       case "contacts":
         return contactChecks(project, departmentName);
+      case "team":
+        return teamChecks(project);
       case "review":
         return reviewChecks(ordered);
     }

@@ -9,6 +9,7 @@ import {
   Plus,
   Save,
   Settings2,
+  UserRound,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -16,11 +17,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SectionCard, StatusBadge } from "@/components/shared";
 import { ASSIGNMENT_ROLE_META } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 import { projectWorkflowHref } from "@/config/project-workflow";
 import { projectService, type AssignmentSupport } from "@/services/project-service";
 import type { Project } from "@/types";
 import {
   activeDelegations,
+  compareTeamDisplayOrder,
   delegationStatus,
   departmentAssignments,
   validateAssignments,
@@ -30,6 +33,34 @@ import {
   type ProjectLinkContext,
 } from "../../project-link-context";
 import { useProjectWorkflow } from "../../use-project-workflow";
+
+/**
+ * Count chip for a responsibility group. A missing Department Manager is the
+ * one count worth flagging, since every other role reports to it.
+ */
+function ResponsibilityCount({
+  value,
+  label,
+  missing = false,
+}: {
+  value: number;
+  label: string;
+  missing?: boolean;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-baseline gap-1 rounded-md px-1.5 py-0.5 text-xs",
+        missing ? "bg-warning/10 text-warning" : "bg-muted"
+      )}
+    >
+      <span className="font-medium tabular-nums">{value}</span>
+      <span className={missing ? undefined : "text-muted-foreground"}>
+        {label}
+      </span>
+    </span>
+  );
+}
 import { SetupStepContacts } from "./setup-step-contacts";
 import { SetupStepDepartments } from "./setup-step-departments";
 import { SetupStepDisciplines } from "./setup-step-disciplines";
@@ -126,7 +157,7 @@ export function ProjectInfoWorkspace({
   const save = async (scope: "structure" | "team") => {
     // Guard the handler as well as the button: an invalid reporting structure
     // must not reach the service by any route.
-    if (scope === "team" && assignmentsBlocked) return;
+    if (scope === "team" && assignmentsBlocked) return false;
     setSaving(scope);
     try {
       /*
@@ -149,7 +180,7 @@ export function ProjectInfoWorkspace({
         }
         if (payload.team === undefined) {
           toast.error("Team data has not loaded yet — nothing was saved.");
-          return;
+          return false;
         }
       }
       const updated = await projectService.updateProject(project.id, payload);
@@ -157,10 +188,12 @@ export function ProjectInfoWorkspace({
       toast.success(
         scope === "structure" ? "Project scope saved" : "Assignments saved"
       );
+      return true;
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Could not save"
       );
+      return false;
     } finally {
       setSaving(null);
     }
@@ -185,6 +218,7 @@ export function ProjectInfoWorkspace({
         <SetupStepDepartments
           project={draft}
           context={context}
+          departments={workflow.departments}
           departmentName={workflow.departmentName}
           onDraftChange={applyDraft}
         />
@@ -248,6 +282,9 @@ export function ProjectInfoWorkspace({
           departmentName={workflow.departmentName}
           onDraftChange={applyDraft}
           terms={workflow.terms}
+          onBeforeAddContact={
+            teamDirty ? () => save("team") : async () => true
+          }
         />
       ),
     },
@@ -430,9 +467,10 @@ export function ProjectInfoWorkspace({
         ) : (
           <ul className="space-y-2">
             {draft.departments.map((assignment) => {
-              const entries = departmentAssignments(
-                draft,
-                assignment.departmentId
+              const entries = [
+                ...departmentAssignments(draft, assignment.departmentId),
+              ].sort((left, right) =>
+                compareTeamDisplayOrder(left, right, contactName)
               );
               const manager = entries.find(
                 (e) => e.assignmentRole === "department_manager"
@@ -471,70 +509,106 @@ export function ProjectInfoWorkspace({
                     </Button>
                   </div>
 
-                  <dl className="mt-2 grid gap-2 text-xs sm:grid-cols-3">
-                    <div>
-                      <dt className="text-muted-foreground">
-                        {ASSIGNMENT_ROLE_META.department_manager.label}
-                      </dt>
-                      <dd className="font-medium">
-                        {manager ? contactName(manager.contactId) : "Not set"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">
-                        {ASSIGNMENT_ROLE_META.team_member_lead.label}s
-                      </dt>
-                      <dd className="font-medium">
-                        {leads.length
-                          ? leads.map((l) => contactName(l.contactId)).join(", ")
-                          : "None"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">
-                        {ASSIGNMENT_ROLE_META.team_member.label}s
-                      </dt>
-                      <dd className="font-medium">
-                        {members.length
-                          ? members
-                              .map((m) => contactName(m.contactId))
-                              .join(", ")
-                          : "None"}
-                      </dd>
-                    </div>
-                  </dl>
+                  {/* Counts first, so a department reads at a glance without
+                      expanding every name into a comma list. */}
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <ResponsibilityCount
+                      value={manager ? 1 : 0}
+                      label={ASSIGNMENT_ROLE_META.department_manager.label}
+                      missing={!manager}
+                    />
+                    <ResponsibilityCount
+                      value={leads.length}
+                      label={`${ASSIGNMENT_ROLE_META.team_member_lead.label}s`}
+                    />
+                    <ResponsibilityCount
+                      value={members.length}
+                      label={`${ASSIGNMENT_ROLE_META.team_member.label}s`}
+                    />
+                  </div>
 
+                  {/* One card per PERSON, in the existing order: Manager,
+                      Leads, Members. `entries` is already grouped by person by
+                      `departmentAssignments`, so someone covering several scope
+                      items appears once, with the count on their card. */}
                   {entries.length > 0 && (
-                    <ul className="mt-2 space-y-1">
-                      {entries.map((entry) => (
-                        <li
-                          key={entry.contactId}
-                          className="flex flex-wrap items-center gap-1.5 text-xs"
-                        >
-                          <span className="rounded-md bg-muted px-2 py-0.5">
-                            {contactName(entry.contactId)}
-                          </span>
-                          {entry.functionalTitle && (
-                            <span className="text-muted-foreground">
-                              {entry.functionalTitle}
-                            </span>
-                          )}
-                          <StatusBadge
-                            tone={
-                              entry.assignmentRole === "department_manager"
-                                ? "info"
-                                : "neutral"
-                            }
+                    <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {[
+                        ...(manager ? [manager] : []),
+                        ...leads,
+                        ...members,
+                      ].map((entry) => {
+                        const contact = workflow.contacts.find(
+                          (candidate) => candidate.id === entry.contactId
+                        );
+                        const scopeCount = entry.rows.filter(
+                          (row) => row.disciplineId
+                        ).length;
+                        return (
+                          <li
+                            key={entry.contactId}
+                            className="flex min-w-0 items-start gap-2 rounded-lg border bg-background p-2.5"
                           >
-                            {ASSIGNMENT_ROLE_META[entry.assignmentRole].label}
-                          </StatusBadge>
-                          {entry.reportsToContactId && (
-                            <span className="text-muted-foreground">
-                              → {contactName(entry.reportsToContactId)}
+                            <span
+                              className={cn(
+                                "grid size-7 shrink-0 place-items-center rounded-full",
+                                entry.assignmentRole === "department_manager"
+                                  ? "bg-chart-1/15 text-chart-1"
+                                  : entry.assignmentRole === "team_member_lead"
+                                    ? "bg-chart-3/15 text-chart-3"
+                                    : "bg-muted text-muted-foreground"
+                              )}
+                              aria-hidden="true"
+                            >
+                              <UserRound className="size-3.5" />
                             </span>
-                          )}
-                        </li>
-                      ))}
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <p className="min-w-0 truncate text-xs font-semibold">
+                                  {contactName(entry.contactId)}
+                                </p>
+                                <StatusBadge
+                                  tone={
+                                    entry.assignmentRole ===
+                                    "department_manager"
+                                      ? "info"
+                                      : "neutral"
+                                  }
+                                >
+                                  {
+                                    ASSIGNMENT_ROLE_META[entry.assignmentRole]
+                                      .label
+                                  }
+                                </StatusBadge>
+                              </div>
+
+                              <p className="truncate text-[11px] text-muted-foreground">
+                                {entry.functionalTitle ??
+                                  contact?.position ??
+                                  "No job title"}
+                              </p>
+
+                              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                                {entry.reportsToContactId && (
+                                  <span className="truncate">
+                                    Reports to{" "}
+                                    {contactName(entry.reportsToContactId)}
+                                  </span>
+                                )}
+                                {scopeCount > 0 && (
+                                  <span className="tabular-nums">
+                                    {scopeCount}{" "}
+                                    {scopeCount === 1
+                                      ? workflow.terms.singular
+                                      : workflow.terms.plural}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
 

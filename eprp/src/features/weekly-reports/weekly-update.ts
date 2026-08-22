@@ -20,6 +20,7 @@ export const WEEKLY_COMMENT_TYPES = [
   "progress_update",
   "achievement",
   "issue_constraint",
+  "client_action",
   "risk",
   "decision_management_support",
   "next_week_plan",
@@ -67,6 +68,21 @@ export const WEEKLY_COMMENT_TYPE_META: Record<
     storedUpdateType: "issue",
     category: "issue",
     priority: "medium",
+    requiresWorkflowFields: false,
+    showWorkflowFields: true,
+  },
+  /*
+   * An action REQUIRED FROM THE CLIENT — approval pending, data awaited,
+   * decision owed. Stored on the existing action/client_contractual axes, so
+   * no schema change: the pairing is what distinguishes it from an internal
+   * `action` on read.
+   */
+  client_action: {
+    label: "Client Action",
+    entryType: "action",
+    storedUpdateType: "action_required",
+    category: "client_contractual",
+    priority: "high",
     requiresWorkflowFields: false,
     showWorkflowFields: true,
   },
@@ -125,6 +141,7 @@ export function weeklyCommentTypeForEntry(entry: WeeklyEntry): WeeklyCommentType
   if (entry.updateType === "risk") return "risk";
   if (entry.entryType === "decision") return "decision_management_support";
   if (entry.updateType === "action_required") {
+    if (entry.category === "client_contractual") return "client_action";
     return entry.category === "progress" ? "next_week_plan" : "action";
   }
   if (entry.category === "escalation") return "decision_management_support";
