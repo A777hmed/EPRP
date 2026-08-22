@@ -958,6 +958,32 @@ Consequences:
    already manage. Assignment is a managed act (§9.4 constraint 1 applied to
    assignment as well as delegation).
 
+### 24.3.1 Authority scope tiering (D-3a) — confirmed 2026-08-22, P1-A
+
+Four distinct authorities, deliberately not collapsed into one. This settles the
+question raised by the P1-A verification matrix and is **owner-confirmed**.
+
+| Authority | Kind | Scope |
+|---|---|---|
+| `system_admin` | platform role | Platform-wide, **all projects** |
+| `project_control_admin` | platform role | **Portfolio-wide Project Control authority across ALL projects** |
+| Project Control | project assignment | Only the projects it is explicitly assigned to |
+| Reporting Coordinator | project assignment | Only the projects it is explicitly assigned to |
+| Department Manager / Team Member | project assignment | Their project and department scope |
+
+Consequences:
+
+1. `project_control_admin` writing **another** project's setup data is
+   **intentional and correct**, not a defect. `can_manage_project_setup()`
+   implements exactly this and must **not** be narrowed on those grounds.
+2. `system_admin` retains global authority.
+3. Reporting Coordinator manages the **reporting workflow**. It does not
+   automatically carry full Project Setup or baseline authority; conflating the
+   two would silently widen a project-scoped role.
+4. Project-scoped `project_control` and `reporting_coordinator` authority is
+   **not implemented by P1-A** and is not in its scope. Any future work on it is
+   a separate, explicitly authorised wave.
+
 ### 24.4 Governed sources of truth (D-4)
 
 Restated here because P0 found live violations of §12.3 and principle 7:
