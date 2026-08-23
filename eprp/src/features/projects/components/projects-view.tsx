@@ -83,7 +83,11 @@ export function ProjectsView() {
   const managers = React.useMemo(
     () =>
       (contactRecords as Contact[]).filter((c) =>
-        c.position.includes("Project Manager")
+        // `contacts.position` is nullable in the database even though the type
+        // declares it as `string`, so a contact saved without a position
+        // arrives here as null and a bare `.includes()` throws. Every other
+        // reader of this field already guards it; this was the one that did not.
+        (c.position ?? "").includes("Project Manager")
       ),
     [contactRecords]
   );

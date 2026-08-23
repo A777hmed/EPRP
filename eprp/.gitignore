@@ -52,3 +52,5 @@ backup_*.sql
 *.dump
 
 supabase/.branches/
+
+supabase/snippets/

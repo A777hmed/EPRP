@@ -8,7 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState, StatusBadge } from "@/components/shared";
-import { MILESTONE_STATUS_META } from "@/lib/constants";
+import {
+  MILESTONE_CLIENT_APPROVAL_META,
+  MILESTONE_PAYMENT_STATUS_META,
+  MILESTONE_STATUS_META,
+} from "@/lib/constants";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 import { milestoneService } from "@/services/milestone-service";
 import type { MasterMilestone, MilestoneUpdate } from "@/types";
@@ -134,8 +138,47 @@ function PendingCard({
         </Fact>
         <Fact label="Forecast">{formatDate(update.forecastDate)}</Fact>
         <Fact label="Actual">{formatDate(update.actualDate)}</Fact>
+        <Fact label="Planned">{formatDate(milestone.plannedDate)}</Fact>
         <Fact label="Baseline">{formatDate(milestone.baselineDate)}</Fact>
       </dl>
+
+      {/*
+        Payment facts get their own row, labelled "Reported payment". An
+        approver is accepting a claim about money here, not a progress figure,
+        and the two must not be read as one decision.
+      */}
+      {milestone.type === "commercial" && (
+        <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 rounded-md border border-warning/25 bg-warning/5 p-2 text-sm sm:grid-cols-4">
+          <Fact label="Reported payment">
+            {update.paymentStatus
+              ? MILESTONE_PAYMENT_STATUS_META[update.paymentStatus].label
+              : "—"}
+          </Fact>
+          <Fact label="Invoice">{update.invoiceReference ?? "—"}</Fact>
+          <Fact label="Invoiced">{formatDate(update.invoicedDate)}</Fact>
+          <Fact label="Received">{formatDate(update.receivedDate)}</Fact>
+          {milestone.isAdvancePayment && (
+            <Fact label="Recovered">
+              {update.recoveredAmount === undefined
+                ? "—"
+                : String(update.recoveredAmount)}
+            </Fact>
+          )}
+        </dl>
+      )}
+
+      {/*
+        What the CLIENT decided — reported data. The Approve / Reject buttons
+        below are OUR acceptance of this report, which is a separate decision.
+      */}
+      {update.clientApprovalStatus && (
+        <p className="mt-2 text-sm">
+          <span className="text-muted-foreground">Reported client decision: </span>
+          {MILESTONE_CLIENT_APPROVAL_META[update.clientApprovalStatus].label}
+          {update.clientApprovalDate &&
+            ` · ${formatDate(update.clientApprovalDate)}`}
+        </p>
+      )}
 
       {update.narrative && (
         <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">

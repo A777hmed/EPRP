@@ -42,7 +42,7 @@ and a lifecycle transition correctly refused).
 | 10a | Control Center + Calendar | ⚠️ Partial — Dashboard rebuilt on real data (mock removed), regrouped sidebar with notched active indicator, and a project-scoped Calendar (`project_events`) with Day/Week/Month/Agenda and full CRUD. Attachments on events are NOT implemented: the platform has no attachment storage at all (`attachment-service.ts` is `notImplemented`, no table, no bucket) |
 | 11 | A4/PDF output | ⚠️ Partial — dedicated Weekly A4 preview/print delivered; other report types remain untouched |
 | 12 | Hardening and future integrations | ❌ Not started |
-| 13 | Master Planning & Control *(added — see note)* | ⚠️ In progress — **13.1 & 13.2 CLOSED**, **13.3 implemented** (all verified in UI); 13.4–13.7 not started |
+| 13 | Master Planning & Control *(added — see note)* | ⚠️ In progress — **13.1 & 13.2 CLOSED**, **13.3 implemented** (verified in UI), **13.2c + 13.2d implemented** (verified on the local rehearsal database); 13.4–13.7 not started |
 
 **Current phase: P0 — architecture-review blockers.** Scope, ordering and the
 locked decisions behind it are in
@@ -781,7 +781,9 @@ but are not the same increment. Use the numbering in this file.
 | 13.1 | Reference Input metadata | ✅ **CLOSED** — verified in the live UI 2026-08-19 |
 | 13.2 | Master Milestones | ✅ **CLOSED** — verified in the live UI 2026-08-19 |
 | 13.3 | Master Deliverables | ✅ **Implemented** — verified in the live UI 2026-08-20; one deferred test (M5) |
-| 13.4 | Reporting Integration | ❌ Not started |
+| 13.2c | Master Milestone completion | ✅ **Implemented** — verified on the local rehearsal database 2026-08-22 (29/29 shape, 42/42 runtime, 32/32 derivation); one defect found and fixed. Not yet driven through the UI |
+| 13.2d | Milestone progress reconciliation | ✅ **Implemented** — verified on the local rehearsal database 2026-08-22 (40/40 runtime, 40/40 derivation). R5 amended; reconciliation is Project Control only (excludes Reporting Coordinator); conflict tolerance fixed at 0 points. Not yet driven through the UI |
+| 13.4 | Reporting Integration | ❌ Not started — read contract exists (`milestoneService.listRegister`); Weekly/Monthly MUST write `as_of_date` (see 13.2d) |
 | 13.5 | Schedule Import (Primavera) | 🔒 Gated — needs written sign-off |
 | 13.6 | Schedule Views | 🔒 Gated |
 | 13.7 | Executive & Dashboard | ❌ Not started |
@@ -1070,3 +1072,397 @@ Lint, `tsc --noEmit` and `next build` all green.
    the milestone-link test required (re-archived immediately after). Neither can
    be deleted — the tables have no DELETE policy by design.
 
+
+---
+
+### 13.2c — Master Milestone completion ✅ implemented, runtime-verified locally
+
+13.2 built the register and the identity/state split. 13.2c completes the
+**model**, so the register can actually govern what a project commits to rather
+than only what it is called.
+
+**What already existed** — the two-table split, RLS on both tables, the
+append-only guard, the approval queue, archive/restore, the milestone→
+deliverable reference, `milestone-state.ts` as the single derivation, and a
+working register UI. None of it was rebuilt.
+
+**What was missing** — everything below.
+
+#### The completed model
+
+The split is unchanged and decides where each field lives.
+
+| Lives on `master_milestones` (identity + plan) | Lives on `milestone_updates` (reported state) |
+|---|---|
+| `milestone_type` — technical / contractual / commercial | `status`, `progress_percent` |
+| `category` — free text, project-chosen | `forecast_date`, `actual_date` |
+| `planned_date`, `baseline_date` | `payment_status` |
+| `weight_percent`, `planned_progress_percent` | `invoice_reference`, `invoiced_date`, `received_date` |
+| `predecessor_milestone_id` | `recovered_amount` |
+| `client_approval_required` | `client_approval_status`, `client_approval_date` |
+| `payment_percent`, `payment_amount`, `payment_due_date` | |
+| `is_advance_payment`, `notes` | |
+
+Derived, never stored: **variance** (against plan *and* against baseline, kept
+apart), **recovery %**, and **outstanding advance** — all in
+`milestone-state.ts`.
+
+**Milestone types are a class, not a name.** Three values, closed, because they
+drive behaviour: they decide which fields apply and which progress measure the
+row belongs to. The freely configurable label is `category`. No milestone
+*title* is hardcoded anywhere.
+
+**Planned and baseline are both kept.** Baseline is the frozen contractual
+reference; planned is what was last agreed. A re-planned milestone can be on
+plan and behind baseline at the same time, and the register shows both numbers
+rather than blending them.
+
+#### Advance / Down Payment — the accounting rule
+
+> An Advance / Down Payment does **not** increase physical progress.
+
+If the contract is 100% and a 10% advance is received, the project is 10% paid,
+not 110% built. Enforced in three places, in descending order of authority:
+
+1. **A CHECK constraint** — `master_milestones_commercial_no_physical_weight`
+   refuses a commercial milestone any `weight_percent` at all. This is the
+   guarantee; it holds for the UI, a future import, and a hand-written fix
+   alike.
+2. **`registerProgress()`** returns `physicalPercent` and `commercialPercent`
+   as two separate figures. Physical excludes commercial milestones entirely —
+   excluded, not down-weighted. Physical is weighted by `weight_percent`;
+   commercial by `payment_percent`.
+3. **The UI** presents the two measures as peer cards, never summed, and the
+   payment chip on a row never merges into the Status column.
+
+Payment lifecycle: `planned → due → invoiced → received → partially_recovered →
+fully_recovered`. Recovery is reported as an **amount**; recovery % and the
+outstanding advance are derived against the agreed `payment_amount`, so neither
+has a second writable store.
+
+#### Milestone ↔ Deliverable
+
+Already correct and left alone: the foreign key lives on
+`master_deliverables.milestone_id`, which makes it **one milestone → many
+deliverables** — the relationship the requirement asks for. It is a reference;
+no milestone field is copied onto a deliverable. What was missing was
+visibility, so the register now shows the linked deliverables per milestone and
+lists them (with the client's own review position, labelled `Client:`) in the
+milestone detail dialog, read through `forMilestone()` in
+`deliverable-state.ts`.
+
+#### The reporting integration contract
+
+```text
+Master Milestones / Master Deliverables   ← the governed register
+              ↓  milestoneService.listRegister(projectIds)
+          Weekly → Monthly → Executive → Dashboard
+```
+
+`milestoneService.listRegister(projectIds)` is the contract. It returns
+identity and stream separately across many projects in two round trips, so
+every tier derives current state through `milestoneStates()` and none can
+invent its own rule. Archived milestones are excluded. RLS still applies.
+
+**No report screen was switched in this task**, per scope. The exact
+integration points for 13.4 / 13.7 are:
+
+| # | File | What it does today | What must replace it |
+|---|---|---|---|
+| 1 | `src/features/dashboard/dashboard-data.ts` → `loadUpcomingMilestones()` | Queries `weekly_plan_items` (`kind='milestone'`) and `monthly_plan_items` directly | `listRegister()` + `milestoneStates()`; `dueDate` becomes forecast → planned → baseline; `href` points at the project register |
+| 2 | `src/features/executive-reports/executive-data.ts` → `buildMilestones()` | Builds `MilestoneRow[]` from Monthly and Weekly plan items, tagged `monthly_plan` / `weekly_plan` | A `master_register` source; `dedupeMilestones()` becomes unnecessary because register rows have identity and cannot double-count |
+| 3 | same file → `nextDueMilestone()` | Picks the row for the portfolio table | Unchanged logic, register-sourced rows |
+| 4 | same file → movement feed (`milestone_changed`) | Reads `plan.kind === 'milestone' && status === 'delayed'` | An approved `milestone_updates` transition |
+| 5 | `projects.milestone_update_approval` | Stored, never read | 13.4's report-finalization hook (carried from 13.2 limitation 2) |
+
+Deliberately **not** switched now: the registers are empty on live projects, so
+flipping the Dashboard and Executive today would blank two working screens. The
+switch belongs with 13.4, alongside a migration path for existing plan items.
+
+#### Delivered
+
+- Migration `20260822000003_master_milestone_completion.sql` — 12 identity
+  columns, 7 reported columns, 11 CHECK constraints, 2 indexes, the
+  `guard_milestone_identity()` trigger (same-project + acyclic predecessors),
+  and `guard_milestone_update()` widened over the new reported columns.
+  **Additive only.** No RLS change; no DELETE policy introduced.
+- `scripts/p0-validation/87_verify_13_2c.sql` — read-only shape verifier.
+- `scripts/p0-validation/88_runtime_13_2c.sql` — behavioural verifier; writes
+  through RLS as a real identity, then rolls back. Local databases only.
+- `registerProgress()` and the extended `MilestoneState` in
+  `milestone-state.ts`.
+- `milestoneService.listRegister()` — the 13.4 read contract.
+- Register UI: type filter, planned column with plan-variance, progress vs
+  planned progress, dependency and weight on the row, commercial section in the
+  form and update dialogs, payment/client-approval facts in the approval queue
+  and history, related deliverables.
+
+#### Runtime verification — local rehearsal database, 2026-08-22
+
+Migration `20260822000003` was applied by a **full `supabase db reset`**, so all
+64 migrations were replayed from scratch onto an empty database. Nothing was run
+against production.
+
+| Suite | Result |
+|---|---|
+| `87_verify_13_2c.sql` — shape, read-only | **29 / 29 PASS** |
+| `88_runtime_13_2c.sql` — behaviour, writes through RLS then rolls back | **42 / 42 PASS** |
+| Derivation harness — the real compiled `milestone-state.ts` / `project-terminology.ts` against rows read out of the database | **32 / 32 PASS** |
+| `86_verify_p1a.sql` — P1-A regression | **39 / 39 PASS** |
+| `85_verify_p0_closeout.sql` — pre-P1-A baseline | 65 PASS / 3 expected drift, see below |
+| lint · `tsc --noEmit` · `next build` | green |
+
+What was exercised, by requirement:
+
+1. **Create / edit** — a technical milestone written through RLS as an
+   authenticated Project Control identity; type, weight and planned progress
+   round-trip; a re-plan moves `planned_date` and leaves `baseline_date` alone.
+2. **Report / approve** — a submitted update is *not* current (R5); approving it
+   makes it current and stamps `approved_at`.
+3. **Variance** — planned 2026-10-15, baseline 2026-09-15, forecast 2026-11-05,
+   approved 40% against a planned 60% yields `varianceDays = +21`,
+   `slipDays = +51`, `progressVariance = −20`. The two date variances are
+   different numbers and stay separate. An unreported milestone derives
+   `undefined`, never `0`.
+4. **Archive / restore** — history survives archiving; the deliverable link
+   survives it too.
+5. **Isolation** — enforced on WRITE, as architecture §24.2 requires: the same
+   identity manages its own project and is refused insert, edit and approve on
+   another. Identity READ is Tier A and deliberately platform-wide; unapproved
+   (Tier B) updates on another project stay hidden.
+6. **Terminology** — the real resolver, over the real `project_types` rows: a
+   `PSAIM-` code yields Programs & Studies, all eight seeded non-PSM codes yield
+   Disciplines, and `AIM-01` is correctly *not* mistaken for PSAIM.
+7. **Advance / down payment** — a 10% / 100 000 advance walked through
+   `planned → due → invoiced → received → partially_recovered → fully_recovered`,
+   each step its own approved update. Recovery % and outstanding advance derive
+   correctly. **Physical progress reads 40% and commercial reads 100% — the
+   naive blend would have said 50%.** The database refuses a physical weight on
+   a commercial milestone, refuses payment fields on a technical one, and
+   refuses an invented payment status or a negative recovery.
+8. **Dependency** — a same-project predecessor is accepted; self-reference, a
+   two-node loop and a cross-project predecessor are each refused by
+   `guard_milestone_identity()`.
+9. **Deliverables** — one milestone serving two deliverables, link intact
+   through archiving, nothing denormalized.
+10. **13.2 / 13.3 regression** — editing a reported figure, editing a reported
+    *payment* fact, re-deciding a decided update, approving a flagged regression
+    with no reason, a duplicate code, and a client decision date with no
+    decision are all refused. D6 holds: a row reads client-approved while our
+    report is still pending.
+
+**This closes 13.2 limitation 1 and 13.3 limitation 2** — the guard trigger and
+the CHECK constraints have now been driven directly and observed to refuse.
+13.2 limitation 4 (negative permission cases) is closed for the milestone
+register by the isolation section above.
+
+#### One real defect found and fixed
+
+`milestone_updates_client_approval_date_needs_decision` did not do what its name
+says. Written as:
+
+```sql
+client_approval_date is null or client_approval_status in ('approved','rejected')
+```
+
+`client_approval_status` is nullable, and `null in (…)` evaluates to **NULL** —
+which a CHECK constraint accepts, because only FALSE rejects. So a client
+decision *date* with no client decision was silently allowed: exactly the row
+the constraint exists to refuse. It failed correctly for `'pending'`, which is
+what made it look right.
+
+Fixed in the same (unreleased) migration with `coalesce(client_approval_status, '')`,
+proved by re-reset and re-run. No other constraint in this migration has the
+same shape — the rest either guard a NOT NULL column or carry an explicit
+`is null` branch.
+
+#### Known limitations carried out of 13.2c
+
+1. **Tie-broken `submitted_at` makes "current" order-dependent.** `milestoneState()`
+   sorts the stream by `submittedAt` alone, and `milestoneService.listUpdates()`
+   orders by `submitted_at desc` with no secondary key. Two approved updates
+   sharing a timestamp therefore leave "current state" decided by whatever order
+   the database returned rows in. This is **not reachable through the UI** —
+   `submitted_at` defaults to `now()`, which is transaction start time, so one
+   update per transaction always differs. It becomes reachable the moment
+   something writes several updates in one transaction, which is precisely what
+   13.4's report-finalization hook and 13.5's schedule import will do. Found
+   while building the fixture (six lifecycle steps in one transaction produced
+   six identical timestamps and the derivation picked the first). **Pre-existing
+   from 13.2, not introduced here, and deliberately not fixed in this task** —
+   the fix is a secondary sort key on `id` in both the service and the
+   derivation, and it belongs with 13.4.
+2. **No UI-driven pass.** Every check above went through SQL and through the
+   compiled derivation modules. The React components that render these figures
+   were type-checked and built but never clicked.
+3. **Auto-approval is still stored but unread** (13.2 limitation 2) and
+   **`source` is still always `planning`** (13.2 limitation 3). Both wait on 13.4.
+4. **`85_verify_p0_closeout.sql` reports 3 drifted rows**, all expected and none
+   caused by this work. It encodes the *pre-P1-A* baseline and its own header
+   says it starts failing once P1-A lands. Its migration counter expects 7
+   `2026082*` migrations and there are now 9 (P1-A took it to 8 before this
+   task). Its policy counts (101 total / 14 write-open) are superseded by
+   `86_verify_p1a.sql`, which asserts 107 / 11 and passes — 107 being an
+   expectation written before this migration existed, which is independent
+   confirmation that **13.2c adds no policy**.
+
+---
+
+### 13.2d — Milestone progress reconciliation ✅ implemented, runtime-verified locally
+
+**Weekly and Monthly are observations. They propose a figure; they do not own
+it.** The governed official progress is resolved through Master Milestone
+governance, and a disagreement between two sources is surfaced for Project
+Control rather than settled by whichever row was written last.
+
+#### The defect this closes
+
+Before 13.2d, two approved updates reporting 50% and 60% resolved to "the latest
+approved one". Proven on the rehearsal database: Weekly 50% then Monthly 60%
+gave an official 60; **reversing only the entry order of the same two facts gave
+50.** The authoritative number depended on data-entry order, and nothing
+anywhere flagged it.
+
+#### R5, amended
+
+| | |
+|---|---|
+| was | current = latest approved |
+| now | current = latest **resolved** governed value for the latest **resolved** cut-off |
+
+Owner-approved as part of Master Milestones governance. Rows that state no
+cut-off are exempt and keep the old behaviour, which is what makes the change
+invisible to every row written before 13.2d.
+
+#### Schema — additive, no parallel table
+
+Three columns on `milestone_updates`: `as_of_date`, `adopted_from_update_id`,
+`reconciliation_reason`; plus `reconciliation` as a fourth `source` value.
+
+A reconciliation is the same shape as an update — a value, for a milestone, with
+provenance and governance — so it is a row in the existing table and inherits
+the append-only guarantee automatically. Adopting Weekly, adopting Monthly and
+entering a fresh figure are **one act with three inputs**.
+
+Deliberately NOT stored, because they are derivable and a second store could go
+stale: conflict state (derived in `milestone-state.ts`), and "reconciled by /
+at" — on a reconciliation row `submitted_by_contact_id` and `submitted_at` ARE
+the reconciler and the moment.
+
+#### Provenance, as required
+
+| Required | Where |
+|---|---|
+| source type | `source` — weekly / monthly / planning / reconciliation |
+| source report / record | `weekly_report_id` / `monthly_report_id` |
+| reported value | `progress_percent`, immutable |
+| as-of date | `as_of_date` |
+| reconciliation status | derived: `agreed` / `reconciled` / `in_conflict` / `unreported` |
+| reconciled / official value | the reconciliation row's `progress_percent` |
+| reconciled by / at | that row's `submitted_by_contact_id` / `submitted_at` |
+| reason | `reconciliation_reason`, mandatory by CHECK |
+
+#### Conflict derivation
+
+Per cut-off, in `resolveCutoffs()`:
+
+1. a reconciliation exists → **reconciled**, its figure is official (newest wins)
+2. else all approved sources agree → **agreed**, that figure is official
+3. else → **in_conflict**, and there is **no official figure at all**
+
+Comparison is exact — **0 percentage points of tolerance**, as specified. A
+configurable per-project tolerance is a **documented future enhancement** and was
+deliberately not invented here. Rows reporting no figure take no part: a Weekly
+that updates only a forecast date is not disagreeing about progress.
+
+Across cut-offs, current state uses the latest **resolved** one; an unresolved
+later cut-off never becomes official but is always flagged.
+
+#### Authority — Project Control only
+
+| | |
+|---|---|
+| **ALLOWED** | `system_admin`, `project_control_admin` (portfolio-wide, architecture 8.1), the project's assigned **Project Control Manager** |
+| **REFUSED** | **Reporting Coordinator**, department manager, team member lead, team member, every other contributor |
+
+`can_reconcile_milestone()` deliberately does **NOT** delegate to
+`can_manage_project_setup()`. That predicate resolves through
+`is_project_consolidator()`, which treats the Reporting Coordinator as
+equivalent to the Project Control Manager — correct for setup and for accepting
+a report, wrong here. A Reporting Coordinator coordinates Weekly and Monthly
+reporting and surfaces a conflict; deciding the governed official figure is not
+theirs.
+
+So the Project-Control-Manager half is restated rather than inherited. That is
+the one place in this schema where the consolidator pair is split, and
+`89_runtime_reconciliation.sql` asserts the function body mentions no
+coordinator predicate at all — a future "tidy-up" back to the shared predicate
+would silently restore the over-grant.
+
+`useMilestoneAuthority.canReconcile` mirrors it clause for clause, and is
+deliberately not `canManage` for the same reason.
+
+*(Corrected after first implementation, which did delegate and so over-granted
+to the Reporting Coordinator. Narrowing only — no other predicate or policy
+touched, P1 not reopened.)*
+
+The `milestone_updates_insert` policy was **replaced, not supplemented** (a
+second permissive policy would OR-widen insert rights). The contributor branch is
+character-for-character the existing predicate, so nobody loses the ability to
+submit. `86_verify_p1a.sql` still passes 39/39, confirming the policy counts are
+unchanged.
+
+#### Reporting contract for 13.4
+
+Weekly / Monthly integration **must** write: `source`, the source report id,
+`progress_percent`, and **`as_of_date`**. Without a cut-off a figure is exempt
+from conflict detection and silently bypasses this governance.
+
+Dashboard / Executive **must** consume the governed official progress and the
+conflict flag — never a raw latest report value. Both arrive free through
+`milestoneStates()`, which is the only derivation.
+
+#### Verification — local rehearsal database, 2026-08-22
+
+Applied by full `supabase db reset` (65 migrations from scratch).
+
+| Suite | Result |
+|---|---|
+| `89_runtime_reconciliation.sql` — cases A–G at the database layer | **40 / 40 PASS** |
+| Reconciliation derivation harness — real compiled `milestone-state.ts` | **40 / 40 PASS** |
+| `87_verify_13_2c.sql` | **29 / 29 PASS** |
+| `88_runtime_13_2c.sql` | **42 / 42 PASS** |
+| 13.2c derivation harness | **32 / 32 PASS** |
+| `86_verify_p1a.sql` | **39 / 39 PASS** |
+| lint · `tsc --noEmit` · `next build` | green |
+
+A: different cut-offs → both valid, no conflict. B: same cut-off → in_conflict,
+no official figure, outcome identical whichever source arrived first. C/D/E:
+adopt Weekly / adopt Monthly / enter 55% → official follows, originals preserved
+untouched. F: the Reporting Coordinator is refused reconciliation on its own project while
+keeping every other Project Control capability; the assigned Project Control
+Manager, project_control_admin and system_admin are each allowed and the PCM
+writes one; the contributor submission path is unaffected. G: identical `submitted_at` values
+resolve deterministically.
+
+Also refused: a reconciliation with no reason, no cut-off, or left pending; a
+Weekly row carrying a reconciliation reason; adopting a row from another
+milestone or another cut-off; editing a reconciliation after the fact.
+
+#### Deterministic ordering
+
+`newestFirst()` now sorts by `submittedAt` then `id`, and both service reads add
+`.order("id")`. This closes the tie-break limitation carried out of 13.2c **for
+milestone state**. `deliverable-state.ts` has the same pattern and was left
+alone — out of scope, and no equivalent governance rule depends on it yet.
+
+#### Known limitations carried out of 13.2d
+
+1. **No UI-driven pass.** The reconcile dialog, conflict banner and as-of-date
+   field were type-checked and built but never clicked.
+2. **Conflict tolerance is fixed at 0 points.** A rounding difference of one
+   point will raise a conflict. Configurable tolerance is the documented next
+   enhancement if that proves noisy in practice.
+3. **Only `planning` updates carry a cut-off in the UI today.** The as-of-date
+   field exists on the update dialog; Weekly and Monthly do not submit at all
+   until 13.4.

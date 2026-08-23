@@ -8,7 +8,10 @@ import type {
   EntryStatus,
   KpiRating,
   MilestoneApprovalStatus,
+  MilestoneClientApprovalStatus,
+  MilestonePaymentStatus,
   MilestoneStatus,
+  MilestoneType,
   OverallStatus,
   Priority,
   ProgressStatus,
@@ -392,6 +395,63 @@ export const MILESTONE_STATUS_META: Record<
   in_progress: { label: "In Progress", tone: "info" },
   completed: { label: "Completed", tone: "success" },
   delayed: { label: "Delayed", tone: "danger" },
+};
+
+/**
+ * The three milestone classes (Phase 13.2c).
+ *
+ * These are CLASSES, not milestone names. A project names its own milestones
+ * and labels them further through the free-text `category` field; nothing in
+ * the platform hardcodes a milestone title.
+ */
+export const MILESTONE_TYPE_META: Record<
+  MilestoneType,
+  { label: string; tone: StatusTone; description: string }
+> = {
+  technical: {
+    label: "Technical / Project",
+    tone: "info",
+    description: "Delivered work. Counts toward physical progress.",
+  },
+  contractual: {
+    label: "Contractual",
+    tone: "neutral",
+    description: "A contractual obligation or gate. Counts toward physical progress.",
+  },
+  commercial: {
+    label: "Commercial / Payment",
+    tone: "warning",
+    description:
+      "Money, not work. Tracked as commercial progress and deliberately excluded from physical progress.",
+  },
+};
+
+/** Where a commercial milestone's money stands, as reported (13.2c). */
+export const MILESTONE_PAYMENT_STATUS_META: Record<
+  MilestonePaymentStatus,
+  { label: string; tone: StatusTone }
+> = {
+  planned: { label: "Planned", tone: "neutral" },
+  due: { label: "Due", tone: "warning" },
+  invoiced: { label: "Invoiced", tone: "info" },
+  received: { label: "Received", tone: "success" },
+  partially_recovered: { label: "Partially Recovered", tone: "info" },
+  fully_recovered: { label: "Fully Recovered", tone: "success" },
+};
+
+/**
+ * What the CLIENT decided about a milestone (13.2c).
+ *
+ * Labelled "Client …" for the same reason {@link CLIENT_REVIEW_META} is: this
+ * is reported data about them, never our own acceptance of the report.
+ */
+export const MILESTONE_CLIENT_APPROVAL_META: Record<
+  MilestoneClientApprovalStatus,
+  { label: string; tone: StatusTone }
+> = {
+  pending: { label: "Awaiting Client", tone: "warning" },
+  approved: { label: "Client Approved", tone: "success" },
+  rejected: { label: "Client Rejected", tone: "danger" },
 };
 
 /** Whether Project Control has accepted a reported milestone update. */

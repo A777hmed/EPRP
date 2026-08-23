@@ -23,10 +23,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { MILESTONE_STATUS_META } from "@/lib/constants";
+import {
+  MILESTONE_CLIENT_APPROVAL_META,
+  MILESTONE_PAYMENT_STATUS_META,
+  MILESTONE_STATUS_META,
+} from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
 import { milestoneService } from "@/services/milestone-service";
-import type { MilestoneStatus } from "@/types";
+import type {
+  MilestoneClientApprovalStatus,
+  MilestonePaymentStatus,
+  MilestoneStatus,
+} from "@/types";
 import { isRegression, type MilestoneState } from "../../milestone-state";
 import type { MilestoneScopeOptions } from "./scope-options";
 
@@ -35,6 +43,21 @@ const STATUSES: MilestoneStatus[] = [
   "in_progress",
   "completed",
   "delayed",
+];
+
+const PAYMENT_STATUSES: MilestonePaymentStatus[] = [
+  "planned",
+  "due",
+  "invoiced",
+  "received",
+  "partially_recovered",
+  "fully_recovered",
+];
+
+const CLIENT_APPROVALS: MilestoneClientApprovalStatus[] = [
+  "pending",
+  "approved",
+  "rejected",
 ];
 
 const NONE = "none";
@@ -79,6 +102,8 @@ export function MilestoneUpdateDialog({
     state.forecastDate ?? ""
   );
   const [actualDate, setActualDate] = React.useState(state.actualDate ?? "");
+  // 13.2d — the cut-off this observation describes.
+  const [asOfDate, setAsOfDate] = React.useState("");
   const [narrative, setNarrative] = React.useState("");
   const [departmentId, setDepartmentId] = React.useState(
     milestone.departmentId ?? ""
@@ -87,6 +112,31 @@ export function MilestoneUpdateDialog({
     milestone.disciplineId ?? ""
   );
   const [saving, setSaving] = React.useState(false);
+
+  /* 13.2c — commercial actuals, reported only for a commercial milestone. */
+  const [paymentStatus, setPaymentStatus] = React.useState<string>(
+    state.paymentStatus ?? ""
+  );
+  const [invoiceReference, setInvoiceReference] = React.useState("");
+  const [invoicedDate, setInvoicedDate] = React.useState("");
+  const [receivedDate, setReceivedDate] = React.useState("");
+  const [recoveredAmount, setRecoveredAmount] = React.useState(
+    state.recoveredAmount === undefined ? "" : String(state.recoveredAmount)
+  );
+
+  /* 13.2c — what the CLIENT decided. Never our own approval of this report. */
+  const [clientApprovalStatus, setClientApprovalStatus] = React.useState<string>(
+    state.clientApprovalStatus ?? ""
+  );
+  const [clientApprovalDate, setClientApprovalDate] = React.useState("");
+
+  const commercial = state.commercial;
+  const clientDecided =
+    clientApprovalStatus === "approved" || clientApprovalStatus === "rejected";
+
+  const recovered = recoveredAmount.trim() === "" ? undefined : Number(recoveredAmount);
+  const recoveredValid =
+    recovered === undefined || (Number.isFinite(recovered) && recovered >= 0);
 
   const availableDepartments = departmentIds
     ? options.departments.filter((department) =>
@@ -122,11 +172,34 @@ export function MilestoneUpdateDialog({
         progressPercent: proposed,
         forecastDate: forecastDate || undefined,
         actualDate: actualDate || undefined,
+        asOfDate: asOfDate || undefined,
         narrative: narrative || undefined,
         // Flagged at submission, so the row is stored already marked and the
         // approver cannot accept it without giving a reason.
         isRegression: regression,
         submittedByContactId,
+
+        // Commercial actuals only reach the database for a commercial
+        // milestone. Sending them on a technical one would be refused by the
+        // register's own rules, and would be meaningless if it were not.
+        paymentStatus: commercial
+          ? ((paymentStatus || undefined) as
+              | MilestonePaymentStatus
+              | undefined)
+          : undefined,
+        invoiceReference: commercial ? invoiceReference || undefined : undefined,
+        invoicedDate: commercial ? invoicedDate || undefined : undefined,
+        receivedDate: commercial ? receivedDate || undefined : undefined,
+        recoveredAmount: commercial ? recovered : undefined,
+
+        clientApprovalStatus: (clientApprovalStatus || undefined) as
+          | MilestoneClientApprovalStatus
+          | undefined,
+        // A date only means something once a decision was made; the database
+        // enforces the same rule.
+        clientApprovalDate: clientDecided
+          ? clientApprovalDate || undefined
+          : undefined,
       });
       toast.success("Update submitted for approval.");
       onSubmitted();
@@ -141,7 +214,7 @@ export function MilestoneUpdateDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             Update {milestone.code} — {milestone.name}
@@ -198,6 +271,25 @@ export function MilestoneUpdateDialog({
               placeholder="Leave blank if not measured"
               aria-invalid={!progressValid}
             />
+          </div>
+
+          {/*
+            The cut-off this figure describes — not today's date. It is what
+            lets two sources be compared: same cut-off + different figures is a
+            conflict for Project Control, different cut-offs are both history.
+            Left blank, the figure is exempt from that comparison entirely.
+          */}
+          <div className="grid gap-1.5">
+            <Label htmlFor="update-as-of">As-of date</Label>
+            <Input
+              id="update-as-of"
+              type="date"
+              value={asOfDate}
+              onChange={(event) => setAsOfDate(event.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              The reporting cut-off this figure is true as of.
+            </p>
           </div>
 
           <div className="grid gap-1.5">
@@ -273,6 +365,137 @@ export function MilestoneUpdateDialog({
             </Select>
           </div>
 
+          {commercial && (
+            <div className="sm:col-span-2 grid gap-4 rounded-md border border-warning/25 bg-warning/5 p-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <p className="text-sm font-medium">Payment position</p>
+                <p className="text-xs text-muted-foreground">
+                  What actually happened with the money. Reported here and
+                  approved like any other figure — and never counted as physical
+                  progress.
+                </p>
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label htmlFor="update-payment-status">Payment status</Label>
+                <Select
+                  value={paymentStatus || NONE}
+                  onValueChange={(value) =>
+                    setPaymentStatus(value === NONE ? "" : value)
+                  }
+                >
+                  <SelectTrigger id="update-payment-status">
+                    <SelectValue placeholder="Not reported" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>Not reported</SelectItem>
+                    {PAYMENT_STATUSES.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {MILESTONE_PAYMENT_STATUS_META[value].label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label htmlFor="update-invoice-ref">Invoice / reference no.</Label>
+                <Input
+                  id="update-invoice-ref"
+                  value={invoiceReference}
+                  onChange={(event) => setInvoiceReference(event.target.value)}
+                />
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label htmlFor="update-invoiced">Invoiced date</Label>
+                <Input
+                  id="update-invoiced"
+                  type="date"
+                  value={invoicedDate}
+                  onChange={(event) => setInvoicedDate(event.target.value)}
+                />
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label htmlFor="update-received">Received date</Label>
+                <Input
+                  id="update-received"
+                  type="date"
+                  value={receivedDate}
+                  onChange={(event) => setReceivedDate(event.target.value)}
+                />
+              </div>
+
+              {milestone.isAdvancePayment && (
+                <div className="grid gap-1.5 sm:col-span-2">
+                  <Label htmlFor="update-recovered">Recovered amount</Label>
+                  <Input
+                    id="update-recovered"
+                    inputMode="decimal"
+                    value={recoveredAmount}
+                    onChange={(event) => setRecoveredAmount(event.target.value)}
+                    aria-invalid={!recoveredValid}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Recovery % and the outstanding advance are worked out from
+                    the agreed amount — report the money, not the percentage.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {milestone.clientApprovalRequired && (
+            <div className="sm:col-span-2 grid gap-4 rounded-md border p-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <p className="text-sm font-medium">Client approval</p>
+                <p className="text-xs text-muted-foreground">
+                  What the CLIENT decided. This is reported data — it is not the
+                  same thing as Project Control accepting this report, which
+                  happens in the approval queue.
+                </p>
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label htmlFor="update-client-approval">Client decision</Label>
+                <Select
+                  value={clientApprovalStatus || NONE}
+                  onValueChange={(value) =>
+                    setClientApprovalStatus(value === NONE ? "" : value)
+                  }
+                >
+                  <SelectTrigger id="update-client-approval">
+                    <SelectValue placeholder="Not reported" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>Not reported</SelectItem>
+                    {CLIENT_APPROVALS.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {MILESTONE_CLIENT_APPROVAL_META[value].label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label htmlFor="update-client-approval-date">
+                  Client decision date
+                </Label>
+                <Input
+                  id="update-client-approval-date"
+                  type="date"
+                  value={clientApprovalDate}
+                  onChange={(event) => setClientApprovalDate(event.target.value)}
+                  // Nothing has been decided, so nothing can be dated. The
+                  // database refuses the same combination.
+                  disabled={!clientDecided}
+                />
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-1.5 sm:col-span-2">
             <Label htmlFor="update-narrative">Narrative</Label>
             <Textarea
@@ -312,7 +535,7 @@ export function MilestoneUpdateDialog({
           </Button>
           <Button
             onClick={() => void submit()}
-            disabled={saving || !progressValid || outOfScope}
+            disabled={saving || !progressValid || !recoveredValid || outOfScope}
           >
             {saving ? "Submitting…" : "Submit for Approval"}
           </Button>

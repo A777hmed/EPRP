@@ -56,7 +56,12 @@ insert into public.systems (name, code, department_id, description) values
   ('Safeguarding Systems', 'SGS', (select id from public.departments where code='INST'), 'ESD and fire & gas systems.'),
   ('Main Substation', 'SS', (select id from public.departments where code='ELEC'), 'HV/MV power distribution.'),
   ('Cooling Water Network', 'CW', (select id from public.departments where code='MECH'), 'Cooling towers and circulation.'),
-  ('Flare & Relief', 'FLR', (select id from public.departments where code='MECH'), 'Flare knockout and recovery.');
+  ('Flare & Relief', 'FLR', (select id from public.departments where code='MECH'), 'Flare knockout and recovery.'),
+  -- These two are referenced by the project↔department assignments below. They
+  -- were previously named there without ever existing as master records, which
+  -- left two projects pointing at systems the platform did not know about.
+  ('Hydrotreater Unit', 'HTU', (select id from public.departments where code='MECH'), 'Distillate hydrotreating.'),
+  ('Tank 31-T-05', 'T-05', (select id from public.departments where code='CIV'), 'Storage tank under rehabilitation.');
 
 -- Disciplines --------------------------------------------------------------
 insert into public.disciplines (name, code, department_id, description) values
@@ -124,18 +129,33 @@ insert into public.projects (
   );
 
 -- Project ↔ department assignments -----------------------------------------
+--
+-- `project_departments.systems` is a jsonb snapshot of the systems a department
+-- brought into a project, and its `id` MUST be the real `public.systems.id`
+-- uuid. Anything that files a record against a project system — a Master
+-- Milestone's `system_id`, for one — writes that value into a `uuid` column
+-- with a foreign key onto `systems`.
+--
+-- This seed used to hardcode placeholders ('sys-1', 'sys-2', …). They looked
+-- harmless because the jsonb column accepts any string, and they broke the
+-- moment anything tried to USE one: "invalid input syntax for type uuid".
+--
+-- Built from the master rows rather than restated, so the snapshot cannot
+-- drift from the record it is a snapshot of.
 insert into public.project_departments (project_id, department_id, lead_name, reporting_required, systems) values
   (
     (select id from public.projects where code='PSAIM-001'),
     (select id from public.departments where code='MECH'),
     'Ibrahim Lotfy', true,
-    '[{"id":"sys-1","name":"Crude Distillation Unit","code":"CDU"},{"id":"sys-2","name":"Tank Farm","code":"TF"}]'::jsonb
+    (select jsonb_agg(jsonb_build_object('id', s.id::text, 'name', s.name, 'code', s.code) order by s.code)
+       from public.systems s where s.code in ('CDU','TF'))
   ),
   (
     (select id from public.projects where code='PSAIM-001'),
     (select id from public.departments where code='INST'),
     'Mona Ezz', true,
-    '[{"id":"sys-3","name":"Safeguarding Systems","code":"SGS"}]'::jsonb
+    (select jsonb_agg(jsonb_build_object('id', s.id::text, 'name', s.name, 'code', s.code) order by s.code)
+       from public.systems s where s.code in ('SGS'))
   ),
   (
     (select id from public.projects where code='PSAIM-001'),
@@ -146,13 +166,15 @@ insert into public.project_departments (project_id, department_id, lead_name, re
     (select id from public.projects where code='PRJ-002'),
     (select id from public.departments where code='MECH'),
     'Tamer Said', true,
-    '[{"id":"sys-4","name":"Hydrotreater Unit","code":"HTU"}]'::jsonb
+    (select jsonb_agg(jsonb_build_object('id', s.id::text, 'name', s.name, 'code', s.code) order by s.code)
+       from public.systems s where s.code in ('HTU'))
   ),
   (
     (select id from public.projects where code='PRJ-005'),
     (select id from public.departments where code='CIV'),
     'Hassan Omar', true,
-    '[{"id":"sys-8","name":"Tank 31-T-05","code":"T-05"}]'::jsonb
+    (select jsonb_agg(jsonb_build_object('id', s.id::text, 'name', s.name, 'code', s.code) order by s.code)
+       from public.systems s where s.code in ('T-05'))
   );
 
 -- Project ↔ contact (responsibility roles mirrored into the join table) -----

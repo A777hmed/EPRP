@@ -10,6 +10,7 @@ import type {
   MasterDeliverableRow,
 } from "@/lib/supabase/database.types";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { describeFailure, type ServiceError } from "./service-errors";
 
 /**
  * Master Deliverables (Phase 13.3).
@@ -121,7 +122,7 @@ export const deliverableService = {
       .eq("project_id", projectId)
       .order("planned_submission_date", { ascending: true, nullsFirst: false })
       .order("code", { ascending: true });
-    if (error) throw new Error(error.message);
+    if (error) throw await readFailure("list deliverables", error);
     return ((data ?? []) as MasterDeliverableRow[]).map(mapDeliverable);
   },
 
@@ -136,7 +137,8 @@ export const deliverableService = {
       .from("master_deliverables")
       .select("id")
       .eq("project_id", projectId);
-    if (deliverableError) throw new Error(deliverableError.message);
+    if (deliverableError)
+      throw await readFailure("list deliverables for updates", deliverableError);
 
     const ids = (
       (deliverables ?? []) as Pick<MasterDeliverableRow, "id">[]
@@ -148,7 +150,7 @@ export const deliverableService = {
       .select("*")
       .in("deliverable_id", ids)
       .order("submitted_at", { ascending: false });
-    if (error) throw new Error(error.message);
+    if (error) throw await readFailure("list deliverable updates", error);
     return ((data ?? []) as DeliverableUpdateRow[]).map(mapUpdate);
   },
 
@@ -174,7 +176,7 @@ export const deliverableService = {
       })
       .select("*")
       .single();
-    if (error) throw new Error(friendly(error.message));
+    if (error) throw await writeFailure("create the deliverable", error);
     return mapDeliverable(data as MasterDeliverableRow);
   },
 
@@ -201,7 +203,7 @@ export const deliverableService = {
       .eq("id", deliverableId)
       .select("*")
       .single();
-    if (error) throw new Error(friendly(error.message));
+    if (error) throw await writeFailure("edit the deliverable", error);
     return mapDeliverable(data as MasterDeliverableRow);
   },
 
@@ -222,7 +224,11 @@ export const deliverableService = {
       .eq("id", deliverableId)
       .select("*")
       .single();
-    if (error) throw new Error(error.message);
+    if (error)
+      throw await writeFailure(
+        active ? "restore the deliverable" : "archive the deliverable",
+        error
+      );
     return mapDeliverable(data as MasterDeliverableRow);
   },
 
@@ -257,7 +263,7 @@ export const deliverableService = {
       })
       .select("*")
       .single();
-    if (error) throw new Error(friendly(error.message));
+    if (error) throw await writeFailure("submit the update", error);
     return mapUpdate(data as DeliverableUpdateRow);
   },
 
@@ -281,7 +287,7 @@ export const deliverableService = {
       .eq("id", updateId)
       .select("*")
       .single();
-    if (error) throw new Error(friendly(error.message));
+    if (error) throw await writeFailure("decide the update", error);
     return mapUpdate(data as DeliverableUpdateRow);
   },
 };
@@ -290,9 +296,49 @@ export const deliverableService = {
  * Turn the database's own words into the user's.
  *
  * The constraints are the authority — this only translates them, so a rule can
- * never be enforced in one place and worded differently in another.
+ * never be enforced in one place and worded differently in another. The
+ * mechanism lives in `service-errors.ts`; what stays here is this register's
+ * own constraint dictionary and its wording.
  */
-function friendly(message: string): string {
+
+const DENIED =
+  "You do not have permission to change this project's deliverable register. Project Control manages deliverables for this project.";
+
+async function writeFailure(
+  operation: string,
+  error: ServiceError
+): Promise<Error> {
+  return describeFailure({
+    scope: "deliverable-service",
+    operation,
+    error,
+    known: friendly(error.message),
+    deniedMessage: DENIED,
+    fallback:
+      "That change could not be saved. Please try again, and let Project Control know if it keeps happening.",
+  });
+}
+
+async function readFailure(
+  operation: string,
+  error: ServiceError
+): Promise<Error> {
+  return describeFailure({
+    scope: "deliverable-service",
+    operation,
+    error,
+    deniedMessage: DENIED,
+    fallback: "The deliverable register could not be loaded. Please try again.",
+  });
+}
+
+/**
+ * Known constraint violations, worded for the person who hit them.
+ *
+ * Returns `undefined` when the message is not one we recognise, so the caller
+ * substitutes a safe generic rather than echoing raw database text.
+ */
+function friendly(message: string): string | undefined {
   if (message.includes("master_deliverables_project_code_unique")) {
     return "Another deliverable on this project already uses that code.";
   }
@@ -302,5 +348,7 @@ function friendly(message: string): string {
   if (message.includes("deliverable_updates_client_review_valid")) {
     return "That is not a valid client review status.";
   }
-  return message;
+  // Deliberately NOT `return message`. An unrecognised database message is a
+  // diagnostic, and the caller turns it into something safe to show.
+  return undefined;
 }

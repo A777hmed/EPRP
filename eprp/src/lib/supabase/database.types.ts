@@ -175,6 +175,25 @@ export interface MasterMilestoneRow extends Timestamps {
   source_document_id: string | null;
   active: boolean;
   archived_at: string | null;
+
+  /* Phase 13.2c — see 20260822000003_master_milestone_completion.sql. */
+  /** technical | contractual | commercial. Decides which fields apply. */
+  milestone_type: string;
+  /** Project-chosen label within the type. Free text, never a lookup. */
+  category: string | null;
+  /** The current agreed date. `baseline_date` stays the frozen reference. */
+  planned_date: string | null;
+  /** Share of PHYSICAL scope. Refused on commercial rows by CHECK. */
+  weight_percent: number | null;
+  planned_progress_percent: number | null;
+  predecessor_milestone_id: string | null;
+  client_approval_required: boolean;
+  notes: string | null;
+  /* Commercial PLAN — what was agreed. Actuals are reported per update. */
+  payment_percent: number | null;
+  payment_amount: number | null;
+  payment_due_date: string | null;
+  is_advance_payment: boolean;
 }
 
 export interface MilestoneUpdateRow {
@@ -198,6 +217,24 @@ export interface MilestoneUpdateRow {
   regression_reason: string | null;
   submitted_by_contact_id: string | null;
   submitted_at: string;
+
+  /* Phase 13.2c — commercial ACTUALS, reported and governed like progress. */
+  payment_status: string | null;
+  invoice_reference: string | null;
+  invoiced_date: string | null;
+  received_date: string | null;
+  /** Money recovered. Recovery % and outstanding advance are derived. */
+  recovered_amount: number | null;
+  /** What the CLIENT did — never the same field as `approval_status`. */
+  client_approval_status: string | null;
+  client_approval_date: string | null;
+
+  /* Phase 13.2d — see 20260822000004_milestone_reconciliation.sql. */
+  /** The cut-off this describes. Not `submitted_at`, which is when it arrived. */
+  as_of_date: string | null;
+  /** For a reconciliation: the reported row whose value was adopted. */
+  adopted_from_update_id: string | null;
+  reconciliation_reason: string | null;
 }
 
 /** Phase 13.3 — see 20260819000004_master_deliverables.sql. */

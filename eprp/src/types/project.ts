@@ -272,11 +272,56 @@ export type MilestoneStatus =
 
 export type MilestonePriority = "low" | "medium" | "high" | "critical";
 
+/**
+ * The CLASS of a milestone (13.2c).
+ *
+ * A small closed set, because it drives behaviour: it decides which fields
+ * apply and — critically — whether the milestone counts toward **physical**
+ * progress or **commercial** progress. The freely configurable, project-chosen
+ * label is `MasterMilestone.category`; individual milestone names are never
+ * hardcoded anywhere in the platform.
+ */
+export type MilestoneType = "technical" | "contractual" | "commercial";
+
+/**
+ * Where a commercial milestone's money stands, as reported.
+ *
+ * `partially_recovered` / `fully_recovered` apply to an advance payment, which
+ * is repaid out of later certificates rather than earned by work.
+ */
+export type MilestonePaymentStatus =
+  | "planned"
+  | "due"
+  | "invoiced"
+  | "received"
+  | "partially_recovered"
+  | "fully_recovered";
+
+/**
+ * What the CLIENT decided about a milestone, as reported.
+ *
+ * Never the same thing as {@link MilestoneApprovalStatus}, which records
+ * whether Project Control accepts the report of that decision. The two must
+ * never share a UI control — the same rule {@link ClientReviewStatus} carries.
+ */
+export type MilestoneClientApprovalStatus = "pending" | "approved" | "rejected";
+
 /** Where a milestone identity came from. `schedule` arrives with 13.5. */
 export type MilestoneSource = "manual" | "scope";
 
-/** Which channel proposed an update. `schedule_import` arrives with 13.5. */
-export type MilestoneUpdateSource = "weekly" | "monthly" | "planning";
+/**
+ * Which channel produced an update. `schedule_import` arrives with 13.5.
+ *
+ * `weekly` / `monthly` / `planning` are OBSERVATIONS — they propose a figure.
+ * `reconciliation` (13.2d) is the governance act that declares the official
+ * figure for a cut-off when observations disagree. Only Project Control may
+ * write one.
+ */
+export type MilestoneUpdateSource =
+  | "weekly"
+  | "monthly"
+  | "planning"
+  | "reconciliation";
 
 export type MilestoneApprovalStatus = "pending" | "approved" | "rejected";
 
@@ -297,6 +342,7 @@ export interface MasterMilestone {
   systemId?: string;
   /** Storage name is stable; PSM projects display it as Program & Study. */
   disciplineId?: string;
+  /** The frozen contractual reference. `plannedDate` is the current agreement. */
   baselineDate?: IsoDate;
   priority: MilestonePriority;
   ownerContactId?: string;
@@ -306,6 +352,33 @@ export interface MasterMilestone {
   archivedAt?: IsoDateTime;
   createdAt: IsoDateTime;
   updatedAt: IsoDateTime;
+
+  /* ------------------------- 13.2c — the plan --------------------------- */
+  type: MilestoneType;
+  /** Project-chosen label within the type. Free text, never a lookup. */
+  category?: string;
+  /** The current agreed date, which may move in a re-plan. */
+  plannedDate?: IsoDate;
+  /**
+   * Share of PHYSICAL project scope, 0–100. A commercial milestone cannot
+   * carry one — the database refuses it, because money is not delivered work.
+   */
+  weightPercent?: number;
+  /** What progress the plan says should be reached. Actual is reported. */
+  plannedProgressPercent?: number;
+  /** The milestone this one waits on. Same project, and never circular. */
+  predecessorMilestoneId?: string;
+  /** Whether the client must approve. Whether they DID is reported. */
+  clientApprovalRequired: boolean;
+  notes?: string;
+
+  /* ------------- 13.2c — commercial plan (type === "commercial") --------- */
+  /** Share of contract value this payment represents. */
+  paymentPercent?: number;
+  paymentAmount?: number;
+  paymentDueDate?: IsoDate;
+  /** Paid up front and recovered later. Inside contract value, never above it. */
+  isAdvancePayment: boolean;
 }
 
 /**
@@ -336,6 +409,43 @@ export interface MilestoneUpdate {
   regressionReason?: string;
   submittedByContactId?: string;
   submittedAt: IsoDateTime;
+
+  /* --------------- 13.2c — commercial actuals, as reported -------------- */
+  paymentStatus?: MilestonePaymentStatus;
+  invoiceReference?: string;
+  invoicedDate?: IsoDate;
+  receivedDate?: IsoDate;
+  /**
+   * Advance recovered to date, in money. Recovery % and the outstanding
+   * advance are derived against the agreed `paymentAmount` rather than stored
+   * a second time.
+   */
+  recoveredAmount?: number;
+
+  /* ------------------ 13.2c — client approval, as reported -------------- */
+  /** What the CLIENT decided. Not `approvalStatus`, which is our governance. */
+  clientApprovalStatus?: MilestoneClientApprovalStatus;
+  clientApprovalDate?: IsoDate;
+
+  /* ---------------------- 13.2d — reconciliation ------------------------ */
+  /**
+   * The reporting cut-off this observation describes.
+   *
+   * Not `submittedAt`, which is when it arrived. Two figures at different
+   * cut-offs are both valid history; two approved figures at the SAME cut-off
+   * are a conflict that only Project Control may resolve.
+   *
+   * Undefined on rows written before 13.2d, and on any row that declines to
+   * state a cut-off — those are exempt from conflict detection.
+   */
+  asOfDate?: IsoDate;
+  /**
+   * On a reconciliation row: the reported update whose value was adopted.
+   * Undefined when Project Control entered an independent figure.
+   */
+  adoptedFromUpdateId?: string;
+  /** Required on a reconciliation row. */
+  reconciliationReason?: string;
 }
 
 /* ------------------------ Master Deliverables (13.3) ---------------------- */
