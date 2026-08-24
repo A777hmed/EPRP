@@ -169,6 +169,29 @@ export interface WeeklyPlanItem {
 }
 
 /**
+ * Editable Weekly authoring for one governed Master Milestone observation.
+ *
+ * Identity is a required reference, never a copied title. Finalizing the
+ * Weekly appends this content to `milestone_updates`; this row then remains as
+ * immutable report authoring history and is never used as official state.
+ */
+export interface WeeklyMilestoneDraft {
+  id: string;
+  weeklyReportId: string;
+  milestoneId: string;
+  status: WeeklyPlanStatus;
+  progressPercent?: number;
+  forecastDate?: IsoDate;
+  actualDate?: IsoDate;
+  narrative?: string;
+  sortOrder: number;
+  createdByContactId?: string;
+  updatedByContactId?: string;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+/**
  * One "Major Activity Completed" row on a weekly report (spec section 6).
  * Department and discipline are master-data references; the project is
  * reached through the parent report rather than duplicated here.

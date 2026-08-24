@@ -42,7 +42,7 @@ and a lifecycle transition correctly refused).
 | 10a | Control Center + Calendar | ⚠️ Partial — Dashboard rebuilt on real data (mock removed), regrouped sidebar with notched active indicator, and a project-scoped Calendar (`project_events`) with Day/Week/Month/Agenda and full CRUD. Attachments on events are NOT implemented: the platform has no attachment storage at all (`attachment-service.ts` is `notImplemented`, no table, no bucket) |
 | 11 | A4/PDF output | ⚠️ Partial — dedicated Weekly A4 preview/print delivered; other report types remain untouched |
 | 12 | Hardening and future integrations | ❌ Not started |
-| 13 | Master Planning & Control *(added — see note)* | ⚠️ In progress — **13.1 & 13.2 CLOSED**, **13.3 implemented** (verified in UI), **13.2c + 13.2d implemented** (verified on the local rehearsal database); 13.4–13.7 not started |
+| 13 | Master Planning & Control *(added — see note)* | ⚠️ In progress — **13.1 & 13.2 CLOSED**, **13.3 implemented** (verified in UI), **13.2c + 13.2d implemented** (verified on the local rehearsal database); **13.4 Wave 1 implemented with isolated database validation green and authenticated UI review pending**; 13.4 Wave 2 and 13.5–13.7 not started |
 
 **Current phase: P0 — architecture-review blockers.** Scope, ordering and the
 locked decisions behind it are in
@@ -783,7 +783,7 @@ but are not the same increment. Use the numbering in this file.
 | 13.3 | Master Deliverables | ✅ **Implemented** — verified in the live UI 2026-08-20; one deferred test (M5) |
 | 13.2c | Master Milestone completion | ✅ **Implemented** — verified on the local rehearsal database 2026-08-22 (29/29 shape, 42/42 runtime, 32/32 derivation); one defect found and fixed. Not yet driven through the UI |
 | 13.2d | Milestone progress reconciliation | ✅ **Implemented** — verified on the local rehearsal database 2026-08-22 (40/40 runtime, 40/40 derivation). R5 amended; reconciliation is Project Control only (excludes Reporting Coordinator); conflict tolerance fixed at 0 points. Not yet driven through the UI |
-| 13.4 | Reporting Integration | ❌ Not started — read contract exists (`milestoneService.listRegister`); Weekly/Monthly MUST write `as_of_date` (see 13.2d) |
+| 13.4 | Reporting Integration | ⚠️ **Wave 1 implemented; isolated database validation green** — Weekly selects active governed milestones and drafts report observations; two clean migration replays and all SQL regressions passed. Authenticated UI review remains pending. Monthly Wave 2 not started |
 | 13.5 | Schedule Import (Primavera) | 🔒 Gated — needs written sign-off |
 | 13.6 | Schedule Views | 🔒 Gated |
 | 13.7 | Executive & Dashboard | ❌ Not started |
@@ -1463,6 +1463,70 @@ alone — out of scope, and no equivalent governance rule depends on it yet.
 2. **Conflict tolerance is fixed at 0 points.** A rounding difference of one
    point will raise a conflict. Configurable tolerance is the documented next
    enhancement if that proves noisy in practice.
-3. **Only `planning` updates carry a cut-off in the UI today.** The as-of-date
-   field exists on the update dialog; Weekly and Monthly do not submit at all
-   until 13.4.
+3. **Weekly report observations were not connected.** Closed locally by 13.4
+   Wave 1 below; isolated migration replay and runtime acceptance are green.
+   Authenticated UI review remains pending, and Monthly stays deferred to Wave 2.
+
+### 13.4 — Reporting Integration ⚠️ WAVE 1 IMPLEMENTED / ISOLATED DB GREEN
+
+Wave 1 resumes the approved Weekly-to-Master-Milestone design. It does not
+replace the Master Milestone register, reconciliation derivation, Weekly
+workspace, Next Week plan, Dashboard, Executive, Master Deliverables or Monthly.
+
+**Delivered locally:**
+
+- Weekly reads active milestones through `milestoneService.listRegister()` and
+  stores editable rows by `milestone_id`; there is no title matching and no
+  milestone creation from Weekly text.
+- `weekly_milestone_drafts` keeps editable report input separate from the
+  append-only `milestone_updates` stream. Finalized report history cannot be
+  edited.
+- Finalization appends one pending `source = 'weekly'` observation per report,
+  milestone and period end. The row carries `weekly_report_id`, a null
+  `monthly_report_id`, `as_of_date = weekly_reports.period_end`, scope and actor
+  provenance. A partial unique index makes retries deterministic; exact-content
+  retries succeed without duplication before or after governance, never
+  overwrite governed state, and reject conflicting draft content.
+- Data-boundary guards enforce active same-project milestone selection,
+  same-project report provenance and the Weekly cut-off rule. Draft mutations
+  and finalization lock the same Weekly report row, a draft cannot be reassigned
+  after creation, and governed observations freeze the parent report's project
+  and period-end provenance.
+- Existing free-text milestone plan rows are retained as labelled legacy rows;
+  they are not matched or migrated automatically. `next_week` tasks stay in
+  `weekly_plan_items` and never enter milestone governance.
+- The existing `projects.milestone_update_approval` setting is now mapped into
+  the project domain. Manual approval is the only activated Wave 1 path.
+
+**Authorization reconciliation:**
+
+The committed Authorization Foundation allows the assigned Reporting
+Coordinator to manage the Weekly lifecycle through
+`can_manage_reporting_workflow()`, but deliberately excludes that role from
+governed milestone writes through `can_manage_project_operations()`. Therefore
+`auto_on_report_finalized` is not wired: a Weekly report with governed milestone
+drafts must be finalized by Project Control, and every resulting observation
+stays pending for the existing approval decision path. This preserves the
+committed authorization and reconciliation boundaries without redesigning
+either architecture.
+
+**Verification at this checkpoint (2026-08-24):**
+
+| Check | Result |
+|---|---|
+| ESLint (`src`, zero warnings) | PASS |
+| TypeScript (`tsc --noEmit`) | PASS |
+| Production build (41 routes) | PASS |
+| Git whitespace check | PASS |
+| Isolated migration replay | PASS — all 67 migrations replayed from empty twice on a disposable PostgreSQL 17 database; the active local and hosted databases were not targeted |
+| Master Milestones structural / runtime | PASS — 29/29 and 42/42 |
+| Reconciliation runtime | PASS — 40/40 |
+| Authorization structural / runtime | PASS — 27/27 and 51/51 |
+| Reporting Integration Wave 1 structural / runtime | PASS — 16/16 and 27/27 |
+| Reporting Integration Wave 1 concurrency | PASS — 8/8 edit/delete/insert/reassignment versus finalization assertions |
+| Authenticated UI walkthrough | NOT RUN |
+
+**Wave 2 gate:** do not start Monthly integration until authenticated Weekly UI
+review is green and the product owner explicitly decides whether automatic
+approval may ever cross the current Reporting-Coordinator / Project-Control
+authority split. Migration replay and SQL runtime gates are green.

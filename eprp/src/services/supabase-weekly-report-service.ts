@@ -5,6 +5,7 @@ import type {
   ReportStatus,
   WeeklyActivity,
   WeeklyEntry,
+  WeeklyMilestoneDraft,
   WeeklyPlanItem,
   WeeklyReport,
   WeeklySubmission,
@@ -17,6 +18,7 @@ import {
 import type {
   WeeklyActivityRow,
   WeeklyEntryRow,
+  WeeklyMilestoneDraftRow,
   WeeklyPlanItemRow,
   WeeklyReportRow,
   WeeklySubmissionRow,
@@ -144,6 +146,26 @@ function rowToPlanItem(row: WeeklyPlanItemRow): WeeklyPlanItem {
     departmentId: row.department_id ?? undefined,
     status: row.status as WeeklyPlanItem["status"],
     sortOrder: row.sort_order,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function rowToMilestoneDraft(
+  row: WeeklyMilestoneDraftRow
+): WeeklyMilestoneDraft {
+  return {
+    id: row.id,
+    weeklyReportId: row.weekly_report_id,
+    milestoneId: row.milestone_id,
+    status: row.status as WeeklyMilestoneDraft["status"],
+    progressPercent: row.progress_percent ?? undefined,
+    forecastDate: row.forecast_date ?? undefined,
+    actualDate: row.actual_date ?? undefined,
+    narrative: row.narrative ?? undefined,
+    sortOrder: row.sort_order,
+    createdByContactId: row.created_by_contact_id ?? undefined,
+    updatedByContactId: row.updated_by_contact_id ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -882,6 +904,76 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
       .from("weekly_entries")
       .delete()
       .eq("id", entryId)
+      .eq("weekly_report_id", reportId);
+    if (error) throw new Error(error.message);
+  },
+
+  async canManageMilestoneObservations(projectId) {
+    const { data, error } = await client().rpc("can_manage_project_operations", {
+      p_project: projectId,
+    });
+    if (error) throw new Error(error.message);
+    return data === true;
+  },
+
+  async listMilestoneDrafts(reportId) {
+    const { data, error } = await client()
+      .from("weekly_milestone_drafts")
+      .select("*")
+      .eq("weekly_report_id", reportId)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as WeeklyMilestoneDraftRow[]).map(
+      rowToMilestoneDraft
+    );
+  },
+
+  async saveMilestoneDraft(reportId, input) {
+    const sb = client();
+    await assertContentEditable(sb, reportId);
+    const fields = {
+      milestone_id: input.milestoneId,
+      status: input.status,
+      progress_percent: input.progressPercent ?? null,
+      forecast_date: input.forecastDate ?? null,
+      actual_date: input.actualDate ?? null,
+      narrative: input.narrative?.trim() || null,
+      sort_order: input.sortOrder ?? 0,
+    };
+
+    const { data, error } = input.id
+      ? await sb
+          .from("weekly_milestone_drafts")
+          .update(fields)
+          .eq("id", input.id)
+          .eq("weekly_report_id", reportId)
+          .select("*")
+          .maybeSingle()
+      : await sb
+          .from("weekly_milestone_drafts")
+          .upsert(
+            { ...fields, weekly_report_id: reportId },
+            { onConflict: "weekly_report_id,milestone_id" }
+          )
+          .select("*")
+          .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) {
+      throw new Error(
+        "This governed milestone draft was not saved. Project Control authority is required."
+      );
+    }
+    return rowToMilestoneDraft(data as WeeklyMilestoneDraftRow);
+  },
+
+  async deleteMilestoneDraft(reportId, draftId) {
+    const sb = client();
+    await assertContentEditable(sb, reportId);
+    const { error } = await sb
+      .from("weekly_milestone_drafts")
+      .delete()
+      .eq("id", draftId)
       .eq("weekly_report_id", reportId);
     if (error) throw new Error(error.message);
   },

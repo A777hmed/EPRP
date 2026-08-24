@@ -125,8 +125,25 @@ declare
                                      where code = 'ZZ-P0TEST-PRJ') limit 1);
   CUT_A date := date '2026-09-30';
   CUT_B date := date '2026-10-31';
+  w_a uuid; w_b uuid; w_reason uuid; w_auth uuid;
   m_a uuid; m_b uuid; u_week uuid; u_month uuid; u_r uuid; n int; t text;
 begin
+
+  -- Report-sourced observations must carry a real same-project report. These
+  -- fixture headers make the reconciliation regression exercise that governed
+  -- provenance instead of relying on the pre-Wave-1 nullable report links.
+  insert into public.weekly_reports
+    (report_number, project_id, week_number, period_start, period_end)
+  values
+    ('ZZREC-W-A', P_A, 1, CUT_A - 6, CUT_A),
+    ('ZZREC-W-B', P_A, 2, CUT_B - 6, CUT_B),
+    ('ZZREC-W-REASON', P_A, 3, CUT_A - 13, CUT_A),
+    ('ZZREC-W-AUTH', P_A, 4, date '2026-11-24', date '2026-11-30');
+
+  select id into w_a from public.weekly_reports where report_number = 'ZZREC-W-A';
+  select id into w_b from public.weekly_reports where report_number = 'ZZREC-W-B';
+  select id into w_reason from public.weekly_reports where report_number = 'ZZREC-W-REASON';
+  select id into w_auth from public.weekly_reports where report_number = 'ZZREC-W-AUTH';
 
   /* ===== A. different cut-offs are NOT a conflict ====================== */
 
@@ -136,9 +153,9 @@ begin
   returning id into m_a;
 
   insert into public.milestone_updates
-    (milestone_id, source, department_id, status, progress_percent, as_of_date,
-     approval_status, approved_at)
-  values (m_a, 'weekly', D_A, 'in_progress', 50, CUT_A, 'approved', now());
+    (milestone_id, source, weekly_report_id, department_id, status,
+     progress_percent, as_of_date, approval_status, approved_at)
+  values (m_a, 'weekly', w_a, D_A, 'in_progress', 50, CUT_A, 'approved', now());
   insert into public.milestone_updates
     (milestone_id, source, department_id, status, progress_percent, as_of_date,
      approval_status, approved_at)
@@ -165,9 +182,9 @@ begin
   returning id into m_b;
 
   insert into public.milestone_updates
-    (milestone_id, source, department_id, status, progress_percent, as_of_date,
-     approval_status, approved_at)
-  values (m_b, 'weekly', D_A, 'in_progress', 50, CUT_A, 'approved', now())
+    (milestone_id, source, weekly_report_id, department_id, status,
+     progress_percent, as_of_date, approval_status, approved_at)
+  values (m_b, 'weekly', w_a, D_A, 'in_progress', 50, CUT_A, 'approved', now())
   returning id into u_week;
   insert into public.milestone_updates
     (milestone_id, source, department_id, status, progress_percent, as_of_date,
@@ -310,10 +327,11 @@ begin
   perform pg_temp.must_fail(5, 'E RECONCILED VALUE',
     'a Weekly row cannot carry a reconciliation reason',
     format($x$insert into public.milestone_updates
-             (milestone_id, source, status, progress_percent, as_of_date,
-              reconciliation_reason)
-             values (%L,'weekly','in_progress',70,%L,'sneaking governance in')$x$,
-           m_b, CUT_A));
+             (milestone_id, source, weekly_report_id, status,
+              progress_percent, as_of_date, reconciliation_reason)
+             values (%L,'weekly',%L,'in_progress',70,%L,
+                    'sneaking governance in')$x$,
+           m_b, w_reason, CUT_A));
 
   perform pg_temp.must_fail(5, 'E RECONCILED VALUE',
     'a reconciliation is append-only like every other update',
@@ -380,6 +398,9 @@ declare
                 where project_id = (select id from public.projects
                                      where code = 'ZZ-P0TEST-PRJ') limit 1);
   m_b uuid := (select id from public.master_milestones where code = 'ZZREC-B');
+  w_auth uuid := (
+    select id from public.weekly_reports where report_number = 'ZZREC-W-AUTH'
+  );
   n int;
 begin
   /*
@@ -425,9 +446,11 @@ begin
     'Reporting Coordinator cannot submit a Master Milestone observation',
     '42501',
     format($x$insert into public.milestone_updates
-             (milestone_id, source, department_id, status, progress_percent, as_of_date)
-             values (%L,'weekly',%L,'in_progress',45,date '2026-11-30')$x$,
-           m_b, D_A));
+             (milestone_id, source, weekly_report_id, department_id, status,
+              progress_percent, as_of_date)
+             values (%L,'weekly',%L,%L,'in_progress',45,
+                    date '2026-11-30')$x$,
+           m_b, w_auth, D_A));
 end $t$;
 
 /* ===== the three identities that MAY reconcile ========================== */

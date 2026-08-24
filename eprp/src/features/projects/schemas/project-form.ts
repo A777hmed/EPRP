@@ -140,6 +140,10 @@ function createBaseSchema() {
       ])
       .optional(),
     monthlyCutoffDay: looseNumber,
+    milestoneUpdateApproval: z.enum([
+      "manual",
+      "auto_on_report_finalized",
+    ]),
     currency: z.string(),
     workingWeek: z.string(),
     timeZone: z.string(),
@@ -494,6 +498,7 @@ export function emptyProjectFormValues(): ProjectFormValues {
     executiveEnabled: true,
     weeklyReportingDay: "thursday",
     monthlyCutoffDay: 25,
+    milestoneUpdateApproval: "manual",
     currency: "EGP",
     workingWeek: "Sun – Thu",
     timeZone: "Africa/Cairo",
@@ -573,6 +578,7 @@ export function projectToFormValues(project: Project): ProjectFormValues {
     executiveEnabled: project.reporting.executiveEnabled,
     weeklyReportingDay: project.reporting.weeklyReportingDay,
     monthlyCutoffDay: project.reporting.monthlyCutoffDay,
+    milestoneUpdateApproval: project.reporting.milestoneUpdateApproval,
     currency: project.reporting.currency,
     workingWeek: project.reporting.workingWeek,
     timeZone: project.reporting.timeZone,
@@ -688,6 +694,7 @@ export function formValuesToProjectInput(
       monthlyCutoffDay: Number.isNaN(values.monthlyCutoffDay)
         ? 25
         : values.monthlyCutoffDay,
+      milestoneUpdateApproval: values.milestoneUpdateApproval,
       currency: values.currency,
       workingWeek: values.workingWeek,
       timeZone: values.timeZone,

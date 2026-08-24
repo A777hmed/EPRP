@@ -120,6 +120,7 @@ export interface ProjectRow extends Timestamps {
   executive_enabled: boolean;
   weekly_reporting_day: string;
   monthly_cutoff_day: number;
+  milestone_update_approval: string;
   currency: string;
   working_week: string;
   time_zone: string;
@@ -489,6 +490,22 @@ export interface WeeklyPlanItemRow {
   updated_at: string;
 }
 
+export interface WeeklyMilestoneDraftRow {
+  id: string;
+  weekly_report_id: string;
+  milestone_id: string;
+  status: string;
+  progress_percent: number | null;
+  forecast_date: string | null;
+  actual_date: string | null;
+  narrative: string | null;
+  sort_order: number;
+  created_by_contact_id: string | null;
+  updated_by_contact_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface WeeklyActivityRow {
   id: string;
   weekly_report_id: string;
@@ -726,6 +743,7 @@ export interface Database {
       position_assignment_history: TableDef<PositionAssignmentHistoryRow, Omit<PositionAssignmentHistoryRow, "id" | "created_at">, Partial<PositionAssignmentHistoryRow>>;
       profiles: TableDef<ProfileRow, Omit<ProfileRow, "created_at" | "updated_at">, Partial<ProfileRow>>;
       weekly_reports: TableDef<WeeklyReportRow, Writable<WeeklyReportRow> & { report_number: string; project_id: string; week_number: number; period_start: string; period_end: string }, Writable<WeeklyReportRow>>;
+      weekly_milestone_drafts: TableDef<WeeklyMilestoneDraftRow, Writable<WeeklyMilestoneDraftRow> & { weekly_report_id: string; milestone_id: string }, Writable<WeeklyMilestoneDraftRow>>;
       weekly_submissions: TableDef<WeeklySubmissionRow, Omit<WeeklySubmissionRow, "id" | "created_at" | "updated_at">, Partial<WeeklySubmissionRow>>;
       weekly_entries: TableDef<WeeklyEntryRow, Omit<WeeklyEntryRow, "id" | "created_at" | "updated_at">, Partial<WeeklyEntryRow>>;
       weekly_plan_items: TableDef<WeeklyPlanItemRow, Omit<WeeklyPlanItemRow, "id" | "created_at" | "updated_at">, Partial<WeeklyPlanItemRow>>;

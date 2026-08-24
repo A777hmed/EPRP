@@ -12,6 +12,7 @@ const defaultReporting = {
   executiveEnabled: true,
   weeklyReportingDay: "thursday",
   monthlyCutoffDay: 25,
+  milestoneUpdateApproval: "manual",
   currency: "EGP",
   workingWeek: "Sun – Thu",
   timeZone: "Africa/Cairo",

@@ -122,6 +122,7 @@ insert into public.contacts (name, email)
 values
   ('ZZ-AUTH Project Control', 'auth.pc.contact@example.invalid'),
   ('ZZ-AUTH Department User', 'auth.department.contact@example.invalid'),
+  ('ZZ-AUTH Responsibility Holder', 'auth.responsibility@example.invalid'),
   ('ZZ-AUTH Non-member', 'auth.nonmember@example.invalid');
 
 insert into public.profiles (id, email, full_name, role, active)
@@ -170,6 +171,15 @@ select p.id, c.id, 'team_member', d.id, 'team_member'
   from public.projects p, public.contacts c, public.departments d
  where p.code = 'ZZ-P0TEST-PRJ'
    and c.name = 'ZZ-AUTH Department User'
+   and d.code = 'ZZ-P0TEST-DEPT';
+
+insert into public.project_contacts (
+  project_id, contact_id, role, department_id, assignment_role
+)
+select p.id, c.id, 'team_member', d.id, 'team_member'
+  from public.projects p, public.contacts c, public.departments d
+ where p.code = 'ZZ-P0TEST-PRJ'
+   and c.name = 'ZZ-AUTH Responsibility Holder'
    and d.code = 'ZZ-P0TEST-DEPT';
 
 insert into public.job_titles (name, code)
@@ -329,7 +339,8 @@ declare
   p_a uuid := (select id from public.projects where code = 'ZZ-P0TEST-PRJ');
   p_b uuid := (select id from public.projects where code = 'PSAIM-001');
   member_contact uuid := (
-    select c.id from public.contacts c where c.name = 'ZZ-P0TEST Member'
+    select c.id from public.contacts c
+     where c.name = 'ZZ-AUTH Responsibility Holder'
   );
   nonmember_contact uuid := (
     select c.id from public.contacts c where c.name = 'ZZ-AUTH Non-member'
@@ -675,8 +686,8 @@ begin
   perform pg_temp.must_fail_with(5, 'DEPARTMENT USER',
     'cannot submit a Master Milestone update', '42501',
     format(
-      'insert into public.milestone_updates(milestone_id,source,department_id,status,progress_percent) values (%L,%L,%L,%L,%s)',
-      milestone_id, 'weekly', d_a, 'in_progress', 10
+      'insert into public.milestone_updates(milestone_id,source,weekly_report_id,department_id,status,progress_percent,as_of_date) values (%L,%L,%L,%L,%L,%s,%L)',
+      milestone_id, 'weekly', w_a, d_a, 'in_progress', 10, date '2098-01-07'
     ));
 end;
 $t$;

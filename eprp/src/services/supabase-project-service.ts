@@ -172,6 +172,7 @@ function flattenProject(
     row.executive_enabled = input.reporting.executiveEnabled;
     row.weekly_reporting_day = input.reporting.weeklyReportingDay;
     row.monthly_cutoff_day = input.reporting.monthlyCutoffDay;
+    row.milestone_update_approval = input.reporting.milestoneUpdateApproval;
     row.currency = input.reporting.currency;
     row.working_week = input.reporting.workingWeek;
     row.time_zone = input.reporting.timeZone;
@@ -265,6 +266,9 @@ export function rowToProject(
       executiveEnabled: row.executive_enabled,
       weeklyReportingDay: row.weekly_reporting_day as Weekday,
       monthlyCutoffDay: row.monthly_cutoff_day,
+      milestoneUpdateApproval:
+        (row.milestone_update_approval as Project["reporting"]["milestoneUpdateApproval"]) ??
+        "manual",
       currency: row.currency,
       workingWeek: row.working_week,
       timeZone: row.time_zone,

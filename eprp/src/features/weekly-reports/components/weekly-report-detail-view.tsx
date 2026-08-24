@@ -721,11 +721,14 @@ export function WeeklyReportDetailView({
         />
       </SectionCard>}
 
-      {workspace && (
+      {workspace && scope && (
         <WeeklyProjectControlPlan
+          key={report.id}
           reportId={report.id}
+          reportStatus={report.status}
           project={project}
           names={names}
+          terms={scope.terms}
           periodStart={report.periodStart}
           periodEnd={report.periodEnd}
           items={planItems}

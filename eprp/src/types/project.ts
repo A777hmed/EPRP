@@ -219,6 +219,12 @@ export interface ProjectReportingConfig {
   weeklyReportingDay: Weekday;
   /** Day of month (1–28) monthly reports cut off. */
   monthlyCutoffDay: number;
+  /**
+   * Manual remains the safe default. The automatic option is mapped for the
+   * existing database contract but is not activated until report finalization
+   * and governed milestone authority are aligned.
+   */
+  milestoneUpdateApproval: "manual" | "auto_on_report_finalized";
   currency: string;
   workingWeek: string;
   timeZone: string;

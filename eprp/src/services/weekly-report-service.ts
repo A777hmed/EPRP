@@ -15,6 +15,7 @@ import type {
   WeeklyActivity,
   WeeklyEntry,
   WeeklyEntryType,
+  WeeklyMilestoneDraft,
   WeeklyPlanItem,
   WeeklyPlanStatus,
   WeeklyReport,
@@ -191,6 +192,17 @@ export interface WeeklyPlanItemInput {
   sortOrder?: number;
 }
 
+export interface WeeklyMilestoneDraftInput {
+  id?: string;
+  milestoneId: string;
+  status: WeeklyPlanStatus;
+  progressPercent?: number;
+  forecastDate?: IsoDate;
+  actualDate?: IsoDate;
+  narrative?: string;
+  sortOrder?: number;
+}
+
 export interface WeeklyReportService {
   list(): Promise<WeeklyReport[]>;
   getById(id: string): Promise<WeeklyReport | null>;
@@ -264,6 +276,14 @@ export interface WeeklyReportService {
   saveEntry(reportId: string, input: WeeklyEntryInput): Promise<WeeklyEntry>;
   /** Remove ONE narrative row, leaving the rest of the report alone. */
   deleteEntry(reportId: string, entryId: string): Promise<void>;
+  /** Whether the signed-in account holds current governed milestone authority. */
+  canManageMilestoneObservations(projectId: string): Promise<boolean>;
+  listMilestoneDrafts(reportId: string): Promise<WeeklyMilestoneDraft[]>;
+  saveMilestoneDraft(
+    reportId: string,
+    input: WeeklyMilestoneDraftInput
+  ): Promise<WeeklyMilestoneDraft>;
+  deleteMilestoneDraft(reportId: string, draftId: string): Promise<void>;
   listPlanItems(reportId: string): Promise<WeeklyPlanItem[]>;
   savePlanItem(
     reportId: string,
@@ -305,6 +325,7 @@ const activityStore = new Map<string, WeeklyActivity>();
 const planStore = new Map<string, WeeklyPlanItem>(
   mockWeeklyPlanItems.map((item) => [item.id, clone(item)])
 );
+const milestoneDraftStore = new Map<string, WeeklyMilestoneDraft>();
 
 let sequence = reportStore.size;
 function nextId(prefix: string): string {
@@ -827,6 +848,63 @@ const mockWeeklyReportService: WeeklyReportService = {
       entryIds: report.entryIds.filter((id) => id !== entryId),
       updatedAt: nowIso(),
     });
+  },
+
+  async canManageMilestoneObservations() {
+    await delay(50);
+    return true;
+  },
+
+  async listMilestoneDrafts(reportId) {
+    await delay(100);
+    return [...milestoneDraftStore.values()]
+      .filter((draft) => draft.weeklyReportId === reportId)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map(clone);
+  },
+
+  async saveMilestoneDraft(reportId, input) {
+    await delay();
+    const report = reportStore.get(reportId);
+    if (!report) throw new Error(`Weekly report ${reportId} not found`);
+    const frozen = contentFrozenReason(report.status);
+    if (frozen) throw new Error(frozen);
+
+    const byId = input.id ? milestoneDraftStore.get(input.id) : undefined;
+    const byMilestone = [...milestoneDraftStore.values()].find(
+      (draft) =>
+        draft.weeklyReportId === reportId &&
+        draft.milestoneId === input.milestoneId
+    );
+    const target =
+      byId?.weeklyReportId === reportId ? byId : byMilestone;
+    const now = nowIso();
+    const draft: WeeklyMilestoneDraft = {
+      id: target?.id ?? nextId("milestone-draft"),
+      weeklyReportId: reportId,
+      milestoneId: input.milestoneId,
+      status: input.status,
+      progressPercent: input.progressPercent,
+      forecastDate: input.forecastDate,
+      actualDate: input.actualDate,
+      narrative: input.narrative?.trim() || undefined,
+      sortOrder:
+        input.sortOrder ?? target?.sortOrder ?? milestoneDraftStore.size,
+      createdAt: target?.createdAt ?? now,
+      updatedAt: now,
+    };
+    milestoneDraftStore.set(draft.id, draft);
+    return clone(draft);
+  },
+
+  async deleteMilestoneDraft(reportId, draftId) {
+    await delay();
+    const report = reportStore.get(reportId);
+    if (!report) throw new Error(`Weekly report ${reportId} not found`);
+    const frozen = contentFrozenReason(report.status);
+    if (frozen) throw new Error(frozen);
+    const draft = milestoneDraftStore.get(draftId);
+    if (draft?.weeklyReportId === reportId) milestoneDraftStore.delete(draftId);
   },
 
   async listPlanItems(reportId) {

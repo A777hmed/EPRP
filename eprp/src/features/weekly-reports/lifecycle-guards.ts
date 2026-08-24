@@ -18,7 +18,10 @@ import type { ReportStatus, WeeklyReport, WeeklySubmission } from "@/types";
 export interface LifecycleContext {
   report: Pick<
     WeeklyReport,
-    "status" | "reviewedByContactId" | "approvedByContactId"
+    | "status"
+    | "signatories"
+    | "reviewedByContactId"
+    | "approvedByContactId"
   >;
   submissions: Pick<WeeklySubmission, "status">[];
   /**
@@ -84,12 +87,20 @@ function unmetConditions(to: ReportStatus, ctx: LifecycleContext): string[] {
     }
   };
   const needsReviewer = () => {
-    if (!report.reviewedByContactId) {
+    const savedReviewer = report.signatories?.reviewed?.some(
+      (person) => person.name.trim().length > 0
+    );
+    // The snapshot is canonical. The legacy contact id remains a compatibility
+    // fallback for reports saved before the snapshot column existed.
+    if (!savedReviewer && !report.reviewedByContactId) {
       unmet.push("No reviewer recorded.");
     }
   };
   const needsApprover = () => {
-    if (!report.approvedByContactId) {
+    const savedApprover = report.signatories?.approved?.some(
+      (person) => person.name.trim().length > 0
+    );
+    if (!savedApprover && !report.approvedByContactId) {
       unmet.push("No approver recorded.");
     }
   };
