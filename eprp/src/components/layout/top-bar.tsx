@@ -1,8 +1,8 @@
-"use client";
-
+import { Suspense } from "react";
 import { Bell, ChevronDown, Mail, Search } from "lucide-react";
 
 import { SignOutMenuItem } from "@/features/auth/components/sign-out-menu-item";
+import { getCurrentUserIdentity } from "@/features/auth/profile";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,16 +14,76 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
-/** Placeholder identity until user management arrives in a later phase. */
-const currentUser = {
-  name: "Ahmed Morsy",
-  role: "Admin",
-  initials: "AM",
-};
+async function AuthenticatedUserMenu() {
+  const identity = await getCurrentUserIdentity();
+  const name = identity?.fullName.trim() || "Signed-in user";
+  const role = identity?.roleLabel?.trim() || "No role assigned";
+  const initials = identity?.initials.trim() || "?";
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          className="h-9 gap-2 rounded-full px-1.5 lg:rounded-lg lg:pr-2"
+          aria-label="Open user menu"
+        >
+          <Avatar className="size-7">
+            <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <span className="hidden text-left leading-tight lg:grid">
+            <span className="text-sm font-medium">{name}</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              {role}
+            </span>
+          </span>
+          <ChevronDown
+            aria-hidden="true"
+            className="hidden size-3.5 text-muted-foreground lg:block"
+          />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel>
+          <div className="grid leading-tight">
+            <span className="font-medium">{name}</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              {role}
+            </span>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem>Profile</DropdownMenuItem>
+        <DropdownMenuItem>Preferences</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <SignOutMenuItem />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function AuthenticatedUserMenuSkeleton() {
+  return (
+    <div
+      className="flex h-9 items-center gap-2 rounded-full px-1.5 lg:rounded-lg lg:pr-2"
+      aria-label="Loading user profile"
+      role="status"
+    >
+      <Skeleton className="size-7 shrink-0 rounded-full" />
+      <span className="hidden w-24 space-y-1.5 lg:block">
+        <Skeleton className="h-3.5 w-24" />
+        <Skeleton className="h-3 w-16" />
+      </span>
+    </div>
+  );
+}
 
 /**
  * Global top bar: sidebar toggle, breadcrumbs, and the global action
@@ -77,46 +137,9 @@ export function TopBar() {
           />
         </Button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className="h-9 gap-2 rounded-full px-1.5 lg:rounded-lg lg:pr-2"
-              aria-label="Open user menu"
-            >
-              <Avatar className="size-7">
-                <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-                  {currentUser.initials}
-                </AvatarFallback>
-              </Avatar>
-              <span className="hidden text-left leading-tight lg:grid">
-                <span className="text-sm font-medium">{currentUser.name}</span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  {currentUser.role}
-                </span>
-              </span>
-              <ChevronDown
-                aria-hidden="true"
-                className="hidden size-3.5 text-muted-foreground lg:block"
-              />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuLabel>
-              <div className="grid leading-tight">
-                <span className="font-medium">{currentUser.name}</span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  {currentUser.role}
-                </span>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Profile</DropdownMenuItem>
-            <DropdownMenuItem>Preferences</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <SignOutMenuItem />
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Suspense fallback={<AuthenticatedUserMenuSkeleton />}>
+          <AuthenticatedUserMenu />
+        </Suspense>
       </div>
     </header>
   );
