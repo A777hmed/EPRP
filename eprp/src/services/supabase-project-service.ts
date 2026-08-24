@@ -72,6 +72,36 @@ const RESPONSIBILITY_ROLES: {
   { role: "project_sponsor", key: "projectSponsorId" },
 ];
 
+const RESPONSIBILITY_COLUMNS = [
+  "project_manager_id",
+  "project_control_manager_id",
+  "reporting_coordinator_id",
+  "client_representative_id",
+  "project_sponsor_id",
+] as const;
+
+function responsibilityUpdateRequested(input: Partial<ProjectInput>): boolean {
+  return RESPONSIBILITY_ROLES.some(({ key }) => key in input);
+}
+
+function withoutResponsibilityColumns(
+  columns: Record<string, unknown>
+): Record<string, unknown> {
+  const staged = { ...columns };
+  for (const column of RESPONSIBILITY_COLUMNS) delete staged[column];
+  return staged;
+}
+
+function onlyResponsibilityColumns(
+  columns: Record<string, unknown>
+): Record<string, unknown> {
+  return Object.fromEntries(
+    RESPONSIBILITY_COLUMNS.filter((column) => column in columns).map(
+      (column) => [column, columns[column]]
+    )
+  );
+}
+
 /* ------------------------------- Mapping ---------------------------------- */
 
 /**
@@ -218,7 +248,7 @@ export function rowToProject(
     plannedFinishDate: row.planned_finish_date,
     forecastFinishDate: row.forecast_finish_date ?? undefined,
     actualFinishDate: row.actual_finish_date ?? undefined,
-    projectManagerId: row.project_manager_id,
+    projectManagerId: row.project_manager_id ?? "",
     projectControlManagerId: row.project_control_manager_id ?? undefined,
     clientRepresentativeId: row.client_representative_id ?? undefined,
     reportingCoordinatorId: row.reporting_coordinator_id ?? undefined,
@@ -491,39 +521,99 @@ async function replaceDepartments(
   if (error) throw new Error(error.message);
 }
 
-async function replaceContacts(
+function responsibilityRows(
   projectId: string,
-  input: Pick<
-    ProjectInput,
-    | "projectManagerId"
-    | "projectControlManagerId"
-    | "reportingCoordinatorId"
-    | "clientRepresentativeId"
-    | "projectSponsorId"
-  >
+  input: Partial<ProjectInput>
+) {
+  return RESPONSIBILITY_ROLES.filter(({ key }) => key in input)
+    .map(({ role, key }) => ({
+      project_id: projectId,
+      contact_id: input[key],
+      role,
+      department_id: null,
+      system_id: null,
+      discipline_id: null,
+      assignment_role: null,
+      functional_title: null,
+      reports_to_contact_id: null,
+    }))
+    .filter(
+      (row): row is typeof row & { contact_id: string } =>
+        Boolean(row.contact_id)
+    );
+}
+
+/**
+ * Create missing responsibility-membership rows before fixed project columns
+ * are written. Existing rows are retained so an update never removes the last
+ * backing membership before its replacement is valid.
+ */
+async function ensureResponsibilityContacts(
+  projectId: string,
+  input: Partial<ProjectInput>
 ): Promise<void> {
   const sb = client();
-  // Only the responsibility rows — wizard team rows are replaced separately,
-  // so saving the project form must not wipe the team.
-  await sb
+  const rows = responsibilityRows(projectId, input);
+  if (rows.length === 0) return;
+
+  const roles = [...new Set(rows.map((row) => row.role))];
+  const { data, error } = await sb
     .from("project_contacts")
-    .delete()
+    .select("contact_id,role")
+    .eq("project_id", projectId)
+    .in("role", roles);
+  if (error) throw new Error(error.message);
+
+  const existing = new Set(
+    ((data ?? []) as Pick<ProjectContactRow, "contact_id" | "role">[]).map(
+      (row) => `${row.role}:${row.contact_id}`
+    )
+  );
+  const missing = rows.filter(
+    (row) => !existing.has(`${row.role}:${row.contact_id}`)
+  );
+  if (missing.length === 0) return;
+
+  const { error: insertError } = await sb
+    .from("project_contacts")
+    .insert(missing);
+  if (insertError) throw new Error(insertError.message);
+}
+
+/** Remove only obsolete fixed-role rows, after the project row changed. */
+async function pruneResponsibilityContacts(
+  projectId: string,
+  input: Partial<ProjectInput>
+): Promise<void> {
+  const changed = RESPONSIBILITY_ROLES.filter(({ key }) => key in input);
+  if (changed.length === 0) return;
+
+  const sb = client();
+  const desiredByRole = new Map(
+    changed.map(({ role, key }) => [role, input[key] ?? null])
+  );
+  const { data, error } = await sb
+    .from("project_contacts")
+    .select("id,contact_id,role")
     .eq("project_id", projectId)
     .in(
       "role",
-      RESPONSIBILITY_ROLES.map(({ role }) => role)
+      changed.map(({ role }) => role)
     );
-  const rows = RESPONSIBILITY_ROLES.map(({ role, key }) => ({
-    project_id: projectId,
-    contact_id: input[key],
-    role,
-    department_id: null,
-    system_id: null,
-    discipline_id: null,
-  })).filter((r) => Boolean(r.contact_id));
-  if (rows.length === 0) return;
-  const { error } = await sb.from("project_contacts").insert(rows);
   if (error) throw new Error(error.message);
+
+  const obsoleteIds = (
+    (data ?? []) as Pick<ProjectContactRow, "id" | "contact_id" | "role">[]
+  )
+    .filter((row) => desiredByRole.get(row.role) !== row.contact_id)
+    .map((row) => row.id);
+  if (obsoleteIds.length === 0) return;
+
+  const { error: deleteError } = await sb
+    .from("project_contacts")
+    .delete()
+    .in("id", obsoleteIds);
+  if (deleteError) throw new Error(deleteError.message);
 }
 
 async function replaceDisciplineLinks(
@@ -551,18 +641,18 @@ async function replaceTeam(
   const sb = client();
 
   /*
-   * Clearing a team is destructive and irreversible: the delete below removes
-   * every team row, and an empty array inserts nothing back. A caller that had
+   * Clearing a team is destructive and irreversible. A caller that had
    * not finished loading — or that read the team back empty while the
    * assignment columns were missing — used to reach here with `[]` and silently
    * wipe the project's team.
    *
    * Callers now omit the key when they do not hold the data, so an empty array
    * here should only ever mean "the user removed everyone". This confirms that
-   * intent against the database before destroying anything: if rows exist and
+   * intent against the database before removing anything: if rows exist and
    * the caller is asking to clear them, refuse rather than guess. Removing the
-   * last member through the UI removes rows one at a time, so this never
-   * blocks a legitimate edit.
+   * last member through the UI is represented by a non-empty synchronization
+   * until that final explicit removal, so this never treats "not loaded" as
+   * authorization to erase membership.
    */
   if (team.length === 0) {
     const { count, error } = await sb
@@ -580,11 +670,6 @@ async function replaceTeam(
     return;
   }
 
-  await sb
-    .from("project_contacts")
-    .delete()
-    .eq("project_id", projectId)
-    .eq("role", TEAM_ROLE);
   const base = team.map((member) => ({
     project_id: projectId,
     contact_id: member.contactId,
@@ -600,34 +685,67 @@ async function replaceTeam(
     reports_to_contact_id: member.reportsToContactId ?? null,
   }));
 
-  // Does this save actually carry assignment data? If not, the base columns
-  // are the complete picture and falling back loses nothing.
-  const carriesAssignmentData = team.some(
-    (member) =>
-      member.assignmentRole !== undefined ||
-      member.functionalTitle !== undefined ||
-      member.reportsToContactId !== undefined
-  );
-
-  const { error } = await sb.from("project_contacts").insert(withAssignment);
-  if (!error) return;
-  if (!isMissingColumn(error)) throw new Error(error.message);
-
-  // Columns are missing. Silently dropping real assignment data would lose the
-  // user's work, so refuse loudly and say exactly what to do. Only a save that
-  // carries no assignment data may fall back.
-  if (carriesAssignmentData) {
-    throw new Error(
-      "Assignment roles, functional titles, reporting lines and delegations " +
-        "cannot be saved yet — the pending migration " +
-        "20260804000001_project_contact_assignments.sql has not been applied. " +
-        "Apply it, then save again. No data was changed."
-    );
-  }
-  const { error: fallbackError } = await sb
+  const { data: currentData, error: currentError } = await sb
     .from("project_contacts")
-    .insert(base);
-  if (fallbackError) throw new Error(fallbackError.message);
+    .select(
+      "id,contact_id,role,department_id,system_id,discipline_id,assignment_role"
+    )
+    .eq("project_id", projectId)
+    .eq("role", TEAM_ROLE);
+  if (currentError) throw new Error(currentError.message);
+
+  const assignmentKey = (row: {
+    contact_id: string;
+    department_id: string | null;
+    system_id: string | null;
+    discipline_id: string | null;
+    assignment_role: string | null;
+  }) =>
+    JSON.stringify([
+      row.contact_id,
+      row.department_id,
+      row.system_id,
+      row.discipline_id,
+      row.assignment_role,
+    ]);
+
+  const currentRows = (currentData ?? []) as Pick<
+    ProjectContactRow,
+    | "id"
+    | "contact_id"
+    | "department_id"
+    | "system_id"
+    | "discipline_id"
+    | "assignment_role"
+  >[];
+  const existingByAssignment = new Map(
+    currentRows.map((row) => [assignmentKey(row), row.id])
+  );
+  const rows = withAssignment.map((row) => ({
+    id: existingByAssignment.get(assignmentKey(row)) ??
+      globalThis.crypto.randomUUID(),
+    ...row,
+  }));
+
+  // Upsert first. If a person's scope changes, the new membership exists before
+  // the old row is removed, so the database can enforce the last-membership
+  // invariant without breaking legitimate multi-row assignments.
+  const { error: upsertError } = await sb
+    .from("project_contacts")
+    .upsert(rows, { onConflict: "id" });
+  if (upsertError) throw new Error(upsertError.message);
+
+  const keptIds = new Set(rows.map((row) => row.id));
+  const obsoleteIds = currentRows
+    .filter((row) => !keptIds.has(row.id))
+    .map((row) => row.id);
+  if (obsoleteIds.length === 0) return;
+
+  const { error: deleteError } = await sb
+    .from("project_contacts")
+    .delete()
+    .in("id", obsoleteIds);
+  if (deleteError) throw new Error(deleteError.message);
 }
 
 /** PostgREST/Postgres "column not found" — the additive migration is pending. */
@@ -878,15 +996,30 @@ export const supabaseProjectService: ProjectService = {
   },
 
   async createProject(input) {
+    const columns = flattenProject(input);
     const { data, error } = await client()
       .from("projects")
-      .insert(flattenProject(input))
+      .insert(withoutResponsibilityColumns(columns))
       .select("*")
       .single();
     if (error) throw new Error(error.message);
     const row = data as ProjectRow;
+
+    // A fixed holder cannot be stored until the same-project membership row
+    // exists. Keep every committed state valid: stage the project with null
+    // holders, add the memberships, then set the fixed columns.
+    await ensureResponsibilityContacts(row.id, input);
+    const fixedColumns = onlyResponsibilityColumns(columns);
+    if (Object.keys(fixedColumns).length > 0) {
+      const { error: responsibilityError } = await client()
+        .from("projects")
+        .update(fixedColumns)
+        .eq("id", row.id);
+      if (responsibilityError) throw new Error(responsibilityError.message);
+    }
+    await pruneResponsibilityContacts(row.id, input);
+
     await replaceDepartments(row.id, input.departments);
-    await replaceContacts(row.id, input);
     await replaceDisciplineLinks(row.id, input.disciplines ?? []);
     await replaceTeam(row.id, input.team ?? []);
     await replaceDelegations(row.id, input.delegations ?? []);
@@ -899,6 +1032,14 @@ export const supabaseProjectService: ProjectService = {
 
   async updateProject(id, input) {
     const columns = flattenProject(input);
+    const updatesResponsibilities = responsibilityUpdateRequested(input);
+
+    // Add backing membership before the fixed column can reference it. Old
+    // memberships are pruned only after the project row no longer needs them.
+    if (updatesResponsibilities) {
+      await ensureResponsibilityContacts(id, input);
+    }
+
     // A relation-only update maps to zero columns; skip the no-op UPDATE
     // rather than issuing an empty PATCH.
     if (Object.keys(columns).length > 0) {
@@ -907,6 +1048,10 @@ export const supabaseProjectService: ProjectService = {
         .update(columns)
         .eq("id", id);
       if (error) throw new Error(error.message);
+    }
+
+    if (updatesResponsibilities) {
+      await pruneResponsibilityContacts(id, input);
     }
 
     // Each relation is replaced only when the caller explicitly supplied it.
@@ -930,12 +1075,6 @@ export const supabaseProjectService: ProjectService = {
     if ("sites" in input && input.sites) {
       await replaceProjectSites(id, input.sites);
     }
-    // Responsibility contacts are Project Info fields, so they follow the
-    // Project Info payload — never a relation-only update.
-    if ("projectManagerId" in input) {
-      await replaceContacts(id, input as ProjectInput);
-    }
-
     const updated = await supabaseProjectService.getProjectById(id);
     if (!updated) throw new Error(`Project ${id} not found`);
     return updated;

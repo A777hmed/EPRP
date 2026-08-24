@@ -44,6 +44,7 @@
 \set ON_ERROR_STOP on
 
 begin;
+set constraints trg_fixed_project_responsibility_membership deferred;
 
 -- Guard: refuse to run twice, and refuse if the caller forgot the variable.
 do $$

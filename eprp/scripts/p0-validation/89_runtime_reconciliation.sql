@@ -60,6 +60,26 @@ exception when others then
   perform pg_temp.chk(p_seq, p_area, p_item, true, 'refused: ' || left(sqlerrm, 60));
 end $$;
 
+create or replace function pg_temp.must_fail_with(
+  p_seq int,
+  p_area text,
+  p_item text,
+  p_expected_state text,
+  p_sql text
+) returns void language plpgsql as $$
+begin
+  execute p_sql;
+  perform pg_temp.chk(p_seq, p_area, p_item, false, 'statement was ACCEPTED');
+exception when others then
+  perform pg_temp.chk(
+    p_seq,
+    p_area,
+    p_item,
+    sqlstate = p_expected_state,
+    'SQLSTATE ' || sqlstate || ': ' || left(sqlerrm, 60)
+  );
+end $$;
+
 /*
  * The official figure for a cut-off, expressed in SQL exactly as
  * `resolveCutoffs()` expresses it in TypeScript.
@@ -372,22 +392,24 @@ begin
     'Reporting Coordinator is REFUSED reconciliation on its own project',
     not public.can_reconcile_milestone(P_A));
   perform pg_temp.chk(6, 'F AUTHORITY',
-    'but still holds ordinary Project Control management (unchanged)',
-    public.weekly_can_manage_project(P_A));
+    'but still holds assigned-project reporting workflow authority',
+    public.can_manage_reporting_workflow(P_A));
   perform pg_temp.chk(6, 'F AUTHORITY',
     'and holds no reconciliation authority anywhere else either',
     not public.can_reconcile_milestone(P_B));
 
-  perform pg_temp.must_fail(6, 'F AUTHORITY',
+  perform pg_temp.must_fail_with(6, 'F AUTHORITY',
     'Reporting Coordinator cannot WRITE a reconciliation',
+    '42501',
     format($x$insert into public.milestone_updates
              (milestone_id, source, status, progress_percent, as_of_date,
               reconciliation_reason, approval_status, approved_at)
              values (%L,'reconciliation','in_progress',77,date '2026-09-30',
                      'coordinator overreach','approved',now())$x$, m_b));
 
-  perform pg_temp.must_fail(6, 'F AUTHORITY',
+  perform pg_temp.must_fail_with(6, 'F AUTHORITY',
     'cannot reconcile a milestone on a project it does not control',
+    '42501',
     format($x$insert into public.milestone_updates
              (milestone_id, source, status, progress_percent, as_of_date,
               reconciliation_reason, approval_status, approved_at)
@@ -396,14 +418,16 @@ begin
                      'reconciliation','in_progress',99,date '2026-09-30',
                      'unauthorised','approved',now())$x$, P_B));
 
-  -- The contributor path is unchanged: it may still SUBMIT an observation.
-  insert into public.milestone_updates
-    (milestone_id, source, department_id, status, progress_percent, as_of_date)
-  values (m_b, 'weekly', D_A, 'in_progress', 45, date '2026-11-30');
-  get diagnostics n = row_count;
-  perform pg_temp.chk(6, 'F AUTHORITY',
-    'submitting an observation still works (no contributor regression)',
-    n = 1);
+  -- Authorization Foundation Wave 1: milestone updates are operational writes,
+  -- not reporting comments. A Report Coordinator may coordinate the reporting
+  -- workflow but may not write the governed Master Milestone stream.
+  perform pg_temp.must_fail_with(6, 'F AUTHORITY',
+    'Reporting Coordinator cannot submit a Master Milestone observation',
+    '42501',
+    format($x$insert into public.milestone_updates
+             (milestone_id, source, department_id, status, progress_percent, as_of_date)
+             values (%L,'weekly',%L,'in_progress',45,date '2026-11-30')$x$,
+           m_b, D_A));
 end $t$;
 
 /* ===== the three identities that MAY reconcile ========================== */
@@ -516,18 +540,16 @@ begin
 
   select count(*) into n from pg_proc
    where proname = 'can_reconcile_milestone'
-     and prosrc like '%project_control_manager%'
-     and prosrc like '%project_control_admin%'
-     and prosrc like '%is_system_admin%';
+     and prosrc like '%can_manage_project_operations%';
   perform pg_temp.chk(6, 'F AUTHORITY',
-    'and names exactly the three allowed authorities', n = 1);
+    'and delegates to the narrow Project Operations authority', n = 1);
 
   select count(*) into n from pg_policies
    where tablename = 'milestone_updates' and cmd = 'INSERT'
      and with_check like '%can_reconcile_milestone%'
-     and with_check like '%weekly_can_access_scope%';
+     and with_check like '%can_manage_project_operations%';
   perform pg_temp.chk(6, 'F AUTHORITY',
-    'the INSERT policy gates reconciliation separately from submission', n = 1);
+    'the INSERT policy keeps reconciliation and observations inside Project Operations', n = 1);
 end $t$;
 
 reset role;

@@ -103,7 +103,8 @@ export interface ProjectRow extends Timestamps {
   planned_finish_date: string;
   forecast_finish_date: string | null;
   actual_finish_date: string | null;
-  project_manager_id: string;
+  /** Nullable only during membership-first project creation staging. */
+  project_manager_id: string | null;
   project_control_manager_id: string | null;
   client_representative_id: string | null;
   reporting_coordinator_id: string | null;

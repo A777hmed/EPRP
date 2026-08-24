@@ -2,6 +2,12 @@
 -- Mirrors the Phase 5A/5B mock master data, plus representative projects.
 -- FKs are resolved by unique code/email so no hard-coded UUIDs are needed.
 
+-- Fixed responsibility columns and their project_contacts memberships are
+-- seeded atomically. The deferred integrity check validates the completed
+-- canonical state at COMMIT; no responsibility or business value is changed.
+begin;
+set constraints trg_fixed_project_responsibility_membership deferred;
+
 -- Clients ------------------------------------------------------------------
 insert into public.clients (name, code, short_name, contact_name, contact_email, contact_phone, country, city) values
   ('Suez Oil Processing Company', 'SOPC', 'SOPC', 'Dina Samir', 'd.samir@sopc.com.eg', '+20 100 555 0142', 'Egypt', 'Suez'),
@@ -193,3 +199,5 @@ from public.projects p where p.client_representative_id is not null
 union all
 select p.id, p.project_sponsor_id, 'project_sponsor'
 from public.projects p where p.project_sponsor_id is not null;
+
+commit;

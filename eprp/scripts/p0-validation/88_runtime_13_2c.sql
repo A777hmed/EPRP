@@ -437,12 +437,14 @@ begin
     'cannot EDIT a milestone on a project they do not manage', n = 0,
     format('%s rows edited', n));
 
-  -- And the fixture identity IS Project Control on its own project, so the
-  -- contrast is real rather than an accident of having no rights anywhere.
+  -- Authorization Foundation Wave 1: this fixture identity is the assigned
+  -- Report Coordinator. It keeps reporting-workflow authority on its project
+  -- and no longer receives Master Milestone operations from that assignment.
   perform pg_temp.chk(6, '6 ISOLATION',
-    'same identity DOES manage its own project (contrast case)',
-    public.weekly_can_manage_project(P_A)
-    and not public.weekly_can_manage_project(P_B));
+    'Report Coordinator keeps reporting but has no milestone operations',
+    public.can_manage_reporting_workflow(P_A)
+    and not public.can_manage_project_operations(P_A)
+    and not public.can_manage_project_operations(P_B));
 
   /*
    * Approving, as a row count rather than an exception.
