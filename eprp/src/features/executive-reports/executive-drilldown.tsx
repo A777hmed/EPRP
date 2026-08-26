@@ -25,12 +25,15 @@ import { toast } from "sonner";
 import { EmptyState, LoadingState, StatusBadge } from "@/components/shared";
 import type { StatusTone } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { ENTRY_STATUS_META, PRIORITY_META, REPORT_STATUS_META } from "@/lib/constants";
+import { ENTRY_STATUS_META, MILESTONE_STATUS_META, PRIORITY_META, REPORT_STATUS_META } from "@/lib/constants";
 import { formatReportingPeriod, getMonthLabel, scheduleVariance } from "@/lib/reporting";
 import { useMasterData } from "@/features/master-data";
+import { milestoneStates as deriveMilestoneStates, type MilestoneState } from "@/features/projects/milestone-state";
 import { monthlyReportService } from "@/services/monthly-report-service";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
+import { milestoneService } from "@/services/milestone-service";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type {
   Client,
   Contact,
@@ -99,6 +102,8 @@ interface ProjectDetail {
   entriesByWeekly: Map<string, WeeklyEntry[]>;
   plansByWeekly: Map<string, WeeklyPlanItem[]>;
   month: string;
+  /** Governed Master Milestone current state, read-only — see `milestone-state.ts`. */
+  milestoneStates: MilestoneState[];
 }
 
 function useProjectDetail(projectId: string, scope: ExecutiveScopeInput, requestedMonth?: string) {
@@ -110,12 +115,18 @@ function useProjectDetail(projectId: string, scope: ExecutiveScopeInput, request
 
     const load = async () => {
       try {
-        const [project, monthlies, allWeeklies] = await Promise.all([
+        const milestoneRegisterPromise = isSupabaseConfigured()
+          ? milestoneService.listRegister([projectId])
+          : Promise.resolve({ milestones: [], updates: [] });
+        const [project, monthlies, allWeeklies, milestoneRegister] = await Promise.all([
           projectService.getProjectById(projectId),
           monthlyReportService.list(projectId),
           weeklyReportService.list(),
+          milestoneRegisterPromise,
         ]);
         if (cancelled) return;
+
+        const milestoneStates = deriveMilestoneStates(milestoneRegister.milestones, milestoneRegister.updates);
 
         if (!project) {
           setDetail(null);
@@ -138,12 +149,20 @@ function useProjectDetail(projectId: string, scope: ExecutiveScopeInput, request
             entriesByWeekly: new Map(),
             plansByWeekly: new Map(),
             month: "",
+            milestoneStates: [],
           });
           return;
         }
 
+        /*
+         * Archived Weekly reports stay visible in their own register (Weekly
+         * Reports still shows them), but the Executive tier reads them as
+         * withdrawn from active use — the same treatment `MONTHLY_BASIS_META`
+         * already gives an archived Monthly. An archived Weekly must not count
+         * as freshness or "since Monthly baseline" movement.
+         */
         const weeklies = allWeeklies
-          .filter((weekly) => weekly.projectId === projectId)
+          .filter((weekly) => weekly.projectId === projectId && weekly.status !== "archived")
           .sort((a, b) => b.periodStart.localeCompare(a.periodStart));
 
         /*
@@ -179,6 +198,7 @@ function useProjectDetail(projectId: string, scope: ExecutiveScopeInput, request
           entriesByWeekly: new Map(entryPairs),
           plansByWeekly: new Map(planPairs),
           month,
+          milestoneStates,
         });
       } catch (error) {
         if (cancelled) return;
@@ -391,7 +411,7 @@ function MilestoneTimeline({ rows, today }: { rows: MilestoneRow[]; today: strin
 
   return (
     <div className="exec-timeline">
-      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Milestone timeline" style={{ width: "100%", height: H }}>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Plan item timeline" style={{ width: "100%", height: H }}>
         <line x1={PAD} y1={H / 2} x2={W - PAD} y2={H / 2} stroke="#c9d6e4" strokeWidth={1.5} />
         {/* Today marker, so "upcoming" and "overdue" are visible, not inferred. */}
         <line x1={x(todayTime)} y1={16} x2={x(todayTime)} y2={H - 16} stroke="#0d59a8" strokeWidth={1.5} strokeDasharray="3 2" />
@@ -421,6 +441,74 @@ function MilestoneTimeline({ rows, today }: { rows: MilestoneRow[]; today: strin
         })}
       </svg>
     </div>
+  );
+}
+
+/**
+ * Governed Master Milestones, read-only.
+ *
+ * Consumes the current state already derived by `milestone-state.ts` — the
+ * same frozen logic Weekly and Monthly read. This tab adds no observation,
+ * submission, or reconciliation path; it only shows the governed register's
+ * official position for this project.
+ */
+function MasterMilestoneProgress({ states }: { states: MilestoneState[] }) {
+  return (
+    <>
+      <div className="exec-tab-lead">
+        <h2 className="exec-tab-heading">Master Milestone Progress</h2>
+        <span>Governed position, as approved by Project Control.</span>
+      </div>
+      {states.length ? (
+        <div className="monthly-table-wrap">
+          <table className="monthly-table exec-milestone-detail-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Milestone</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Forecast Date</th>
+                <th>Actual Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {states.map((state) => {
+                const statusMeta = MILESTONE_STATUS_META[state.status];
+                return (
+                  <tr key={state.milestone.id}>
+                    <td>
+                      <b>{state.milestone.code}</b>
+                    </td>
+                    <td>{state.milestone.name}</td>
+                    <td>
+                      {state.inConflict ? (
+                        <StatusBadge tone="danger">Unresolved</StatusBadge>
+                      ) : (
+                        <StatusBadge tone={statusMeta.tone}>{statusMeta.label}</StatusBadge>
+                      )}
+                    </td>
+                    <td>
+                      {state.inConflict ? (
+                        <span className="muted">Reconciliation required</span>
+                      ) : typeof state.progressPercent === "number" ? (
+                        `${state.progressPercent.toFixed(1)}%`
+                      ) : (
+                        <span className="muted">{NOT_RECORDED}</span>
+                      )}
+                    </td>
+                    <td>{state.forecastDate ? format(parseISO(state.forecastDate), "dd MMM yyyy") : <span className="muted">—</span>}</td>
+                    <td>{state.actualDate ? format(parseISO(state.actualDate), "dd MMM yyyy") : <span className="muted">—</span>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <EmptyTabState text="No active Master Milestones are recorded for this project." />
+      )}
+    </>
   );
 }
 
@@ -849,10 +937,15 @@ export function ExecutiveProjectDrilldown({
 
         {tab === "milestones" && (
           <>
-            <p className="exec-tab-note">
-              From Monthly plan items and Weekly plan milestones. The platform holds no central project milestone
-              register, so every row states the plan it came from.
-            </p>
+            <MasterMilestoneProgress states={detail.milestoneStates} />
+
+            <div className="exec-tab-lead">
+              <h2 className="exec-tab-heading">Monthly &amp; Weekly Plan Items</h2>
+              <span>
+                Free-text planning entries from Monthly and Weekly plan items — not part of the governed Master
+                Milestone register above. Every row states the plan it came from.
+              </span>
+            </div>
             {model.milestones.length ? (
               <>
                 <MilestoneTimeline rows={model.milestones} today={model.today} />
@@ -861,7 +954,7 @@ export function ExecutiveProjectDrilldown({
                     <thead>
                       <tr>
                         <th>Target Date</th>
-                        <th>Milestone</th>
+                        <th>Plan Item</th>
                         <th>Owner</th>
                         <th>Source</th>
                         <th>Status</th>
@@ -901,7 +994,7 @@ export function ExecutiveProjectDrilldown({
                 </div>
               </>
             ) : (
-              <EmptyTabState text="No milestones recorded." />
+              <EmptyTabState text="No plan items recorded." />
             )}
           </>
         )}
