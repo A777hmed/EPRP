@@ -20,6 +20,7 @@ export default async function ExecutiveReportsPage() {
   return (
     <ExecutiveRegisterView
       allowed={viewer.allowed}
+      canManagePortfolio={viewer.canManagePortfolio}
       deniedReason={viewer.deniedReason}
       contactId={viewer.contactId}
       isAdmin={viewer.isAdmin}

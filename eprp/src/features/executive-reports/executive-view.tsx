@@ -21,7 +21,8 @@ import { FilePenLine, Printer, ShieldAlert, SlidersHorizontal } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState } from "@/components/shared";
 import { useMasterData } from "@/features/master-data";
-import type { ProjectType } from "@/types";
+import { isProjectConsolidator } from "@/features/projects/assignment-rules";
+import type { Project, ProjectType } from "@/types";
 import {
   EXEC_HEALTH_META,
   EXEC_HEALTH_ORDER,
@@ -41,8 +42,38 @@ import { ExecutiveDocument, type ExecutiveDocumentModel } from "./executive-docu
 import { emptyPortfolioReason, type ExecutiveScopeInput } from "./executive-scope";
 import { useExecutivePortfolio } from "./use-executive-portfolio";
 
+/**
+ * PROJECT EXECUTIVE PREPARATION for one project.
+ *
+ * Mirrors `public.can_manage_project_executive()`, which delegates to
+ * `can_manage_reporting_workflow()`: the two global authorities, plus the
+ * assigned Project Control / Planning or Report Coordinator.
+ *
+ * `isProjectConsolidator` is the REPORTING predicate and is the correct one
+ * here — Executive preparation is a reporting act. It is deliberately NOT the
+ * operations predicate that governs Master Milestones and Project Setup.
+ *
+ * Lives in this client-safe module rather than `executive-access.ts`, which is
+ * `server-only` and therefore unreachable from the drilldown.
+ */
+export function canPrepareProjectExecutive(
+  project:
+    | Pick<Project, "projectControlManagerId" | "reportingCoordinatorId" | "team">
+    | null
+    | undefined,
+  contactId: string | null | undefined,
+  options: { isGlobalAuthority?: boolean } = {}
+): boolean {
+  if (options.isGlobalAuthority) return true;
+  if (!project || !contactId) return false;
+  return isProjectConsolidator(project, contactId);
+}
+
 export interface ExecutiveViewerProps {
+  /** VIEW authority. Never gate a write on this. */
   allowed: boolean;
+  /** Edit / Archive / Delete of the stored portfolio record. Global only. */
+  canManagePortfolio: boolean;
   deniedReason?: string;
   contactId: string | null;
   isAdmin: boolean;

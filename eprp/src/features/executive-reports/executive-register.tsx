@@ -260,25 +260,35 @@ export function ExecutiveRegisterView(props: ExecutiveViewerProps) {
                                   Open Portfolio
                                 </Link>
                               </DropdownMenuItem>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/executive-reports/workspace?month=${row.month}`}>
-                                  <PenLine />
-                                  Edit
-                                </Link>
-                              </DropdownMenuItem>
+                              {props.canManagePortfolio && (
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/executive-reports/workspace?month=${row.month}`}>
+                                    <PenLine />
+                                    Edit
+                                  </Link>
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem asChild>
                                 <Link href={`/executive-reports/preview?month=${row.month}`}>
                                   <Printer />
                                   Preview / PDF
                                 </Link>
                               </DropdownMenuItem>
-                              <DropdownMenuSeparator />
                               {/*
+                                Destructive actions are PORTFOLIO management and
+                                mirror `executive_can_manage()` — the two global
+                                authorities only. A reader, a Report Coordinator
+                                or an assigned Project Control account may open
+                                and prepare, never archive or delete.
+
                                 Past approval the report is part of the reporting
                                 record: Archive replaces Delete, and the database
                                 refuses the delete independently of this menu.
                               */}
-                              {row.record && !canHardDelete(row.record.status) ? (
+                              {props.canManagePortfolio && <DropdownMenuSeparator />}
+                              {props.canManagePortfolio &&
+                              row.record &&
+                              !canHardDelete(row.record.status) ? (
                                 <DropdownMenuItem
                                   onSelect={(event) => {
                                     event.preventDefault();
@@ -288,7 +298,7 @@ export function ExecutiveRegisterView(props: ExecutiveViewerProps) {
                                   <Archive />
                                   Archive
                                 </DropdownMenuItem>
-                              ) : (
+                              ) : props.canManagePortfolio ? (
                                 <DropdownMenuItem
                                   disabled={!row.record}
                                   onSelect={(event) => {
@@ -299,7 +309,7 @@ export function ExecutiveRegisterView(props: ExecutiveViewerProps) {
                                   <Trash2 />
                                   {row.record ? "Delete" : "Delete — nothing saved yet"}
                                 </DropdownMenuItem>
-                              )}
+                              ) : null}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>

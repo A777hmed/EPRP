@@ -5,6 +5,7 @@ import * as React from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { resolveWeeklyScope, type WeeklyScope } from "@/features/weekly-reports/scope";
+import { isProjectControlPlanning } from "./assignment-rules";
 import type { Project } from "@/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -33,15 +34,19 @@ export interface MilestoneAuthority {
   /**
    * Declare the official progress for a cut-off (13.2d).
    *
-   * Mirrors `can_reconcile_milestone`, which delegates to P1-A's
-   * `can_manage_project_setup`: Project Control on this project, OR the
-   * portfolio-wide `project_control_admin` role. Wider than `canManage` by
-   * exactly that one role, and never extended to contributors.
+   * Mirrors `can_reconcile_milestone`, which delegates through
+   * `can_manage_project_setup` to `can_manage_project_operations`. That is now
+   * the SAME predicate as `canManage` and `canSubmit` — the three were split
+   * only while `canManage` still resolved through the consolidator pair.
    */
   canReconcile: boolean;
-  /** Append an update to at least one milestone on this project. */
+  /** Append an update to a milestone on this project. Operations authority. */
   canSubmit: boolean;
-  /** Departments the viewer may submit against. Empty for a manager means all. */
+  /**
+   * Departments the viewer may READ against. Retained for read filtering only —
+   * it no longer widens `canSubmit`, because department-scoped milestone
+   * submission is refused by RLS and by the approved role model.
+   */
   departmentIds: string[];
   /** False until the lookup settles, so no action flashes before it is known. */
   resolved: boolean;
@@ -56,43 +61,19 @@ const UNRESOLVED: MilestoneAuthority = {
   resolved: false,
 };
 
-/**
- * Project Control, in the database's terms.
+/*
+ * `managesProject(scope)` used to answer "may this account manage milestones?"
+ * by reading the scope resolver's `project` capability. It has been removed.
  *
- * `weekly_can_manage_project` admits the system administrator, the Project
- * Control Manager and the Reporting Coordinator — which is precisely the two
- * widest capabilities the scope resolver reports. Comparing capabilities rather
- * than re-reading the project's two contact columns keeps this from becoming a
- * second, drifting copy of the rule.
+ * That capability resolves through `isProjectConsolidator()`, which admits the
+ * Reporting Coordinator. It is the right answer for Weekly consolidation and
+ * the WRONG answer here: the register's policies were moved to
+ * `can_manage_project_operations()`, which admits Project Control only. The
+ * hook was therefore offering Add / Edit / Archive and the approval queue to a
+ * Reporting Coordinator, who received a refusal from the database on every
+ * click. `isProjectControlPlanning()` is the mirror of that policy and is now
+ * the single source for all three capabilities below.
  */
-function managesProject(scope: WeeklyScope): boolean {
-  return scope.capability === "all_projects" || scope.capability === "project";
-}
-
-/**
- * The project's assigned Project Control Manager, and ONLY them.
- *
- * Not `isProjectConsolidator()`, which also admits the Reporting Coordinator.
- * That pairing is right for setup and for accepting a report, and wrong for
- * deciding the governed official figure — a Reporting Coordinator surfaces a
- * conflict, they do not adjudicate it.
- *
- * Mirrors `can_reconcile_milestone()` clause for clause, including the union of
- * the project's own column and the project assignment. This is presentation
- * only; the database refuses the write independently either way.
- */
-function isProjectControlManager(
-  project: Project,
-  contactId: string
-): boolean {
-  if (!contactId) return false;
-  if (project.projectControlManagerId === contactId) return true;
-  return (project.team ?? []).some(
-    (member) =>
-      member.contactId === contactId &&
-      member.role === "project_control_manager"
-  );
-}
 
 export function useMilestoneAuthority(
   project: Project | null | undefined
@@ -153,28 +134,34 @@ export function useMilestoneAuthority(
   return React.useMemo(() => {
     if (!project || !identity.resolved) return UNRESOLVED;
 
+    /* Read scope is unchanged: it still resolves through the consolidator pair,
+       because seeing the register is a reporting concern. Only WRITE authority
+       moved. */
     const scope = resolveWeeklyScope(project, identity.contactId, {
       isAdmin: identity.isAdmin,
     });
-    const canManage = managesProject(scope);
+
+    /*
+     * One predicate for all three write capabilities, because the database uses
+     * one for all three: `master_milestones` insert/update, `milestone_updates`
+     * insert/update and the reconciliation branch all resolve to
+     * `can_manage_project_operations()`.
+     *
+     * Department-scoped submission is deliberately NOT admitted. RLS refuses it
+     * and the approved role model confirms that refusal is correct: a
+     * Department User's write access is limited to their own department's
+     * comments in Weekly and Monthly.
+     */
+    const managesOperations = isProjectControlPlanning(project, identity.contactId, {
+      isGlobalAuthority:
+        identity.isAdmin || identity.role === "project_control_admin",
+    });
 
     return {
       scope,
-      canManage,
-      /*
-       * PROJECT CONTROL ONLY — deliberately NOT `canManage`.
-       *
-       * `canManage` resolves through the consolidator pair and so includes the
-       * Reporting Coordinator, who may accept a report but may not decide the
-       * governed official figure. Mirrors `can_reconcile_milestone()`.
-       */
-      canReconcile:
-        identity.isAdmin ||
-        identity.role === "project_control_admin" ||
-        isProjectControlManager(project, identity.contactId),
-      // A manager may report on anything; anyone else needs at least one
-      // department they are actually assigned to.
-      canSubmit: canManage || scope.departmentIds.length > 0,
+      canManage: managesOperations,
+      canReconcile: managesOperations,
+      canSubmit: managesOperations,
       departmentIds: scope.departmentIds,
       resolved: true,
     };

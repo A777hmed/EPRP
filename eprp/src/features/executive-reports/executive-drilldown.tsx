@@ -66,7 +66,11 @@ import {
 import { canAccessProject, type ExecutiveScopeInput } from "./executive-scope";
 import { ExecutiveNotesPanel } from "./executive-notes-panel";
 import { executiveNoteService, type ExecutiveNote, type NotesAvailability } from "./executive-notes";
-import { ExecutiveDenied, type ExecutiveViewerProps } from "./executive-view";
+import {
+  ExecutiveDenied,
+  canPrepareProjectExecutive,
+  type ExecutiveViewerProps,
+} from "./executive-view";
 
 const MOVEMENT_WEEK_LIMIT = 3;
 
@@ -440,6 +444,12 @@ export function ExecutiveProjectDrilldown({
     [viewer.contactId, viewer.isAdmin]
   );
   const { loading, detail } = useProjectDetail(projectId, scope, requestedMonth);
+  /* Preparation authority is PROJECT-SCOPED. It was `viewer.allowed`, which is
+     view authority — now that Viewers may read the module, gating a write on it
+     would hand them the Notes editor. */
+  const canPrepareNotes = canPrepareProjectExecutive(detail?.project, viewer.contactId, {
+    isGlobalAuthority: viewer.isAdmin,
+  });
   const [tab, setTab] = React.useState<TabId>(() =>
     TABS.some((entry) => entry.id === requestedTab) ? (requestedTab as TabId) : "overview"
   );
@@ -689,7 +699,7 @@ export function ExecutiveProjectDrilldown({
               projectName={model.projectName}
               notes={notes}
               availability={notesAvailability}
-              canManage={viewer.allowed}
+              canManage={canPrepareNotes}
               onChanged={reloadNotes}
             />
           </>

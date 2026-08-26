@@ -8,36 +8,48 @@ import { hasPermission, type Permission } from "@/config/permissions";
 import type { UserRole } from "@/types";
 
 /**
- * Who may open the Executive portfolio, resolved on the server.
+ * VIEW authority. Any authenticated account with a profile may open the module.
  *
- * The gate is DERIVED from the existing permission matrix rather than invented:
- * a role may open this module when it holds any Executive-report permission,
- * which today means System Administrator, Project Control Admin and Executive.
- * Department Lead, Department User, Reviewer, Approver, Project Manager and
- * Viewer hold none of them and are refused — the approved brief requires that
- * ordinary department users never reach this module.
- *
- * Deriving the list means a future permission change moves this gate with it,
- * instead of leaving a second hardcoded role list to drift out of step.
- *
- * This is presentation authority. Row-level security remains the boundary for
- * the Weekly and Monthly rows underneath, and portfolio-level RLS on `projects`
- * is still outstanding — see `executive-scope.ts`.
+ * This previously required an Executive WRITE permission to READ, which denied
+ * the module to Viewer, Department User, Project Control / Planning and the
+ * Report Coordinator — including people the model expects to read it and, in
+ * the coordinator's case, to prepare it. Reading is scoped by
+ * `visibleProjects()` and by RLS underneath; it is not a role question.
  */
-const EXECUTIVE_PERMISSIONS: Permission[] = [
+export function canViewExecutivePortfolio(role: UserRole | undefined): boolean {
+  return Boolean(role);
+}
+
+/**
+ * PORTFOLIO / REGISTER management — Edit, Archive and Delete of the stored
+ * Executive record.
+ *
+ * Mirrors `public.executive_can_manage()`, which admits only
+ * `has_global_operational_authority()`. Portfolio-level persistence carries no
+ * project_id, so it cannot be delegated per project; project-scoped
+ * coordination goes through notes instead — see
+ * {@link canPrepareProjectExecutive}.
+ */
+const PORTFOLIO_PERMISSIONS: Permission[] = [
   "create_executive_report",
   "edit_executive_report",
   "finalize_executive_report",
 ];
 
-export function canViewExecutivePortfolio(role: UserRole | undefined): boolean {
+export function canManageExecutivePortfolio(role: UserRole | undefined): boolean {
   if (!role) return false;
-  return EXECUTIVE_PERMISSIONS.some((permission) => hasPermission(role, permission));
+  if (role !== "system_admin" && role !== "project_control_admin") return false;
+  return PORTFOLIO_PERMISSIONS.some((permission) => hasPermission(role, permission));
 }
 
 export interface ExecutiveViewerContext {
-  /** May this account open the module at all? */
+  /** May this account open the module at all? VIEW only. */
   allowed: boolean;
+  /**
+   * May this account Edit, Archive or Delete the stored portfolio record?
+   * Global authorities only — see {@link canManageExecutivePortfolio}.
+   */
+  canManagePortfolio: boolean;
   /** True when the platform runs without a backend, so no identity exists. */
   demoMode: boolean;
   role?: UserRole;
@@ -45,6 +57,16 @@ export interface ExecutiveViewerContext {
   viewerName?: string;
   /** The contact this login is linked to — the join scope resolution needs. */
   contactId: string | null;
+  /**
+   * PROJECT-AGNOSTIC authority — "sees every project", not "is a platform
+   * administrator". `visibleProjects()` and the register's scope note are its
+   * only consumers, and both ask the scope question.
+   *
+   * Now both global operational authorities, mirroring
+   * `has_global_operational_authority()`. It previously read `system_admin`
+   * alone, which scoped a Project Control Admin down to their own assignments
+   * even though the model and every RLS policy treat them as portfolio-wide.
+   */
   isAdmin: boolean;
   /** Present whenever `allowed` is false, so the UI never hides the reason. */
   deniedReason?: string;
@@ -52,6 +74,7 @@ export interface ExecutiveViewerContext {
 
 const DENIED: ExecutiveViewerContext = {
   allowed: false,
+  canManagePortfolio: false,
   demoMode: false,
   contactId: null,
   isAdmin: false,
@@ -79,16 +102,16 @@ export const getExecutiveViewerContext = cache(async (): Promise<ExecutiveViewer
 
   return {
     allowed,
+    canManagePortfolio: canManageExecutivePortfolio(identity.role),
     demoMode: false,
     role: identity.role,
     roleLabel: identity.roleLabel,
     viewerName: identity.fullName,
     contactId: identity.contactId,
-    isAdmin: identity.role === "system_admin",
+    isAdmin:
+      identity.role === "system_admin" || identity.role === "project_control_admin",
     deniedReason: allowed
       ? undefined
-      : `The Executive portfolio is limited to Project Control and Executive accounts. Your account is ${
-          identity.roleLabel ?? "not assigned a role"
-        }.`,
+      : "Your account has no profile record, so no project scope can be resolved.",
   };
 });

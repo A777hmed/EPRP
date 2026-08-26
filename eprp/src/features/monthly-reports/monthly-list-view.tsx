@@ -29,10 +29,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog, EmptyState, LoadingState, StatusBadge } from "@/components/shared";
 import { REPORT_STATUS_META } from "@/lib/constants";
-import { hasPermission } from "@/config/permissions";
 import { getMonthLabel } from "@/lib/reporting";
 import { monthlyReportService } from "@/services/monthly-report-service";
 import { projectService } from "@/services/project-service";
+import { isProjectConsolidator } from "@/features/projects/assignment-rules";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useMasterData } from "@/features/master-data";
 import type { Contact, MonthlyReport, Project, UserRole } from "@/types";
 import { NOT_RECORDED, compilationMessage, monthEndStatus, nameOf } from "./monthly-data";
@@ -158,6 +160,29 @@ export function MonthlyReportsView({ role }: { role?: UserRole }) {
   const [monthFilter, setMonthFilter] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("");
   const { records: contacts } = useMasterData("contact");
+  /* The contact this login is linked to. Without it nobody can be matched to a
+     project assignment, so the register stays read-only until it resolves. */
+  const [viewerContactId, setViewerContactId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    let active = true;
+    void (async () => {
+      const sb = getSupabaseBrowserClient();
+      const { data: auth } = await sb.auth.getUser();
+      const userId = auth.user?.id;
+      if (!userId) return;
+      const { data } = await sb
+        .from("profiles")
+        .select("contact_id")
+        .eq("id", userId)
+        .maybeSingle();
+      if (active) setViewerContactId((data as { contact_id?: string | null } | null)?.contact_id ?? null);
+    })().catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const load = React.useCallback(async () => {
     try {
@@ -174,9 +199,35 @@ export function MonthlyReportsView({ role }: { role?: UserRole }) {
     void load();
   }, [load]);
 
-  // No role means no profile row resolved; treat that as read-only rather than
-  // assuming administrator.
-  const canEdit = role ? hasPermission(role, "edit_monthly") : false;
+  /*
+   * Monthly write authority is PER PROJECT, so it cannot be answered once for
+   * the whole register.
+   *
+   * This read `hasPermission(role, "edit_monthly")`, a platform-wide matrix
+   * lookup. That was wrong in both directions: it handed every Project Manager
+   * edit authority on projects they hold no assignment to, and it denied the
+   * assigned Report Coordinator the Monthly they are responsible for, because
+   * a responsibility is not a platform role.
+   *
+   * `canEditReport` mirrors `can_manage_reporting_workflow()`: the two global
+   * authorities, plus the assigned Project Control / Planning or Report
+   * Coordinator via `isProjectConsolidator` — which is the reporting predicate
+   * and is the correct one here, unlike for Master Milestones.
+   */
+  const isGlobalAuthority = role === "system_admin" || role === "project_control_admin";
+
+  const canEditReport = React.useCallback(
+    (report: MonthlyReport): boolean => {
+      // No role means no profile row resolved; treat that as read-only rather
+      // than assuming administrator.
+      if (!role) return false;
+      if (isGlobalAuthority) return true;
+      if (!viewerContactId) return false;
+      const project = projects.find((candidate) => candidate.id === report.projectId);
+      return project ? isProjectConsolidator(project, viewerContactId) : false;
+    },
+    [role, isGlobalAuthority, viewerContactId, projects]
+  );
 
   if (!reports) return <LoadingState label="Loading Monthly Reports…" />;
 
@@ -299,7 +350,7 @@ export function MonthlyReportsView({ role }: { role?: UserRole }) {
                       </td>
                       <td>{format(new Date(report.updatedAt), "dd MMM yyyy")}</td>
                       <td>
-                        <RowActions report={report} canEdit={canEdit} onChanged={load} />
+                        <RowActions report={report} canEdit={canEditReport(report)} onChanged={load} />
                       </td>
                     </tr>
                   );

@@ -29,7 +29,17 @@ export type Permission =
   | "import_template"
   | "export_report"
   | "manage_users"
-  | "manage_master_data";
+  | "manage_master_data"
+  /**
+   * Create, edit and delete calendar events.
+   *
+   * Platform-wide by design, mirroring `public.can_manage_calendar()`, which
+   * admits only `has_global_operational_authority()`. It is deliberately NOT
+   * derived from `create_weekly`: scheduling is not a reporting act, and
+   * treating it as one handed Calendar management to Project Managers,
+   * Department Leads and Department Users, all of whom the database refuses.
+   */
+  | "manage_calendar";
 
 export const ALL_PERMISSIONS: Permission[] = [
   "view_project",
@@ -49,6 +59,7 @@ export const ALL_PERMISSIONS: Permission[] = [
   "export_report",
   "manage_users",
   "manage_master_data",
+  "manage_calendar",
 ];
 
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
@@ -70,6 +81,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "import_template",
     "export_report",
     "manage_master_data",
+    "manage_calendar",
   ],
   project_manager: [
     "view_project",

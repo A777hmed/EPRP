@@ -24,6 +24,7 @@ export default async function ExecutivePortfolioPage({
   return (
     <ExecutivePortfolioView
       allowed={viewer.allowed}
+      canManagePortfolio={viewer.canManagePortfolio}
       deniedReason={viewer.deniedReason}
       contactId={viewer.contactId}
       isAdmin={viewer.isAdmin}

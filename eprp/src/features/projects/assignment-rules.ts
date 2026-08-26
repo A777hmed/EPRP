@@ -219,6 +219,28 @@ export const CONSOLIDATOR_ROLES = [
  * Grants nothing on projects the person is not assigned to. Never consulted for
  * anything narrower — binning a reference document is Project Control Manager
  * only, and has its own rule.
+ *
+ * ---------------------------------------------------------------------------
+ * SCOPE WARNING — REPORTING CONSOLIDATION ONLY.
+ *
+ * This pair is the REPORTING predicate. It admits the Reporting Coordinator,
+ * who consolidates Weekly and Monthly and prepares Executive input, and who
+ * holds NO general project-operations authority.
+ *
+ * Do NOT use it for:
+ *   Project Setup · Calendar · Master Milestones · Master Deliverables ·
+ *   project structure · project responsibilities · any general project
+ *   operation.
+ *
+ * Its SQL counterpart carries the same warning verbatim — see the
+ * `comment on function public.is_project_consolidator(uuid)` in
+ * `20260824000001_authorization_foundation_wave1.sql`, which marks it
+ * compatibility-only. For operations use {@link isProjectControlPlanning},
+ * the mirror of `public.can_manage_project_operations()`.
+ *
+ * Reusing this pair for an operation is exactly how the Report Coordinator
+ * came to be offered Master Milestone management the database refuses.
+ * ---------------------------------------------------------------------------
  */
 export function isProjectConsolidator(
   project: Pick<
@@ -241,6 +263,55 @@ export function isProjectConsolidator(
       member.contactId === contactId &&
       member.role !== undefined &&
       (CONSOLIDATOR_ROLES as readonly string[]).includes(member.role)
+  );
+}
+
+/**
+ * Whether a person holds PROJECT OPERATIONS authority on THIS project.
+ *
+ * The TypeScript mirror of `public.can_manage_project_operations()`
+ * (`20260824000001_authorization_foundation_wave1.sql`), clause for clause:
+ *
+ *   has_global_operational_authority()      -> `options.isGlobalAuthority`
+ *   OR is_project_control_planning(project)  -> the checks below
+ *
+ * The caller supplies the global half because platform role lives on
+ * `profiles.role`, which this pure module never reads. Pass
+ * `role === "system_admin" || role === "project_control_admin"`.
+ *
+ * The project half deliberately admits ONLY `project_control_manager`, and
+ * deliberately NOT `reporting_coordinator` — that is the whole difference
+ * between this and {@link isProjectConsolidator}, and the reason both exist.
+ *
+ * Effective authority this produces:
+ *
+ *   system_admin              operations on every project
+ *   project_control_admin     operations on every project
+ *   project_control/planning  operations on ASSIGNED projects only
+ *   reporting_coordinator     none  (reporting only — see isProjectConsolidator)
+ *   department user           none
+ *   viewer                    none
+ *
+ * Like every client predicate in this codebase this is PRESENTATION AUTHORITY.
+ * Row-level security applies the same rule independently, so a mismatch here
+ * produces a wrong button, never a wrong write.
+ */
+export function isProjectControlPlanning(
+  project: Pick<Project, "projectControlManagerId" | "team">,
+  contactId: string | null | undefined,
+  options: { isGlobalAuthority?: boolean } = {}
+): boolean {
+  if (options.isGlobalAuthority) return true;
+  if (!contactId) return false;
+
+  /* The project's own holder column, and any assignment carrying the role —
+     the same union `isProjectConsolidator` uses, narrowed to one role. */
+  if (project.projectControlManagerId === contactId) return true;
+
+  return (project.team ?? []).some(
+    (member) =>
+      member.contactId === contactId &&
+      member.role === "project_control_manager"
   );
 }
 

@@ -32,6 +32,7 @@ export default async function ExecutiveProjectPage({
       requestedTab={tab}
       viewer={{
         allowed: viewer.allowed,
+        canManagePortfolio: viewer.canManagePortfolio,
         deniedReason: viewer.deniedReason,
         contactId: viewer.contactId,
         isAdmin: viewer.isAdmin,

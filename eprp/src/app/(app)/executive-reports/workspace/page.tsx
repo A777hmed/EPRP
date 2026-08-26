@@ -19,6 +19,7 @@ export default async function ExecutiveWorkspacePage({
   return (
     <ExecutiveWorkspaceView
       allowed={viewer.allowed}
+      canManagePortfolio={viewer.canManagePortfolio}
       deniedReason={viewer.deniedReason}
       contactId={viewer.contactId}
       isAdmin={viewer.isAdmin}
