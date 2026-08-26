@@ -53,6 +53,7 @@ import { ActivitiesTable } from "./activities-table";
 import { useWeeklyNameLookup } from "./weekly-department-section";
 import { WeeklySignoffPanel, useContactTitle } from "./weekly-signoff-panel";
 import { WeeklyDepartmentsPanel } from "./weekly-departments-panel";
+import { WeeklyManagementItems } from "./weekly-management-items";
 import { resolveDepartmentRecipients } from "../weekly-recipients";
 import {
   WeeklyDistributionPanel,
@@ -702,6 +703,20 @@ export function WeeklyReportDetailView({
                   : "The project for this report is not available."}
           </p>
         </SectionCard>
+      )}
+
+      {mode === "workspace" && workspace && scope && (
+        <WeeklyManagementItems
+          reportId={report.id}
+          project={project}
+          entries={workspace.projectLevelItems}
+          scopeItemCount={workspace.scopeItemLevelCount}
+          names={names}
+          terms={scope.terms}
+          canEdit={editability.canEdit}
+          onEntrySaved={handleEntrySaved}
+          onEntryDeleted={handleEntryDeleted}
+        />
       )}
 
       {mode === "detail" && <SectionCard

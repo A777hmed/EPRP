@@ -10,6 +10,7 @@ export { SubmissionStatusList } from "./components/submission-status-list";
 export { WeeklyWorkspaceHeader } from "./components/weekly-workspace-header";
 export { WeeklyProgressSummary } from "./components/weekly-progress-summary";
 export { WeeklyDepartmentsPanel } from "./components/weekly-departments-panel";
+export { WeeklyManagementItems } from "./components/weekly-management-items";
 export { WeeklyDepartmentSection } from "./components/weekly-department-section";
 export { WeeklyProjectEntries } from "./components/weekly-project-entries";
 export { WeeklyLookahead } from "./components/weekly-lookahead";

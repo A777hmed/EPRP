@@ -715,6 +715,46 @@ export function WeeklyReportPreview({
           </Section>
         )}
 
+        {workspace && workspace.actionItems.length > 0 && (
+          <Section title="Key Actions">
+            <ul className="space-y-1.5">
+              {workspace.actionItems.map((entry) => (
+                <li key={entry.id} className="break-inside-avoid text-pretty">
+                  <span className="text-sm">{entry.description}</span>
+                  <Meta
+                    items={[
+                      PRIORITY_META[entry.priority].label,
+                      ENTRY_STATUS_META[entry.status].label,
+                      names.department(entry.departmentId)?.name,
+                      personName(entry.ownerContactId),
+                      entry.dueDate && `due ${formatDate(entry.dueDate)}`,
+                    ]}
+                  />
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {workspace && workspace.commentItems.length > 0 && (
+          <Section title="Key Comments">
+            <ul className="space-y-1.5">
+              {workspace.commentItems.map((entry) => (
+                <li key={entry.id} className="break-inside-avoid text-pretty">
+                  <span className="text-sm">{entry.description}</span>
+                  <Meta
+                    items={[
+                      PRIORITY_META[entry.priority].label,
+                      names.department(entry.departmentId)?.name,
+                      personName(entry.ownerContactId),
+                    ]}
+                  />
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
         {planItems.length > 0 && (
           <Section
             title="PROJECT CONTROL — LOOK-AHEAD & NEXT WEEK PLAN"
