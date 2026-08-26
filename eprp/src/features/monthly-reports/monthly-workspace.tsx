@@ -17,7 +17,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState, StatusBadge } from "@/components/shared";
-import { PRIORITY_META, REPORT_STATUS_META } from "@/lib/constants";
+import { MILESTONE_STATUS_META, PRIORITY_META, REPORT_STATUS_META } from "@/lib/constants";
 import { getMonthLabel } from "@/lib/reporting";
 import { monthlyReportService } from "@/services/monthly-report-service";
 import type { Contact, MonthlyComment, MonthlyPlanItem, MonthlyReport } from "@/types";
@@ -40,14 +40,15 @@ const typeLabels = Object.fromEntries(MONTHLY_UPDATE_TYPE_OPTIONS) as Record<Mon
 const KPI_RATINGS = ["excellent", "good", "fair", "at_risk", "critical"] as const;
 const PLAN_STATUSES = ["not_started", "in_progress", "completed", "delayed", "pending"] as const;
 
-type PanelKey = "overview" | "weekly" | "comments" | "management" | "plan" | "summary" | "approval";
+type PanelKey = "overview" | "weekly" | "milestones" | "comments" | "management" | "plan" | "summary" | "approval";
 
 const PANELS: { key: PanelKey; label: string; hint: string }[] = [
   { key: "overview", label: "Monthly Overview", hint: "Report identity and month-end KPIs" },
   { key: "weekly", label: "Weekly Inputs", hint: "Import and review this month's Weekly Reports" },
+  { key: "milestones", label: "Master Milestone Progress", hint: "Governed milestone position, read-only" },
   { key: "comments", label: "Monthly Comments", hint: "Add and curate Monthly updates" },
   { key: "management", label: "Management Items", hint: "Decisions and escalations for leadership" },
-  { key: "plan", label: "Next Month Plan", hint: "Milestones and focus for the coming month" },
+  { key: "plan", label: "Next Month Plan", hint: "Plan items and focus for the coming month" },
   { key: "summary", label: "Executive Summary", hint: "The narrative leadership reads first" },
   { key: "approval", label: "Approval", hint: "Responsibility and lifecycle" },
 ];
@@ -379,6 +380,73 @@ function WeeklyPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload: 
   );
 }
 
+/**
+ * Governed Master Milestones, read-only.
+ *
+ * Consumes `bundle.milestoneStates` — already loaded once by `useMonthlyBundle`
+ * — and adds no fetch of its own. Monthly has no observation, submission, or
+ * reconciliation path for milestones; this panel exists only so an author can
+ * see the governed position while preparing the report, before touching
+ * Management Items or the Next Month Plan.
+ */
+function MilestonesPanel({ bundle }: { bundle: MonthlyReportBundle }) {
+  const { milestoneStates } = bundle;
+
+  return (
+    <WorkspacePanel title="Master Milestone Progress" hint="Governed position, as approved by Project Control. Read-only here.">
+      {milestoneStates.length ? (
+        <div className="monthly-table-wrap">
+          <table className="monthly-table monthly-table-milestones">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Milestone</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Forecast Date</th>
+                <th>Actual Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {milestoneStates.map((state) => {
+                const statusMeta = MILESTONE_STATUS_META[state.status];
+                return (
+                  <tr key={state.milestone.id}>
+                    <td>
+                      <b>{state.milestone.code}</b>
+                    </td>
+                    <td>{state.milestone.name}</td>
+                    <td>
+                      {state.inConflict ? (
+                        <StatusBadge tone="danger">Unresolved</StatusBadge>
+                      ) : (
+                        <StatusBadge tone={statusMeta.tone}>{statusMeta.label}</StatusBadge>
+                      )}
+                    </td>
+                    <td className="actual-value">
+                      {state.inConflict ? (
+                        <span className="muted">Reconciliation required</span>
+                      ) : typeof state.progressPercent === "number" ? (
+                        `${state.progressPercent.toFixed(1)}%`
+                      ) : (
+                        <span className="muted">{NOT_RECORDED}</span>
+                      )}
+                    </td>
+                    <td>{state.forecastDate ? format(new Date(state.forecastDate), "dd MMM yyyy") : <span className="muted">—</span>}</td>
+                    <td>{state.actualDate ? format(new Date(state.actualDate), "dd MMM yyyy") : <span className="muted">—</span>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <EmptyRow>No active Master Milestones are recorded for this project.</EmptyRow>
+      )}
+    </WorkspacePanel>
+  );
+}
+
 function CommentsPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload: () => Promise<void> }) {
   const [adding, setAdding] = React.useState(false);
   const [filter, setFilter] = React.useState<"all" | "included" | "excluded" | "weekly" | "manual">("all");
@@ -478,7 +546,7 @@ function PlanPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload: ()
 
   const save = async () => {
     if (!title.trim()) {
-      toast.error("A milestone title is required.");
+      toast.error("A plan item title is required.");
       return;
     }
     setSaving(true);
@@ -496,9 +564,9 @@ function PlanPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload: ()
       });
       await reload();
       reset();
-      toast.success(editingId ? "Milestone updated." : "Milestone added.");
+      toast.success(editingId ? "Plan item updated." : "Plan item added.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save the milestone.");
+      toast.error(error instanceof Error ? error.message : "Could not save the plan item.");
     } finally {
       setSaving(false);
     }
@@ -508,17 +576,17 @@ function PlanPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload: ()
     try {
       await monthlyReportService.deletePlanItem(report.id, id);
       await reload();
-      toast.success("Milestone removed.");
+      toast.success("Plan item removed.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not remove the milestone.");
+      toast.error(error instanceof Error ? error.message : "Could not remove the plan item.");
     }
   };
 
   return (
-    <WorkspacePanel title={`Next Month Plan — ${nextMonthLabel(report.reportingMonth)}`} hint="Milestones appear in section 7 of the report.">
+    <WorkspacePanel title={`Next Month Plan — ${nextMonthLabel(report.reportingMonth)}`} hint="Plan items appear in section 8 of the report.">
       <div className="monthly-ws-grid monthly-ws-plan-grid">
         <label className="wide">
-          Milestone
+          Plan Item
           <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="What must be achieved next month" />
         </label>
         <label>
@@ -569,7 +637,7 @@ function PlanPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload: ()
       <div className="monthly-ws-actions">
         <Button onClick={save} disabled={saving}>
           <Check />
-          {saving ? "Saving…" : editingId ? "Update Milestone" : "Add Milestone"}
+          {saving ? "Saving…" : editingId ? "Update Plan Item" : "Add Plan Item"}
         </Button>
         {editingId && (
           <Button variant="outline" onClick={reset}>
@@ -583,7 +651,7 @@ function PlanPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload: ()
           <table className="monthly-table monthly-table-plan">
             <thead>
               <tr>
-                <th>Milestone</th>
+                <th>Plan Item</th>
                 <th>Target</th>
                 <th>Owner</th>
                 <th>Status</th>
@@ -614,7 +682,7 @@ function PlanPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload: ()
           </table>
         </div>
       ) : (
-        <EmptyRow>No milestones have been recorded for next month.</EmptyRow>
+        <EmptyRow>No Next Month plan items have been recorded.</EmptyRow>
       )}
 
       <div className="monthly-ws-subhead">Focus &amp; Targets</div>
@@ -829,6 +897,7 @@ export function MonthlyWorkspaceView({ reportId }: { reportId: string }) {
 
       {panel === "overview" && <OverviewPanel bundle={bundle} reload={reload} />}
       {panel === "weekly" && <WeeklyPanel bundle={bundle} reload={reload} />}
+      {panel === "milestones" && <MilestonesPanel bundle={bundle} />}
       {panel === "comments" && <CommentsPanel bundle={bundle} reload={reload} />}
       {panel === "management" && <MonthlyManagementPanel bundle={bundle} reload={reload} />}
       {panel === "plan" && <PlanPanel bundle={bundle} reload={reload} />}

@@ -7,9 +7,12 @@ import { toast } from "sonner";
 
 import { useMasterData } from "@/features/master-data";
 import { useHierarchyTerms } from "@/features/weekly-reports/use-hierarchy-terms";
+import { milestoneStates as deriveMilestoneStates, type MilestoneState } from "@/features/projects/milestone-state";
 import { monthlyReportService } from "@/services/monthly-report-service";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
+import { milestoneService } from "@/services/milestone-service";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type {
   Client,
   Contact,
@@ -53,6 +56,7 @@ export function useMonthlyBundle(reportId: string): MonthlyBundleState {
   const [weeklies, setWeeklies] = React.useState<WeeklyReport[]>([]);
   const [submissions, setSubmissions] = React.useState<WeeklySubmissionInMonth[]>([]);
   const [siblings, setSiblings] = React.useState<MonthlyReport[]>([]);
+  const [milestoneStates, setMilestoneStates] = React.useState<MilestoneState[]>([]);
 
   const terms = useHierarchyTerms(project);
 
@@ -65,14 +69,19 @@ export function useMonthlyBundle(reportId: string): MonthlyBundleState {
       }
 
       const month = next.reportingMonth.slice(0, 7);
-      const [nextProject, nextComments, nextPlans, nextSummaries, projectReports, allWeeklies] = await Promise.all([
-        projectService.getProjectById(next.projectId),
-        monthlyReportService.listComments(next.id),
-        monthlyReportService.listPlanItems(next.id),
-        monthlyReportService.listSummaries(next.id),
-        monthlyReportService.list(next.projectId),
-        weeklyReportService.list(),
-      ]);
+      const milestoneRegisterPromise = isSupabaseConfigured()
+        ? milestoneService.listRegister([next.projectId])
+        : Promise.resolve({ milestones: [], updates: [] });
+      const [nextProject, nextComments, nextPlans, nextSummaries, projectReports, allWeeklies, milestoneRegister] =
+        await Promise.all([
+          projectService.getProjectById(next.projectId),
+          monthlyReportService.listComments(next.id),
+          monthlyReportService.listPlanItems(next.id),
+          monthlyReportService.listSummaries(next.id),
+          monthlyReportService.list(next.projectId),
+          weeklyReportService.list(),
+          milestoneRegisterPromise,
+        ]);
 
       const inMonth = allWeeklies
         .filter((weekly) => weekly.projectId === next.projectId && weekly.periodStart.slice(0, 7) === month)
@@ -95,6 +104,7 @@ export function useMonthlyBundle(reportId: string): MonthlyBundleState {
       setSummaries(nextSummaries);
       setWeeklies(inMonth);
       setSubmissions(submissionRows);
+      setMilestoneStates(deriveMilestoneStates(milestoneRegister.milestones, milestoneRegister.updates));
       setSiblings(projectReports.filter((item) => item.id !== next.id).sort((a, b) => b.reportingMonth.localeCompare(a.reportingMonth)));
       // Set last: `report` is what flips the bundle out of its loading state, so
       // publishing it only once its companions are in hand keeps the header from
@@ -122,13 +132,29 @@ export function useMonthlyBundle(reportId: string): MonthlyBundleState {
       submissions,
       summaries,
       plans,
+      milestoneStates,
       departments: departments as NamedRecord[],
       systems: systems as NamedRecord[],
       disciplines: disciplines as NamedRecord[],
       contacts: contacts as Contact[],
       terms,
     };
-  }, [report, project, clients, comments, weeklies, submissions, summaries, plans, departments, systems, disciplines, contacts, terms]);
+  }, [
+    report,
+    project,
+    clients,
+    comments,
+    weeklies,
+    submissions,
+    summaries,
+    plans,
+    milestoneStates,
+    departments,
+    systems,
+    disciplines,
+    contacts,
+    terms,
+  ]);
 
   return { bundle, siblings, reload };
 }

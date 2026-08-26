@@ -17,10 +17,11 @@ import { format } from "date-fns";
 import { QRCodeSVG } from "qrcode.react";
 
 import { StatusBadge } from "@/components/shared";
-import { KPI_RATING_META, PRIORITY_META } from "@/lib/constants";
+import { KPI_RATING_META, MILESTONE_STATUS_META, PRIORITY_META } from "@/lib/constants";
 import { getMonthLabel } from "@/lib/reporting";
 import { siteConfig } from "@/config/site";
 import type { HierarchyTerms } from "@/config/project-terminology";
+import type { MilestoneState } from "@/features/projects/milestone-state";
 import type {
   Client,
   Contact,
@@ -61,6 +62,8 @@ export interface MonthlyReportBundle {
   submissions: WeeklySubmissionInMonth[];
   summaries: MonthlyDepartmentSummary[];
   plans: MonthlyPlanItem[];
+  /** Governed Master Milestone current state, read-only — see `milestone-state.ts`. */
+  milestoneStates: MilestoneState[];
   departments: NamedRecord[];
   systems: NamedRecord[];
   disciplines: NamedRecord[];
@@ -364,7 +367,74 @@ function ScopeStatus({ bundle, rows }: { bundle: MonthlyReportBundle; rows: Scop
   );
 }
 
-/* --------------------------- 5 · Client action items ----------------------- */
+/* ----------------------- 5 · Master Milestone progress ---------------------- */
+
+/**
+ * Governed Master Milestones, read-only.
+ *
+ * Reads the same frozen state Weekly's Project Control Plan reads —
+ * `milestoneStates`, derived by `milestone-state.ts` from the governed
+ * register — and writes nothing. Monthly has no observation path of its own;
+ * this section exists only to show, on the compiled document, the official
+ * position the governed source already holds.
+ */
+function MasterMilestoneProgress({ milestoneStates }: MonthlyReportBundle) {
+  return (
+    <ReportSection number={5} title="Master Milestone Progress" note="Governed position, as approved by Project Control.">
+      {milestoneStates.length ? (
+        <div className="monthly-table-wrap">
+          <table className="monthly-table monthly-table-milestones">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Milestone</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Forecast Date</th>
+                <th>Actual Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {milestoneStates.map((state) => {
+                const statusMeta = MILESTONE_STATUS_META[state.status];
+                return (
+                  <tr key={state.milestone.id}>
+                    <td>
+                      <b>{state.milestone.code}</b>
+                    </td>
+                    <td>{state.milestone.name}</td>
+                    <td>
+                      {state.inConflict ? (
+                        <StatusBadge tone="danger">Unresolved</StatusBadge>
+                      ) : (
+                        <StatusBadge tone={statusMeta.tone}>{statusMeta.label}</StatusBadge>
+                      )}
+                    </td>
+                    <td className="actual-value">
+                      {state.inConflict ? (
+                        <span className="muted">Reconciliation required</span>
+                      ) : typeof state.progressPercent === "number" ? (
+                        `${state.progressPercent.toFixed(1)}%`
+                      ) : (
+                        <span className="muted">{NOT_RECORDED}</span>
+                      )}
+                    </td>
+                    <td>{state.forecastDate ? format(new Date(state.forecastDate), "dd MMM yyyy") : <span className="muted">—</span>}</td>
+                    <td>{state.actualDate ? format(new Date(state.actualDate), "dd MMM yyyy") : <span className="muted">—</span>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <EmptyRow>No active Master Milestones are recorded for this project.</EmptyRow>
+      )}
+    </ReportSection>
+  );
+}
+
+/* --------------------------- 6 · Client action items ----------------------- */
 
 function ClientActionItems(bundle: MonthlyReportBundle) {
   const { comments, contacts, client } = bundle;
@@ -372,7 +442,7 @@ function ClientActionItems(bundle: MonthlyReportBundle) {
   const title = client?.shortName || client?.name ? `Client Action Items — ${client.shortName ?? client.name}` : "Client Action Items";
 
   return (
-    <ReportSection number={5} title={title} note="Items awaiting client decision or approval.">
+    <ReportSection number={6} title={title} note="Items awaiting client decision or approval.">
       {actions.length ? (
         <div className="monthly-table-wrap">
           <table className="monthly-table monthly-table-actions">
@@ -416,7 +486,7 @@ function ClientActionItems(bundle: MonthlyReportBundle) {
   );
 }
 
-/* ------------------------- 6 · Key highlights & issues --------------------- */
+/* ------------------------- 7 · Key highlights & issues --------------------- */
 
 const HIGHLIGHT_EXCLUDED = new Set<MonthlyComment["updateType"]>(["action", "next_month_plan"]);
 
@@ -424,7 +494,7 @@ function KeyHighlights({ comments }: MonthlyReportBundle) {
   const items = comments.filter((comment) => comment.includeInFinal && !HIGHLIGHT_EXCLUDED.has(comment.updateType));
 
   return (
-    <ReportSection number={6} title="Key Highlights & Issues" note="Weekly items selected for Monthly, plus Monthly-only entries.">
+    <ReportSection number={7} title="Key Highlights & Issues" note="Weekly items selected for Monthly, plus Monthly-only entries.">
       {items.length ? (
         <div className="monthly-highlight-list">
           {items.map((comment) => (
@@ -443,21 +513,21 @@ function KeyHighlights({ comments }: MonthlyReportBundle) {
   );
 }
 
-/* --------------------------- 7 · Next month outlook ------------------------ */
+/* --------------------------- 8 · Next month outlook ------------------------ */
 
 function NextMonthOutlook({ report, plans, comments, contacts, departments }: MonthlyReportBundle) {
   const focus = comments.filter((comment) => comment.includeInFinal && comment.updateType === "next_month_plan");
 
   return (
     <ReportSection
-      number={7}
+      number={8}
       title={`Next Month Outlook — ${nextMonthLabel(report.reportingMonth)}`}
       note="Recorded Monthly plan items and focus narrative."
     >
       <div className="monthly-outlook-grid">
         <div className="monthly-outlook-panel">
           <div className="monthly-mini-heading">
-            <span>Planned Milestones</span>
+            <span>Plan Items</span>
           </div>
           {plans.length ? (
             <div className="monthly-milestones">
@@ -473,7 +543,7 @@ function NextMonthOutlook({ report, plans, comments, contacts, departments }: Mo
               ))}
             </div>
           ) : (
-            <EmptyRow>No milestones have been recorded.</EmptyRow>
+            <EmptyRow>No Next Month plan items have been recorded.</EmptyRow>
           )}
         </div>
         <div className="monthly-outlook-panel">
@@ -496,11 +566,11 @@ function NextMonthOutlook({ report, plans, comments, contacts, departments }: Mo
   );
 }
 
-/* --------------------------- 8 · Executive summary ------------------------- */
+/* --------------------------- 9 · Executive summary ------------------------- */
 
 function ExecutiveSummary({ report }: MonthlyReportBundle) {
   return (
-    <ReportSection number={8} title="Executive Summary" note="Management narrative for the reporting month.">
+    <ReportSection number={9} title="Executive Summary" note="Management narrative for the reporting month.">
       {report.executiveSummary?.trim() ? (
         <div className="monthly-executive-summary">{report.executiveSummary}</div>
       ) : (
@@ -592,6 +662,7 @@ export function MonthlyReportDocument(bundle: MonthlyReportBundle) {
         <KpiSummary bundle={bundle} scopeRows={scopeRows} />
         <WeeklyBreakdown {...bundle} />
         <ScopeStatus bundle={bundle} rows={scopeRows} />
+        <MasterMilestoneProgress {...bundle} />
         <ClientActionItems {...bundle} />
         <KeyHighlights {...bundle} />
         <NextMonthOutlook {...bundle} />
