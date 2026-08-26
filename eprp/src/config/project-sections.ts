@@ -4,6 +4,7 @@ import {
   CalendarRange,
   Contact,
   FileCheck2,
+  FileBarChart,
   Flag,
   FolderOpen,
   Gauge,
@@ -43,6 +44,7 @@ export type ProjectSectionId =
   | "kpis"
   | "milestones"
   | "deliverables"
+  | "reporting"
   | "weekly-reports"
   | "monthly-reports"
   | "documents"
@@ -135,18 +137,11 @@ export const projectSections: ProjectSection[] = [
       "Submittable items, the milestones they serve, and where each stands with the client.",
   },
   {
-    id: "weekly-reports",
-    label: "Weekly Reports",
-    icon: CalendarDays,
+    id: "reporting",
+    label: "Reporting",
+    icon: FileBarChart,
     group: "Monitoring",
-    description: "Weekly progress reports raised for this project.",
-  },
-  {
-    id: "monthly-reports",
-    label: "Monthly Reports",
-    icon: CalendarRange,
-    group: "Monitoring",
-    description: "Monthly reports compiled from approved weeklies.",
+    description: "Weekly, Monthly, and Project Executive reporting for this project.",
   },
   {
     id: "documents",
@@ -171,14 +166,39 @@ export const projectSections: ProjectSection[] = [
   },
 ];
 
-const sectionIds = projectSections.map((section) => section.id);
+/**
+ * Existing project-scoped report URLs remain valid, but the sidebar presents
+ * Reporting as their single canonical entry.
+ */
+const compatibilityProjectSections: ProjectSection[] = [
+  {
+    id: "weekly-reports",
+    label: "Weekly Reports",
+    icon: CalendarDays,
+    group: "Monitoring",
+    description: "Weekly progress reports raised for this project.",
+  },
+  {
+    id: "monthly-reports",
+    label: "Monthly Reports",
+    icon: CalendarRange,
+    group: "Monitoring",
+    description: "Monthly reports compiled from approved weeklies.",
+  },
+];
+
+const routableProjectSections = [
+  ...projectSections,
+  ...compatibilityProjectSections,
+];
+const sectionIds = routableProjectSections.map((section) => section.id);
 
 export function isProjectSection(value: string): value is ProjectSectionId {
   return (sectionIds as string[]).includes(value);
 }
 
 export function getProjectSection(id: ProjectSectionId): ProjectSection {
-  const section = projectSections.find((candidate) => candidate.id === id);
+  const section = routableProjectSections.find((candidate) => candidate.id === id);
   if (!section) throw new Error(`Unknown project section: ${id}`);
   return section;
 }

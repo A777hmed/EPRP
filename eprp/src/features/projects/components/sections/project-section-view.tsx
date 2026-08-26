@@ -43,6 +43,7 @@ import { ProjectSectionLayout } from "./project-section-layout";
 import { ProjectDocumentsPanel } from "../project-documents-panel";
 import { MilestonesPanel } from "../milestones/milestones-panel";
 import { DeliverablesPanel } from "../deliverables/deliverables-panel";
+import { ProjectReportingWorkspace } from "./project-reporting-workspace";
 
 export interface ProjectSectionViewProps {
   projectId: string;
@@ -173,6 +174,13 @@ function SectionBody({
       return <MilestonesSection project={project} />;
     case "deliverables":
       return <DeliverablesSection project={project} />;
+    case "reporting":
+      return (
+        <ProjectReportingWorkspace
+          project={project}
+          weeklyReports={weeklyReports}
+        />
+      );
     case "weekly-reports":
       return (
         <WeeklyReportsSection project={project} reports={weeklyReports} />
