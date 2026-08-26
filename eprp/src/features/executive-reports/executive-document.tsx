@@ -33,6 +33,7 @@ import type { ExecPanel } from "./executive-panels";
 import { ExecutiveAiPanel } from "./executive-ai-panel";
 import { ExecutiveNotesPanel } from "./executive-notes-panel";
 import type { ExecutiveNote, NotesAvailability } from "./executive-notes";
+import { MILESTONE_STATUS_META } from "@/lib/constants";
 import {
   MONTHLY_BASIS_META,
   NOT_REPORTED,
@@ -400,7 +401,7 @@ function ProjectStatusTable({ model }: { model: ExecutiveDocumentModel }) {
                 <th>SV</th>
                 <th>Schedule Health</th>
                 <th>Open Actions</th>
-                <th>Next / Due Milestone</th>
+                <th>Next / Due Plan Item</th>
                 <th className="exec-actions-col">Details</th>
               </tr>
             </thead>
@@ -624,14 +625,92 @@ function PortfolioAnalytics({ model }: { model: ExecutiveDocumentModel }) {
 
 /* --------------------------- 6 · Milestones -------------------------------- */
 
+/**
+ * Governed Master Milestones, portfolio-wide, read-only.
+ *
+ * Consumes `row.milestoneStates` — already derived by `milestone-state.ts`,
+ * the same frozen logic Weekly, Monthly and the Project Executive drill-down
+ * read. This adds no observation, submission, or reconciliation path; it only
+ * shows the governed register's official position across the visible
+ * projects. Unnumbered and placed directly above the existing free-text
+ * "Upcoming Plan Items" section.
+ */
+function GovernedMilestoneStatus({ model }: { model: ExecutiveDocumentModel }) {
+  const rows = model.rows.flatMap((row) =>
+    row.milestoneStates.map((state) => ({ row, state }))
+  );
+
+  return (
+    <section className="monthly-section">
+      <div className="monthly-section-title-row">
+        <h2>
+          <span>Master Milestone Status</span>
+        </h2>
+        <p>Governed position, as approved by Project Control — across the visible portfolio.</p>
+      </div>
+      {rows.length ? (
+        <div className="monthly-table-wrap">
+          <table className="monthly-table exec-milestone-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Code</th>
+                <th>Milestone</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Forecast Date</th>
+                <th>Actual Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ row, state }) => {
+                const statusMeta = MILESTONE_STATUS_META[state.status];
+                return (
+                  <tr key={state.milestone.id}>
+                    <td>{row.projectName}</td>
+                    <td>
+                      <b>{state.milestone.code}</b>
+                    </td>
+                    <td>{state.milestone.name}</td>
+                    <td>
+                      {state.inConflict ? (
+                        <StatusBadge tone="danger">Unresolved</StatusBadge>
+                      ) : (
+                        <StatusBadge tone={statusMeta.tone}>{statusMeta.label}</StatusBadge>
+                      )}
+                    </td>
+                    <td className="actual-value">
+                      {state.inConflict ? (
+                        <span className="muted">Reconciliation required</span>
+                      ) : typeof state.progressPercent === "number" ? (
+                        `${state.progressPercent.toFixed(1)}%`
+                      ) : (
+                        <span className="muted">Not recorded</span>
+                      )}
+                    </td>
+                    <td>{state.forecastDate ? format(parseISO(state.forecastDate), "dd MMM yyyy") : <span className="muted">—</span>}</td>
+                    <td>{state.actualDate ? format(parseISO(state.actualDate), "dd MMM yyyy") : <span className="muted">—</span>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <EmptyRow>No active Master Milestones are recorded for the visible projects.</EmptyRow>
+      )}
+    </section>
+  );
+}
+
 function MilestoneTimeline({ model }: { model: ExecutiveDocumentModel }) {
   const upcoming = upcomingMilestones(model.milestones, model.today);
 
   return (
     <ReportSection
       number={6}
-      title="Upcoming Major Milestones"
-      note="From Monthly plan items and Weekly plan milestones — not a project milestone register."
+      title="Upcoming Plan Items"
+      note="Free-text planning entries from Monthly and Weekly plan items — not part of the governed Master Milestone register above."
     >
       {upcoming.length ? (
         <div className="monthly-table-wrap">
@@ -640,7 +719,7 @@ function MilestoneTimeline({ model }: { model: ExecutiveDocumentModel }) {
               <tr>
                 <th>Date</th>
                 <th>Project</th>
-                <th>Milestone</th>
+                <th>Plan Item</th>
                 <th>Owner</th>
                 <th>Status</th>
                 <th>Source</th>
@@ -668,7 +747,7 @@ function MilestoneTimeline({ model }: { model: ExecutiveDocumentModel }) {
           </table>
         </div>
       ) : (
-        <EmptyRow>No dated milestones are recorded ahead of today in Monthly or Weekly plans.</EmptyRow>
+        <EmptyRow>No dated plan items are recorded ahead of today in Monthly or Weekly plans.</EmptyRow>
       )}
     </ReportSection>
   );
@@ -743,14 +822,14 @@ function SnapshotCard({ row, month }: { row: ProjectExecutiveRow; month: string 
           <dd>{decision?.text ?? <span className="muted">None required</span>}</dd>
         </div>
         <div>
-          <dt>Next milestone</dt>
+          <dt>Next plan item</dt>
           <dd>
             {row.nextMilestone ? (
               <>
                 {row.nextMilestone.title} <small>({shortDate(row.nextMilestone.date)})</small>
               </>
             ) : (
-              <span className="muted">No upcoming milestone recorded</span>
+              <span className="muted">No upcoming plan item recorded</span>
             )}
           </dd>
         </div>
@@ -993,6 +1072,7 @@ export function ExecutiveDocument({ model }: { model: ExecutiveDocumentModel }) 
         <ProjectStatusTable model={model} />
         <ManagementAttention model={model} />
         <PortfolioAnalytics model={model} />
+        <GovernedMilestoneStatus model={model} />
         <MilestoneTimeline model={model} />
         <SnapshotCards model={model} />
         <ExecutiveNotesSection model={model} />

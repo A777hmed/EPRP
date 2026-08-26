@@ -8,9 +8,12 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 
 import { useMasterData } from "@/features/master-data";
+import { milestoneStates as deriveMilestoneStates, type MilestoneState } from "@/features/projects/milestone-state";
+import { milestoneService } from "@/services/milestone-service";
 import { monthlyReportService } from "@/services/monthly-report-service";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type {
   Client,
   Contact,
@@ -112,6 +115,10 @@ export function useExecutivePortfolio(
   const [totalProjects, setTotalProjects] = React.useState(0);
   const [allMonthlies, setAllMonthlies] = React.useState<MonthlyReport[]>([]);
   const [allWeeklies, setAllWeeklies] = React.useState<WeeklyReport[]>([]);
+  /** Governed Master Milestone current state, keyed by project id — read-only. */
+  const [milestoneStatesByProject, setMilestoneStatesByProject] = React.useState<Map<string, MilestoneState[]>>(
+    new Map()
+  );
   const [month, setMonth] = React.useState<string>(() => requestedMonth ?? format(new Date(), "yyyy-MM"));
   // An explicit period from the register is a choice, not a default, so the
   // fallback below must not override it.
@@ -139,10 +146,32 @@ export function useExecutivePortfolio(
         ]);
         if (cancelled) return;
 
+        const nextVisible = visibleProjects(nextProjects, scope);
+
         setTotalProjects(nextProjects.length);
-        setProjects(visibleProjects(nextProjects, scope));
+        setProjects(nextVisible);
         setAllMonthlies(nextMonthlies);
         setAllWeeklies(nextWeeklies);
+
+        /*
+         * One batched call across every visible project — `listRegister`
+         * already does two round trips regardless of project count, so this
+         * adds no new API and no per-project fan-out. Grouped by project id
+         * after deriving the frozen current-state read, never re-derived here.
+         */
+        const milestoneRegister = isSupabaseConfigured()
+          ? await milestoneService.listRegister(nextVisible.map((project) => project.id))
+          : { milestones: [], updates: [] };
+        if (cancelled) return;
+
+        const states = deriveMilestoneStates(milestoneRegister.milestones, milestoneRegister.updates);
+        const grouped = new Map<string, MilestoneState[]>();
+        for (const state of states) {
+          const held = grouped.get(state.milestone.projectId) ?? [];
+          held.push(state);
+          grouped.set(state.milestone.projectId, held);
+        }
+        setMilestoneStatesByProject(grouped);
       } catch (error) {
         if (cancelled) return;
         toast.error(error instanceof Error ? error.message : "Could not load the Executive portfolio.");
@@ -424,9 +453,21 @@ export function useExecutivePortfolio(
         nextMilestoneOverdue: isOverdueMilestone(nextMilestone, today),
         milestones,
         movement,
+        milestoneStates: milestoneStatesByProject.get(project.id) ?? [],
       };
     });
-  }, [selections, comments, monthlyPlans, weeklyEntries, weeklyPlans, laterWeeklies, contacts, clients, today]);
+  }, [
+    selections,
+    comments,
+    monthlyPlans,
+    weeklyEntries,
+    weeklyPlans,
+    laterWeeklies,
+    contacts,
+    clients,
+    today,
+    milestoneStatesByProject,
+  ]);
 
   const milestones = React.useMemo(() => rows.flatMap((row) => row.milestones), [rows]);
 

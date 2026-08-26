@@ -30,6 +30,7 @@ import {
 } from "@/lib/constants";
 import { scheduleVariance } from "@/lib/reporting";
 import type { StatusTone } from "@/components/shared/status-badge";
+import type { MilestoneState } from "@/features/projects/milestone-state";
 import type {
   Contact,
   MonthlyComment,
@@ -696,6 +697,8 @@ export interface ProjectExecutiveRow {
   nextMilestoneOverdue: boolean;
   milestones: MilestoneRow[];
   movement: MovementItem[];
+  /** Governed Master Milestone current state for this project, read-only. */
+  milestoneStates: MilestoneState[];
 }
 
 /** Attention-first, then worst variance, then name — a stable, meaningful order. */

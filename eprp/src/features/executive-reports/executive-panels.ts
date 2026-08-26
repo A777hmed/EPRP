@@ -14,8 +14,8 @@
  * when its data does not support a chart.
  */
 
-import { PRIORITY_META, PROJECT_LIFECYCLE_META } from "@/lib/constants";
-import type { MonthlyReport } from "@/types";
+import { MILESTONE_STATUS_META, PRIORITY_META, PROJECT_LIFECYCLE_META } from "@/lib/constants";
+import type { MilestoneStatus, MonthlyReport } from "@/types";
 import {
   EXEC_HEALTH_META,
   EXEC_HEALTH_ORDER,
@@ -69,6 +69,16 @@ const VARIANCE_COLOR: Record<VarianceBucket, string> = {
   acceptable: EXEC_PALETTE.navy,
   unfavourable: EXEC_PALETTE.red,
 };
+
+/** Governed Master Milestone status colors. `unresolved` is not a stored
+ *  status — it is `state.inConflict`, kept visually distinct from `delayed`. */
+const MILESTONE_STATUS_COLOR: Record<MilestoneStatus, string> = {
+  not_started: EXEC_PALETTE.slate,
+  in_progress: EXEC_PALETTE.navy,
+  completed: EXEC_PALETTE.green,
+  delayed: EXEC_PALETTE.red,
+};
+const UNRESOLVED_COLOR = EXEC_PALETTE.redDeep;
 
 const LIFECYCLE_PALETTE = [
   EXEC_PALETTE.navy,
@@ -228,6 +238,9 @@ const PANEL_SPAN: Record<string, number> = {
   actual: 7,
   variance: 7,
   attention: 6,
+  // Compact, like Schedule Health — sits in a widened last row alongside it
+  // rather than claiming a row of its own (see `assignSpans`'s merge step).
+  "milestone-status": 4,
 };
 
 /** No panel may shrink below this and stay legible. */
@@ -259,8 +272,22 @@ function informationWeight(panel: ExecPanel): "empty" | "thin" | "full" {
 function assignSpans(panels: ExecPanel[]): ExecPanel[] {
   const out: ExecPanel[] = [];
 
+  const rowChunks: ExecPanel[][] = [];
   for (let i = 0; i < panels.length; i += 3) {
-    const row = panels.slice(i, i + 3);
+    rowChunks.push(panels.slice(i, i + 3));
+  }
+  /*
+   * A trailing row of exactly one panel would inherit the whole row's spare
+   * width below and read as a single oversized chart — the opposite of
+   * "compact". Folding it into the previous row keeps every panel sized by
+   * what it has to say, not by how the panel count happens to divide by 3.
+   */
+  if (rowChunks.length > 1 && rowChunks[rowChunks.length - 1].length === 1) {
+    const lone = rowChunks.pop();
+    rowChunks[rowChunks.length - 1].push(...(lone as ExecPanel[]));
+  }
+
+  for (const row of rowChunks) {
     const weights = row.map(informationWeight);
 
     // Start from the designed proportions, then shrink what has little to say.
@@ -333,6 +360,9 @@ export function buildExecutivePanels(input: ExecutiveAnalyticsInput): ExecPanel[
     actualProgress(reported, note),
     behindPlan(reported, note),
     attentionRanking(aggregate),
+    // Row 4 (folded into Row 3 by `assignSpans` when alone) — the governed
+    // register's own position, read-only.
+    milestoneStatusDistribution(rows),
   ];
 
   return assignSpans(panels);
@@ -654,5 +684,62 @@ function attentionRanking(aggregate: PortfolioAggregate): ExecPanel {
     subtitle: "Open exceptions across the portfolio",
     items,
     total: items.reduce((sum, item) => sum + item.value, 0),
+  };
+}
+
+/* 10 · Governed Master Milestone status -------------------------------------- */
+
+/**
+ * Governed Master Milestone status, portfolio-wide.
+ *
+ * Counts `row.milestoneStates` — already derived by `milestone-state.ts`, the
+ * same frozen logic Weekly, Monthly and the Project Executive drill-down read.
+ * No progress is averaged or weighted here; this is a distribution of the
+ * OFFICIAL status field only, one governed milestone contributing to exactly
+ * one slice. A milestone with `inConflict` is counted under "Unresolved"
+ * instead of its nominal status — it has no resolved official state yet.
+ */
+function milestoneStatusDistribution(rows: ProjectExecutiveRow[]): ExecPanel {
+  const states = rows.flatMap((row) => row.milestoneStates);
+
+  if (states.length === 0) {
+    return {
+      kind: "empty",
+      id: "milestone-status",
+      title: "Governed Master Milestone Status",
+      text: "No active Master Milestones are recorded for the visible projects.",
+    };
+  }
+
+  const counts = new Map<MilestoneStatus | "unresolved", number>();
+  for (const state of states) {
+    const key = state.inConflict ? "unresolved" : state.status;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  const order: (MilestoneStatus | "unresolved")[] = [
+    "not_started",
+    "in_progress",
+    "completed",
+    "delayed",
+    "unresolved",
+  ];
+  const slices = order
+    .map((key) => {
+      const value = counts.get(key) ?? 0;
+      if (value === 0) return undefined;
+      if (key === "unresolved") return { name: "Unresolved", value, color: UNRESOLVED_COLOR };
+      return { name: MILESTONE_STATUS_META[key].label, value, color: MILESTONE_STATUS_COLOR[key] };
+    })
+    .filter((slice): slice is { name: string; value: number; color: string } => Boolean(slice));
+
+  return {
+    kind: "donut",
+    id: "milestone-status",
+    title: "Governed Master Milestone Status",
+    subtitle: "Official position, as approved by Project Control",
+    slices,
+    total: states.length,
+    totalLabel: "Total Milestones",
   };
 }
