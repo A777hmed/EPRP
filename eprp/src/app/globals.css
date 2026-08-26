@@ -270,6 +270,17 @@
 .monthly-section-title-row h2 span { padding: 4px 10px; border-radius: 3px; background: #0d59a8; color: white; }
 .monthly-section-title-row p { margin: 0; color: #70839a; font-size: .64rem; white-space: nowrap; }
 
+/*
+ * A lighter treatment for secondary sections (currently only Executive's
+ * Project Snapshots). The solid navy pill on every section read as template
+ * chrome rather than hierarchy; this keeps the number and the hairline but
+ * drops the filled background, reserving the pill for sections that are
+ * genuinely headline-level (Executive Summary, Management Attention).
+ * Additive only — `.monthly-section-title-row` itself, and every other
+ * caller of it (including Monthly's own document), is unchanged.
+ */
+.monthly-section-title-row.is-plain h2 span { padding: 0; background: none; color: #0d4384; }
+
 .monthly-empty-row { padding: 9px 12px; border: 1px dashed #c8d6e4; border-radius: 5px; color: #8090a3; font-size: .72rem; }
 .monthly-pill { display: inline-block; padding: 3px 9px; border-radius: 999px; background: #edf2f7; color: #17477d; font-size: .62rem; font-weight: 700; text-align: center; white-space: nowrap; }
 .monthly-link { color: #0d59a8; font-weight: 700; }
@@ -1042,11 +1053,17 @@
  * Below this width the wrapper scrolls; no column is dropped to avoid it.
  */
 /*
- * NO min-width, deliberately.
+ * NO min-width, deliberately (confirmed again here: a 900px floor forced a
+ * scrollbar inside this report's own content column at ordinary desktop
+ * width, which is worse than the defect it tried to prevent).
  *
  * The nine column widths sum to 100%, and headers wrap at word boundaries, so
- * the table fits whatever container it is given. A min-width here was what
- * forced the horizontal scrollbar at ordinary desktop widths.
+ * the table fits whatever container it is given. The actual Planned/Actual/
+ * Variance collision was a 12-character "Not Reported" fallback forced into
+ * an 8% `nowrap` column — that fallback is now a single dash for a project
+ * with no Monthly at all, which is what fixes the collision. `.monthly-
+ * table-wrap`'s existing `overflow-x: auto` remains the safety net for any
+ * width this table is ever given narrower than its own content.
  */
 .exec-status-table { min-width: 0; width: 100%; table-layout: fixed; }
 
@@ -1316,11 +1333,19 @@
 
 /* --------------------------------- Snapshots ------------------------------- */
 
-.exec-snapshot-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+/*
+ * `auto-fit` rather than a fixed 3-up grid: with fewer cards than fit a row,
+ * the empty tracks collapse and the real cards grow to use the width instead
+ * of sitting left-aligned beside a blank third of the report. With more
+ * projects it wraps at the same 260px floor, so a card is never crushed.
+ */
+.exec-snapshot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
 /* Compact and decision-focused: a snapshot is a summary card, not a page. */
-.exec-snapshot { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px 12px; border: 1px solid #dde7f1; border-radius: 7px; background: #ffffff; box-shadow: 0 1px 2px rgb(19 47 79 / 4%); }
+.exec-snapshot { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 236px; padding: 10px 12px; border: 1px solid #dde7f1; border-radius: 7px; background: #ffffff; box-shadow: 0 1px 2px rgb(19 47 79 / 4%); }
 .exec-snapshot > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.exec-snapshot > header b { display: block; color: #0d4384; font-size: .84rem; line-height: 1.25; overflow-wrap: anywhere; }
+/* Capped at 2 lines: an uncontrolled project name pushes every row below it
+   to a different height than its neighbours in the same grid row. */
+.exec-snapshot > header b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #0d4384; font-size: .84rem; line-height: 1.25; overflow-wrap: anywhere; }
 .exec-snapshot > header small { display: block; margin-top: 2px; color: #7d8fa4; font-size: .64rem; }
 .exec-snapshot-basis { display: flex; align-items: center; gap: 7px; }
 .exec-snapshot-basis small { color: #8494a7; font-size: .62rem; }
@@ -1329,7 +1354,9 @@
 .exec-snapshot-figures span { color: #667a91; font-size: .57rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
 .exec-snapshot-figures b { font-size: 1.02rem; }
 .exec-snapshot-lines { display: grid; gap: 5px; margin: 0; }
-.exec-snapshot-lines > div { display: grid; grid-template-columns: 74px minmax(0, 1fr); align-items: baseline; gap: 8px; }
+/* Wide enough for "Weekly movement" and "Decision required" to stay on one
+   line — the row that didn't fit was what broke every row's alignment. */
+.exec-snapshot-lines > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: baseline; gap: 8px; }
 .exec-snapshot-lines dt { color: #7386a0; font-size: .54rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; line-height: 1.5; }
 .exec-snapshot-lines dd { margin: 0; color: #2c4a72; font-size: .69rem; line-height: 1.4; overflow-wrap: anywhere; }
 /* Each field is one concise line; the drill-down carries the full detail. */

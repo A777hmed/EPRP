@@ -105,15 +105,24 @@ function ReportSection({
   title,
   note,
   children,
+  /**
+   * A solid navy pill reads as "this is a headline the reader must not miss"
+   * — right for Executive Summary and Management Attention. Applied to every
+   * section indiscriminately it reads as template chrome instead of
+   * hierarchy. Secondary sections (currently Snapshots) pass `accent={false}`
+   * for a plain navy heading + hairline, still numbered, still legible.
+   */
+  accent = true,
 }: {
   number: number;
   title: string;
   note?: string;
   children: React.ReactNode;
+  accent?: boolean;
 }) {
   return (
     <section className="monthly-section">
-      <div className="monthly-section-title-row">
+      <div className={accent ? "monthly-section-title-row" : "monthly-section-title-row is-plain"}>
         <h2>
           <span>
             {number} · {title}
@@ -129,6 +138,15 @@ function ReportSection({
 function EmptyRow({ children }: { children: React.ReactNode }) {
   return <div className="monthly-empty-row">{children}</div>;
 }
+
+/**
+ * Compact modifier for the Monthly-basis badges only ("Draft / Not Approved",
+ * "No Monthly Report") — never the Schedule Health badge. These sit inside
+ * the narrow Project column/card header, where the default badge size was
+ * tight against its neighbours; Schedule Health carries the primary reading
+ * and stays at its normal size so it still reads as the heavier of the two.
+ */
+const BASIS_BADGE_CLASS = "px-1.5 py-0 text-[0.62rem] leading-4";
 
 function pct(value: number | undefined, digits = 1): string {
   return value === undefined ? NOT_REPORTED : `${value.toFixed(digits)}%`;
@@ -418,15 +436,35 @@ function ProjectStatusTable({ model }: { model: ExecutiveDocumentModel }) {
                           printed beside "Draft / Not Approved", which said the
                           same thing twice in two vocabularies. */}
                       <span className="exec-basis-chip">
-                        <StatusBadge tone={basis.tone}>{basis.label}</StatusBadge>
+                        <StatusBadge tone={basis.tone} className={BASIS_BADGE_CLASS}>{basis.label}</StatusBadge>
                       </span>
                     </td>
                     <td>{row.clientName}</td>
-                    <td className="planned-value">{pct(row.planned)}</td>
-                    <td className="actual-value">{pct(row.actual)}</td>
-                    <td className="variance-value">{signed(row.variance)}</td>
+                    {/*
+                      No Monthly at all: the basis chip above already says
+                      "No Monthly Report" once. Repeating "Not Reported" in
+                      three narrow adjacent cells said the same thing three
+                      times and, on a fixed-layout table, overflowed its cell
+                      and visually collided with its neighbour. A dash carries
+                      the same meaning — nothing to show — in the space the
+                      column actually has. A Draft Monthly still prints its
+                      real figures; only the true no-data case collapses.
+                    */}
+                    <td className="planned-value">{row.basis === "none" ? <span className="muted">—</span> : pct(row.planned)}</td>
+                    <td className="actual-value">{row.basis === "none" ? <span className="muted">—</span> : pct(row.actual)}</td>
+                    <td className="variance-value">{row.basis === "none" ? <span className="muted">—</span> : signed(row.variance)}</td>
+                    {/*
+                      "No Monthly Report" in the project cell already says why
+                      this row is empty. A "Not Reported" health badge here
+                      repeated the same fact in a second vocabulary right next
+                      to it — two adjacent badges for one missing-data state.
+                    */}
                     <td>
-                      <StatusBadge tone={row.reading.tone}>{row.reading.label}</StatusBadge>
+                      {row.basis === "none" ? (
+                        <span className="muted">—</span>
+                      ) : (
+                        <StatusBadge tone={row.reading.tone}>{row.reading.label}</StatusBadge>
+                      )}
                     </td>
                     <td className="exec-numeric">
                       <Link className="exec-count-link" href={actionsHref(row, model.month)}>
@@ -768,26 +806,29 @@ function SnapshotCard({ row, month }: { row: ProjectExecutiveRow; month: string 
           <b>{row.projectName}</b>
           <small>{row.clientName}</small>
         </div>
-        <StatusBadge tone={row.reading.tone}>{row.reading.label}</StatusBadge>
+        {/* The basis row below already carries "No Monthly Report" — a
+            second badge here would say the same thing twice, adjacent to
+            each other, in two different vocabularies. */}
+        {row.basis !== "none" && <StatusBadge tone={row.reading.tone}>{row.reading.label}</StatusBadge>}
       </header>
 
       <div className="exec-snapshot-basis">
-        <StatusBadge tone={basis.tone}>{basis.label}</StatusBadge>
+        <StatusBadge tone={basis.tone} className={BASIS_BADGE_CLASS}>{basis.label}</StatusBadge>
         {row.monthlyStatusLabel && <small>{row.monthlyStatusLabel}</small>}
       </div>
 
       <div className="exec-snapshot-figures">
         <div>
           <span>Planned</span>
-          <b className="planned-value">{pct(row.planned, 0)}</b>
+          <b className="planned-value">{row.basis === "none" ? "—" : pct(row.planned, 0)}</b>
         </div>
         <div>
           <span>Actual</span>
-          <b className="actual-value">{pct(row.actual, 0)}</b>
+          <b className="actual-value">{row.basis === "none" ? "—" : pct(row.actual, 0)}</b>
         </div>
         <div>
           <span>Variance</span>
-          <b className="variance-value">{signed(row.variance)}</b>
+          <b className="variance-value">{row.basis === "none" ? "—" : signed(row.variance)}</b>
         </div>
       </div>
 
@@ -834,7 +875,7 @@ function SnapshotCard({ row, month }: { row: ProjectExecutiveRow; month: string 
           </dd>
         </div>
         <div>
-          <dt>Latest Weekly movement</dt>
+          <dt>Weekly movement</dt>
           <dd>
             {row.movement.length ? (
               // One line: the drill-down carries the full movement history.
@@ -862,6 +903,7 @@ function SnapshotCards({ model }: { model: ExecutiveDocumentModel }) {
       number={7}
       title="Project Executive Snapshots"
       note="One card per project — a summary, never a reproduction of the Monthly Report."
+      accent={false}
     >
       {model.rows.length ? (
         <div className="exec-snapshot-grid">
