@@ -1,418 +1,854 @@
 "use client";
 
 /**
- * Dashboard analytics — an application surface, not a report page.
+ * Dashboard analytics — the chart surface of the Control Center.
  *
- * THE COMPOSITION ADAPTS TO THE PORTFOLIO SIZE, which is the whole point.
+ * Everything here is derived by `dashboard-data.ts` and handed in as props.
+ * Nothing is fetched, recomputed or invented: the KPI strip and every panel
+ * read the SAME scoped positions/totals the page already computed, so one card
+ * can never disagree with another.
  *
- * A grouped bar chart is the right way to COMPARE projects. With one project it
- * is one bar floating in a white canvas: a chart that communicates a single
- * number, which a KPI communicates better. So below three reporting projects
- * the section switches to compact executive visuals — bullet bars, a variance
- * gauge, a status strip — and above it expands into ranking and comparison
- * charts. The page therefore looks deliberate at 1 project and at 20.
- *
- * Nothing here reads or derives data. It renders the positions and totals the
- * Dashboard already computed; no calculation is duplicated or changed.
+ * THE COMPOSITION ADAPTS TO WHAT THE PLATFORM ACTUALLY HOLDS. A panel whose
+ * dataset is too thin swaps to a different REAL reading in the same slot at the
+ * same visual weight, or removes itself. It never reserves a chart's worth of
+ * blank canvas and never draws an empty axis — an empty axis reads as "zero",
+ * which is a different and wrong statement.
  */
 
 import * as React from "react";
+import Link from "next/link";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
-  Line,
-  LineChart,
+  Pie,
+  PieChart,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import { CircleCheck, TriangleAlert } from "lucide-react";
 
 import {
   HEALTH_META,
   round,
+  type DashboardMilestone,
   type PortfolioTotals,
   type ProjectPosition,
   type TrendPoint,
 } from "./dashboard-data";
 
-/** Below this, comparison charts have nothing to compare. */
-const COMPARISON_THRESHOLD = 3;
+/* --------------------------------- Chrome ---------------------------------- */
 
-/*
- * Chart chrome reads from the SAME tokens as the rest of the Control Center.
- *
- * These were hardcoded light values (`#7d8fa4` ticks on an `#eef2f7` grid),
- * which meant every Recharts axis and gridline stayed light-mode while the
- * surrounding card went dark — pale grey rules glowing on a navy card. CSS
- * custom properties resolve inside SVG presentation attributes, so the charts
- * now follow the theme with no JS theme detection.
- */
+/* Chart chrome reads the workspace tokens, so axes follow the theme with no JS
+   theme detection — a hardcoded light hex would glow on the dark ground. */
 const AXIS = { fontSize: 10, fill: "var(--dash-muted)" } as const;
-const GRID = "var(--dash-edge)";
-const SERIES_PLANNED = "var(--dash-tint-blue)";
-const SERIES_ACTUAL = "var(--dash-blue)";
-const CURSOR_FILL = "var(--dash-surface-2)";
+const GRID = "var(--dash-hairline)";
+const PLANNED = "var(--dash-chart-planned)";
+const ACTUAL = "var(--dash-chart-actual)";
 
-export function DashboardAnalytics({
-  positions,
+type HealthKey = ProjectPosition["health"];
+type Tone = "success" | "warning" | "behind" | "danger" | "default";
+
+/* ================================ KPI strip ================================= */
+
+/**
+ * Five blocks, five DIFFERENT marks — ring, ring, columns, sparkline, status
+ * icon. Two rings on purpose: they read as a matched pair of rate metrics, and
+ * the three that follow deliberately break the rhythm so the strip cannot be
+ * skimmed as one repeated card.
+ */
+export function KpiStrip({
   totals,
   trend,
+  overdueWeekly,
+  overdueMonthly,
 }: {
-  positions: ProjectPosition[];
   totals: PortfolioTotals;
   trend: TrendPoint[];
+  overdueWeekly: number;
+  overdueMonthly: number;
 }) {
-  const reported = positions.filter((p) => p.planned !== undefined && p.actual !== undefined);
-  const comparison = reported.length >= COMPARISON_THRESHOLD;
+  const coverage = totals.totalProjects
+    ? Math.round((totals.reportedProjects / totals.totalProjects) * 100)
+    : undefined;
+  const bands = healthRows(totals);
+  const spark = trend.filter((point) => point.variance !== undefined);
 
   return (
-    <>
-      <Card
-        title="Progress against plan"
-        hint={comparison ? "Per project, cumulative" : "Actual against planned"}
-        span={5}
-      >
-        {reported.length === 0 ? (
-          <Empty>No project in view has reported progress for this period.</Empty>
-        ) : comparison ? (
-          <ResponsiveContainer width="100%" height={198}>
-            <BarChart
-              data={reported.map((p) => ({
-                name: shortName(p),
-                Planned: round(p.planned as number),
-                Actual: round(p.actual as number),
-              }))}
-              margin={{ top: 4, right: 4, bottom: 0, left: -22 }}
-              barGap={2}
-            >
-              <CartesianGrid stroke={GRID} vertical={false} />
-              <XAxis dataKey="name" tick={AXIS} tickLine={false} axisLine={false} />
-              <YAxis unit="%" tick={AXIS} tickLine={false} axisLine={false} width={38} />
-              <Tooltip formatter={pct} cursor={{ fill: CURSOR_FILL }} />
-              <Legend wrapperStyle={{ fontSize: 10 }} iconType="circle" iconSize={7} />
-              <Bar dataKey="Planned" fill={SERIES_PLANNED} radius={[2, 2, 0, 0]} maxBarSize={22} />
-              <Bar dataKey="Actual" fill={SERIES_ACTUAL} radius={[2, 2, 0, 0]} maxBarSize={22} />
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          /* One or two projects: a bullet bar reads the same fact in a fraction
-             of the space, and leaves no empty canvas. */
-          <ul className="dash-bullets">
-            {reported.map((p) => (
-              <li key={p.project.id}>
-                <div className="dash-bullet-head">
-                  <b>{p.project.name}</b>
-                  <span className={`dash-delta is-${HEALTH_META[p.health].tone}`}>
-                    {signed(p.variance as number)}
-                  </span>
-                </div>
-                <div
-                  className="dash-bullet-track"
-                  role="img"
-                  aria-label={`Actual ${round(p.actual as number)} percent against planned ${round(p.planned as number)} percent`}
-                >
-                  <i className="dash-bullet-plan" style={{ width: `${clamp(p.planned as number)}%` }} />
-                  <i
-                    className="dash-bullet-actual"
-                    style={{
-                      width: `${clamp(p.actual as number)}%`,
-                      background: HEALTH_META[p.health].color,
-                    }}
-                  />
-                  <i className="dash-bullet-marker" style={{ left: `${clamp(p.planned as number)}%` }} />
-                </div>
-                {/* A labelled scale under the track, so the bar is read against
-                    0–100 rather than as an unquantified fill. */}
-                <div className="dash-bullet-scale" aria-hidden>
-                  <span>0</span>
-                  <span>25</span>
-                  <span>50</span>
-                  <span>75</span>
-                  <span>100</span>
-                </div>
-                <div className="dash-bullet-foot">
-                  <span>
-                    Actual <b>{round(p.actual as number)}%</b>
-                  </span>
-                  <span>
-                    Planned <b>{round(p.planned as number)}%</b>
-                  </span>
-                  <span className={`dash-bullet-state is-${HEALTH_META[p.health].tone}`}>
-                    {HEALTH_META[p.health].label}
-                  </span>
-                  <span className="dash-bullet-basis">
-                    {p.basis === "weekly" ? "Latest Weekly" : "Monthly"}
-                    {p.reportedOn ? ` · ${p.reportedOn}` : ""}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+    <section className="dash-kpis" aria-label="Portfolio summary">
+      {/* 1 — ring */}
+      <article className="dash-kpi">
+        <div className="dash-kpi-text">
+          <span>Portfolio Progress</span>
+          <b>{totals.actual === undefined ? "—" : `${round(totals.actual)}%`}</b>
+          <small>Planned {totals.planned === undefined ? "—" : `${round(totals.planned)}%`}</small>
+          <Delta series={trend} field="actual" enabled={totals.actual !== undefined} />
+        </div>
+        <Ring value={totals.actual} tone="primary" label="Portfolio actual progress" />
+      </article>
 
-      <Card title="Schedule variance trend" hint="Actual less planned, by reporting week" span={4}>
-        {trend.length >= 2 ? (
-          <ResponsiveContainer width="100%" height={198}>
-            <LineChart data={trend} margin={{ top: 6, right: 8, bottom: 0, left: -22 }}>
-              <CartesianGrid stroke={GRID} vertical={false} />
-              <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={false} />
-              <YAxis unit="%" tick={AXIS} tickLine={false} axisLine={false} width={38} />
-              <Tooltip formatter={pct} cursor={{ stroke: "var(--dash-edge)" }} />
-              <Line
-                type="monotone"
-                dataKey="variance"
-                name="Variance"
-                stroke={SERIES_ACTUAL}
-                strokeWidth={2}
-                dot={{ r: 2.5, fill: SERIES_ACTUAL }}
-                activeDot={{ r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        ) : (
-          /*
-            One reporting week is a POSITION, not a trend. Show the position —
-            with a labelled scale, so the bar reads as a measurement against
-            ±20 points rather than as an unquantified decoration.
-          */
-          <div className="dash-gauge">
-            <div className="dash-gauge-top">
-              <span className="dash-gauge-label">Current variance</span>
-              <b className={`dash-gauge-value is-${varianceTone(totals.variance)}`}>
-                {totals.variance === undefined ? "—" : signed(totals.variance)}
-              </b>
-            </div>
-            <div className="dash-gauge-track" aria-hidden>
-              <i className="dash-gauge-zero" />
+      {/* 2 — ring, paired with the first */}
+      <article className="dash-kpi">
+        <div className="dash-kpi-text">
+          <span>Reporting Coverage</span>
+          <b>{coverage === undefined ? "—" : `${coverage}%`}</b>
+          <small>
+            {totals.totalProjects
+              ? `${totals.reportedProjects} of ${totals.totalProjects} projects`
+              : "No projects in view"}
+          </small>
+          <p className="dash-kpi-note">
+            {totals.notReported ? `${totals.notReported} without a basis` : "Every project reporting"}
+          </p>
+        </div>
+        <Ring value={coverage} tone="success" label="Reporting coverage" />
+      </article>
+
+      {/* 3 — mini vertical bars */}
+      <article className="dash-kpi">
+        <div className="dash-kpi-text">
+          <span>Projects On Track</span>
+          <b>{totals.onTrack}</b>
+          <small>of {totals.totalProjects} in view</small>
+          <p className="dash-kpi-note">
+            {bands.length ? `${bands.length} status ${plural(bands.length, "band")} present` : "Nothing to rank"}
+          </p>
+        </div>
+        <div className="dash-kpi-columns" role="img" aria-label={healthSummary(bands)}>
+          {bands.length ? (
+            bands.map((row) => (
               <i
-                className={`dash-gauge-fill is-${varianceTone(totals.variance)}`}
-                style={gaugeStyle(totals.variance)}
+                key={row.key}
+                className={`is-${row.tone}`}
+                style={{ "--h": `${columnHeight(row.value, totals.totalProjects)}%` } as React.CSSProperties}
+                title={`${row.label}: ${row.value}`}
               />
-            </div>
-            <div className="dash-gauge-scale" aria-hidden>
-              <span>−20</span>
-              <span>0</span>
-              <span>+20</span>
-            </div>
-            <dl className="dash-gauge-facts">
-              <div>
-                <dt>Planned</dt>
-                <dd>{totals.planned === undefined ? "—" : `${round(totals.planned)}%`}</dd>
-              </div>
-              <div>
-                <dt>Actual</dt>
-                <dd>{totals.actual === undefined ? "—" : `${round(totals.actual)}%`}</dd>
-              </div>
-              <div>
-                <dt>Weeks</dt>
-                <dd>{trend.length}</dd>
-              </div>
-            </dl>
-            <p>Position shown — a trend needs two reporting weeks.</p>
-          </div>
-        )}
-      </Card>
+            ))
+          ) : (
+            <i className="is-default" style={{ "--h": "14%" } as React.CSSProperties} />
+          )}
+        </div>
+      </article>
 
-      {/*
-        Health reads as ONE segmented distribution bar plus a legend, not a
-        donut and not a bar per row.
-
-        The row-per-status version drew a separate track for every state, so a
-        scope with a single status showed one short bar in a tall card and the
-        proportions could not be compared at a glance. A single stacked bar
-        carries the whole distribution in one line and stays legible from one
-        project to twenty.
-      */}
-      <Card title="Schedule health" hint="Across the current scope" span={3}>
-        {totals.totalProjects === 0 ? (
-          <Empty>No projects are in view for the current filters.</Empty>
-        ) : (
-          <div className="dash-dist">
-            <div className="dash-dist-bar" role="img" aria-label={healthSummary(totals)}>
-              {healthRows(totals).map((row) => (
-                <i
-                  key={row.label}
-                  style={{
-                    width: `${(row.value / totals.totalProjects) * 100}%`,
-                    background: row.color,
-                  }}
-                  title={`${row.label}: ${row.value}`}
+      {/* 4 — sparkline */}
+      <article className="dash-kpi">
+        <div className="dash-kpi-text">
+          <span>Schedule Variance</span>
+          <b className={`is-${varianceTone(totals.variance)}`}>{signed(totals.variance)}</b>
+          <small>Actual less planned</small>
+          <Delta series={trend} field="variance" unit="pts" enabled={totals.variance !== undefined} />
+        </div>
+        <div className="dash-kpi-spark" role="img" aria-label="Schedule variance across recent reporting weeks">
+          {spark.length >= 2 ? (
+            <ResponsiveContainer width="100%" height={42}>
+              <AreaChart data={spark} margin={{ top: 4, right: 0, bottom: 2, left: 0 }}>
+                <defs>
+                  <linearGradient id="dashSparkFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={ACTUAL} stopOpacity={0.34} />
+                    <stop offset="100%" stopColor={ACTUAL} stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <Area
+                  type="monotone"
+                  dataKey="variance"
+                  stroke={ACTUAL}
+                  strokeWidth={1.75}
+                  fill="url(#dashSparkFill)"
+                  dot={false}
+                  isAnimationActive={false}
                 />
-              ))}
-            </div>
-            <ul className="dash-dist-legend">
-              {healthRows(totals).map((row) => (
-                <li key={row.label}>
-                  <i style={{ background: row.color }} aria-hidden />
-                  <span>{row.label}</span>
-                  <b>{row.value}</b>
-                </li>
-              ))}
-            </ul>
-            <p className="dash-dist-foot">
-              <b>{totals.reportedProjects}</b> of <b>{totals.totalProjects}</b> reporting
-              {totals.notReported > 0 && ` · ${totals.notReported} not reported`}
-            </p>
-          </div>
-        )}
-      </Card>
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <span className="dash-kpi-flat" aria-hidden />
+          )}
+        </div>
+      </article>
 
-      {/* Ranking only earns its place when there is a ranking to read. */}
-      {comparison && (
-        <Card title="Variance ranking" hint="Worst first" span={12}>
-          <ResponsiveContainer width="100%" height={Math.max(150, reported.length * 26)}>
-            <BarChart
-              layout="vertical"
-              data={[...reported]
-                .sort((a, b) => (a.variance as number) - (b.variance as number))
-                .slice(0, 8)
-                .map((p) => ({ name: shortName(p), Variance: round(p.variance as number), health: p.health }))}
-              margin={{ top: 0, right: 26, bottom: 0, left: 6 }}
-            >
-              <CartesianGrid stroke={GRID} horizontal={false} />
-              <XAxis type="number" unit="%" tick={AXIS} tickLine={false} axisLine={false} />
-              <YAxis type="category" dataKey="name" width={86} tick={AXIS} tickLine={false} axisLine={false} />
-              <Tooltip formatter={pct} cursor={{ fill: CURSOR_FILL }} />
-              <Bar dataKey="Variance" radius={[0, 2, 2, 0]} maxBarSize={15}>
-                {[...reported]
-                  .sort((a, b) => (a.variance as number) - (b.variance as number))
-                  .slice(0, 8)
-                  .map((p) => (
-                    <Cell key={p.project.id} fill={HEALTH_META[p.health].color} />
-                  ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-      )}
-
-      {/* Attention: every project not on track, named. */}
-      <Card
-        title="Management attention"
-        hint="Projects off plan or not reporting"
-        span={4}
-      >
-        <AttentionList positions={positions} />
-      </Card>
-    </>
-  );
-}
-
-/* -------------------------------- Fragments -------------------------------- */
-
-function AttentionList({ positions }: { positions: ProjectPosition[] }) {
-  const flagged = positions
-    .filter((p) => p.health !== "on_track")
-    .sort((a, b) => (a.variance ?? 0) - (b.variance ?? 0));
-
-  if (!flagged.length) {
-    return (
-      <p className="dash-clear">
-        <span aria-hidden>✓</span>
-        Every project in view is reporting and on track.
-      </p>
-    );
-  }
-
-  return (
-    <ul className="dash-attention">
-      {flagged.slice(0, 6).map((p) => (
-        <li key={p.project.id}>
-          <i className={`dash-pip is-${HEALTH_META[p.health].tone}`} aria-hidden />
-          <span className="dash-attention-name">{p.project.name}</span>
-          <span className={`dash-attention-tag is-${HEALTH_META[p.health].tone}`}>
-            {HEALTH_META[p.health].label}
-          </span>
-          <b>{p.variance === undefined ? "—" : signed(p.variance)}</b>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function Card({
-  title,
-  hint,
-  span,
-  children,
-}: {
-  title: string;
-  hint?: string;
-  /** Columns out of 12, so rows vary instead of repeating one card width. */
-  span: number;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="dash-card" style={{ "--span": span } as React.CSSProperties}>
-      <header>
-        <b>{title}</b>
-        {hint && <small>{hint}</small>}
-      </header>
-      <div className="dash-card-body">{children}</div>
+      {/* 5 — a STATE, so a status icon rather than a chart */}
+      <article className={`dash-kpi ${totals.overdueReports ? "is-danger" : "is-clear"}`}>
+        <div className="dash-kpi-text">
+          <span>Overdue Reports</span>
+          <b className={totals.overdueReports ? "is-danger" : "is-success"}>{totals.overdueReports}</b>
+          <small>Past period end, not approved</small>
+          <p className={`dash-kpi-note ${totals.overdueReports ? "is-danger" : ""}`}>
+            {totals.overdueReports
+              ? `${overdueWeekly} Weekly · ${overdueMonthly} Monthly`
+              : "Reporting is current"}
+          </p>
+        </div>
+        <div className="dash-kpi-status" aria-hidden>
+          {totals.overdueReports ? <TriangleAlert /> : <CircleCheck />}
+        </div>
+      </article>
     </section>
   );
 }
 
-function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="dash-empty">{children}</p>;
+/* =============================== Main row ================================== */
+
+/**
+ * Left panel. A trend is the preferred reading, but it needs at least two
+ * reporting weeks — one week is a POSITION, not a trend. Below that the panel
+ * swaps to a per-project planned-against-actual comparison: the same fact,
+ * compared across projects instead of across weeks, at the same visual weight.
+ */
+export function TrendPanel({
+  positions,
+  trend,
+}: {
+  positions: ProjectPosition[];
+  trend: TrendPoint[];
+}) {
+  const reduced = useReducedMotion();
+  const [visible, setVisible] = React.useState({ planned: true, actual: true });
+  const reported = positions.filter(
+    (position) => position.planned !== undefined && position.actual !== undefined
+  );
+
+  if (trend.length < 2) {
+    if (reported.length === 0) {
+      return (
+        <Panel title="Project Performance" hint="Planned against actual">
+          <PanelEmpty>
+            No project in view has reported planned and actual progress for this period.
+          </PanelEmpty>
+        </Panel>
+      );
+    }
+
+    /* The basis is DERIVED, never asserted. This branch also fires when there
+       is no weekly at all — a monthly-only portfolio — so hardcoding "single
+       reporting week" would state a week that does not exist. */
+    const bases = new Set(reported.map((position) => position.basis));
+    const basis =
+      bases.size > 1
+        ? "mixed Weekly and Monthly basis"
+        : bases.has("monthly")
+          ? "latest Monthly per project"
+          : trend.length === 1
+            ? "single reporting week"
+            : "latest Weekly per project";
+
+    const rows = reported.slice(0, 7).map((position) => ({
+      name: position.basis === "monthly" ? `${shortName(position)} (M)` : shortName(position),
+      Planned: round(position.planned as number),
+      Actual: round(position.actual as number),
+    }));
+
+    return (
+      <Panel
+        title="Planned vs Actual"
+        hint={`${reported.length} reporting ${plural(reported.length, "project")} · ${basis}`}
+      >
+        <div className="dash-plot" role="img" aria-label="Planned against actual progress by project">
+          <ResponsiveContainer width="100%" height={214}>
+            <BarChart layout="vertical" data={rows} margin={{ top: 4, right: 24, bottom: 0, left: 4 }} barGap={3}>
+              <CartesianGrid stroke={GRID} horizontal={false} />
+              <XAxis type="number" unit="%" domain={[0, 100]} tick={AXIS} tickLine={false} axisLine={false} />
+              <YAxis type="category" dataKey="name" width={96} tick={AXIS} tickLine={false} axisLine={false} />
+              <Tooltip formatter={percent} cursor={{ fill: "var(--dash-surface-2)" }} />
+              <Bar dataKey="Planned" fill={PLANNED} radius={[0, 3, 3, 0]} maxBarSize={10} isAnimationActive={!reduced} />
+              <Bar dataKey="Actual" fill={ACTUAL} radius={[0, 3, 3, 0]} maxBarSize={10} isAnimationActive={!reduced} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <PlotKeys visible={{ planned: true, actual: true }} onToggle={() => {}} readOnly />
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel title="Project Progress Trend" hint="Planned against actual, by reporting week">
+      <div className="dash-plot" role="img" aria-label="Planned and actual progress by reporting week">
+        <ResponsiveContainer width="100%" height={214}>
+          <AreaChart data={trend} margin={{ top: 10, right: 14, bottom: 0, left: -16 }}>
+            <defs>
+              <linearGradient id="dashActualFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={ACTUAL} stopOpacity={0.22} />
+                <stop offset="100%" stopColor={ACTUAL} stopOpacity={0.01} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke={GRID} vertical={false} />
+            <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={false} dy={4} />
+            <YAxis unit="%" domain={[0, 100]} tick={AXIS} tickLine={false} axisLine={false} width={44} />
+            <Tooltip formatter={percent} cursor={{ stroke: GRID }} />
+            {visible.planned && (
+              <Area
+                type="monotone"
+                dataKey="planned"
+                name="Planned"
+                stroke={PLANNED}
+                strokeWidth={1.75}
+                strokeDasharray="5 4"
+                fill="transparent"
+                dot={false}
+                isAnimationActive={!reduced}
+                animationDuration={600}
+              />
+            )}
+            {visible.actual && (
+              <Area
+                type="monotone"
+                dataKey="actual"
+                name="Actual"
+                stroke={ACTUAL}
+                strokeWidth={2.25}
+                fill="url(#dashActualFill)"
+                dot={{ r: 2.5, fill: ACTUAL, strokeWidth: 0 }}
+                activeDot={{ r: 4.5 }}
+                isAnimationActive={!reduced}
+                animationDuration={700}
+              />
+            )}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+      <PlotKeys
+        visible={visible}
+        onToggle={(key) => setVisible((state) => ({ ...state, [key]: !state[key] }))}
+      />
+    </Panel>
+  );
+}
+
+/** Centre panel — the distribution, with the scope total in the hole. */
+export function StatusPanel({ totals }: { totals: PortfolioTotals }) {
+  const reduced = useReducedMotion();
+  const [focus, setFocus] = React.useState<HealthKey | null>(null);
+  const bands = healthRows(totals);
+  const focused = bands.find((row) => row.key === focus);
+
+  return (
+    <Panel title="Projects by Status" hint="Schedule health in scope">
+      {bands.length === 0 ? (
+        <PanelEmpty>No projects match the current filters.</PanelEmpty>
+      ) : (
+        <div className="dash-donut">
+          <div className="dash-donut-plot" role="img" aria-label={healthSummary(bands)}>
+            <ResponsiveContainer width="100%" height={186}>
+              <PieChart>
+                <Pie
+                  data={bands}
+                  dataKey="value"
+                  nameKey="label"
+                  innerRadius={58}
+                  outerRadius={82}
+                  paddingAngle={bands.length > 1 ? 2 : 0}
+                  stroke="var(--dash-surface)"
+                  strokeWidth={2}
+                  isAnimationActive={!reduced}
+                  animationDuration={700}
+                  onMouseEnter={(_, index) => setFocus(bands[index]?.key ?? null)}
+                  onMouseLeave={() => setFocus(null)}
+                >
+                  {bands.map((row) => (
+                    <Cell
+                      key={row.key}
+                      fill={`var(--dash-health-${row.tone})`}
+                      opacity={focus === null || focus === row.key ? 1 : 0.2}
+                    />
+                  ))}
+                </Pie>
+                {/* No floating <Tooltip>: a Recharts tooltip follows the cursor
+                    and lands squarely on the hole, hiding the very figure the
+                    hole exists to show. The readout is pinned above the chart
+                    instead, where it can never occlude the centre. */}
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="dash-donut-hole" aria-hidden>
+              <b>{totals.totalProjects}</b>
+              <span>Projects</span>
+            </div>
+          </div>
+          <p className="dash-donut-readout" aria-live="polite">
+            {focused ? (
+              <>
+                <i className={`is-${focused.tone}`} aria-hidden />
+                <b>{focused.label}</b>
+                <span>
+                  {focused.value} {plural(focused.value, "project")} ·{" "}
+                  {share(focused.value, totals.totalProjects)}%
+                </span>
+              </>
+            ) : (
+              <span className="is-hint">Hover a segment for detail</span>
+            )}
+          </p>
+          <ul className="dash-keys">
+            {bands.map((row) => (
+              <li key={row.key}>
+                <button
+                  type="button"
+                  aria-pressed={focus === row.key}
+                  onMouseEnter={() => setFocus(row.key)}
+                  onMouseLeave={() => setFocus(null)}
+                  onClick={() => setFocus((current) => (current === row.key ? null : row.key))}
+                >
+                  <i className={`is-${row.tone}`} aria-hidden />
+                  <span>{row.label}</span>
+                  <b>{row.value}</b>
+                  <em>({share(row.value, totals.totalProjects)}%)</em>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+/**
+ * Right panel — a radar over portfolio health.
+ *
+ * EVERY AXIS IS A REAL RATIO the platform already computes. The blueprint's own
+ * radar runs Schedule / Budget / Quality / Resources / Risks; EPROM records
+ * none of the last four, so those axes are not drawn. What IS recorded is
+ * whether projects are on plan, whether they are reporting at all, how far
+ * they have actually got, whether anything is overdue, and whether dated
+ * milestones are still ahead of their date — five compliance ratios, each
+ * already derived elsewhere on this page.
+ *
+ * The TARGET ring is not a guess. For Progress Attainment it is the plan's own
+ * figure (`totals.planned`). For the four compliance ratios the target is 100%
+ * by definition — every project reporting, nothing overdue, nothing late. An
+ * axis is omitted entirely when its input does not exist, so the polygon never
+ * dips toward zero merely because a dataset is absent.
+ */
+export interface HealthAxis {
+  axis: string;
+  current: number;
+  target: number;
+  detail: string;
+}
+
+export function HealthPanel({ axes }: { axes: HealthAxis[] }) {
+  const reduced = useReducedMotion();
+
+  /* Below three axes a radar has no polygon to draw. */
+  if (axes.length < 3) {
+    return (
+      <Panel title="Project Health" hint="Portfolio health dimensions">
+        <PanelEmpty>
+          {axes.length === 0
+            ? "No health dimension can be derived for the current scope."
+            : `Only ${axes.length} health ${plural(axes.length, "dimension")} can be derived for this scope — a radar needs at least three.`}
+        </PanelEmpty>
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel title="Project Health" hint={`${axes.length} derived dimensions`}>
+      <div className="dash-radar" role="img" aria-label={axes.map((a) => `${a.axis} ${a.current}%`).join(", ")}>
+        <ResponsiveContainer width="100%" height={222}>
+          <RadarChart data={axes} outerRadius="78%" margin={{ top: 10, right: 20, bottom: 6, left: 20 }}>
+            <PolarGrid stroke={GRID} />
+            <PolarAngleAxis
+              dataKey="axis"
+              tick={{ fontSize: 11, fill: "var(--dash-ink-soft)", fontWeight: 600 }}
+            />
+            <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
+            <Radar
+              name="Target"
+              dataKey="target"
+              stroke={PLANNED}
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
+              fill="none"
+              isAnimationActive={!reduced}
+              animationDuration={650}
+            />
+            <Radar
+              name="Current"
+              dataKey="current"
+              stroke={ACTUAL}
+              strokeWidth={2}
+              fill={ACTUAL}
+              fillOpacity={0.16}
+              isAnimationActive={!reduced}
+              animationDuration={750}
+            />
+            <Tooltip formatter={percent} />
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="dash-plotkeys">
+        <span className="dash-plotkey is-actual">
+          <i aria-hidden />
+          Current
+        </span>
+        <span className="dash-plotkey is-planned">
+          <i aria-hidden />
+          Target
+        </span>
+      </div>
+    </Panel>
+  );
+}
+
+/**
+ * Secondary analytics — where each project has actually got to.
+ *
+ * A horizontal bar per project reads the figure against a labelled 0-100 track.
+ * The ring this replaces was misleading: a full-circumference arc at 65% still
+ * looked like a completed circle.
+ */
+export function ProgressByProjectPanel({ positions }: { positions: ProjectPosition[] }) {
+  const rows = positions
+    .filter((position) => position.actual !== undefined)
+    .sort((a, b) => (b.actual as number) - (a.actual as number))
+    .slice(0, 6);
+
+  return (
+    <Panel
+      title="Progress by Project"
+      hint="Actual reported progress"
+      className={rows.length ? "dash-progress" : "dash-progress is-collapsed"}
+    >
+      {rows.length === 0 ? (
+        <PanelEmpty>No project in view has reported actual progress.</PanelEmpty>
+      ) : (
+        <ul className="dash-bars is-progress">
+          {rows.map((position) => {
+            const value = round(position.actual as number);
+            return (
+              <li key={position.project.id}>
+                <span className="dash-bar-name" title={position.project.name}>
+                  {position.project.name}
+                </span>
+                <b className={`is-${toneOf(position)}`}>{value}%</b>
+                <span
+                  className="dash-bar-track is-solid"
+                  role="progressbar"
+                  aria-label={`${position.project.name} actual progress`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={value}
+                >
+                  <i
+                    className={`is-${toneOf(position)}`}
+                    style={{ "--p": `${clamp(value)}%` } as React.CSSProperties}
+                  />
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
+/* =============================== Lower row ================================= */
+
+/**
+ * Milestone progress, read from LIFECYCLE STAGE rather than a percentage.
+ *
+ * `DashboardMilestone.percentComplete` is declared optional on the type but
+ * `loadUpcomingMilestones` never populates it from either plan table — so a
+ * panel filtered on it renders empty 100% of the time. A completed-over-total
+ * ratio is no better: the feed is queried `gte(due, today)`, so it holds only
+ * UPCOMING milestones and any such ratio would sit near zero by construction.
+ *
+ * `status` is real and per-row, so the track encodes the stage it actually
+ * reports — recorded, in progress, complete — and the label states that stage
+ * in words. Three discrete segments, no invented number.
+ */
+const STAGES: Record<string, { step: number; label: string; tone: Tone }> = {
+  not_started: { step: 1, label: "Not Started", tone: "default" },
+  planned: { step: 1, label: "Planned", tone: "default" },
+  in_progress: { step: 2, label: "In Progress", tone: "warning" },
+  delayed: { step: 2, label: "Delayed", tone: "danger" },
+  at_risk: { step: 2, label: "At Risk", tone: "danger" },
+  completed: { step: 3, label: "Completed", tone: "success" },
+  done: { step: 3, label: "Completed", tone: "success" },
+};
+
+export function MilestonePanel({ milestones }: { milestones: DashboardMilestone[] }) {
+  const rows = milestones.slice(0, 5);
+
+  return (
+    <Panel
+      title="Milestone Progress"
+      hint="Lifecycle stage"
+      href="/weekly-reports"
+      className={rows.length ? "dash-milestones" : "dash-milestones is-collapsed"}
+    >
+      {rows.length === 0 ? (
+        <PanelEmpty>No dated milestone is recorded ahead of today for this scope.</PanelEmpty>
+      ) : (
+        <ul className="dash-bars">
+          {rows.map((milestone) => {
+            const stage = STAGES[milestone.status] ?? {
+              step: 1,
+              label: titleCase(milestone.status),
+              tone: "default" as Tone,
+            };
+            return (
+              <li key={milestone.id}>
+                <span className="dash-bar-name" title={`${milestone.title} — ${milestone.projectName}`}>
+                  {milestone.title}
+                </span>
+                <b className={`is-${stage.tone}`}>{stage.label}</b>
+                <span
+                  className="dash-bar-track"
+                  role="img"
+                  aria-label={`${milestone.title}: stage ${stage.step} of 3, ${stage.label}`}
+                >
+                  {[1, 2, 3].map((step) => (
+                    <i
+                      key={step}
+                      className={step <= stage.step ? `is-${stage.tone}` : undefined}
+                      style={{ "--d": `${step * 90}ms` } as React.CSSProperties}
+                    />
+                  ))}
+                </span>
+                <small>{milestone.projectName}</small>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
+/* ================================ Fragments ================================= */
+
+export function Panel({
+  title,
+  hint,
+  href,
+  linkLabel = "View All",
+  className,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  href?: string;
+  linkLabel?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className={["dash-panel", className].filter(Boolean).join(" ")}>
+      <header>
+        <div>
+          <b>{title}</b>
+          {hint && <small>{hint}</small>}
+        </div>
+        {href && (
+          <Link href={href} className="dash-link">
+            {linkLabel}
+          </Link>
+        )}
+      </header>
+      <div className="dash-panel-body">{children}</div>
+    </section>
+  );
+}
+
+export function PanelEmpty({ children }: { children: React.ReactNode }) {
+  return <p className="dash-note">{children}</p>;
+}
+
+/** Rotated so it fills clockwise from twelve o'clock. */
+function Ring({
+  value,
+  tone,
+  label,
+}: {
+  value: number | undefined;
+  tone: "primary" | "success";
+  label: string;
+}) {
+  const circumference = 2 * Math.PI * 25;
+  const filled = value === undefined ? 0 : (clamp(value) / 100) * circumference;
+  return (
+    <svg
+      className={`dash-ring is-${tone}`}
+      viewBox="0 0 60 60"
+      role="img"
+      aria-label={`${label}: ${value === undefined ? "no data" : `${round(value)} percent`}`}
+    >
+      <circle className="dash-ring-track" cx="30" cy="30" r="25" />
+      {value !== undefined && (
+        <circle
+          className="dash-ring-fill"
+          cx="30"
+          cy="30"
+          r="25"
+          strokeDasharray={`${filled} ${circumference}`}
+        />
+      )}
+    </svg>
+  );
+}
+
+function PlotKeys({
+  visible,
+  onToggle,
+  readOnly,
+}: {
+  visible: { planned: boolean; actual: boolean };
+  onToggle: (key: "planned" | "actual") => void;
+  readOnly?: boolean;
+}) {
+  const entries = [
+    { key: "planned" as const, label: "Planned Progress" },
+    { key: "actual" as const, label: "Actual Progress" },
+  ];
+  return (
+    <div className="dash-plotkeys">
+      {entries.map((entry) =>
+        readOnly ? (
+          <span key={entry.key} className={`dash-plotkey is-${entry.key}`}>
+            <i aria-hidden />
+            {entry.label}
+          </span>
+        ) : (
+          <button
+            key={entry.key}
+            type="button"
+            className={`dash-plotkey is-${entry.key}`}
+            aria-pressed={visible[entry.key]}
+            onClick={() => onToggle(entry.key)}
+          >
+            <i aria-hidden />
+            {entry.label}
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
+/**
+ * Week-on-week movement, from the SAME series the chart plots.
+ *
+ * `enabled` gates it on the figure it sits under. The weekly series and the
+ * headline are not always drawn from the same population — `positionsFor`
+ * falls back to Monthly reports, which the weekly series knows nothing about —
+ * so an ungated delta could annotate an em-dash with "↑ 2.4% vs last week".
+ * A delta must never describe a value it did not derive.
+ */
+function Delta({
+  series,
+  field,
+  unit = "%",
+  enabled = true,
+}: {
+  series: TrendPoint[];
+  field: "actual" | "variance";
+  unit?: string;
+  enabled?: boolean;
+}) {
+  const points = series.filter((point) => point[field] !== undefined);
+  if (!enabled) return <p className="dash-kpi-note">No comparable prior week</p>;
+  if (points.length < 2) return <p className="dash-kpi-note">No prior reporting week</p>;
+
+  const change = round((points[points.length - 1][field] as number) - (points[points.length - 2][field] as number));
+  if (change === 0) return <p className="dash-kpi-note">Unchanged vs last week</p>;
+
+  return (
+    <p className={`dash-kpi-delta ${change > 0 ? "is-up" : "is-down"}`}>
+      <span aria-hidden>{change > 0 ? "↑" : "↓"}</span>
+      {`${Math.abs(change)}${unit} vs last week`}
+    </p>
+  );
 }
 
 /* --------------------------------- Helpers --------------------------------- */
 
-function shortName(p: ProjectPosition): string {
-  return p.project.shortName || p.project.code || p.project.name;
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = React.useState(false);
+  React.useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduced(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  return reduced;
+}
+
+function shortName(position: ProjectPosition): string {
+  return position.project.shortName || position.project.code || position.project.name;
+}
+
+function toneOf(position: ProjectPosition): Tone {
+  const tone = HEALTH_META[position.health].tone;
+  return tone === "info" ? "default" : (tone as Tone);
 }
 
 function clamp(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
-function signed(value: number): string {
+function share(value: number, total: number): number {
+  return total ? Math.round((value / total) * 100) : 0;
+}
+
+/** Floored so a band holding one project still shows a readable column. */
+function columnHeight(value: number, total: number): number {
+  if (!total) return 14;
+  return Math.max(22, Math.round((value / total) * 100));
+}
+
+function signed(value: number | undefined): string {
+  if (value === undefined) return "—";
   return `${value > 0 ? "+" : ""}${round(value)}%`;
 }
 
-function pct(value: unknown): string {
-  return typeof value === "number" ? `${value}%` : String(value ?? "—");
-}
-
-function varianceTone(variance: number | undefined): string {
-  if (variance === undefined) return "default";
-  if (variance >= -3) return "success";
-  if (variance >= -10) return "warning";
+function varianceTone(value: number | undefined): Tone {
+  if (value === undefined) return "default";
+  if (value >= -3) return "success";
+  if (value >= -10) return "warning";
   return "danger";
 }
 
-/** Centre is zero; the bar grows left for negative, right for positive. */
-function gaugeStyle(variance: number | undefined): React.CSSProperties {
-  if (variance === undefined) return { display: "none" };
-  const magnitude = Math.min(Math.abs(variance), 20) / 20; // ±20 points fills the half
-  const half = magnitude * 50;
-  return variance < 0
-    ? { right: "50%", width: `${half}%` }
-    : { left: "50%", width: `${half}%` };
+function titleCase(value: string): string {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function healthSummary(totals: PortfolioTotals): string {
-  return healthRows(totals)
-    .map((row) => `${row.label}: ${row.value}`)
-    .join(", ");
+function percent(value: unknown): string {
+  return typeof value === "number" ? `${value}%` : String(value ?? "—");
 }
 
-function healthRows(totals: PortfolioTotals) {
-  return [
-    { label: HEALTH_META.on_track.label, value: totals.onTrack, color: HEALTH_META.on_track.color },
-    { label: HEALTH_META.at_risk.label, value: totals.atRisk, color: HEALTH_META.at_risk.color },
-    { label: HEALTH_META.behind.label, value: totals.behind, color: HEALTH_META.behind.color },
-    { label: HEALTH_META.critical.label, value: totals.critical, color: HEALTH_META.critical.color },
-    {
-      label: HEALTH_META.not_reported.label,
-      value: totals.notReported,
-      color: HEALTH_META.not_reported.color,
-    },
-  ].filter((row) => row.value > 0);
+function plural(count: number, word: string): string {
+  return count === 1 ? word : `${word}s`;
+}
+
+/** The bands actually present, in severity order. Empty bands are dropped so a
+    legend never lists a status nothing is in. */
+function healthRows(totals: PortfolioTotals): Array<{
+  key: HealthKey;
+  label: string;
+  value: number;
+  tone: Tone;
+}> {
+  const rows: Array<{ key: HealthKey; label: string; value: number; tone: Tone }> = [
+    { key: "on_track", label: HEALTH_META.on_track.label, value: totals.onTrack, tone: "success" },
+    { key: "at_risk", label: HEALTH_META.at_risk.label, value: totals.atRisk, tone: "warning" },
+    { key: "behind", label: HEALTH_META.behind.label, value: totals.behind, tone: "behind" },
+    { key: "critical", label: HEALTH_META.critical.label, value: totals.critical, tone: "danger" },
+    { key: "not_reported", label: HEALTH_META.not_reported.label, value: totals.notReported, tone: "default" },
+  ];
+  return rows.filter((row) => row.value > 0);
+}
+
+function healthSummary(rows: ReturnType<typeof healthRows>): string {
+  return rows.length ? rows.map((row) => `${row.label}: ${row.value}`).join(", ") : "No projects in view";
 }

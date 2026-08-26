@@ -3,15 +3,21 @@
 /**
  * The EPR Control Center.
  *
- * ONE connected workspace: the Project / Department / Period filters at the top
- * drive every KPI, chart, milestone, alert and the calendar panel beneath them.
- * Selecting a project narrows the whole page; All Projects restores the
- * portfolio view. Nothing here is fetched per-panel, so the page cannot show a
- * KPI from one scope beside a chart from another.
+ * ONE connected workspace: the Project / Department / Period controls in the
+ * header drive every KPI, chart, list and the calendar beneath them. Selecting
+ * a project narrows the whole page; All Projects restores the portfolio view.
+ * Nothing is fetched per-panel, so the page cannot show a KPI from one scope
+ * beside a chart from another.
  *
- * Every figure is real. Where the data does not support a visualisation the
- * card says so rather than drawing an empty axis — a chart with nothing in it
- * reads as "zero", which is a different and wrong statement.
+ * THE COMPOSITION IS THREE PROPORTIONAL ROWS, not a uniform card grid:
+ *
+ *   header    title and scope controls, on the canvas rather than in a card
+ *   KPI row   five blocks, each carrying a different mark
+ *   main      44 / 28 / 28  — trend, distribution, polar comparison
+ *   lower     25 / 42 / 33  — milestone bars + variance, schedule, queues
+ *
+ * The lower row is top-aligned on purpose: the calendar takes its natural
+ * height instead of stretching to whichever column happens to be tallest.
  */
 
 import * as React from "react";
@@ -19,31 +25,44 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowUpRight,
+  CalendarDays,
   CalendarPlus,
-  CheckCircle2,
-  ChevronRight,
+  CircleCheck,
   ClipboardList,
   FileBarChart,
   FilePlus2,
-  FolderKanban,
-  Gauge,
-  TrendingDown,
+  Flag,
+  RefreshCw,
   Upload,
 } from "lucide-react";
+
+import { EmptyState } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { EmptyState, LoadingState } from "@/components/shared";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarPreview } from "@/features/calendar";
 import { todayIso } from "@/features/calendar/calendar-types";
-import { DashboardAnalytics } from "./dashboard-analytics";
+import {
+  HealthPanel,
+  KpiStrip,
+  MilestonePanel,
+  ProgressByProjectPanel,
+  StatusPanel,
+  TrendPanel,
+  type HealthAxis,
+} from "./dashboard-analytics";
 import {
   EMPTY_DASHBOARD_FILTERS,
+  HEALTH_META,
   TIME_PERIOD_LABEL,
+  periodWindow,
   positionsFor,
   round,
   totalsFor,
   useDashboardData,
   varianceTrend,
   type DashboardFilters,
+  type DashboardMilestone,
+  type ProjectPosition,
   type TimePeriod,
 } from "./dashboard-data";
 
@@ -77,235 +96,445 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
     [scopedProjects]
   );
 
-  const trend = React.useMemo(
-    () => varianceTrend(data.weeklies, scopedIds),
-    [data.weeklies, scopedIds]
-  );
+  /*
+   * The trend obeys the PERIOD control, like every other reading.
+   *
+   * `varianceTrend` takes no period argument, so the window is applied to its
+   * input here using the same `periodWindow` that `positionsFor` uses
+   * internally. Without this the KPI headlines were period-scoped while the
+   * chart and sparkline beneath them plotted every week ever filed — so
+   * "This Week" could render an em-dash above a live eight-week series.
+   */
+  const trend = React.useMemo(() => {
+    const { from, to } = periodWindow(filters.period);
+    const windowed = data.weeklies.filter(
+      (report) => (!from || report.periodEnd >= from) && (!to || report.periodEnd <= to)
+    );
+    return varianceTrend(windowed, scopedIds);
+  }, [data.weeklies, scopedIds, filters.period]);
 
   const milestones = React.useMemo(
     () =>
       data.milestones
-        .filter((m) => scopedIds.has(m.projectId))
-        .filter((m) => !filters.departmentId || m.departmentId === filters.departmentId)
-        .slice(0, 6),
+        .filter((milestone) => scopedIds.has(milestone.projectId))
+        .filter((milestone) => !filters.departmentId || milestone.departmentId === filters.departmentId)
+        .slice(0, 8),
     [data.milestones, scopedIds, filters.departmentId]
   );
 
+  /* Derived ONCE and read by both the KPI caption and Reporting Exceptions, so
+     the two can never disagree. */
+  const overdue = React.useMemo(() => {
+    const today = todayIso();
+    return {
+      weekly: data.weeklies.filter(
+        (report) =>
+          scopedIds.has(report.projectId) && report.periodEnd < today && !isDelivered(report.status)
+      ).length,
+      monthly: data.monthlies.filter(
+        (report) =>
+          scopedIds.has(report.projectId) &&
+          !isDelivered(report.status) &&
+          monthEnd(report.reportingMonth) < today
+      ).length,
+    };
+  }, [data.weeklies, data.monthlies, scopedIds]);
 
-  if (data.loading) return <LoadingState label="Loading control centre…" />;
+  /*
+   * Radar axes — every one a REAL ratio, none invented.
+   *
+   * An axis is included only when its input exists, so the polygon never dips
+   * toward zero merely because a dataset is absent. Budget, Quality, Resource
+   * and Risk axes are deliberately absent: the platform records none of them.
+   *
+   * Targets: Progress Attainment takes the plan's own figure; the compliance
+   * ratios take 100%, which is their definitional goal (every project
+   * reporting, nothing overdue, nothing late) rather than an assumed number.
+   */
+  const healthAxes = React.useMemo<HealthAxis[]>(() => {
+    const axes: HealthAxis[] = [];
+    const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0);
+
+    if (totals.totalProjects) {
+      axes.push({
+        axis: "Schedule",
+        current: pct(totals.onTrack, totals.totalProjects),
+        target: 100,
+        detail: `${totals.onTrack} of ${totals.totalProjects} projects on track`,
+      });
+      axes.push({
+        axis: "Reporting",
+        current: pct(totals.reportedProjects, totals.totalProjects),
+        target: 100,
+        detail: `${totals.reportedProjects} of ${totals.totalProjects} projects have a basis`,
+      });
+    }
+
+    if (totals.actual !== undefined) {
+      axes.push({
+        axis: "Progress",
+        current: Math.round(totals.actual),
+        target: totals.planned === undefined ? 100 : Math.round(totals.planned),
+        detail: `Actual ${round(totals.actual)}% against plan`,
+      });
+    }
+
+    const scopedReports =
+      data.weeklies.filter((r) => scopedIds.has(r.projectId)).length +
+      data.monthlies.filter((r) => scopedIds.has(r.projectId)).length;
+    if (scopedReports > 0) {
+      const late = overdue.weekly + overdue.monthly;
+      axes.push({
+        axis: "Compliance",
+        current: pct(scopedReports - late, scopedReports),
+        target: 100,
+        detail: `${scopedReports - late} of ${scopedReports} reports not overdue`,
+      });
+    }
+
+    if (milestones.length > 0) {
+      const today = todayIso();
+      const onTime = milestones.filter((m) => m.dueDate >= today).length;
+      axes.push({
+        axis: "Milestones",
+        current: pct(onTime, milestones.length),
+        target: 100,
+        detail: `${onTime} of ${milestones.length} milestones still ahead of date`,
+      });
+    }
+
+    return axes;
+  }, [totals, data.weeklies, data.monthlies, scopedIds, overdue, milestones]);
+
+  if (data.loading) return <DashboardSkeleton />;
   if (data.error) {
     return <EmptyState title="Dashboard unavailable" description={data.error} icon={AlertTriangle} />;
   }
 
   return (
     <div className="dash-stage">
-      {/* ------------------------------ Filters ------------------------------ */}
-      <header className="dash-hero">
-        <div className="dash-hero-title">
-          <p>EPR — Enterprise Progress Reporting</p>
-          <h1>Control Center</h1>
-          <span>
+      {/* ------------------------------ Header ------------------------------- */}
+      <header className="dash-top">
+        <div className="dash-top-title">
+          <h1>Dashboard</h1>
+          <p>
             {filters.projectId
               ? "Single project view — every panel below is scoped to this project."
               : "Portfolio view across every project you have access to."}
-          </span>
+          </p>
         </div>
 
-        <div className="dash-hero-filters">
-          <label>
-            <span>Project</span>
-            <select
-              value={filters.projectId}
-              onChange={(e) => setFilters({ ...filters, projectId: e.target.value, departmentId: "" })}
-            >
-              <option value="">All Projects</option>
-              {data.projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Department</span>
-            <select
-              value={filters.departmentId}
-              onChange={(e) => setFilters({ ...filters, departmentId: e.target.value })}
-            >
-              <option value="">All Departments</option>
-              {data.departments.map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Time Period</span>
-            <select
-              value={filters.period}
-              onChange={(e) => setFilters({ ...filters, period: e.target.value as TimePeriod })}
-            >
-              {PERIODS.map((period) => (
-                <option key={period} value={period}>
-                  {TIME_PERIOD_LABEL[period]}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="dash-top-controls">
+          <select
+            aria-label="Project"
+            value={filters.projectId}
+            onChange={(event) =>
+              setFilters({ ...filters, projectId: event.target.value, departmentId: "" })
+            }
+          >
+            <option value="">All Projects</option>
+            {data.projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Department"
+            value={filters.departmentId}
+            onChange={(event) => setFilters({ ...filters, departmentId: event.target.value })}
+          >
+            <option value="">All Departments</option>
+            {data.departments.map((department) => (
+              <option key={department.id} value={department.id}>
+                {department.name}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Time period"
+            value={filters.period}
+            onChange={(event) => setFilters({ ...filters, period: event.target.value as TimePeriod })}
+          >
+            {PERIODS.map((period) => (
+              <option key={period} value={period}>
+                {TIME_PERIOD_LABEL[period]}
+              </option>
+            ))}
+          </select>
+
+          <div className="dash-date">
+            <span>{formatToday()}</span>
+            <CalendarDays aria-hidden />
+          </div>
+          <button
+            type="button"
+            className="dash-refresh"
+            aria-label="Refresh dashboard data"
+            title="Refresh dashboard data"
+            onClick={() => void data.reload()}
+          >
+            <RefreshCw aria-hidden />
+          </button>
         </div>
       </header>
 
-      {/* -------------------------------- KPIs ------------------------------- */}
-      <section className="dash-kpis" aria-label="Key performance indicators">
-        <Kpi
-          icon={<FolderKanban aria-hidden />}
-          tone="info"
-          label="Projects in View"
-          value={String(totals.totalProjects)}
-          caption={`${totals.reportedProjects} reporting · ${totals.notReported} not reported`}
-        />
-        <Kpi
-          icon={<Gauge aria-hidden />}
-          tone="default"
-          label="Planned Progress"
-          value={totals.planned === undefined ? "—" : `${round(totals.planned)}%`}
-          caption={totals.planned === undefined ? "No reported data" : "Mean of reporting projects"}
-        />
-        <Kpi
-          icon={<CheckCircle2 aria-hidden />}
-          tone="success"
-          label="Actual Progress"
-          value={totals.actual === undefined ? "—" : `${round(totals.actual)}%`}
-          caption={totals.actual === undefined ? "No reported data" : "Latest Weekly per project"}
-        />
-        <Kpi
-          icon={<TrendingDown aria-hidden />}
-          tone={totals.variance !== undefined && totals.variance < -3 ? "danger" : "success"}
-          label="Schedule Variance"
-          value={totals.variance === undefined ? "—" : `${totals.variance > 0 ? "+" : ""}${round(totals.variance)}%`}
-          caption={totals.variance === undefined ? "No reported data" : "Actual less planned"}
-        />
-        <Kpi
-          icon={<CheckCircle2 aria-hidden />}
-          tone="success"
-          label="On Track"
-          value={String(totals.onTrack)}
-          caption={
-            totals.totalProjects
-              ? `${Math.round((totals.onTrack / totals.totalProjects) * 100)}% of projects in view`
-              : "No projects in view"
-          }
-        />
-        <Kpi
-          icon={<AlertTriangle aria-hidden />}
-          tone={totals.overdueReports ? "danger" : "success"}
-          label="Overdue Reports"
-          value={String(totals.overdueReports)}
-          caption={totals.overdueReports ? "Past period end, not approved" : "Nothing overdue"}
-        />
+      {/* A utility strip, not a card — these leave the page rather than report
+          on it, and they respect the write authority the routes enforce. */}
+      <nav className="dash-shortcuts" aria-label="Quick actions">
+        {canManage && <Shortcut href="/weekly-reports/new" icon={<FilePlus2 aria-hidden />} label="New Weekly" />}
+        {canManage && <Shortcut href="/monthly-reports/new" icon={<FileBarChart aria-hidden />} label="New Monthly" />}
+        {canManage && <Shortcut href="/calendar" icon={<CalendarPlus aria-hidden />} label="Event" />}
+        <Shortcut href="/documents" icon={<Upload aria-hidden />} label="Documents" />
+        <Shortcut href="/projects" icon={<ClipboardList aria-hidden />} label="Projects" />
+        <Shortcut href="/executive-reports" icon={<ArrowUpRight aria-hidden />} label="Executive" />
+      </nav>
+
+      <KpiStrip
+        totals={totals}
+        trend={trend}
+        overdueWeekly={overdue.weekly}
+        overdueMonthly={overdue.monthly}
+      />
+
+      <section className="dash-row dash-row-main">
+        <TrendPanel positions={positions} trend={trend} />
+        <StatusPanel totals={totals} />
+        <HealthPanel axes={healthAxes} />
       </section>
 
-      {/* ------------------------------ Analytics ---------------------------- */}
-      {/* Analytics and operational cards share ONE 12-column grid, so a row
-          can never be left half-empty by a wrapper boundary. */}
-      <div className="dash-analytics">
-        <DashboardAnalytics positions={positions} totals={totals} trend={trend} />
-        <section className="dash-card" style={{ "--span": 5 } as React.CSSProperties}>
-          <header>
-            <b>Upcoming milestones</b>
-            <small>From Weekly and Monthly plans</small>
-            <Link href="/weekly-reports">View all</Link>
-          </header>
-          <div className="dash-card-body">
-            {milestones.length ? (
-              <ul className="dash-milestones">
-                {milestones.map((milestone) => (
-                  <li key={milestone.id}>
-                    <span className="dash-ms-date">
-                      <b>{milestone.dueDate.slice(8)}</b>
-                      <small>{monthAbbr(milestone.dueDate)}</small>
-                    </span>
-                    <span className="dash-ms-body">
-                      <Link href={milestone.href}>{milestone.title}</Link>
-                      <small>{milestone.projectName}</small>
-                    </span>
-                    <span className={`dash-ms-status is-${milestoneTone(milestone.status)}`}>
-                      {milestone.status.replace(/_/g, " ")}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="dash-empty">
-                No dated milestones are recorded ahead of today for this scope.
-              </p>
-            )}
-          </div>
-        </section>
+      <section className="dash-row dash-row-lower">
+        <div className="dash-stack">
+          <MilestonePanel milestones={milestones} />
+          <ProgressByProjectPanel positions={positions} />
+        </div>
 
-        <section className="dash-card" style={{ "--span": 3 } as React.CSSProperties}>
-          <header>
-            <b>Reporting exceptions</b>
-            <small>Past period end, not approved</small>
-          </header>
-          <div className="dash-card-body">
-            <ul className="dash-alerts">
-              <AlertRow
-                label="Weekly overdue"
-                count={data.weeklies.filter((r) => scopedIds.has(r.projectId) && r.periodEnd < todayIso() && !isDelivered(r.status)).length}
-                href="/weekly-reports"
-              />
-              <AlertRow
-                label="Monthly overdue"
-                count={data.monthlies.filter((r) => scopedIds.has(r.projectId) && !isDelivered(r.status) && monthEnd(r.reportingMonth) < todayIso()).length}
-                href="/monthly-reports"
-              />
-              <AlertRow label="Not reporting" count={totals.notReported} href="/projects" />
-            </ul>
-          </div>
-        </section>
+        <CalendarPreview
+          projectId={filters.projectId}
+          departmentId={filters.departmentId}
+          canManage={canManage}
+        />
 
-        <section className="dash-card" style={{ "--span": 12 } as React.CSSProperties}>
-          <header>
-            <b>Quick actions</b>
-            <small>Respecting your permissions</small>
-          </header>
-          <div className="dash-card-body">
-            <div className="dash-actions">
-              {canManage && <QuickAction href="/weekly-reports/new" icon={<FilePlus2 aria-hidden />} label="New Weekly" />}
-              {canManage && <QuickAction href="/monthly-reports/new" icon={<FileBarChart aria-hidden />} label="New Monthly" />}
-              {canManage && <QuickAction href="/calendar" icon={<CalendarPlus aria-hidden />} label="Meeting / Event" />}
-              <QuickAction href="/documents" icon={<Upload aria-hidden />} label="Documents" />
-              <QuickAction href="/projects" icon={<ClipboardList aria-hidden />} label="All Projects" />
-              <QuickAction href="/executive-reports" icon={<ArrowUpRight aria-hidden />} label="Executive" />
-            </div>
-          </div>
-        </section>
-      </div>
-
-      {/* ------------------------------- Calendar ---------------------------- */}
-      <CalendarPreview
-        projectId={filters.projectId}
-        departmentId={filters.departmentId}
-        canManage={canManage}
-      />
+        <div className="dash-stack">
+          <ReportingExceptions
+            weekly={overdue.weekly}
+            monthly={overdue.monthly}
+            notReported={totals.notReported}
+          />
+          <MilestonesUpcoming milestones={milestones} />
+          <ManagementAttention positions={positions} />
+        </div>
+      </section>
     </div>
+  );
+}
+
+/* ------------------------------ Text panels -------------------------------- */
+
+/**
+ * These three stay TEXT LISTS, in three separate panels.
+ *
+ * They answer "what needs a person's attention", which is a reading task, not a
+ * comparison task — charting them would bury three short, actionable sentences
+ * inside three more canvases. They stay separate because they are three
+ * different queues with three different destinations.
+ */
+
+function ReportingExceptions({
+  weekly,
+  monthly,
+  notReported,
+}: {
+  weekly: number;
+  monthly: number;
+  notReported: number;
+}) {
+  const rows = [
+    {
+      href: "/weekly-reports",
+      flagged: `${weekly} Weekly ${plural(weekly, "report")} overdue`,
+      clear: "Weekly reporting is current",
+      note: "Past period end, not approved",
+      count: weekly,
+    },
+    {
+      href: "/monthly-reports",
+      flagged: `${monthly} Monthly ${plural(monthly, "report")} overdue`,
+      clear: "Monthly reporting is current",
+      note: "Past month end, not approved",
+      count: monthly,
+    },
+    {
+      href: "/projects",
+      flagged: `${notReported} ${plural(notReported, "project")} not reporting`,
+      clear: "Every project has a reporting basis",
+      note: "No Weekly or Monthly in the period",
+      count: notReported,
+    },
+  ];
+
+  return (
+    <QueuePanel title="Reporting Exceptions" href="/weekly-reports">
+      <ul className="dash-items">
+        {rows.map((row) => (
+          <li key={row.href}>
+            <Link href={row.href}>
+              {row.count ? (
+                <AlertTriangle className="dash-item-icon is-danger" aria-hidden />
+              ) : (
+                <CircleCheck className="dash-item-icon is-success" aria-hidden />
+              )}
+              <span>
+                <b>{row.count ? row.flagged : row.clear}</b>
+                <small>{row.note}</small>
+              </span>
+              <em className={row.count ? "is-danger" : "is-success"}>{row.count ? "Overdue" : "Clear"}</em>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </QueuePanel>
+  );
+}
+
+function MilestonesUpcoming({ milestones }: { milestones: DashboardMilestone[] }) {
+  const rows = milestones.slice(0, 3);
+  return (
+    <QueuePanel title="Milestones Upcoming" href="/weekly-reports">
+      {rows.length ? (
+        <ul className="dash-items">
+          {rows.map((milestone) => (
+            <li key={milestone.id}>
+              <Link href={milestone.href}>
+                <Flag className={`dash-item-icon ${dueTone(milestone.dueDate)}`} aria-hidden />
+                <span>
+                  <b title={milestone.title}>{milestone.title}</b>
+                  <small>{milestone.projectName}</small>
+                </span>
+                <em className={dueTone(milestone.dueDate)}>{relativeDate(milestone.dueDate)}</em>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="dash-note">No dated milestone is recorded ahead of today for this scope.</p>
+      )}
+    </QueuePanel>
+  );
+}
+
+function ManagementAttention({ positions }: { positions: ProjectPosition[] }) {
+  const flagged = positions
+    .filter((position) => position.health !== "on_track")
+    .sort((a, b) => (a.variance ?? 0) - (b.variance ?? 0))
+    .slice(0, 3);
+
+  return (
+    <QueuePanel title="Management Attention" href="/projects">
+      {flagged.length ? (
+        <ul className="dash-items">
+          {flagged.map((position) => {
+            const tone = HEALTH_META[position.health].tone;
+            return (
+              <li key={position.project.id}>
+                <Link href={`/projects/${position.project.id}`}>
+                  <AlertTriangle className={`dash-item-icon is-${tone}`} aria-hidden />
+                  <span>
+                    <b>{position.project.name}</b>
+                    <small>
+                      {position.basis === "none"
+                        ? "No report in the selected period"
+                        : `${position.basis === "weekly" ? "Latest Weekly" : "Monthly"}${
+                            position.reportedOn ? ` · ${position.reportedOn}` : ""
+                          }`}
+                    </small>
+                  </span>
+                  <em className={`is-${tone}`}>
+                    {position.variance === undefined
+                      ? HEALTH_META[position.health].label
+                      : `${position.variance > 0 ? "+" : ""}${round(position.variance)}%`}
+                  </em>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="dash-note is-clear">Every project in view is reporting and on track.</p>
+      )}
+    </QueuePanel>
+  );
+}
+
+function QueuePanel({
+  title,
+  href,
+  children,
+}: {
+  title: string;
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="dash-panel dash-queue">
+      <header>
+        <div>
+          <b>{title}</b>
+        </div>
+        <Link href={href} className="dash-link">
+          View All
+        </Link>
+      </header>
+      <div className="dash-panel-body">{children}</div>
+    </section>
   );
 }
 
 /* -------------------------------- Fragments -------------------------------- */
 
-function monthAbbr(date: string): string {
-  return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { month: "short" });
+function Shortcut({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+  return (
+    <Button asChild variant="ghost" className="dash-shortcut">
+      <Link href={href}>
+        {icon}
+        {label}
+      </Link>
+    </Button>
+  );
 }
 
-function milestoneTone(status: string): string {
-  if (status === "completed") return "success";
-  if (status === "delayed") return "danger";
-  if (status === "in_progress") return "info";
-  return "default";
+/** Mirrors the real composition, so the page does not reflow on first paint. */
+function DashboardSkeleton() {
+  return (
+    <div className="dash-stage" aria-label="Loading dashboard" aria-busy="true">
+      <div className="dash-top">
+        <div className="dash-top-title">
+          <Skeleton className="h-7 w-40" />
+          <Skeleton className="mt-2 h-3 w-72 max-w-full" />
+        </div>
+        <Skeleton className="h-8 w-[560px] max-w-full" />
+      </div>
+      <Skeleton className="h-6 w-[400px] max-w-full rounded-md" />
+      <div className="dash-kpis">
+        {Array.from({ length: 5 }, (_, index) => (
+          <Skeleton key={index} className="h-[112px] rounded-xl" />
+        ))}
+      </div>
+      <div className="dash-row dash-row-main">
+        {Array.from({ length: 3 }, (_, index) => (
+          <Skeleton key={index} className="h-[286px] rounded-xl" />
+        ))}
+      </div>
+      <div className="dash-row dash-row-lower">
+        <Skeleton className="h-[248px] rounded-xl" />
+        <Skeleton className="h-[404px] rounded-xl" />
+        <Skeleton className="h-[404px] rounded-xl" />
+      </div>
+    </div>
+  );
 }
+
+/* --------------------------------- Helpers --------------------------------- */
 
 function isDelivered(status: string): boolean {
   return ["approved", "finalized", "locked", "archived"].includes(status);
@@ -313,71 +542,40 @@ function isDelivered(status: string): boolean {
 
 function monthEnd(month: string | undefined): string {
   if (!month) return "9999-12-31";
-  const [y, m] = month.split("-").map(Number);
-  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+  const [year, monthNumber] = month.split("-").map(Number);
+  return new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10);
 }
 
-/**
- * A KPI reads top-down — label, figure, caption — with the icon demoted to a
- * watermark behind the figure.
- *
- * The previous layout put a filled icon TILE beside the number, which made all
- * six cards resolve to the same silhouette regardless of what they said. Now
- * the figure is the largest thing in the card and the only element that varies
- * in colour, and cards carrying a warning or danger state pick up a faint wash
- * — so the strip is differentiated BY THE DATA rather than by decoration.
- */
-function Kpi({
-  icon,
-  label,
-  value,
-  caption,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  caption: string;
-  tone: "default" | "success" | "warning" | "danger" | "info";
-}) {
-  return (
-    <article className={`dash-kpi is-${tone}`}>
-      <span className="dash-kpi-label">{label}</span>
-      <b className="dash-kpi-value">{value}</b>
-      <small>{caption}</small>
-      <span className="dash-kpi-mark" aria-hidden>
-        {icon}
-      </span>
-    </article>
-  );
+function formatToday(): string {
+  return new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
-/**
- * Exceptions are ranked by whether they need action, not listed flat.
- *
- * A row with a count carries the alert treatment and a chevron; a row at zero
- * recedes to a cleared state. Previously every row looked identical apart from
- * the number, so "3 overdue" and "0 overdue" had the same visual weight.
- */
-function AlertRow({ label, count, href }: { label: string; count: number; href: string }) {
-  return (
-    <li className={count ? "is-active" : "is-clear"}>
-      <Link href={href}>
-        <span>{label}</span>
-        <b>{count}</b>
-        {count > 0 && <ChevronRight className="dash-alert-go" aria-hidden />}
-      </Link>
-    </li>
-  );
+function plural(count: number, word: string): string {
+  return count === 1 ? word : `${word}s`;
 }
 
-function QuickAction({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
-  return (
-    <Button asChild variant="outline" className="dash-action">
-      <Link href={href}>
-        {icon}
-        {label}
-      </Link>
-    </Button>
-  );
+function relativeDate(date: string): string {
+  const days = daysFromToday(date);
+  if (days === 0) return "Today";
+  if (days === 1) return "Tomorrow";
+  if (days > 1) return `In ${days} days`;
+  return `${Math.abs(days)} ${plural(Math.abs(days), "day")} late`;
+}
+
+function dueTone(date: string): string {
+  const days = daysFromToday(date);
+  if (days < 0) return "is-danger";
+  if (days <= 3) return "is-warning";
+  return "is-info";
+}
+
+function daysFromToday(date: string): number {
+  const target = new Date(`${date}T00:00:00`);
+  const today = new Date(`${todayIso()}T00:00:00`);
+  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
 }

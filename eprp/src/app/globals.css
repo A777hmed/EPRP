@@ -2493,160 +2493,6 @@
   .epr-nav-link[data-active="true"] .epr-nav-icon { transform: none; }
 }
 
-/* ------------------------------- Dashboard --------------------------------- */
-
-.dash-stage { display: grid; gap: 16px; min-width: 0; }
-
-.dash-hero {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px 20px;
-  border-radius: 10px;
-  /* Literal navy, not --dash-navy: this is chrome that stays navy in BOTH
-     themes, whereas the token inverts to a near-white heading ink in dark.
-     (The Control Center v2 block below overrides this rule outright — kept
-     self-consistent so it cannot mislead if that override is ever removed.) */
-  background: linear-gradient(135deg, #0d4384 0%, #0d59a8 60%, #0d59a8 100%);
-  color: white;
-}
-.dash-hero-title p { margin: 0; font-size: .68rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; opacity: .82; }
-.dash-hero-title h1 { margin: 2px 0 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -.01em; }
-.dash-hero-title span { display: block; margin-top: 4px; max-width: 68ch; font-size: .76rem; opacity: .86; }
-
-.dash-hero-filters { display: flex; flex-wrap: wrap; gap: 10px; }
-.dash-hero-filters label { display: grid; gap: 4px; min-width: 0; }
-.dash-hero-filters label > span { font-size: .6rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; opacity: .85; }
-.dash-hero-filters select {
-  min-width: 168px;
-  max-width: 240px;
-  padding: 7px 10px;
-  border: 1px solid rgb(255 255 255 / 35%);
-  border-radius: 6px;
-  background: rgb(255 255 255 / 12%);
-  color: white;
-  font: inherit;
-  font-size: .76rem;
-}
-.dash-hero-filters select option { color: var(--dash-navy); }
-
-/* KPI strip: compact by design — six readable tiles, not six empty cards. */
-.dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); gap: 10px; }
-.dash-kpi {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 12px 13px;
-  border: 1px solid var(--dash-edge);
-  border-left: 3px solid var(--dash-muted);
-  border-radius: 8px;
-  background: var(--dash-surface);
-  box-shadow: 0 1px 2px rgb(22 51 84 / 6%);
-}
-.dash-kpi-icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: 8px; background: var(--dash-tint-blue); color: var(--dash-blue); }
-.dash-kpi-icon svg { width: 17px; height: 17px; }
-.dash-kpi > div { min-width: 0; display: grid; gap: 1px; }
-.dash-kpi-label { color: var(--dash-ink-soft); font-size: .63rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
-.dash-kpi-value { color: var(--dash-navy); font-size: 1.35rem; font-weight: 800; line-height: 1.1; }
-.dash-kpi small { color: var(--dash-ink-soft); font-size: .63rem; overflow-wrap: anywhere; }
-.dash-kpi.is-success { border-left-color: var(--dash-teal); }
-.dash-kpi.is-success .dash-kpi-icon { background: var(--dash-tint-green); color: var(--dash-teal); }
-.dash-kpi.is-warning { border-left-color: var(--dash-amber); }
-.dash-kpi.is-warning .dash-kpi-icon { background: var(--dash-tint-amber); color: var(--dash-amber); }
-.dash-kpi.is-danger { border-left-color: var(--dash-red); }
-.dash-kpi.is-danger .dash-kpi-icon { background: var(--dash-tint-red); color: var(--dash-red); }
-.dash-kpi.is-info { border-left-color: var(--dash-blue); }
-
-/* A 13-column grid so panels take different widths instead of one uniform row. */
-.dash-grid { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 12px; }
-.dash-panel {
-  grid-column: span var(--span, 13);
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  border: 1px solid var(--dash-edge);
-  border-radius: 9px;
-  background: var(--dash-surface);
-  box-shadow: 0 1px 2px rgb(22 51 84 / 5%);
-  overflow: hidden;
-}
-.dash-panel-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 11px 14px;
-  border-bottom: 1px solid var(--dash-surface-3);
-  background: linear-gradient(180deg, var(--dash-surface-2) 0%, var(--dash-surface-2) 100%);
-}
-.dash-panel-head > div { display: grid; gap: 2px; min-width: 0; }
-.dash-panel-head b { color: var(--dash-navy); font-size: .8rem; font-weight: 800; }
-.dash-panel-head small { color: var(--dash-ink-soft); font-size: .65rem; }
-.dash-panel-head a { color: var(--dash-blue); font-size: .68rem; font-weight: 700; white-space: nowrap; }
-.dash-panel-body { flex: 1; min-width: 0; padding: 12px 14px 14px; }
-
-.dash-nodata {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 0;
-  padding: 14px;
-  border: 1px dashed var(--dash-edge);
-  border-radius: 7px;
-  color: var(--dash-ink-soft);
-  font-size: .72rem;
-  line-height: 1.5;
-}
-.dash-nodata svg { width: 15px; height: 15px; flex: none; margin-top: 1px; }
-
-.dash-donut { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: center; }
-.dash-legend { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
-.dash-legend li { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; align-items: center; gap: 7px; font-size: .69rem; color: var(--dash-ink-soft); }
-.dash-legend i { width: 9px; height: 9px; border-radius: 2px; }
-.dash-legend b { color: var(--dash-navy); font-variant-numeric: tabular-nums; }
-
-.dash-table { width: 100%; border-collapse: collapse; font-size: .72rem; }
-.dash-table th { padding: 6px 8px; border-bottom: 1px solid var(--dash-edge); color: var(--dash-ink-soft); font-size: .61rem; font-weight: 700; letter-spacing: .05em; text-align: left; text-transform: uppercase; }
-.dash-table td { padding: 7px 8px; border-bottom: 1px solid var(--dash-surface-2); color: var(--dash-ink); vertical-align: top; }
-.dash-table tr:last-child td { border-bottom: 0; }
-.dash-table a { color: var(--dash-blue); font-weight: 600; }
-.dash-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-
-.dash-alerts { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
-.dash-alerts a { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 11px; border: 1px solid var(--dash-edge); border-radius: 6px; color: var(--dash-ink-soft); font-size: .73rem; }
-.dash-alerts a:hover { border-color: var(--dash-edge); background: var(--dash-surface-2); }
-.dash-alerts b { min-width: 26px; padding: 1px 7px; border-radius: 4px; background: var(--dash-ground); color: var(--dash-ink-soft); font-size: .72rem; font-variant-numeric: tabular-nums; text-align: center; }
-.dash-alerts li.is-active a { border-color: var(--dash-tint-red); background: var(--dash-tint-red); color: var(--dash-red); }
-.dash-alerts li.is-active b { background: var(--dash-tint-red); color: var(--dash-red); }
-
-.dash-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
-.dash-action { justify-content: flex-start !important; font-size: .74rem !important; }
-
-/* ------------------------- Dashboard calendar panel ------------------------ */
-
-.dash-calendar { grid-column: 1 / -1; }
-.dash-cal-nav { display: flex; align-items: center; gap: 6px; }
-.dash-cal-nav button { padding: 4px 8px; border: 1px solid var(--dash-edge); border-radius: 5px; background: var(--dash-surface); color: var(--dash-ink-soft); font-size: .68rem; }
-.dash-cal-nav button:hover { border-color: var(--dash-edge); color: var(--dash-blue); }
-.dash-cal-nav svg { width: 13px; height: 13px; }
-.dash-cal-nav a { margin-left: 4px; color: var(--dash-blue); font-size: .68rem; font-weight: 700; }
-
-.dash-cal-week { display: grid; gap: 8px; margin: 0; padding: 12px 14px 14px; list-style: none; }
-.dash-cal-week > li { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 10px; align-items: start; }
-.dash-cal-week > li.is-today .dash-cal-day { background: var(--dash-blue); border-color: var(--dash-blue); }
-.dash-cal-day { display: grid; justify-items: center; padding: 5px 0; border: 1px solid var(--dash-edge); border-radius: 6px; background: var(--dash-surface-2); }
-.dash-cal-day b { color: var(--dash-navy); font-size: .92rem; line-height: 1.1; }
-.dash-cal-week > li.is-today .dash-cal-day b { color: var(--dash-on-blue); }
-.dash-cal-day span { color: var(--dash-ink-soft); font-size: .58rem; text-transform: uppercase; }
-.dash-cal-week > li.is-today .dash-cal-day span { color: rgb(255 255 255 / 82%); }
-.dash-cal-items { display: grid; gap: 5px; min-width: 0; }
-.dash-cal-item { display: grid; gap: 1px; padding: 6px 9px; border: 1px solid var(--dash-edge); border-left-width: 3px; border-radius: 5px; background: var(--dash-surface); text-align: left; }
-.dash-cal-item:hover { border-color: var(--dash-edge); background: var(--dash-surface-2); }
-.dash-cal-item b { color: var(--dash-navy); font-size: .73rem; font-weight: 700; }
-.dash-cal-item span { color: var(--dash-ink-soft); font-size: .63rem; }
-
 .dash-drawer-host { position: fixed; inset: 0; z-index: 50; display: flex; justify-content: flex-end; background: rgb(13 67 132 / 18%); }
 
 /* ------------------------------- Calendar ---------------------------------- */
@@ -2800,13 +2646,9 @@
 /* ------------------------------ Responsive --------------------------------- */
 
 @media (max-width: 1180px) {
-  .dash-panel { grid-column: 1 / -1; }
-  .dash-donut { grid-template-columns: minmax(0, 1fr); }
   .cal-body.has-drawer { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
-  .dash-hero { align-items: flex-start; }
-  .dash-hero-filters select { min-width: 0; width: 100%; max-width: none; }
   .cal-timegrid { overflow-x: auto; }
   .cal-timegrid-head, .cal-allday, .cal-timegrid-body { grid-template-columns: 46px repeat(var(--cal-days, 7), minmax(58px, 1fr)); }
 }
@@ -3068,611 +2910,6 @@ html:has(.cal-stage) { --epr-rail: var(--dash-ground); }
   padding: 12px 4px 8px;
 }
 
-/* -------------------------------- Header ----------------------------------- */
-
-.dash-hero {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 0 0 2px;
-  border: 0;
-  border-radius: 0;
-  background: none;
-  color: var(--dash-ink);
-}
-.dash-hero-title p {
-  margin: 0;
-  color: var(--dash-blue);
-  font-size: .63rem;
-  font-weight: 800;
-  letter-spacing: .11em;
-  text-transform: uppercase;
-  opacity: 1;
-}
-.dash-hero-title h1 {
-  margin: 1px 0 0;
-  color: var(--dash-navy);
-  font-size: 1.32rem;
-  font-weight: 800;
-  letter-spacing: -.015em;
-}
-.dash-hero-title span {
-  display: block;
-  margin-top: 2px;
-  max-width: 70ch;
-  color: var(--dash-ink-soft);
-  font-size: .72rem;
-  opacity: 1;
-}
-
-.dash-hero-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
-.dash-hero-filters label { display: grid; gap: 3px; min-width: 0; }
-.dash-hero-filters label > span {
-  color: var(--dash-ink-soft);
-  font-size: .58rem;
-  font-weight: 700;
-  letter-spacing: .07em;
-  text-transform: uppercase;
-  opacity: 1;
-}
-.dash-hero-filters select {
-  min-width: 150px;
-  max-width: 220px;
-  padding: 6px 9px;
-  border: 1px solid var(--dash-edge);
-  border-radius: 7px;
-  background: var(--dash-surface);
-  box-shadow: var(--dash-shadow);
-  color: var(--dash-ink);
-  font: inherit;
-  font-size: .73rem;
-  font-weight: 600;
-}
-.dash-hero-filters select option { color: var(--dash-ink); }
-
-/* --------------------------------- KPIs ------------------------------------ */
-
-/*
- * KPI strip — the figure leads.
- *
- * The previous card put a filled icon tile beside a 1.28rem number, so all six
- * resolved to the same silhouette and the chrome outweighed the data. The icon
- * is now a low-contrast watermark behind the figure, the figure carries the
- * card, and the accent rail + wash are driven by STATE — so a danger KPI is
- * visibly different from a neutral one without anything being decorated.
- */
-/*
- * Six explicit columns, not `auto-fit`.
- *
- * `auto-fit` with a 158px minimum resolved to five tracks at laptop width and
- * dropped the sixth KPI onto a row of its own — one card marooned beside five
- * columns of empty ground. The strip is a fixed set of six figures, so the
- * column count is stated and steps down in whole rows.
- */
-.dash-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
-@media (max-width: 1150px) { .dash-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 720px) { .dash-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.dash-kpi {
-  position: relative;
-  display: grid;
-  align-content: start;
-  gap: 2px;
-  padding: 11px 13px 10px;
-  border: 1px solid var(--dash-edge);
-  border-radius: var(--dash-radius);
-  background: var(--dash-surface);
-  box-shadow: var(--dash-shadow);
-  overflow: hidden;
-  transition: border-color .15s ease, box-shadow .15s ease;
-}
-/* The accent is an inset rail, not a border, so it cannot alter box metrics
-   and every card in the strip stays exactly the same height. */
-.dash-kpi::before {
-  content: "";
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 3px;
-  background: var(--dash-edge);
-}
-.dash-kpi:hover { border-color: var(--dash-muted); box-shadow: 0 2px 8px rgb(18 38 63 / 9%); }
-.dark .dash-kpi:hover { box-shadow: 0 2px 10px rgb(0 0 0 / 45%); }
-
-.dash-kpi-mark {
-  position: absolute;
-  right: 9px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--dash-ink);
-  opacity: .07;
-  pointer-events: none;
-}
-.dash-kpi-mark svg { width: 40px; height: 40px; }
-.dark .dash-kpi-mark { opacity: .1; }
-
-.dash-kpi-label {
-  color: var(--dash-ink-soft);
-  font-size: .585rem;
-  font-weight: 700;
-  letter-spacing: .07em;
-  text-transform: uppercase;
-}
-.dash-kpi-value {
-  color: var(--dash-navy);
-  font-size: 1.72rem;
-  font-weight: 800;
-  line-height: 1.02;
-  letter-spacing: -.028em;
-  font-variant-numeric: tabular-nums;
-}
-.dash-kpi small {
-  color: var(--dash-muted);
-  font-size: .605rem;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-
-.dash-kpi.is-info::before { background: var(--dash-blue); }
-.dash-kpi.is-success::before { background: var(--dash-teal); }
-.dash-kpi.is-success .dash-kpi-value { color: var(--dash-teal); }
-.dash-kpi.is-warning::before { background: var(--dash-amber); }
-.dash-kpi.is-warning .dash-kpi-value { color: var(--dash-amber); }
-.dash-kpi.is-danger::before { background: var(--dash-red); }
-.dash-kpi.is-danger .dash-kpi-value { color: var(--dash-red); }
-/* Only states that need action take a wash — so the eye lands on them first. */
-.dash-kpi.is-danger { background: linear-gradient(90deg, var(--dash-tint-red) 0%, var(--dash-surface) 62%); }
-.dash-kpi.is-warning { background: linear-gradient(90deg, var(--dash-tint-amber) 0%, var(--dash-surface) 62%); }
-
-/* ------------------------------- Card grid --------------------------------- */
-
-.dash-analytics,
-.dash-ops {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.dash-card {
-  grid-column: span var(--span, 12);
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  border: 1px solid var(--dash-edge);
-  border-radius: var(--dash-radius);
-  background: var(--dash-surface);
-  box-shadow: var(--dash-shadow);
-  overflow: hidden;
-}
-.dash-card > header {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 9px 12px 7px;
-  border-bottom: 1px solid var(--dash-surface-3);
-}
-.dash-card > header b {
-  color: var(--dash-ink);
-  font-size: .76rem;
-  font-weight: 700;
-  letter-spacing: -.005em;
-}
-.dash-card > header small { color: var(--dash-muted); font-size: .62rem; }
-.dash-card > header a {
-  margin-left: auto;
-  color: var(--dash-blue);
-  font-size: .64rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.dash-card-body { flex: 1; min-width: 0; padding: 10px 12px 12px; }
-
-/* Empty states state a fact; they do not reserve a chart's worth of space.
-   The 74px floor left a one-line sentence sitting in a tall grey slab. */
-.dash-empty {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  padding: 9px 11px;
-  border-radius: 7px;
-  background: var(--dash-surface-2);
-  color: var(--dash-muted);
-  font-size: .69rem;
-  line-height: 1.45;
-}
-
-/* ------------------------------ Bullet bars -------------------------------- */
-
-/* One or two projects: the fact, at a glance, with no empty canvas. */
-.dash-bullets { display: grid; gap: 14px; margin: 0; padding: 2px 0; list-style: none; }
-.dash-bullet-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.dash-bullet-head b { color: var(--dash-ink); font-size: .78rem; font-weight: 700; }
-.dash-delta { font-size: .82rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.dash-delta.is-success { color: var(--dash-teal); }
-.dash-delta.is-warning { color: var(--dash-amber); }
-.dash-delta.is-danger { color: var(--dash-red); }
-.dash-delta.is-default { color: var(--dash-muted); }
-
-.dash-bullet-track {
-  position: relative;
-  height: 22px;
-  margin-top: 7px;
-  border-radius: 5px;
-  background: var(--dash-surface-3);
-  overflow: hidden;
-}
-.dash-bullet-plan { position: absolute; inset: 0 auto 0 0; background: var(--dash-tint-blue); }
-.dash-bullet-actual { position: absolute; inset: 4px auto 4px 0; border-radius: 4px; }
-.dash-bullet-marker {
-  position: absolute;
-  top: -2px;
-  bottom: -2px;
-  width: 2px;
-  background: var(--dash-navy);
-  transform: translateX(-1px);
-}
-.dash-bullet-foot {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  margin-top: 6px;
-  color: var(--dash-ink-soft);
-  font-size: .66rem;
-}
-.dash-bullet-foot b { color: var(--dash-ink); font-variant-numeric: tabular-nums; }
-.dash-bullet-basis { margin-left: auto; color: var(--dash-muted); }
-
-.dash-bullet-scale {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 4px;
-  color: var(--dash-muted);
-  font-size: .56rem;
-  font-variant-numeric: tabular-nums;
-}
-.dash-bullet-state {
-  padding: 1px 7px;
-  border-radius: 999px;
-  font-size: .58rem;
-  font-weight: 700;
-  letter-spacing: .03em;
-  text-transform: uppercase;
-}
-.dash-bullet-state.is-success { background: var(--dash-tint-green); color: var(--dash-teal); }
-.dash-bullet-state.is-warning { background: var(--dash-tint-amber); color: var(--dash-amber); }
-.dash-bullet-state.is-danger { background: var(--dash-tint-red); color: var(--dash-red); }
-.dash-bullet-state.is-default { background: var(--dash-ground); color: var(--dash-ink-soft); }
-
-.dash-dist-foot {
-  margin: 2px 0 0;
-  padding-top: 8px;
-  border-top: 1px solid var(--dash-edge);
-  color: var(--dash-muted);
-  font-size: .66rem;
-}
-.dash-dist-foot b { color: var(--dash-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
-
-/* --------------------------------- Gauge ----------------------------------- */
-
-.dash-gauge { display: grid; gap: 5px; padding: 4px 0 2px; }
-.dash-gauge-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.dash-gauge-label {
-  color: var(--dash-ink-soft);
-  font-size: .6rem;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-}
-.dash-gauge-value {
-  font-size: 1.95rem;
-  font-weight: 800;
-  line-height: 1.02;
-  letter-spacing: -.03em;
-  font-variant-numeric: tabular-nums;
-}
-
-/* A labelled scale turns the bar into a measurement rather than a decoration. */
-.dash-gauge-scale {
-  display: flex;
-  justify-content: space-between;
-  color: var(--dash-muted);
-  font-size: .56rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.dash-gauge-facts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: 6px 0 0;
-  padding: 8px 0 0;
-  border-top: 1px solid var(--dash-edge);
-}
-.dash-gauge-facts > div { display: grid; gap: 1px; min-width: 0; }
-.dash-gauge-facts dt {
-  color: var(--dash-muted);
-  font-size: .56rem;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-}
-.dash-gauge-facts dd {
-  margin: 0;
-  color: var(--dash-ink);
-  font-size: .84rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.dash-gauge-value.is-success { color: var(--dash-teal); }
-.dash-gauge-value.is-warning { color: var(--dash-amber); }
-.dash-gauge-value.is-danger { color: var(--dash-red); }
-.dash-gauge-value.is-default { color: var(--dash-muted); }
-.dash-gauge-track { position: relative; height: 10px; margin: 4px 0 2px; border-radius: 5px; background: var(--dash-surface-3); }
-.dash-gauge-zero { position: absolute; top: -3px; bottom: -3px; left: 50%; width: 2px; background: var(--dash-edge); }
-.dash-gauge-fill { position: absolute; top: 0; bottom: 0; border-radius: 5px; }
-.dash-gauge-fill.is-success { background: var(--dash-teal); }
-.dash-gauge-fill.is-warning { background: var(--dash-amber); }
-.dash-gauge-fill.is-danger { background: var(--dash-red); }
-.dash-gauge p { margin: 4px 0 0; color: var(--dash-muted); font-size: .66rem; line-height: 1.45; }
-
-/* --------------------------------- Health ---------------------------------- */
-
-/*
- * One segmented bar carries the whole distribution, with the legend beneath as
- * a compact key. Replaces a track-per-status, which drew a mostly-empty bar for
- * every state and could not be read as proportions.
- */
-.dash-dist { display: grid; gap: 10px; padding: 2px 0; }
-.dash-dist-bar {
-  display: flex;
-  height: 12px;
-  border-radius: 4px;
-  background: var(--dash-surface-3);
-  overflow: hidden;
-}
-.dash-dist-bar i { display: block; height: 100%; }
-/* Hairline separators so adjacent segments stay countable. */
-.dash-dist-bar i + i { box-shadow: inset 1px 0 0 var(--dash-surface); }
-
-.dash-dist-legend { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.dash-dist-legend li {
-  display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-}
-.dash-dist-legend i { width: 8px; height: 8px; border-radius: 2px; }
-.dash-dist-legend span {
-  color: var(--dash-ink-soft);
-  font-size: .68rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.dash-dist-legend b { color: var(--dash-ink); font-size: .74rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-
-/* -------------------------------- Attention -------------------------------- */
-
-.dash-attention { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
-.dash-attention li {
-  display: grid;
-  grid-template-columns: 7px minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 9px;
-  padding: 7px 9px;
-  border-radius: 7px;
-  background: var(--dash-surface-2);
-}
-.dash-pip { width: 7px; height: 7px; border-radius: 999px; }
-.dash-pip.is-success { background: var(--dash-teal); }
-.dash-pip.is-warning { background: var(--dash-amber); }
-.dash-pip.is-danger { background: var(--dash-red); }
-.dash-pip.is-default { background: var(--dash-muted); }
-.dash-attention-name { color: var(--dash-ink); font-size: .73rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dash-attention-tag { padding: 1px 7px; border-radius: 999px; font-size: .58rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
-.dash-attention-tag.is-warning { background: var(--dash-tint-amber); color: var(--dash-amber); }
-.dash-attention-tag.is-danger { background: var(--dash-tint-red); color: var(--dash-red); }
-.dash-attention-tag.is-default { background: var(--dash-ground); color: var(--dash-ink-soft); }
-.dash-attention-tag.is-success { background: var(--dash-tint-green); color: var(--dash-teal); }
-.dash-attention b { color: var(--dash-ink); font-size: .72rem; font-variant-numeric: tabular-nums; }
-
-.dash-clear {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  padding: 9px 11px;
-  border-radius: 7px;
-  background: var(--dash-tint-green);
-  color: var(--dash-teal);
-  font-size: .71rem;
-  font-weight: 600;
-}
-.dash-clear span { font-weight: 800; }
-
-/* ------------------------------- Milestones -------------------------------- */
-
-.dash-milestones { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.dash-milestones li {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 8px;
-  border-radius: 7px;
-}
-.dash-milestones li:hover { background: var(--dash-surface-2); }
-.dash-ms-date { display: grid; justify-items: center; padding: 3px 0; border-radius: 6px; background: var(--dash-tint-blue); }
-.dash-ms-date b { color: var(--dash-navy); font-size: .82rem; line-height: 1.05; }
-.dash-ms-date small { color: var(--dash-muted); font-size: .53rem; text-transform: uppercase; }
-.dash-ms-body { display: grid; gap: 0; min-width: 0; }
-.dash-ms-body a { color: var(--dash-ink); font-size: .73rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dash-ms-body a:hover { color: var(--dash-blue); }
-.dash-ms-body small { color: var(--dash-muted); font-size: .62rem; }
-.dash-ms-status { padding: 1px 7px; border-radius: 999px; font-size: .57rem; font-weight: 700; text-transform: uppercase; white-space: nowrap; }
-.dash-ms-status.is-success { background: var(--dash-tint-green); color: var(--dash-teal); }
-.dash-ms-status.is-danger { background: var(--dash-tint-red); color: var(--dash-red); }
-.dash-ms-status.is-info { background: var(--dash-tint-blue); color: var(--dash-blue); }
-.dash-ms-status.is-default { background: var(--dash-ground); color: var(--dash-ink-soft); }
-
-/* --------------------------------- Alerts ---------------------------------- */
-
-.dash-alerts { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
-.dash-alerts a {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 7px;
-  background: var(--dash-surface-2);
-  color: var(--dash-ink-soft);
-  font-size: .7rem;
-  font-weight: 600;
-}
-.dash-alerts a:hover { background: var(--dash-tint-blue); color: var(--dash-blue); }
-.dash-alerts b {
-  min-width: 22px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--dash-edge);
-  color: var(--dash-ink-soft);
-  font-size: .68rem;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}
-/*
- * Priority hierarchy: a row that needs action is filled, ruled and carries a
- * chevron; a cleared row recedes to plain text on the ground. Previously both
- * states shared one treatment and only the digit differed, so "0 overdue" drew
- * as much attention as "3 overdue".
- */
-.dash-alerts li.is-active a {
-  background: var(--dash-tint-red);
-  color: var(--dash-red);
-  box-shadow: inset 3px 0 0 var(--dash-red);
-  font-weight: 700;
-}
-.dash-alerts li.is-active b {
-  background: var(--dash-red);
-  color: var(--dash-surface);
-  font-weight: 700;
-}
-.dash-alerts li.is-active a:hover { background: var(--dash-tint-red); color: var(--dash-red); }
-.dash-alert-go { width: 13px; height: 13px; margin-left: -4px; flex: none; }
-
-.dash-alerts li.is-clear a { background: transparent; border: 1px solid var(--dash-edge); }
-.dash-alerts li.is-clear b { background: transparent; color: var(--dash-muted); }
-
-/* ------------------------------ Quick actions ------------------------------ */
-
-/* Actions are a compact toolbar, not six full-width tiles claiming a whole row. */
-.dash-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.dash-action {
-  justify-content: flex-start !important;
-  height: 30px !important;
-  padding: 0 11px !important;
-  border-color: var(--dash-edge) !important;
-  border-radius: 7px !important;
-  color: var(--dash-ink) !important;
-  font-size: .69rem !important;
-  font-weight: 600 !important;
-}
-.dash-action:hover { background: var(--dash-surface-2) !important; color: var(--dash-blue) !important; }
-.dash-action svg { width: 14px !important; height: 14px !important; color: var(--dash-blue); }
-
-/* ---------------------------- Density and rhythm --------------------------- */
-
-/*
- * The Control Center is an instrument panel: it should fill the fold with
- * information, not with padding.
- *
- * The shared `EmptyState` is built for a whole page — a 44px icon medallion
- * above stacked centred text inside `py-12`. Used as the calendar preview's
- * empty state it left roughly 150px of dead ground at the foot of the page.
- * Laid on its side it says the same thing in one line. SCOPED to the dashboard
- * panel: every other EmptyState in the app keeps the full treatment.
- */
-.dash-calendar [data-slot="empty-state"] {
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 11px;
-  margin: 10px 12px 12px;
-  padding: 11px 13px;
-  text-align: left;
-}
-.dash-calendar [data-slot="empty-state"] > div:first-of-type {
-  margin: 0;
-  width: 30px;
-  height: 30px;
-  flex: none;
-}
-.dash-calendar [data-slot="empty-state"] > div:first-of-type svg { width: 15px; height: 15px; }
-.dash-calendar [data-slot="empty-state"] p { max-width: none; font-size: .72rem; }
-.dash-calendar [data-slot="empty-state"] p:first-of-type { font-weight: 700; white-space: nowrap; }
-
-/* Card headers: the title leads, the hint trails on the same baseline, and the
-   rule beneath is a hairline rather than a full-strength border. */
-.dash-card > header { border-bottom-color: var(--dash-edge); padding: 10px 13px 8px; }
-.dash-card-body { padding: 11px 13px 13px; }
-
-/* Analytics rows keep equal heights so a short panel never leaves a step in
-   the row it shares. */
-.dash-analytics { align-items: stretch; }
-.dash-analytics > .dash-card { height: 100%; }
-
-/* --------------------------- Dashboard calendar ---------------------------- */
-
-.dash-calendar {
-  grid-column: 1 / -1;
-  border: 1px solid var(--dash-edge);
-  border-radius: var(--dash-radius);
-  background: var(--dash-surface);
-  box-shadow: var(--dash-shadow);
-  overflow: hidden;
-}
-.dash-panel-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 9px 12px 7px;
-  border-bottom: 1px solid var(--dash-surface-3);
-  background: none;
-}
-.dash-panel-head > div { display: flex; align-items: baseline; gap: 8px; }
-.dash-panel-head b { color: var(--dash-ink); font-size: .76rem; font-weight: 700; }
-.dash-panel-head small { color: var(--dash-muted); font-size: .62rem; }
-.dash-cal-nav button {
-  padding: 3px 8px;
-  border: 1px solid var(--dash-edge);
-  border-radius: 6px;
-  background: var(--dash-surface);
-  color: var(--dash-ink-soft);
-  font-size: .65rem;
-  font-weight: 600;
-}
-.dash-cal-nav a { color: var(--dash-blue); font-size: .65rem; font-weight: 700; }
-.dash-cal-week { gap: 6px; padding: 10px 12px 12px; }
-.dash-cal-week > li { grid-template-columns: 40px minmax(0, 1fr); gap: 9px; }
-.dash-cal-day { padding: 4px 0; border: 0; border-radius: 6px; background: var(--dash-surface-3); }
-.dash-cal-day b { color: var(--dash-navy); font-size: .82rem; }
-.dash-cal-day span { font-size: .53rem; }
-.dash-cal-week > li.is-today .dash-cal-day { background: var(--dash-blue); }
-.dash-cal-week > li.is-today .dash-cal-day b,
-.dash-cal-week > li.is-today .dash-cal-day span { color: var(--dash-on-blue); }
-.dash-cal-item {
-  padding: 5px 9px;
-  border: 0;
-  border-left: 3px solid currentColor;
-  border-radius: 0 6px 6px 0;
-  background: var(--dash-surface-2);
-}
-.dash-cal-item:hover { background: var(--dash-tint-blue); }
-.dash-cal-item b { color: var(--dash-ink); font-size: .71rem; }
-.dash-cal-item span { color: var(--dash-muted); font-size: .61rem; }
 
 /* ================================ Calendar ================================= */
 
@@ -3724,13 +2961,640 @@ html:has(.cal-stage) { --epr-rail: var(--dash-ground); }
 .cal-detail-label { color: var(--dash-muted); font-size: .6rem; }
 .cal-detail-value { color: var(--dash-ink); font-size: .73rem; }
 
-/* ------------------------------ Responsive --------------------------------- */
 
-@media (max-width: 1280px) {
-  .dash-card { grid-column: span 6; }
+/* ==========================================================================
+   Dashboard — the Control Center surface.
+
+   ONE block owns the Dashboard's presentation.
+
+   The composition is proportional ROWS, not a uniform card grid:
+
+     header   title and scope controls, on the canvas rather than in a card
+     KPIs     five equal blocks, each carrying a DIFFERENT mark
+     main     44 / 28 / 28  — trend, distribution, polar comparison
+     lower    25 / 42 / 33  — milestone bars + variance, schedule, queues
+
+   Fixed proportions are what stop the page reading as a wall of equal
+   rectangles. The lower row is TOP-ALIGNED so the calendar takes its natural
+   height instead of stretching to the tallest column beside it.
+
+   Framing is deliberately quiet — a hairline and a soft shadow, no heavy
+   borders and no coloured card edges — so the CHARTS carry the visual weight
+   rather than the boxes around them.
+   ========================================================================== */
+
+:root {
+  /* A lighter canvas than the shared workspace ground: the Dashboard is almost
+     entirely white panels, and the bluer ground made every panel edge shout. */
+  --dash-canvas: #f6f7fb;
+  /* Panel framing, lighter than --dash-edge, which is tuned for controls
+     rather than for large surfaces. */
+  --dash-hairline: #edeff5;
+  --dash-health-success: var(--dash-teal);
+  --dash-health-warning: var(--dash-amber);
+  --dash-health-behind: #c2410c;
+  --dash-health-danger: var(--dash-red);
+  --dash-health-default: #9aa8bd;
+  --dash-chart-planned: #9aa8bd;
+  --dash-chart-actual: var(--dash-blue);
+  --dash-lift: 0 1px 2px rgb(16 24 40 / 5%);
+  --dash-lift-hover: 0 4px 14px rgb(16 24 40 / 8%);
+  --dash-round: 12px;
 }
+
+.dark {
+  --dash-canvas: #0b1120;
+  --dash-hairline: rgb(255 255 255 / 8%);
+  --dash-health-behind: #f28b43;
+  --dash-health-default: #6d7c93;
+  --dash-chart-planned: #74839b;
+  --dash-lift: 0 1px 2px rgb(0 0 0 / 40%);
+  --dash-lift-hover: 0 4px 14px rgb(0 0 0 / 45%);
+}
+
+[data-slot="sidebar-inset"]:has(.dash-stage) { background: var(--dash-canvas); }
+html:has(.dash-stage) { --epr-rail: var(--dash-canvas); }
+
+.dash-stage { display: grid; gap: 13px; align-content: start; min-width: 0; padding: 14px 6px 16px; }
+
+/* ---------------------------- Header and scope ----------------------------- */
+
+.dash-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dash-top-title h1 {
+  margin: 0;
+  color: var(--dash-navy);
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -.028em;
+}
+.dash-top-title p { margin: 4px 0 0; color: var(--dash-ink-soft); font-size: .74rem; }
+
+.dash-top-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.dash-top-controls select,
+.dash-date,
+.dash-refresh {
+  height: 34px;
+  border: 1px solid var(--dash-edge);
+  border-radius: 9px;
+  background: var(--dash-surface);
+  box-shadow: var(--dash-lift);
+  color: var(--dash-ink);
+  font: inherit;
+  font-size: .72rem;
+  font-weight: 600;
+}
+.dash-top-controls select {
+  min-width: 128px;
+  max-width: 178px;
+  padding: 0 9px;
+  cursor: pointer;
+  transition: border-color .14s ease;
+}
+.dash-top-controls select:hover { border-color: var(--dash-blue); }
+.dash-top-controls select option { color: var(--dash-ink); }
+.dash-date { display: flex; align-items: center; gap: 9px; padding: 0 12px; color: var(--dash-ink-soft); }
+.dash-date svg { width: 15px; height: 15px; color: var(--dash-ink-soft); }
+.dash-refresh {
+  display: grid;
+  width: 34px;
+  place-items: center;
+  color: var(--dash-ink-soft);
+  cursor: pointer;
+  transition: border-color .14s ease, color .14s ease;
+}
+.dash-refresh svg { width: 15px; height: 15px; }
+.dash-refresh:hover { border-color: var(--dash-blue); color: var(--dash-blue); }
+
+/* A utility strip on the canvas, not a card. */
+.dash-shortcuts { display: flex; flex-wrap: wrap; gap: 2px; margin: -6px 0 -2px; }
+.dash-shortcut {
+  height: 26px !important;
+  padding: 0 8px !important;
+  border-radius: 7px !important;
+  color: var(--dash-muted) !important;
+  font-size: .67rem !important;
+  font-weight: 600 !important;
+}
+.dash-shortcut:hover { background: var(--dash-surface) !important; color: var(--dash-blue) !important; }
+.dash-shortcut svg { width: 13px !important; height: 13px !important; }
+
+/* ------------------------------ Row 1 — KPIs ------------------------------- */
+
+.dash-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 13px; }
+
+.dash-kpi {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 112px;
+  padding: 15px 16px;
+  border: 1px solid var(--dash-hairline);
+  border-radius: var(--dash-round);
+  background: var(--dash-surface);
+  box-shadow: var(--dash-lift);
+  transition: box-shadow .16s ease, transform .16s ease;
+}
+.dash-kpi:hover { box-shadow: var(--dash-lift-hover); transform: translateY(-1px); }
+
+.dash-kpi-text { display: grid; align-content: center; gap: 0; min-width: 0; }
+.dash-kpi-text > span { color: var(--dash-ink-soft); font-size: .72rem; font-weight: 600; }
+.dash-kpi-text > b {
+  margin-top: 5px;
+  color: var(--dash-navy);
+  font-size: 1.78rem;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -.038em;
+  font-variant-numeric: tabular-nums;
+}
+.dash-kpi-text > b.is-success { color: var(--dash-teal); }
+.dash-kpi-text > b.is-warning { color: var(--dash-amber); }
+.dash-kpi-text > b.is-danger { color: var(--dash-red); }
+.dash-kpi-text > small { margin-top: 4px; color: var(--dash-muted); font-size: .655rem; line-height: 1.3; }
+.dash-kpi-note,
+.dash-kpi-delta { margin: 5px 0 0; font-size: .645rem; font-weight: 600; line-height: 1.2; }
+.dash-kpi-note { color: var(--dash-muted); }
+.dash-kpi-note.is-danger { color: var(--dash-red); }
+.dash-kpi-delta { display: flex; align-items: center; gap: 3px; font-weight: 700; }
+.dash-kpi-delta.is-up { color: var(--dash-teal); }
+.dash-kpi-delta.is-down { color: var(--dash-red); }
+
+/* Mark 1 and 2 — rings */
+.dash-ring { width: 62px; height: 62px; flex: none; transform: rotate(-90deg); }
+.dash-ring-track { fill: none; stroke: var(--dash-surface-3); stroke-width: 7; }
+.dash-ring-fill {
+  fill: none;
+  stroke: var(--dash-chart-actual);
+  stroke-width: 7;
+  stroke-linecap: round;
+  transition: stroke-dasharray .7s cubic-bezier(.4, 0, .2, 1);
+}
+.dash-ring.is-success .dash-ring-fill { stroke: var(--dash-teal); }
+
+/* Mark 3 — mini vertical bars */
+.dash-kpi-columns { display: flex; align-items: flex-end; gap: 4px; height: 46px; flex: none; }
+.dash-kpi-columns i {
+  display: block;
+  width: 8px;
+  height: var(--h);
+  min-height: 6px;
+  border-radius: 2px;
+  background: var(--dash-health-default);
+  animation: dash-rise .55s ease-out both;
+}
+.dash-kpi-columns i.is-success { background: var(--dash-health-success); }
+.dash-kpi-columns i.is-warning { background: var(--dash-health-warning); }
+.dash-kpi-columns i.is-behind { background: var(--dash-health-behind); }
+.dash-kpi-columns i.is-danger { background: var(--dash-health-danger); }
+
+/* Mark 4 — sparkline */
+.dash-kpi-spark { display: grid; align-items: center; width: 84px; height: 46px; flex: none; }
+.dash-kpi-flat { display: block; height: 2px; border-radius: 99px; background: var(--dash-surface-3); }
+
+/* Mark 5 — a STATE, so a status icon rather than a chart */
+.dash-kpi-status { display: grid; width: 54px; height: 54px; flex: none; place-items: center; border-radius: 50%; }
+.dash-kpi-status svg { width: 23px; height: 23px; }
+.dash-kpi.is-danger .dash-kpi-status { background: var(--dash-tint-red); color: var(--dash-red); }
+.dash-kpi.is-clear .dash-kpi-status { background: var(--dash-tint-green); color: var(--dash-teal); }
+
+/* ------------------------------- Panel shell -------------------------------- */
+
+.dash-row { display: grid; gap: 13px; min-width: 0; }
+.dash-row-main { grid-template-columns: 44fr 28fr 28fr; align-items: stretch; }
+/* Top-aligned: the calendar is content-sized, not stretched to its neighbours. */
+.dash-row-lower { grid-template-columns: 25fr 42fr 33fr; align-items: start; }
+.dash-stack { display: grid; align-content: start; gap: 13px; min-width: 0; }
+
+.dash-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--dash-hairline);
+  border-radius: var(--dash-round);
+  background: var(--dash-surface);
+  box-shadow: var(--dash-lift);
+  overflow: hidden;
+  transition: box-shadow .16s ease;
+}
+.dash-panel:hover { box-shadow: var(--dash-lift-hover); }
+.dash-row-main > .dash-panel { min-height: 286px; }
+.dash-milestones,
+.dash-progress { min-height: 0; }
+
+
+
+
+.dash-panel > header { display: flex; align-items: center; gap: 10px; padding: 13px 16px 10px; }
+.dash-panel > header > div { display: grid; gap: 2px; min-width: 0; }
+.dash-panel > header b { color: var(--dash-ink); font-size: .815rem; font-weight: 700; letter-spacing: -.015em; }
+.dash-panel > header small {
+  overflow: hidden;
+  color: var(--dash-muted);
+  font-size: .625rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-link { margin-left: auto; color: var(--dash-blue); font-size: .665rem; font-weight: 700; white-space: nowrap; }
+.dash-link:hover { text-decoration: underline; }
+
+.dash-panel-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 16px 14px;
+}
+
+/* A fact, not a reserved canvas. */
+.dash-note {
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: 9px;
+  background: var(--dash-surface-2);
+  color: var(--dash-muted);
+  font-size: .68rem;
+  line-height: 1.45;
+}
+.dash-note.is-clear { background: var(--dash-tint-green); color: var(--dash-teal); font-weight: 600; }
+
+.dash-plot { min-width: 0; }
+.recharts-default-tooltip {
+  border: 1px solid var(--dash-hairline) !important;
+  border-radius: 9px;
+  background: var(--dash-surface) !important;
+  box-shadow: 0 6px 18px rgb(16 24 40 / 12%);
+  color: var(--dash-ink) !important;
+  font-size: .67rem;
+}
+.recharts-tooltip-item { color: var(--dash-ink-soft) !important; }
+
+/* Series keys sit BELOW the plot, never over it. */
+.dash-plotkeys { display: flex; justify-content: center; gap: 20px; padding-top: 10px; }
+.dash-plotkey {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--dash-ink-soft);
+  font-size: .645rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .14s ease;
+}
+span.dash-plotkey { cursor: default; }
+.dash-plotkey i { width: 16px; height: 2px; border-radius: 99px; background: var(--dash-chart-actual); }
+.dash-plotkey.is-planned i { height: 0; border-top: 2px dashed var(--dash-chart-planned); background: none; }
+.dash-plotkey[aria-pressed="false"] { opacity: .36; }
+
+/* --------------------------------- Donut ------------------------------------ */
+
+.dash-donut { display: grid; gap: 2px; }
+.dash-donut > .dash-donut-readout { order: -1; }
+.dash-donut-plot { position: relative; min-width: 0; }
+.dash-donut-hole {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  display: grid;
+  justify-items: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.dash-donut-hole b {
+  color: var(--dash-navy);
+  font-size: 1.72rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -.04em;
+}
+.dash-donut-hole span { margin-top: 2px; color: var(--dash-muted); font-size: .6rem; font-weight: 600; }
+
+/* Shared key list — the donut stacks it, the radial panel runs it in two up. */
+.dash-keys { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
+.dash-keys button {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 4px 6px;
+  border-radius: 7px;
+  color: var(--dash-ink-soft);
+  text-align: left;
+}
+.dash-keys button { cursor: pointer; transition: background .14s ease; }
+.dash-keys button:hover,
+.dash-keys button[aria-pressed="true"] { background: var(--dash-surface-2); }
+.dash-keys i { width: 9px; height: 9px; border-radius: 50%; background: var(--dash-health-default); }
+.dash-keys i.is-success { background: var(--dash-health-success); }
+.dash-keys i.is-warning { background: var(--dash-health-warning); }
+.dash-keys i.is-behind { background: var(--dash-health-behind); }
+.dash-keys i.is-danger { background: var(--dash-health-danger); }
+.dash-keys span { overflow: hidden; font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
+.dash-keys b { color: var(--dash-ink); font-size: .7rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dash-keys em { min-width: 34px; color: var(--dash-muted); font-size: .63rem; font-style: normal; text-align: right; }
+
+.dash-radar { min-width: 0; }
+/* Axis labels are pinned here rather than left to the tick attribute: the
+   attribute loses to Recharts' own inherited fill, which resolved to the
+   muted planned tone and read as disabled text. */
+.dash-radar .recharts-polar-angle-axis-tick-value {
+  fill: var(--dash-ink-soft);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -.005em;
+}
+
+/* Pinned readout: a cursor-following tooltip would sit on the hole and hide
+   the very figure the hole exists to show. */
+.dash-donut-readout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 22px;
+  margin: 0 0 2px;
+  padding: 3px 8px;
+  border-radius: 7px;
+  background: var(--dash-surface-2);
+  font-size: .645rem;
+}
+.dash-donut-readout i { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--dash-health-default); }
+.dash-donut-readout i.is-success { background: var(--dash-health-success); }
+.dash-donut-readout i.is-warning { background: var(--dash-health-warning); }
+.dash-donut-readout i.is-behind { background: var(--dash-health-behind); }
+.dash-donut-readout i.is-danger { background: var(--dash-health-danger); }
+.dash-donut-readout b { color: var(--dash-ink); font-weight: 700; }
+.dash-donut-readout span { color: var(--dash-muted); }
+.dash-donut-readout .is-hint { color: var(--dash-muted); opacity: .8; }
+
+/* ---------------------------- Milestone progress ---------------------------- */
+
+.dash-bars {
+  display: grid;
+  align-content: space-between;
+  gap: 13px;
+  height: 100%;
+  margin: 0;
+  padding: 4px 0 2px;
+  list-style: none;
+}
+.dash-bars li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 5px 10px; }
+.dash-bar-name {
+  overflow: hidden;
+  color: var(--dash-ink);
+  font-size: .69rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-bars > li > b { font-size: .625rem; font-weight: 700; white-space: nowrap; }
+.dash-bars > li > b.is-success { color: var(--dash-teal); }
+.dash-bars > li > b.is-warning { color: var(--dash-amber); }
+.dash-bars > li > b.is-danger { color: var(--dash-red); }
+.dash-bars > li > b.is-default { color: var(--dash-muted); }
+.dash-bars > li > small { grid-column: 1 / -1; overflow: hidden; color: var(--dash-muted); font-size: .585rem; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Three discrete segments, one per lifecycle stage. Deliberately NOT a
+   percentage fill: the platform records a stage, not a completion figure. */
+.dash-bar-track { grid-column: 1 / -1; align-self: center; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; margin-top: 1px; }
+.dash-bar-track i {
+  display: block;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--dash-surface-3);
+  animation: dash-fade .4s ease-out both;
+  animation-delay: var(--d);
+}
+.dash-bar-track i.is-success { background: var(--dash-health-success); }
+.dash-bar-track i.is-warning { background: var(--dash-health-warning); }
+.dash-bar-track i.is-danger { background: var(--dash-health-danger); }
+.dash-bar-track i.is-default { background: var(--dash-chart-actual); }
+
+/* Progress by Project reads a real percentage, so its track is a single
+   proportional fill against 0-100 rather than three lifecycle segments. */
+.dash-bar-track.is-solid { display: block; height: 7px; border-radius: 99px; background: var(--dash-surface-3); overflow: hidden; }
+.dash-bar-track.is-solid i { width: var(--p); height: 100%; border-radius: inherit; background: var(--dash-chart-actual); animation: dash-grow .7s cubic-bezier(.4, 0, .2, 1) both; transform: none; opacity: 1; }
+.dash-bars.is-progress { align-content: start; gap: 13px; }
+.dash-progress .dash-panel-body { justify-content: flex-start; }
+.dash-bars.is-progress > li > b { font-size: .68rem; font-variant-numeric: tabular-nums; }
+
+/* ------------------------------ Operating queues ---------------------------- */
+
+.dash-queue > header { padding: 10px 15px 3px; }
+.dash-queue .dash-panel-body { justify-content: flex-start; padding: 0 9px 7px; }
+
+.dash-items { display: grid; margin: 0; padding: 0; list-style: none; }
+.dash-items li + li { border-top: 1px solid var(--dash-hairline); }
+.dash-items a {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 6px;
+  border-radius: 8px;
+  transition: background .14s ease;
+}
+.dash-items a:hover { background: var(--dash-surface-2); }
+.dash-item-icon { width: 15px; height: 15px; color: var(--dash-muted); }
+.dash-item-icon.is-info { color: var(--dash-blue); }
+.dash-item-icon.is-success { color: var(--dash-teal); }
+.dash-item-icon.is-warning { color: var(--dash-amber); }
+.dash-item-icon.is-danger { color: var(--dash-red); }
+.dash-item-icon.is-default { color: var(--dash-muted); }
+.dash-items a > span { display: grid; gap: 2px; min-width: 0; }
+.dash-items b {
+  overflow: hidden;
+  color: var(--dash-ink);
+  font-size: .695rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-items small {
+  overflow: hidden;
+  color: var(--dash-muted);
+  font-size: .6rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-items em { font-size: .655rem; font-style: normal; font-weight: 650; white-space: nowrap; }
+.dash-items em.is-info { color: var(--dash-blue); }
+.dash-items em.is-success { color: var(--dash-teal); }
+.dash-items em.is-warning { color: var(--dash-amber); }
+.dash-items em.is-danger { color: var(--dash-red); }
+.dash-items em.is-default { color: var(--dash-muted); }
+.dash-queue .dash-note { margin: 2px 6px 4px; }
+
+/* ------------------------------ Project schedule ---------------------------- */
+
+.dash-schedule .dash-panel-body { justify-content: flex-start; padding: 0 14px 12px; }
+
+.dash-cal-bar { display: flex; align-items: center; gap: 7px; padding: 2px 0 8px; }
+.dash-cal-bar > b { flex: 1; color: var(--dash-ink); font-size: .8rem; font-weight: 700; text-align: center; }
+.dash-cal-bar button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--dash-edge);
+  border-radius: 8px;
+  color: var(--dash-ink-soft);
+  cursor: pointer;
+  transition: border-color .14s ease, color .14s ease;
+}
+.dash-cal-bar button:hover { border-color: var(--dash-blue); color: var(--dash-blue); }
+.dash-cal-bar button svg { width: 14px; height: 14px; }
+.dash-cal-today { width: auto !important; padding: 0 13px; font-size: .68rem; font-weight: 650; }
+
+.dash-cal-weekdays,
+.dash-cal-grid,
+.dash-cal-loading { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.dash-cal-weekdays span {
+  padding: 2px 0 6px;
+  color: var(--dash-muted);
+  font-size: .615rem;
+  font-weight: 600;
+  text-align: center;
+}
+.dash-cal-grid { gap: 1px; }
+.dash-cal-loading { gap: 5px; padding: 4px 0; }
+.dash-cal-cell {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 2px;
+  min-width: 0;
+  height: 42px;
+  border-radius: 9px;
+  color: var(--dash-ink-soft);
+  cursor: pointer;
+  transition: background .12s ease;
+}
+.dash-cal-cell:hover { background: var(--dash-surface-2); }
+.dash-cal-cell.is-outside { color: var(--dash-muted); opacity: .42; }
+.dash-cal-date {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border-radius: 50%;
+  font-size: .735rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dash-cal-cell.is-today .dash-cal-date { color: var(--dash-blue); font-weight: 800; }
+.dash-cal-cell.is-selected .dash-cal-date { background: var(--dash-blue); color: var(--dash-on-blue); font-weight: 700; }
+.dash-cal-marks { display: flex; align-items: center; justify-content: center; gap: 3px; min-height: 5px; }
+.dash-cal-marks i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+
+/* Dots read as pure colour, so the schedule sets its own tones rather than
+   inheriting the workspace chip colours, which are tuned for text. */
+.dash-schedule .cal-chip-mom { color: #6d4bd8; }
+.dash-schedule .cal-chip-kom { color: #0d6db5; }
+.dash-schedule .cal-chip-meeting { color: var(--dash-teal); }
+.dash-schedule .cal-chip-milestone { color: var(--dash-blue); }
+.dash-schedule .cal-chip-reminder { color: var(--dash-amber); }
+.dash-schedule .cal-chip-due { color: var(--dash-red); }
+
+.dash-cal-agenda { display: grid; gap: 5px; margin: 10px 0 0; padding: 0; list-style: none; }
+.dash-cal-agenda button {
+  display: grid;
+  grid-template-columns: 3px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: var(--dash-surface-2);
+  cursor: pointer;
+  text-align: left;
+  transition: background .14s ease;
+}
+.dash-cal-agenda button:hover { background: var(--dash-tint-blue); }
+.dash-cal-agenda button > i { width: 3px; height: 20px; border-radius: 99px; background: currentColor; }
+.dash-cal-agenda button > span { display: grid; gap: 1px; min-width: 0; }
+.dash-cal-agenda b { overflow: hidden; color: var(--dash-ink); font-size: .675rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.dash-cal-agenda small { overflow: hidden; color: var(--dash-muted); font-size: .595rem; text-overflow: ellipsis; white-space: nowrap; }
+.dash-cal-more { padding-left: 4px; }
+.dash-cal-more a { color: var(--dash-blue); font-size: .62rem; font-weight: 650; }
+
+.dash-cal-key {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 18px;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--dash-hairline);
+}
+.dash-cal-key span { display: inline-flex; align-items: center; gap: 7px; color: var(--dash-ink-soft); font-size: .645rem; font-weight: 600; }
+.dash-cal-key i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.dash-cal-key-empty { color: var(--dash-muted) !important; font-weight: 500 !important; }
+
+/* ------------------------------ Focus and motion ---------------------------- */
+
+.dash-top-controls select:focus-visible,
+.dash-refresh:focus-visible,
+.dash-plotkey:focus-visible,
+.dash-keys button:focus-visible,
+.dash-cal-bar button:focus-visible,
+.dash-cal-cell:focus-visible,
+.dash-cal-agenda button:focus-visible,
+.dash-items a:focus-visible {
+  outline: 2px solid var(--dash-blue);
+  outline-offset: 2px;
+}
+
+@keyframes dash-grow { from { width: 0; } }
+@keyframes dash-rise { from { height: 0; } }
+@keyframes dash-fade { from { opacity: 0; transform: scaleX(.4); } }
+
+/* -------------------------------- Responsive -------------------------------- */
+
+@media (max-width: 1400px) {
+  .dash-row-main { grid-template-columns: 42fr 29fr 29fr; }
+  .dash-row-lower { grid-template-columns: 25fr 41fr 34fr; }
+}
+
+@media (max-width: 1200px) {
+  .dash-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dash-row-main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .dash-row-main > .dash-panel:first-child { grid-column: 1 / -1; }
+  .dash-row-lower { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .dash-row-lower > .dash-stack:last-child { grid-column: 1 / -1; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+}
+
 @media (max-width: 900px) {
-  .dash-card { grid-column: 1 / -1; }
+  .dash-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dash-row-main,
+  .dash-row-lower { grid-template-columns: minmax(0, 1fr); }
+  .dash-row-main > .dash-panel:first-child { grid-column: auto; }
+  .dash-row-lower > .dash-stack:last-child { grid-column: auto; grid-auto-flow: row; grid-auto-columns: auto; }
+  .dash-top-controls { width: 100%; }
+  .dash-top-controls select { flex: 1 1 140px; max-width: none; }
+}
+
+@media (max-width: 560px) {
+  .dash-kpis { grid-template-columns: minmax(0, 1fr); }
+  .dash-shortcuts { overflow-x: auto; flex-wrap: nowrap; }
+  .dash-shortcuts > * { flex: none; }
+  .dash-cal-cell { height: 38px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-kpi,
+  .dash-panel,
+  .dash-cal-cell,
+  .dash-ring-fill,
+  .dash-kpi-columns i,
+  .dash-bar-track i { animation: none !important; transition: none !important; opacity: 1 !important; transform: none !important; }
 }
 
 /* ==========================================================================
