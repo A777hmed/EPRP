@@ -19,6 +19,15 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 /** Two extra attempts; a transient lookup failure clears well inside this. */
 const RETRY_DELAYS_MS = [150, 400];
 
+/**
+ * Bare `fetch` has no default timeout: if Supabase's endpoint never answers
+ * (as opposed to answering with an error quickly), an unbounded `await`
+ * hangs forever — in middleware, that means the entire request never
+ * produces a response, which surfaces to a client-side navigation as a
+ * fetch stuck at "Pending" indefinitely. Every attempt gets its own bound.
+ */
+const REQUEST_TIMEOUT_MS = 8_000;
+
 function requestUrl(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
   if (input instanceof URL) return input.href;
@@ -34,12 +43,34 @@ function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
 }
 
 /**
- * A rejected `fetch` means no response was received at all. An abort arrives
- * as a `DOMException`, never a `TypeError`, so a cancelled request is
- * excluded here rather than needing a separate check.
+ * Our own timeout firing, as opposed to the caller cancelling the request.
+ * `AbortSignal.timeout()` rejects with a `DOMException` named
+ * `"TimeoutError"`; a caller-initiated abort is `"AbortError"` and must
+ * propagate immediately rather than being retried.
+ */
+function isOwnTimeout(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "TimeoutError";
+}
+
+/**
+ * A rejected `fetch` means no response was received at all: either a
+ * transport failure (`TypeError` — DNS, refused connection, dropped socket)
+ * or our own timeout firing because the endpoint never answered at all.
  */
 function isTransportFailure(error: unknown): boolean {
-  return error instanceof TypeError;
+  return error instanceof TypeError || isOwnTimeout(error);
+}
+
+/**
+ * Bounds one attempt to `REQUEST_TIMEOUT_MS` without discarding a signal the
+ * caller already passed — both must be able to cancel the request.
+ */
+function withTimeout(init: RequestInit | undefined): RequestInit {
+  const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const signal = init?.signal
+    ? AbortSignal.any([init.signal, timeoutSignal])
+    : timeoutSignal;
+  return { ...init, signal };
 }
 
 /**
@@ -76,7 +107,7 @@ export function createRetryingFetch(baseFetch?: typeof fetch): typeof fetch {
   return async function retryingFetch(input, init) {
     for (let attempt = 0; ; attempt += 1) {
       try {
-        return await send(input, init);
+        return await send(input, withTimeout(init));
       } catch (error) {
         const canRetry =
           attempt < RETRY_DELAYS_MS.length &&
@@ -102,6 +133,11 @@ export function createRetryingFetch(baseFetch?: typeof fetch): typeof fetch {
  */
 export function isSupabaseUnreachable(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
+
+  // Belt-and-braces: if a timeout ever reaches a caller unwrapped (a code
+  // path that doesn't route it through Supabase's own error normalization),
+  // it must still read as "unreachable", not as "signed out".
+  if (isOwnTimeout(error)) return true;
 
   const { name, status } = error as { name?: unknown; status?: unknown };
   if (name === "AuthRetryableFetchError") return true;
