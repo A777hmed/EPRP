@@ -8,16 +8,20 @@ export const metadata: Metadata = {
 };
 
 /**
- * The existing editable Weekly workspace, under its explicit route.
- * Authorization and editability remain resolved by the same server context;
- * the client receives no new authority and uses the existing save path.
+ * Project-scoped alias for the Weekly workspace route — see the sibling
+ * detail page for why this exists. Same server context, same editable
+ * workspace, same save path; only the route (and the links this view
+ * produces) are project-scoped.
+ *
+ * Only `projectId` (a plain string) crosses this Server → Client Component
+ * boundary — see the sibling detail page for why.
  */
-export default async function WeeklyReportWorkspacePage({
+export default async function ProjectWeeklyReportWorkspacePage({
   params,
 }: {
-  params: Promise<{ reportId: string }>;
+  params: Promise<{ projectId: string; reportId: string }>;
 }) {
-  const { reportId } = await params;
+  const { projectId, reportId } = await params;
   const context = await getWeeklyViewerContext(reportId);
 
   return (
@@ -30,6 +34,7 @@ export default async function WeeklyReportWorkspacePage({
       viewerName={context.viewerName}
       viewerRoleLabel={context.viewerRoleLabel}
       mode="workspace"
+      projectId={projectId}
     />
   );
 }

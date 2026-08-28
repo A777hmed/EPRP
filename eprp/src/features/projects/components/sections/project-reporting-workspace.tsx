@@ -74,13 +74,13 @@ function RowActions({
   return (
     <div className="flex shrink-0 flex-wrap gap-2">
       <Button variant="outline" size="sm" asChild>
-        <Link href={reportHref}>
+        <Link href={reportHref} prefetch={false}>
           <Eye aria-hidden="true" />
           View
         </Link>
       </Button>
       <Button variant="outline" size="sm" asChild>
-        <Link href={workspaceHref}>
+        <Link href={workspaceHref} prefetch={false}>
           <PenLine aria-hidden="true" />
           Workspace
         </Link>
@@ -89,7 +89,13 @@ function RowActions({
   );
 }
 
-function WeeklyTab({ reports }: { reports: WeeklyReport[] }) {
+function WeeklyTab({
+  projectId,
+  reports,
+}: {
+  projectId: string;
+  reports: WeeklyReport[];
+}) {
   const ordered = React.useMemo(
     () => [...reports].sort((a, b) => b.periodEnd.localeCompare(a.periodEnd)),
     [reports]
@@ -116,8 +122,9 @@ function WeeklyTab({ reports }: { reports: WeeklyReport[] }) {
           <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <Link
-                href={`/weekly-reports/${report.id}`}
+                href={`/projects/${projectId}/reports/weekly/${report.id}`}
                 className="font-mono text-sm font-semibold hover:underline"
+                prefetch={false}
               >
                 {report.reportNumber}
               </Link>
@@ -129,8 +136,8 @@ function WeeklyTab({ reports }: { reports: WeeklyReport[] }) {
             </p>
           </div>
           <RowActions
-            reportHref={`/weekly-reports/${report.id}`}
-            workspaceHref={`/weekly-reports/${report.id}/workspace`}
+            reportHref={`/projects/${projectId}/reports/weekly/${report.id}`}
+            workspaceHref={`/projects/${projectId}/reports/weekly/${report.id}/workspace`}
           />
         </li>
       ))}
@@ -139,9 +146,11 @@ function WeeklyTab({ reports }: { reports: WeeklyReport[] }) {
 }
 
 function MonthlyTab({
+  projectId,
   reports,
   loading,
 }: {
+  projectId: string;
   reports: MonthlyReport[];
   loading: boolean;
 }) {
@@ -170,8 +179,9 @@ function MonthlyTab({
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <Link
-                  href={`/monthly-reports/${report.id}`}
+                  href={`/projects/${projectId}/reports/monthly/${report.id}`}
                   className="font-mono text-sm font-semibold hover:underline"
+                  prefetch={false}
                 >
                   {report.reportNumber}
                 </Link>
@@ -182,8 +192,8 @@ function MonthlyTab({
               </p>
             </div>
             <RowActions
-              reportHref={`/monthly-reports/${report.id}`}
-              workspaceHref={`/monthly-reports/${report.id}/workspace`}
+              reportHref={`/projects/${projectId}/reports/monthly/${report.id}`}
+              workspaceHref={`/projects/${projectId}/reports/monthly/${report.id}/workspace`}
             />
           </li>
         );
@@ -238,7 +248,10 @@ function ExecutiveTab({
               <p className="text-xs text-muted-foreground">{basis.note}</p>
             </div>
             <Button variant="outline" size="sm" asChild>
-              <Link href={`/executive-reports/projects/${projectId}?month=${month}`}>
+              <Link
+                href={`/projects/${projectId}/reports/executive?month=${month}`}
+                prefetch={false}
+              >
                 <Eye aria-hidden="true" />
                 Open Executive view
               </Link>
@@ -301,10 +314,14 @@ export function ProjectReportingWorkspace({
         </TabsList>
 
         <TabsContent value="weekly" className="mt-4">
-          <WeeklyTab reports={weeklyReports} />
+          <WeeklyTab projectId={project.id} reports={weeklyReports} />
         </TabsContent>
         <TabsContent value="monthly" className="mt-4">
-          <MonthlyTab reports={monthlyReports} loading={monthlyLoading} />
+          <MonthlyTab
+            projectId={project.id}
+            reports={monthlyReports}
+            loading={monthlyLoading}
+          />
         </TabsContent>
         <TabsContent value="executive" className="mt-4">
           <ExecutiveTab

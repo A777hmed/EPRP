@@ -47,10 +47,10 @@ function projectCrumbs(
   );
   const crumbs: Crumb[] = [{ label: "Projects", href: "/projects" }];
 
-  // Fall back to the id while the store is still warming up, so the trail
-  // never renders a blank segment.
+  // Never the raw id: fall back to a generic label while the store is
+  // still warming up, so the trail never renders a blank segment — or a UUID.
   crumbs.push({
-    label: project ? (project.shortName ?? project.name) : projectId,
+    label: project ? project.shortName ?? project.name : "Project",
     href: `/projects/${projectId}`,
   });
 

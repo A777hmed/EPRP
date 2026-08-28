@@ -1,6 +1,9 @@
 export { WeeklyReportsView } from "./components/weekly-reports-view";
 export { WeeklyReportFormView } from "./components/weekly-report-form-view";
-export { WeeklyReportDetailView } from "./components/weekly-report-detail-view";
+export {
+  WeeklyReportDetailView,
+  type WeeklyReportLinks,
+} from "./components/weekly-report-detail-view";
 export { WeeklyReportPreview } from "./components/weekly-report-preview";
 export {
   WeeklyStatusBadge,

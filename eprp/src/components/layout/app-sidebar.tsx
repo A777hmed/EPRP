@@ -1,16 +1,9 @@
 "use client";
 
-import type * as React from "react";
+import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  FileText,
-  FileType2,
-  Mail,
-  Share2,
-  type LucideIcon,
-} from "lucide-react";
 
 import {
   Sidebar,
@@ -23,23 +16,64 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { mainNavigation } from "@/config/navigation";
+import { activeProjectId } from "@/config/project-sections";
 import { siteConfig } from "@/config/site";
-import { ProjectNavGroup } from "./project-nav-group";
+import { ProjectContextNav } from "./project-nav-group";
 
 function isItemActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Report shortcuts from the reference design. Wired to the export engine in a later phase. */
-const quickActions: { title: string; icon: LucideIcon }[] = [
-  { title: "Generate PDF", icon: FileText },
-  { title: "Generate DOCX", icon: FileType2 },
-  { title: "Email Report", icon: Mail },
-  { title: "Share Report", icon: Share2 },
-];
+/**
+ * Routes already covered, in full, by the project-contextual sidebar. While
+ * a project is open, showing these again in the global rail would just be a
+ * second, cross-project version of the same detail links — pure duplication,
+ * not a platform destination. Their routes are untouched; this only hides
+ * the rail's copy of the link while a project is active.
+ */
+const HIDDEN_INSIDE_PROJECT = new Set([
+  "/departments",
+  "/systems",
+  "/disciplines",
+  "/contacts",
+  "/weekly-reports",
+  "/monthly-reports",
+  "/executive-reports",
+]);
+
+/**
+ * Forces the global rail's open state to match the route category —
+ * expanded on platform routes, compact inside a project — on first paint
+ * and on every crossing between the two, regardless of what a previous
+ * visit's cookie says. `SidebarProvider`'s `defaultOpen` alone can't do
+ * this: it's a static prop on a Server Component and has no route
+ * awareness, so a cookie-restored "closed" state was winning even on
+ * `/dashboard`.
+ *
+ * Only fires `setOpen` when the project/global category actually changes
+ * (tracked via a ref, not state, so this can't itself trigger a re-render
+ * loop) — never on every render or on navigation *within* one category, so
+ * a manual toggle during a browsing session is left alone until the user
+ * actually crosses into or out of a project.
+ */
+export function RouteSidebarSync() {
+  const pathname = usePathname();
+  const insideProject = Boolean(activeProjectId(pathname));
+  const { setOpen } = useSidebar();
+  const previousRef = React.useRef<boolean | null>(null);
+
+  React.useEffect(() => {
+    if (previousRef.current === insideProject) return;
+    previousRef.current = insideProject;
+    setOpen(!insideProject);
+  }, [insideProject, setOpen]);
+
+  return null;
+}
 
 /**
  * Primary application sidebar in EPROM branding: deep navy surface, the
@@ -58,6 +92,8 @@ export interface AppSidebarProps {
 
 export function AppSidebar({ welcome }: AppSidebarProps) {
   const pathname = usePathname();
+  const { isMobile } = useSidebar();
+  const projectId = activeProjectId(pathname);
 
   return (
     <Sidebar collapsible="icon">
@@ -107,18 +143,18 @@ export function AppSidebar({ welcome }: AppSidebarProps) {
         {welcome}
       </SidebarHeader>
       <SidebarContent>
-        {mainNavigation.map((section) => (
+        {mainNavigation.map((section) => {
+          const items = projectId
+            ? section.items.filter((item) => !HIDDEN_INSIDE_PROJECT.has(item.href))
+            : section.items;
+          if (items.length === 0) return null;
+
+          return (
           <SidebarGroup key={section.label}>
             <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {section.items.map((item) => {
-                  // Projects expands into the current project's sections.
-                  if (item.href === "/projects") {
-                    return (
-                      <ProjectNavGroup key={item.href} pathname={pathname} />
-                    );
-                  }
+                {items.map((item) => {
                   const active = isItemActive(pathname, item.href);
                   return (
                     <SidebarMenuItem key={item.href} className="epr-nav-item">
@@ -126,18 +162,20 @@ export function AppSidebar({ welcome }: AppSidebarProps) {
                         asChild
                         isActive={active}
                         tooltip={item.title}
-                        /*
-                         * The active treatment is CSS, not a background utility:
-                         * `.epr-nav-link` draws the notched rail, the curved
-                         * corner joins and the circular icon puck. Tailwind's
-                         * `data-active:bg-*` is deliberately not used here — it
-                         * would paint a plain rectangle over the notch.
-                         */
+                        // `.epr-nav-link` (globals.css) owns hover/active — a
+                        // flat off-white surface, not a Tailwind bg utility.
                         className="epr-nav-link"
                       >
                         <Link
                           href={item.href}
                           aria-current={active ? "page" : undefined}
+                          // Every item in this list is mounted and visible at
+                          // once, so Next's default viewport prefetch fires an
+                          // RSC request per item just from being rendered —
+                          // a self-inflicted request storm on a dense nav.
+                          // Click navigation is unaffected; only the
+                          // automatic prefetch is disabled.
+                          prefetch={false}
                         >
                           <span className="epr-nav-icon" aria-hidden="true">
                             <item.icon aria-hidden="true" />
@@ -151,27 +189,20 @@ export function AppSidebar({ welcome }: AppSidebarProps) {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-        ))}
-        <SidebarGroup>
-          <SidebarGroupLabel>Quick Actions</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {quickActions.map((action) => (
-                <SidebarMenuItem key={action.title}>
-                  <SidebarMenuButton
-                    tooltip={action.title}
-                    disabled
-                    aria-disabled="true"
-                    title="Available in a later phase"
-                  >
-                    <action.icon aria-hidden="true" />
-                    <span>{action.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+          );
+        })}
+        {/*
+         * The project-contextual sidebar is a separate desktop column
+         * (`ProjectContextSidebar`); on mobile there is no room for a second
+         * column, so the same content is appended here, inside this sheet.
+         */}
+        {isMobile && projectId && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <ProjectContextNav pathname={pathname} />
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarRail />
     </Sidebar>

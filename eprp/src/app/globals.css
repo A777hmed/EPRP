@@ -2392,116 +2392,56 @@
    Executive sheets and is untouched by this block.
    ========================================================================== */
 
-/* --------------------- Sidebar: the notched active item -------------------- */
+/* --------------------- Sidebar: rail active/hover treatment -------------------- */
 
 /*
-   The active item is a NOTCH cut into the sidebar edge, not a rounded box.
-
-   Geometry, and why the first attempt failed. The fillets must sit exactly at
-   the sidebar's inner edge; previously they were pushed outside it with a
-   negative offset and were clipped away by the scroll container, so all that
-   survived was a plain rectangle.
-
-   Three parts:
-     1. the RAIL — the active row, filled with the page ground, stretched to the
-        sidebar edge by cancelling the group's 0.5rem padding, with only its
-        left corners rounded;
-     2. the PUCK — the icon in a filled circle, sitting on that rail;
-     3. two FILLETS — squares of page ground above and below the rail at the
-        edge, each masked by a quarter-disc so the sidebar colour curves back
-        in. A concave corner is impossible with border-radius, which only ever
-        rounds inward, so the mask is doing the real work.
+   A clean light surface lifted off the dark navy rail — no notch, no puck,
+   no fillets, no border. Default is transparent with light text; hover and
+   active swap in an off-white rounded row and switch the text/icon to navy
+   (icons inherit `color` via `currentColor`, so no separate icon rule is
+   needed). Active is simply a slightly more opaque version of hover, tinted
+   with the EPROM brand blue instead of plain navy — one consistent radius,
+   one consistent row height, no other moving parts.
 */
 
 .epr-nav-item { position: relative; }
 
-/* Cancel the group padding so the rail reaches the sidebar's inner edge. */
-.epr-nav-item:has(.epr-nav-link[data-active="true"]) {
-  margin-right: -0.5rem;
-  z-index: 1;
-}
-
 .epr-nav-link {
-  position: relative;
   gap: 0.6rem;
   height: 2.25rem;
-  padding-inline: 0.4rem;
-  border-radius: 999px;
-  color: color-mix(in oklab, var(--sidebar-foreground) 82%, transparent);
+  padding-inline: 0.6rem;
+  border-radius: 0.5rem;
+  color: color-mix(in oklab, var(--sidebar-foreground) 88%, transparent);
   font-size: 0.8rem;
-  transition: color 150ms ease, background-color 150ms ease;
+  transition: background-color 150ms ease, color 150ms ease;
 }
 
 .epr-nav-link .epr-nav-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.65rem;
-  height: 1.65rem;
+  width: 1.5rem;
+  height: 1.5rem;
   flex: none;
-  border-radius: 999px;
-  transition: background-color 200ms ease, color 200ms ease, box-shadow 200ms ease,
-    transform 220ms cubic-bezier(0.34, 1.4, 0.64, 1);
 }
-.epr-nav-link .epr-nav-icon svg { width: 1rem; height: 1rem; }
+.epr-nav-link .epr-nav-icon svg { width: 1.125rem; height: 1.125rem; }
 .epr-nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* Collapsed rail: the button shrinks to a square, but its column doesn't —
+   without this the icon sits flush against the group's own padding instead
+   of centered in the 54px rail. */
+[data-collapsible="icon"] [data-sidebar="menu"] { align-items: center; }
+
 .epr-nav-link:hover:not([data-active="true"]) {
-  background: color-mix(in oklab, var(--sidebar-accent) 60%, transparent);
-  color: var(--sidebar-foreground);
-}
-.epr-nav-link:hover:not([data-active="true"]) .epr-nav-icon {
-  background: color-mix(in oklab, var(--sidebar-primary) 26%, transparent);
+  background: color-mix(in oklab, white 92%, var(--sidebar) 8%);
+  color: var(--sidebar);
 }
 
-/* 1. The rail. */
 .epr-nav-link[data-active="true"] {
-  background: var(--epr-rail);
-  border-radius: 999px 0 0 999px;
-  padding-right: 0.5rem;
+  background: color-mix(in oklab, white 97%, var(--sidebar) 3%);
   color: var(--sidebar-primary);
-  font-weight: 700;
+  font-weight: 600;
 }
-
-/* 2. The puck. */
-.epr-nav-link[data-active="true"] .epr-nav-icon {
-  background: var(--sidebar-primary);
-  color: var(--sidebar-primary-foreground);
-  box-shadow: 0 3px 8px color-mix(in oklab, var(--sidebar-primary) 50%, transparent);
-  transform: scale(1.06);
-}
-
-/* 3. The fillets. */
-.epr-nav-item:has(.epr-nav-link[data-active="true"])::before,
-.epr-nav-item:has(.epr-nav-link[data-active="true"])::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  width: 0.85rem;
-  height: 0.85rem;
-  background: var(--epr-rail);
-  pointer-events: none;
-}
-/* Above: keep the corner nearest the rail, curve away from it. */
-.epr-nav-item:has(.epr-nav-link[data-active="true"])::before {
-  bottom: 100%;
-  -webkit-mask-image: radial-gradient(circle at top left, transparent 0 0.85rem, black 0.85rem);
-  mask-image: radial-gradient(circle at top left, transparent 0 0.85rem, black 0.85rem);
-}
-.epr-nav-item:has(.epr-nav-link[data-active="true"])::after {
-  top: 100%;
-  -webkit-mask-image: radial-gradient(circle at bottom left, transparent 0 0.85rem, black 0.85rem);
-  mask-image: radial-gradient(circle at bottom left, transparent 0 0.85rem, black 0.85rem);
-}
-
-/* Collapsed rail: the puck alone carries the state; the tooltip carries the name. */
-[data-collapsible="icon"] .epr-nav-item:has(.epr-nav-link[data-active="true"]) { margin-right: 0; }
-[data-collapsible="icon"] .epr-nav-link[data-active="true"] {
-  padding-right: 0;
-  background: transparent;
-}
-[data-collapsible="icon"] .epr-nav-item:has(.epr-nav-link[data-active="true"])::before,
-[data-collapsible="icon"] .epr-nav-item:has(.epr-nav-link[data-active="true"])::after { display: none; }
 
 /* Group labels: quieter, so the items lead. */
 [data-slot="sidebar-group-label"] {
@@ -2515,9 +2455,7 @@
 [data-slot="sidebar-menu"] { gap: 0.1rem; }
 
 @media (prefers-reduced-motion: reduce) {
-  .epr-nav-link,
-  .epr-nav-link .epr-nav-icon { transition: none; }
-  .epr-nav-link[data-active="true"] .epr-nav-icon { transform: none; }
+  .epr-nav-link { transition: none; }
 }
 
 .dash-drawer-host { position: fixed; inset: 0; z-index: 50; display: flex; justify-content: flex-end; background: rgb(13 67 132 / 18%); }

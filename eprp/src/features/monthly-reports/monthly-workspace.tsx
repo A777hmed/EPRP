@@ -24,7 +24,12 @@ import type { Contact, MonthlyComment, MonthlyPlanItem, MonthlyReport } from "@/
 import { EmptyRow, type MonthlyReportBundle } from "./monthly-report-document";
 import { MONTHLY_UPDATE_TYPE_OPTIONS, MonthlyCommentForm } from "./monthly-comment-form";
 import { MonthlyManagementPanel } from "./monthly-management";
-import { WeeklyImportStrip } from "./monthly-report-view";
+import {
+  GLOBAL_MONTHLY_LINKS,
+  WeeklyImportStrip,
+  buildProjectMonthlyLinks,
+  type MonthlyReportLinks,
+} from "./monthly-report-view";
 import { useMonthlyBundle } from "./use-monthly-bundle";
 import {
   NOT_RECORDED,
@@ -321,7 +326,15 @@ function OverviewPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
   );
 }
 
-function WeeklyPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload: () => Promise<void> }) {
+function WeeklyPanel({
+  bundle,
+  reload,
+  links,
+}: {
+  bundle: MonthlyReportBundle;
+  reload: () => Promise<void>;
+  links: MonthlyReportLinks;
+}) {
   const imported = bundle.comments.filter((comment) => comment.sourceKind === "weekly").length;
 
   return (
@@ -363,7 +376,11 @@ function WeeklyPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload: 
                       <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
                     </td>
                     <td>
-                      <Link className="monthly-link" href={`/weekly-reports/${weekly.id}`}>
+                      <Link
+                        className="monthly-link"
+                        href={links.weeklyDetail(weekly.id)}
+                        prefetch={false}
+                      >
                         View
                       </Link>
                     </td>
@@ -849,7 +866,21 @@ function ApprovalPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
 
 /* -------------------------------- Workspace -------------------------------- */
 
-export function MonthlyWorkspaceView({ reportId }: { reportId: string }) {
+export function MonthlyWorkspaceView({
+  reportId,
+  projectId,
+}: {
+  reportId: string;
+  /**
+   * When set, this view's own actions stay under
+   * `/projects/[projectId]/...`. A plain string, not a links object — see
+   * `MonthlyReportView` for why.
+   */
+  projectId?: string;
+}) {
+  const links = projectId
+    ? buildProjectMonthlyLinks(projectId)
+    : GLOBAL_MONTHLY_LINKS;
   const { bundle, reload } = useMonthlyBundle(reportId);
   const [panel, setPanel] = React.useState<PanelKey>("overview");
 
@@ -874,13 +905,13 @@ export function MonthlyWorkspaceView({ reportId }: { reportId: string }) {
         </div>
         <div className="monthly-ws-header-actions">
           <Button asChild variant="outline">
-            <Link href={`/monthly-reports/${bundle.report.id}`}>
+            <Link href={links.detail(bundle.report.id)}>
               <Eye />
               View Report
             </Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href={`/monthly-reports/${bundle.report.id}/preview`}>Print Preview</Link>
+            <Link href={links.preview(bundle.report.id)}>Print Preview</Link>
           </Button>
         </div>
       </div>
@@ -896,7 +927,9 @@ export function MonthlyWorkspaceView({ reportId }: { reportId: string }) {
       <p className="monthly-ws-hint">{active.hint}</p>
 
       {panel === "overview" && <OverviewPanel bundle={bundle} reload={reload} />}
-      {panel === "weekly" && <WeeklyPanel bundle={bundle} reload={reload} />}
+      {panel === "weekly" && (
+        <WeeklyPanel bundle={bundle} reload={reload} links={links} />
+      )}
       {panel === "milestones" && <MilestonesPanel bundle={bundle} />}
       {panel === "comments" && <CommentsPanel bundle={bundle} reload={reload} />}
       {panel === "management" && <MonthlyManagementPanel bundle={bundle} reload={reload} />}

@@ -133,8 +133,51 @@ export interface WeeklyReportDetailViewProps {
   demoMode: boolean;
   viewerName?: string;
   viewerRoleLabel?: string;
-  backHref?: string;
   mode?: "detail" | "workspace";
+  /**
+   * When set, this view's own actions (Workspace, Preview, Edit, Duplicate,
+   * Archive, and the not-found back link) stay inside
+   * `/projects/[projectId]/...` instead of the global `/weekly-reports`
+   * routes, so the project sidebar never disappears. A plain string, not a
+   * links object: this prop crosses a Server → Client Component boundary
+   * (the project-scoped page is a Server Component), and functions cannot
+   * be serialized across that boundary. The actual href-building functions
+   * are constructed below, entirely on the client.
+   */
+  projectId?: string;
+}
+
+export interface WeeklyReportLinks {
+  detail: (reportId: string) => string;
+  workspace: (reportId: string) => string;
+  preview: (reportId: string) => string;
+  edit: (reportId: string) => string;
+  /** Where "back to reports" (not-found, post-archive) returns to. */
+  list: string;
+}
+
+const GLOBAL_WEEKLY_LINKS: WeeklyReportLinks = {
+  detail: (reportId) => `/weekly-reports/${reportId}`,
+  workspace: (reportId) => `/weekly-reports/${reportId}/workspace`,
+  preview: (reportId) => `/weekly-reports/${reportId}/preview`,
+  edit: (reportId) => `/weekly-reports/${reportId}/edit`,
+  list: "/weekly-reports",
+};
+
+/**
+ * Preview and Edit have no project-scoped alias yet, so they intentionally
+ * still fall back to the global routes rather than link to a page that
+ * doesn't exist.
+ */
+function buildProjectWeeklyLinks(projectId: string): WeeklyReportLinks {
+  return {
+    detail: (reportId) => `/projects/${projectId}/reports/weekly/${reportId}`,
+    workspace: (reportId) =>
+      `/projects/${projectId}/reports/weekly/${reportId}/workspace`,
+    preview: (reportId) => `/weekly-reports/${reportId}/preview`,
+    edit: (reportId) => `/weekly-reports/${reportId}/edit`,
+    list: `/projects/${projectId}/reporting?tab=weekly`,
+  };
 }
 
 /** /weekly-reports/[reportId] — the Weekly workspace for one project. */
@@ -146,9 +189,12 @@ export function WeeklyReportDetailView({
   demoMode,
   viewerName,
   viewerRoleLabel,
-  backHref,
   mode = "detail",
+  projectId,
 }: WeeklyReportDetailViewProps) {
+  const links = projectId
+    ? buildProjectWeeklyLinks(projectId)
+    : GLOBAL_WEEKLY_LINKS;
   const router = useRouter();
   const [report, setReport] = React.useState<WeeklyReport | null | undefined>();
   const [submissions, setSubmissions] = React.useState<WeeklySubmission[]>([]);
@@ -444,7 +490,7 @@ export function WeeklyReportDetailView({
         }
         action={
           <Button variant="outline" asChild>
-            <Link href="/weekly-reports">Back to Weekly Reports</Link>
+            <Link href={links.list}>Back to Weekly Reports</Link>
           </Button>
         }
       />
@@ -527,29 +573,42 @@ export function WeeklyReportDetailView({
           <>
             {mode === "workspace" && (
               <Button variant="outline" asChild>
-                <Link href={backHref ?? `/weekly-reports/${report.id}`}>
+                <Link href={links.detail(report.id)}>
                   <ArrowLeft data-icon="inline-start" aria-hidden="true" />
-                  Back to report
+                  Back to Report
+                </Link>
+              </Button>
+            )}
+            {/*
+             * Project context only — a global Weekly Report has no
+             * project Reporting tab to return to, and the register/sidebar
+             * already cover that case there.
+             */}
+            {mode === "detail" && projectId && (
+              <Button variant="outline" asChild>
+                <Link href={links.list}>
+                  <ArrowLeft data-icon="inline-start" aria-hidden="true" />
+                  Back to Reporting
                 </Link>
               </Button>
             )}
             {mode === "detail" && (
               <Button variant="outline" asChild>
-                <Link href={`/weekly-reports/${report.id}/workspace`}>
+                <Link href={links.workspace(report.id)}>
                   <ArrowRight data-icon="inline-start" aria-hidden="true" />
                   Open Workspace
                 </Link>
               </Button>
             )}
             <Button variant="outline" asChild>
-              <Link href={`/weekly-reports/${report.id}/preview`}>
+              <Link href={links.preview(report.id)}>
                 <Eye data-icon="inline-start" aria-hidden="true" />
                 Preview
               </Link>
             </Button>
             {mode === "detail" && isEditableReport(report) && editability.canEdit && (
               <Button variant="outline" asChild>
-                <Link href={`/weekly-reports/${report.id}/edit`}>
+                <Link href={links.edit(report.id)}>
                   <PenLine data-icon="inline-start" aria-hidden="true" />
                   Edit
                 </Link>
@@ -560,7 +619,7 @@ export function WeeklyReportDetailView({
               onClick={async () => {
                 const copy = await weeklyReportService.duplicate(report.id);
                 toast.success("Weekly report duplicated");
-                router.push(`/weekly-reports/${copy.id}`);
+                router.push(links.detail(copy.id));
               }}
             >
               <Copy data-icon="inline-start" aria-hidden="true" />
@@ -833,7 +892,7 @@ export function WeeklyReportDetailView({
             await weeklyReportService.archive(report.id);
             toast.success("Weekly report archived");
             setArchiveOpen(false);
-            router.push("/weekly-reports");
+            router.push(links.list);
           } catch (error) {
             // Stay on the report. Its status is unchanged and still displayed.
             toast.error(

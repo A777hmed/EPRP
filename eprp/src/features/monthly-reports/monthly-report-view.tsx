@@ -9,7 +9,7 @@ import * as React from "react";
 import { compilationMessage } from "./monthly-data";
 import Link from "next/link";
 import Image from "next/image";
-import { Eye, FilePlus2, PenLine, Plus, Printer, RefreshCw } from "lucide-react";
+import { ArrowLeft, Eye, FilePlus2, PenLine, Plus, Printer, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -23,9 +23,68 @@ import { useMonthlyBundle } from "./use-monthly-bundle";
 
 export { MonthlyReportsView, MonthlyNewView } from "./monthly-list-view";
 
+/**
+ * Where a Monthly view's own View/Workspace/Preview actions navigate, and
+ * where its Weekly cross-references go. Defaults to the global
+ * `/monthly-reports`/`/weekly-reports` routes; a project-scoped alias page
+ * overrides `detail`/`workspace`/`weeklyDetail`/`weeklyList` so those stay
+ * under `/projects/[projectId]/...` instead of dropping the project
+ * sidebar. `preview` has no project-scoped alias yet, so it intentionally
+ * always falls back to the global route rather than linking to a page that
+ * doesn't exist. `/monthly-reports/new` is an unrelated destination (create,
+ * not reference) and is left as-is.
+ */
+export interface MonthlyReportLinks {
+  detail: (reportId: string) => string;
+  workspace: (reportId: string) => string;
+  preview: (reportId: string) => string;
+  /** A referenced source Weekly report — project-scoped when available. */
+  weeklyDetail: (weeklyReportId: string) => string;
+  /** "← Weekly Reports": the project's own Weekly tab when scoped, the global list otherwise. */
+  weeklyList: string;
+  /** "← Back to Reporting": the project's Monthly tab when scoped, the global register otherwise. */
+  list: string;
+}
+
+export const GLOBAL_MONTHLY_LINKS: MonthlyReportLinks = {
+  detail: (reportId) => `/monthly-reports/${reportId}`,
+  workspace: (reportId) => `/monthly-reports/${reportId}/workspace`,
+  preview: (reportId) => `/monthly-reports/${reportId}/preview`,
+  weeklyDetail: (weeklyReportId) => `/weekly-reports/${weeklyReportId}`,
+  weeklyList: "/weekly-reports",
+  list: "/monthly-reports",
+};
+
+/**
+ * Preview has no project-scoped alias yet, so it intentionally still falls
+ * back to the global route rather than linking to a page that doesn't exist.
+ */
+export function buildProjectMonthlyLinks(projectId: string): MonthlyReportLinks {
+  return {
+    detail: (reportId) => `/projects/${projectId}/reports/monthly/${reportId}`,
+    workspace: (reportId) =>
+      `/projects/${projectId}/reports/monthly/${reportId}/workspace`,
+    preview: (reportId) => `/monthly-reports/${reportId}/preview`,
+    weeklyDetail: (weeklyReportId) =>
+      `/projects/${projectId}/reports/weekly/${weeklyReportId}`,
+    weeklyList: `/projects/${projectId}/reporting?tab=weekly`,
+    list: `/projects/${projectId}/reporting?tab=monthly`,
+  };
+}
+
 /* --------------------------------- Chrome ---------------------------------- */
 
-function MonthlyTopBar({ report, project, siblings }: { report: MonthlyReport; project: Project | null; siblings: MonthlyReport[] }) {
+function MonthlyTopBar({
+  report,
+  project,
+  siblings,
+  links,
+}: {
+  report: MonthlyReport;
+  project: Project | null;
+  siblings: MonthlyReport[];
+  links: MonthlyReportLinks;
+}) {
   const tabs = [report, ...siblings].sort((a, b) => b.reportingMonth.localeCompare(a.reportingMonth)).slice(0, 4);
 
   return (
@@ -35,20 +94,25 @@ function MonthlyTopBar({ report, project, siblings }: { report: MonthlyReport; p
         <strong>Monthly Progress Report</strong>
         <span className="monthly-app-divider" />
         <span className="monthly-project-selector">{project?.name ?? project?.shortName ?? project?.code ?? "Project"}</span>
-        <Link href="/weekly-reports" className="monthly-chrome-button">
+        <Link href={links.weeklyList} className="monthly-chrome-button">
           ← Weekly Reports
         </Link>
-        <Link href={`/monthly-reports/${report.id}/workspace`} className="monthly-chrome-button">
+        <Link href={links.workspace(report.id)} className="monthly-chrome-button">
           <PenLine /> Workspace
         </Link>
-        <Link href={`/monthly-reports/${report.id}/preview`} className="monthly-chrome-button">
+        <Link href={links.preview(report.id)} className="monthly-chrome-button">
           <Printer /> Print / Export PDF
         </Link>
       </div>
       <div className="monthly-month-tabs">
         <span>Monthly</span>
         {tabs.map((item) => (
-          <Link key={item.id} className={item.id === report.id ? "active" : ""} href={`/monthly-reports/${item.id}`}>
+          <Link
+            key={item.id}
+            className={item.id === report.id ? "active" : ""}
+            href={links.detail(item.id)}
+            prefetch={false}
+          >
             {getMonthLabel(item.reportingMonth)}
           </Link>
         ))}
@@ -106,7 +170,25 @@ export function WeeklyImportStrip({ reportId, importedCount, onDone }: { reportI
 
 /* ------------------------------- Report view ------------------------------- */
 
-export function MonthlyReportView({ reportId, mode = "detail" }: { reportId: string; mode?: "detail" | "preview" }) {
+export function MonthlyReportView({
+  reportId,
+  mode = "detail",
+  projectId,
+}: {
+  reportId: string;
+  mode?: "detail" | "preview";
+  /**
+   * When set, this view's own actions stay under
+   * `/projects/[projectId]/...`. A plain string, not a links object: this
+   * prop crosses a Server → Client Component boundary (the project-scoped
+   * page is a Server Component), and functions cannot be serialized across
+   * that boundary.
+   */
+  projectId?: string;
+}) {
+  const links = projectId
+    ? buildProjectMonthlyLinks(projectId)
+    : GLOBAL_MONTHLY_LINKS;
   const { bundle, siblings, reload } = useMonthlyBundle(reportId);
 
   if (bundle === undefined) return <LoadingState label="Loading Monthly Report…" />;
@@ -114,23 +196,35 @@ export function MonthlyReportView({ reportId, mode = "detail" }: { reportId: str
     return <EmptyState title="Monthly Report not found" description="This report is unavailable or you do not have access to it." icon={FilePlus2} />;
   }
 
-  if (mode === "preview") return <MonthlyPreviewStage bundle={bundle} />;
+  if (mode === "preview") return <MonthlyPreviewStage bundle={bundle} links={links} />;
 
   const importedCount = bundle.comments.filter((comment) => comment.sourceKind === "weekly").length;
 
   return (
     <div className="monthly-screen-stage">
-      <MonthlyTopBar report={bundle.report} project={bundle.project} siblings={siblings} />
+      <MonthlyTopBar report={bundle.report} project={bundle.project} siblings={siblings} links={links} />
       <WeeklyImportStrip reportId={bundle.report.id} importedCount={importedCount} onDone={reload} />
       <div className="monthly-stage-actions print:hidden">
+        {/*
+         * Project context only — a global Monthly Report has no project
+         * Reporting tab to return to.
+         */}
+        {projectId && (
+          <Button asChild variant="outline">
+            <Link href={links.list}>
+              <ArrowLeft />
+              Back to Reporting
+            </Link>
+          </Button>
+        )}
         <Button asChild>
-          <Link href={`/monthly-reports/${bundle.report.id}/workspace`}>
+          <Link href={links.workspace(bundle.report.id)}>
             <PenLine />
             Open Workspace
           </Link>
         </Button>
         <Button asChild variant="outline">
-          <Link href={`/monthly-reports/${bundle.report.id}/preview`}>
+          <Link href={links.preview(bundle.report.id)}>
             <Eye />
             Print Preview
           </Link>
@@ -141,11 +235,17 @@ export function MonthlyReportView({ reportId, mode = "detail" }: { reportId: str
   );
 }
 
-function MonthlyPreviewStage({ bundle }: { bundle: MonthlyReportBundle }) {
+function MonthlyPreviewStage({
+  bundle,
+  links,
+}: {
+  bundle: MonthlyReportBundle;
+  links: MonthlyReportLinks;
+}) {
   return (
     <div className="monthly-preview-stage">
       <div className="monthly-preview-tools print:hidden">
-        <Link href={`/monthly-reports/${bundle.report.id}`}>← Back to report</Link>
+        <Link href={links.detail(bundle.report.id)}>← Back to report</Link>
         <Button onClick={() => window.print()}>
           <Printer />
           Print / Export PDF

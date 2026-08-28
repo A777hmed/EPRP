@@ -833,7 +833,11 @@ export function ExecutiveProjectDrilldown({
                           </StatusBadge>
                         </td>
                         <td className="exec-actions-col">
-                          <Link className="monthly-link" href={`/weekly-reports/${weekly.id}`}>
+                          <Link
+                            className="monthly-link"
+                            href={`/weekly-reports/${weekly.id}`}
+                            prefetch={false}
+                          >
                             View →
                           </Link>
                         </td>
@@ -883,7 +887,11 @@ export function ExecutiveProjectDrilldown({
                         </StatusBadge>
                       </td>
                       <td className="exec-actions-col">
-                        <Link className="monthly-link" href={`/monthly-reports/${report.id}`}>
+                        <Link
+                          className="monthly-link"
+                          href={`/monthly-reports/${report.id}`}
+                          prefetch={false}
+                        >
                           View →
                         </Link>
                       </td>
