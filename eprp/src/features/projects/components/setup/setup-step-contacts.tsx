@@ -14,6 +14,7 @@ import { EmptyState, SectionCard } from "@/components/shared";
 import {
   ManagedMultiSelect,
   ManagedPersonSelect,
+  MasterDataDialog,
 } from "@/features/master-data";
 import type {
   Contact,
@@ -22,15 +23,11 @@ import type {
   Project,
   ProjectTeamMember,
 } from "@/types";
-import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  withProjectContext,
-  type ProjectLinkContext,
-} from "../../project-link-context";
+import { type ProjectLinkContext } from "../../project-link-context";
 import type { HierarchyTerms } from "@/config/project-terminology";
 import {
   compareTeamDisplayOrder,
@@ -53,7 +50,6 @@ export interface SetupStepContactsProps {
   departmentName: (id: string) => string;
   onDraftChange: (patch: Partial<Project>) => void;
   initialDisciplineId?: string;
-  onBeforeAddContact: () => Promise<boolean>;
 }
 
 /**
@@ -62,6 +58,14 @@ export interface SetupStepContactsProps {
  * Choosing a discipline fixes the Project assignment scope. Team Members may
  * come from another home Department; the assignment remains explicit and the
  * Person record is never moved.
+ *
+ * "Add Contact" creates a Person without leaving the step, using the same
+ * shared dialog the pickers below open from "Add new person". It deliberately
+ * does NOT select the new Person anywhere: creating someone in the People
+ * master list and giving them a role on this project are separate decisions,
+ * and the pickers refresh from the shared store on their own, so the new
+ * Person is immediately available to choose. Navigating to /contacts/new
+ * instead dropped the project sidebar and needed a save-and-return round trip.
  */
 export function SetupStepContacts({
   project,
@@ -71,10 +75,8 @@ export function SetupStepContacts({
   departmentName,
   onDraftChange,
   initialDisciplineId,
-  onBeforeAddContact,
   terms,
 }: SetupStepContactsProps) {
-  const router = useRouter();
   const team = React.useMemo(() => project.team ?? [], [project.team]);
 
   // Disciplines actually linked to this project, with their department.
@@ -99,7 +101,7 @@ export function SetupStepContacts({
         ? (initialDisciplineId ?? "")
         : (projectDisciplines[0]?.id ?? "")
   );
-  const [leavingForContact, setLeavingForContact] = React.useState(false);
+  const [addPersonOpen, setAddPersonOpen] = React.useState(false);
   const activeDiscipline = projectDisciplines.find(
     (discipline) => discipline.id === disciplineId
   );
@@ -250,22 +252,15 @@ export function SetupStepContacts({
   const disciplineName = (id: string) =>
     disciplines.find((discipline) => discipline.id === id)?.name ?? id;
 
-  const returnToCurrentDiscipline = context.returnTo
-    ? `${context.returnTo}${context.returnTo.includes("?") ? "&" : "?"}disciplineId=${encodeURIComponent(disciplineId)}`
+  /*
+   * Home Department for a Person created here, taken from the department that
+   * owns the selected scope item. Only preset when that actually resolves —
+   * otherwise the dialog opens blank and the user chooses, as the global page
+   * does. A Home Department is a property of the Person, not a project role.
+   */
+  const createPresetValues = activeDepartmentId
+    ? { departmentId: activeDepartmentId }
     : undefined;
-  const addContactHref = withProjectContext("/contacts/new", {
-    ...context,
-    sourceType: "discipline",
-    parentId: disciplineId,
-    departmentId: activeDepartmentId,
-    returnTo: returnToCurrentDiscipline,
-  });
-  const openAddContact = async () => {
-    setLeavingForContact(true);
-    const saved = await onBeforeAddContact();
-    if (saved) router.push(addContactHref);
-    else setLeavingForContact(false);
-  };
 
   // Departments that actually have people on them — assignment roles are per
   // department, while the picker above works per discipline.
@@ -301,11 +296,10 @@ export function SetupStepContacts({
           <Button
             variant="outline"
             size="sm"
-            onClick={openAddContact}
-            disabled={leavingForContact}
+            onClick={() => setAddPersonOpen(true)}
           >
             <Plus data-icon="inline-start" aria-hidden="true" />
-            {leavingForContact ? "Saving…" : "Add Contact"}
+            Add Contact
           </Button>
         }
       >
@@ -480,6 +474,17 @@ export function SetupStepContacts({
           onDraftChange={onDraftChange}
         />
       ))}
+
+      {/* No `onCreated`: the Person joins the shared People list and becomes
+          selectable in the pickers above, but is given no Department Manager
+          seat, Team Member row, or any other project assignment. */}
+      <MasterDataDialog
+        kind="contact"
+        open={addPersonOpen}
+        onOpenChange={setAddPersonOpen}
+        initialMode="create"
+        presetValues={createPresetValues}
+      />
     </div>
   );
 }

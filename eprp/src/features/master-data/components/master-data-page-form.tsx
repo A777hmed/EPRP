@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileX } from "lucide-react";
+import { FileX, Lock } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -143,6 +143,50 @@ export function MasterDataPageForm({
 
   if (isEdit && record === undefined) {
     return <LoadingState variant="page" label={`Loading ${singularLower}…`} />;
+  }
+
+  // Identity has not settled: hold rather than briefly rendering a form the
+  // account may not be entitled to.
+  if (!lifecycle.authorityResolved) {
+    return <LoadingState variant="page" label={`Loading ${singularLower}…`} />;
+  }
+
+  /*
+   * Master data is global reference data: every kind's INSERT/UPDATE/DELETE
+   * policy is `has_global_operational_authority()`, while SELECT is open. The
+   * create and edit ROUTES had no check at all, so any signed-in account could
+   * open /departments/new or /contacts/[id]/edit, fill the form, and press
+   * Archive or Delete — each of which RLS then refused.
+   *
+   * Refused at the page, not merely by hiding the buttons: this route exists
+   * only to mutate. Read-only list and detail views are untouched and remain
+   * open, which is where a non-administrator is sent.
+   */
+  if (!lifecycle.canMutate) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow={eyebrow}
+          title={isEdit ? `${singular} details` : `New ${singular}`}
+          description={`${plural} are managed centrally.`}
+        />
+        <SectionCard title="Managed centrally">
+          <EmptyState
+            icon={Lock}
+            title={`You do not manage ${plural.toLowerCase()}`}
+            description={`Creating and editing ${plural.toLowerCase()} is limited to Project Control and platform administrators. You can still view ${plural.toLowerCase()} and their details.`}
+            action={
+              <Button variant="outline" asChild>
+                <Link href={isEdit && recordId ? `${basePath}/${recordId}` : basePath}>
+                  {isEdit ? `View ${singularLower}` : `Back to ${plural}`}
+                </Link>
+              </Button>
+            }
+            className="py-8"
+          />
+        </SectionCard>
+      </div>
+    );
   }
 
   if (isEdit && record === null) {

@@ -63,6 +63,8 @@ import {
   SIGNED_OFF_STATUSES,
 } from "@/features/weekly-reports/utils";
 import { ConfirmDialog } from "@/components/shared";
+import { useCurrentIdentity } from "@/features/auth/use-current-identity";
+import { isProjectConsolidator } from "@/features/projects/assignment-rules";
 import { WeeklyStatusBadge } from "./weekly-status-badge";
 
 /**
@@ -129,6 +131,7 @@ const statusOrder: ReportStatus[] = [
 /** /weekly-reports — list with summary cards, filters, and row actions. */
 export function WeeklyReportsView() {
   const router = useRouter();
+  const identity = useCurrentIdentity();
   const [reports, setReports] = React.useState<WeeklyReport[] | null>(null);
   const [projects, setProjects] = React.useState<Map<string, Project>>(
     new Map()
@@ -175,6 +178,38 @@ export function WeeklyReportsView() {
 
   const projectName = (id: string) =>
     projects.get(id)?.shortName ?? projects.get(id)?.name ?? "—";
+
+  /*
+   * Raising, editing, duplicating and archiving a Weekly report are all
+   * `can_manage_reporting_workflow()`, which is a PER-PROJECT question: the
+   * same person can be Report Coordinator on one project and an ordinary team
+   * member on another. So it is answered per row, against that row's project,
+   * rather than once for the register.
+   *
+   * This global register previously offered all four to everyone. A Department
+   * User arriving from the sidebar was shown New / Edit / Duplicate / Archive
+   * on projects they only contribute a department comment to, and RLS refused
+   * each one on click.
+   */
+  const canManageReportingFor = React.useCallback(
+    (projectId: string): boolean => {
+      if (identity.isGlobalAuthority) return true;
+      const project = projects.get(projectId);
+      return project
+        ? isProjectConsolidator(project, identity.contactId)
+        : false;
+    },
+    [projects, identity]
+  );
+
+  /* The register-level "New" action is not tied to one row, so it is offered
+     when the account may raise a report on ANY project it can see. The create
+     page itself still resolves authority for the project actually chosen. */
+  const canRaiseAnyReport =
+    identity.isGlobalAuthority ||
+    [...projects.values()].some((project) =>
+      isProjectConsolidator(project, identity.contactId)
+    );
 
   const weekOptions = React.useMemo(() => {
     const weeks = new Set((reports ?? []).map((r) => r.weekNumber));
@@ -264,12 +299,14 @@ export function WeeklyReportsView() {
         title="Weekly Reports"
         description="Weekly progress reports collected from project departments."
         actions={
-          <Button asChild>
-            <Link href="/weekly-reports/new">
-              <Plus data-icon="inline-start" aria-hidden="true" />
-              New Weekly Report
-            </Link>
-          </Button>
+          canRaiseAnyReport ? (
+            <Button asChild>
+              <Link href="/weekly-reports/new">
+                <Plus data-icon="inline-start" aria-hidden="true" />
+                New Weekly Report
+              </Link>
+            </Button>
+          ) : undefined
         }
       />
 
@@ -356,14 +393,20 @@ export function WeeklyReportsView() {
         <EmptyState
           icon={FileText}
           title="No weekly reports yet"
-          description="Create the first weekly report to start collecting department input."
+          description={
+            canRaiseAnyReport
+              ? "Create the first weekly report to start collecting department input."
+              : "No weekly report has been raised on a project you are assigned to yet. Reports are raised by Project Control or the Report Coordinator."
+          }
           action={
-            <Button asChild>
-              <Link href="/weekly-reports/new">
-                <Plus data-icon="inline-start" aria-hidden="true" />
-                New Weekly Report
-              </Link>
-            </Button>
+            canRaiseAnyReport ? (
+              <Button asChild>
+                <Link href="/weekly-reports/new">
+                  <Plus data-icon="inline-start" aria-hidden="true" />
+                  New Weekly Report
+                </Link>
+              </Button>
+            ) : undefined
           }
         />
       ) : visible.length === 0 ? (
@@ -454,32 +497,40 @@ export function WeeklyReportsView() {
                               <Eye aria-hidden="true" /> View
                             </Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            asChild
-                            disabled={!isEditableReport(report)}
-                          >
-                            <Link href={`/weekly-reports/${report.id}/edit`}>
-                              <PenLine aria-hidden="true" /> Edit
-                            </Link>
-                          </DropdownMenuItem>
+                          {canManageReportingFor(report.projectId) && (
+                            <DropdownMenuItem
+                              asChild
+                              disabled={!isEditableReport(report)}
+                            >
+                              <Link href={`/weekly-reports/${report.id}/edit`}>
+                                <PenLine aria-hidden="true" /> Edit
+                              </Link>
+                            </DropdownMenuItem>
+                          )}
+                          {/* Reading and printing follow the report's own read
+                              policy, which already admits the contributors. */}
                           <DropdownMenuItem asChild>
                             <Link href={`/weekly-reports/${report.id}/preview`}>
                               <Printer aria-hidden="true" /> Preview / PDF
                             </Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDuplicate(report)}
-                          >
-                            <Copy aria-hidden="true" /> Duplicate
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            variant="destructive"
-                            disabled={report.status === "archived"}
-                            onClick={() => setArchiveTarget(report)}
-                          >
-                            <Archive aria-hidden="true" /> Archive
-                          </DropdownMenuItem>
+                          {canManageReportingFor(report.projectId) && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => handleDuplicate(report)}
+                              >
+                                <Copy aria-hidden="true" /> Duplicate
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                variant="destructive"
+                                disabled={report.status === "archived"}
+                                onClick={() => setArchiveTarget(report)}
+                              >
+                                <Archive aria-hidden="true" /> Archive
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

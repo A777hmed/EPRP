@@ -24,6 +24,8 @@ import type {
   ProjectPositionRow,
   ProjectSiteRow,
 } from "@/lib/supabase/database.types";
+// [reporting-perf] TEMPORARY diagnostic import — remove with src/lib/perf-temp.ts
+import { startTimer, timed } from "@/lib/perf-temp";
 import type { ProjectService } from "./project-service";
 
 /**
@@ -684,7 +686,13 @@ async function replaceTeam(
   }));
   const withAssignment = team.map((member, index) => ({
     ...base[index],
-    assignment_role: member.assignmentRole ?? null,
+    // An ordinary Team Member carries no explicit Assignment Role — the UI
+    // (`assignment-rules.ts`'s `roleOf`) already treats that as "team_member"
+    // for display and scope. Persist that same default explicitly: the RLS
+    // predicate `is_department_user()` requires the literal value and NULL
+    // never satisfies its `IN` check, so an implicit member would render as
+    // editable while every department-scoped write was silently refused.
+    assignment_role: member.assignmentRole ?? "team_member",
     functional_title: member.functionalTitle ?? null,
     reports_to_contact_id: member.reportsToContactId ?? null,
   }));
@@ -965,14 +973,18 @@ export const supabaseProjectService: ProjectService = {
 
   async getProjectById(id) {
     if (!isUuid(id)) return null;
-    const { data, error } = await client()
-      .from("projects")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
+    // [reporting-perf] TEMPORARY — see src/lib/perf-temp.ts. Remove with it.
+    const doneTotal = startTimer("getProjectById.TOTAL");
+    const { data, error } = await timed("getProjectById.baseRow", async () =>
+      client().from("projects").select("*").eq("id", id).maybeSingle()
+    );
     if (error) throw new Error(error.message);
-    if (!data) return null;
+    if (!data) {
+      doneTotal();
+      return null;
+    }
     const row = data as ProjectRow;
+    const doneGroup = startTimer("getProjectById.childGroup");
     const [
       deptRows,
       disciplineRows,
@@ -981,13 +993,15 @@ export const supabaseProjectService: ProjectService = {
       siteRows,
       positionRows,
     ] = await Promise.all([
-      fetchDepartmentRows([row.id]),
-      fetchDisciplineRows([row.id]),
-      fetchTeamRows([row.id]),
-      fetchDelegationRows([row.id]),
-      fetchProjectSiteRows([row.id]),
-      fetchProjectPositionRows([row.id]),
+      timed("getProjectById.departments", () => fetchDepartmentRows([row.id])),
+      timed("getProjectById.disciplines", () => fetchDisciplineRows([row.id])),
+      timed("getProjectById.team", () => fetchTeamRows([row.id])),
+      timed("getProjectById.delegations", () => fetchDelegationRows([row.id])),
+      timed("getProjectById.sites", () => fetchProjectSiteRows([row.id])),
+      timed("getProjectById.positions", () => fetchProjectPositionRows([row.id])),
     ]);
+    doneGroup();
+    doneTotal();
     return rowToProject(
       row,
       deptRows.get(row.id) ?? [],

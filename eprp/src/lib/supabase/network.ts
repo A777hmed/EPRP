@@ -100,25 +100,67 @@ function delay(ms: number): Promise<void> {
  * times. Any HTTP response — 400, 401, 500 — is returned untouched, so real
  * authentication failures still surface immediately and nothing is masked.
  */
+/**
+ * [reporting-perf] TEMPORARY — endpoint CATEGORY only, never the URL itself
+ * and never a token. Enough to tell an auth round trip from a data one.
+ */
+function endpointCategory(input: RequestInfo | URL): string {
+  const url = requestUrl(input);
+  const path = url.slice(url.indexOf("/", url.indexOf("//") + 2));
+  if (path.startsWith("/auth/v1/token")) return "auth:token-refresh";
+  if (path.startsWith("/auth/v1/user")) return "auth:user";
+  if (path.startsWith("/auth/v1/")) return "auth:other";
+  if (path.startsWith("/rest/v1/")) return "rest";
+  return "other";
+}
+
 export function createRetryingFetch(baseFetch?: typeof fetch): typeof fetch {
   const send: typeof fetch =
     baseFetch ?? ((input, init) => globalThis.fetch(input, init));
 
   return async function retryingFetch(input, init) {
     for (let attempt = 0; ; attempt += 1) {
+      /* [reporting-perf] TEMPORARY — see src/lib/perf-temp.ts. Measures the
+         RAW round trip for one attempt. Comparing this with the outer
+         `auth.getUser` timing separates network time from time the runtime
+         spent not scheduling the continuation. */
+      const started = performance.now();
       try {
-        return await send(input, withTimeout(init));
+        const response = await send(input, withTimeout(init));
+        reportFetch(endpointCategory(input), attempt, performance.now() - started, "ok");
+        return response;
       } catch (error) {
+        const elapsed = performance.now() - started;
         const canRetry =
           attempt < RETRY_DELAYS_MS.length &&
           isTransportFailure(error) &&
           isReplayable(input, init);
+
+        reportFetch(
+          endpointCategory(input),
+          attempt,
+          elapsed,
+          isOwnTimeout(error) ? "TIMEOUT" : canRetry ? "retrying" : "failed"
+        );
 
         if (!canRetry) throw error;
         await delay(RETRY_DELAYS_MS[attempt]);
       }
     }
   };
+}
+
+/** [reporting-perf] TEMPORARY — remove with the instrumentation. */
+function reportFetch(
+  category: string,
+  attempt: number,
+  ms: number,
+  outcome: string
+): void {
+  const where = typeof window === "undefined" ? "server" : "client";
+  console.log(
+    `[reporting-perf] ${where}:fetch ${category} attempt=${attempt} ${Math.round(ms)}ms ${outcome}`
+  );
 }
 
 /**

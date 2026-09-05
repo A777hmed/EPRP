@@ -41,8 +41,10 @@ import {
 } from "@/config/project-sections";
 import { projectWorkflowHref } from "@/config/project-workflow";
 import { ASSIGNMENT_ROLE_META } from "@/lib/constants";
+import { useCurrentIdentity } from "@/features/auth/use-current-identity";
 import { withProjectContext } from "../../project-link-context";
 import { useHierarchyTerms } from "../../use-hierarchy-terms";
+import { useProjectAuthority } from "../../use-project-authority";
 import { ProjectSectionLayout } from "./project-section-layout";
 import {
   compareTeamDisplayOrder,
@@ -141,6 +143,14 @@ export function ProjectScopeSection({
   const [disciplineId, setDisciplineId] = React.useState("");
 
   const terms = useHierarchyTerms(project);
+  /*
+   * Two different policies meet on this screen, so both are resolved:
+   *   Add / Edit a master record -> `has_global_operational_authority()`
+   *   Manage in setup            -> `can_manage_project_setup()`
+   * Reading the list is neither, and stays open.
+   */
+  const { isGlobalAuthority: canManageMasterData } = useCurrentIdentity();
+  const { canManageOperations: canManageSetup } = useProjectAuthority(project);
   // Display only — basePath, setupStep, icon and kind are untouched.
   const base = KIND_META[kind];
   const meta =
@@ -387,12 +397,17 @@ export function ProjectScopeSection({
       title={`${meta.plural} on this project`}
       description={description}
       action={
-        <Button variant="outline" size="sm" asChild>
-          <Link href={withProjectContext(`${meta.basePath}/new`, addContext)}>
-            <Plus data-icon="inline-start" aria-hidden="true" />
-            Add {meta.singular}
-          </Link>
-        </Button>
+        // "Add" leads to a master-data create route, whose policy is
+        // `has_global_operational_authority()` — not this project's operations
+        // authority. The list below stays readable either way.
+        canManageMasterData ? (
+          <Button variant="outline" size="sm" asChild>
+            <Link href={withProjectContext(`${meta.basePath}/new`, addContext)}>
+              <Plus data-icon="inline-start" aria-hidden="true" />
+              Add {meta.singular}
+            </Link>
+          </Button>
+        ) : undefined
       }
       filters={
         <FilterBar activeCount={activeFilters} onReset={resetFilters}>
@@ -484,17 +499,23 @@ export function ProjectScopeSection({
       }
       quickActions={
         <>
-          <Button variant="outline" size="sm" asChild>
-            <Link href={withProjectContext(`${meta.basePath}/new`, addContext)}>
-              <Plus data-icon="inline-start" aria-hidden="true" />
-              Add {meta.singular}
-            </Link>
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href={projectWorkflowHref(project.id, meta.setupStep)}>
-              Manage in setup
-            </Link>
-          </Button>
+          {canManageMasterData && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={withProjectContext(`${meta.basePath}/new`, addContext)}>
+                <Plus data-icon="inline-start" aria-hidden="true" />
+                Add {meta.singular}
+              </Link>
+            </Button>
+          )}
+          {/* "Manage in setup" is the project's own setup wizard, which is
+              project-operations authority, not master data. */}
+          {canManageSetup && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={projectWorkflowHref(project.id, meta.setupStep)}>
+                Manage in setup
+              </Link>
+            </Button>
+          )}
           <Button variant="outline" size="sm" asChild>
             <Link href={meta.basePath}>All {pluralLower}</Link>
           </Button>
@@ -574,6 +595,7 @@ export function ProjectScopeSection({
                               Open
                             </Link>
                           </Button>
+                          {canManageMasterData && (
                           <Button variant="outline" size="sm" asChild>
                             <Link
                               href={withProjectContext(
@@ -588,6 +610,7 @@ export function ProjectScopeSection({
                               Edit
                             </Link>
                           </Button>
+                          )}
                         </span>
                       ) : (
                         <Button variant="outline" size="sm" asChild>

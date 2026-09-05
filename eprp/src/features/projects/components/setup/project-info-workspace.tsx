@@ -282,9 +282,6 @@ export function ProjectInfoWorkspace({
           departmentName={workflow.departmentName}
           onDraftChange={applyDraft}
           terms={workflow.terms}
-          onBeforeAddContact={
-            teamDirty ? () => save("team") : async () => true
-          }
         />
       ),
     },

@@ -253,11 +253,15 @@ async function childIdsByReport(
 }
 
 export const supabaseWeeklyReportService: WeeklyReportService = {
-  async list() {
-    const { data, error } = await client()
+  async list(projectId) {
+    let query = client()
       .from("weekly_reports")
       .select("*")
       .order("period_start", { ascending: false });
+    // Narrowing here also narrows the three child reads below, which are keyed
+    // off the ids this query returns.
+    if (projectId) query = query.eq("project_id", projectId);
+    const { data, error } = await query;
     if (error) throw new Error(error.message);
     const rows = (data ?? []) as WeeklyReportRow[];
     const ids = rows.map((r) => r.id);

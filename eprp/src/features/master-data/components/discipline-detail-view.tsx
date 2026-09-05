@@ -137,42 +137,45 @@ export function DisciplineDetailView({
           `${context.projectId ? terms.singular : "Discipline"} master data.`
         }
         actions={
-          <>
-            <Button variant="outline" asChild>
-              <Link href={addContactHref}>
-                <UserPlus data-icon="inline-start" aria-hidden="true" />
-                Add Contact
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link
-                href={withProjectContext(
-                  `/disciplines/${discipline.id}/edit`,
-                  context
-                )}
-              >
-                <PenLine data-icon="inline-start" aria-hidden="true" />
-                Edit
-              </Link>
-            </Button>
-            {discipline.active ? (
-              <Button
-                variant="destructive"
-                onClick={() => actions.requestArchive(discipline)}
-              >
-                <Archive data-icon="inline-start" aria-hidden="true" />
-                Archive
+          // `has_global_operational_authority()` — see department-detail-view.
+          actions.canMutate ? (
+            <>
+              <Button variant="outline" asChild>
+                <Link href={addContactHref}>
+                  <UserPlus data-icon="inline-start" aria-hidden="true" />
+                  Add Contact
+                </Link>
               </Button>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={() => actions.requestRestore(discipline)}
-              >
-                <ArchiveRestore data-icon="inline-start" aria-hidden="true" />
-                Restore
+              <Button variant="outline" asChild>
+                <Link
+                  href={withProjectContext(
+                    `/disciplines/${discipline.id}/edit`,
+                    context
+                  )}
+                >
+                  <PenLine data-icon="inline-start" aria-hidden="true" />
+                  Edit
+                </Link>
               </Button>
-            )}
-          </>
+              {discipline.active ? (
+                <Button
+                  variant="destructive"
+                  onClick={() => actions.requestArchive(discipline)}
+                >
+                  <Archive data-icon="inline-start" aria-hidden="true" />
+                  Archive
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => actions.requestRestore(discipline)}
+                >
+                  <ArchiveRestore data-icon="inline-start" aria-hidden="true" />
+                  Restore
+                </Button>
+              )}
+            </>
+          ) : undefined
         }
       />
 

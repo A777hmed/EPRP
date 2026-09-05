@@ -229,6 +229,17 @@ export function MonthlyReportsView({ role }: { role?: UserRole }) {
     [role, isGlobalAuthority, viewerContactId, projects]
   );
 
+  /* The register-level "New" action is not tied to one report, so it asks the
+     same question across the projects the account can see. The create page
+     resolves authority again for the project actually chosen. */
+  const canRaiseAnyReport =
+    Boolean(role) &&
+    (isGlobalAuthority ||
+      (Boolean(viewerContactId) &&
+        projects.some((project) =>
+          isProjectConsolidator(project, viewerContactId)
+        )));
+
   if (!reports) return <LoadingState label="Loading Monthly Reports…" />;
 
   const projectName = (id: string) => projects.find((project) => project.id === id)?.name ?? NOT_RECORDED;
@@ -257,12 +268,18 @@ export function MonthlyReportsView({ role }: { role?: UserRole }) {
           <h1>Monthly Reports</h1>
           <span>Consolidated Monthly Progress Reports across every project you can access.</span>
         </div>
-        <Button asChild>
-          <Link href="/monthly-reports/new">
-            <FilePlus2 />
-            New Monthly Report
-          </Link>
-        </Button>
+        {/* Row actions were already per-project via `canEditReport`; this
+            register-level action was not. Raising a Monthly is the same
+            `can_manage_reporting_workflow()` predicate, so it is offered only
+            to an account that holds it on at least one accessible project. */}
+        {canRaiseAnyReport && (
+          <Button asChild>
+            <Link href="/monthly-reports/new">
+              <FilePlus2 />
+              New Monthly Report
+            </Link>
+          </Button>
+        )}
       </div>
 
       <div className="monthly-counter-row">
@@ -372,10 +389,29 @@ export function MonthlyReportsView({ role }: { role?: UserRole }) {
 
 /* ------------------------------- Create screen ----------------------------- */
 
-export function MonthlyNewView() {
+export interface MonthlyNewViewProps {
+  /**
+   * Create against ONE fixed project and stay inside it afterwards.
+   *
+   * Set by `/projects/[projectId]/reports/monthly/new`. The project selector
+   * is replaced by the fixed project, and both exits return to project-scoped
+   * routes. Omitted on the global `/monthly-reports/new`, which keeps its
+   * selector and global destinations.
+   *
+   * The creation itself is untouched in both cases — same
+   * `monthlyReportService.create` followed by `compileFromWeeklies`, so the
+   * Weekly-consolidation governance rule is applied identically however the
+   * form was reached.
+   */
+  projectId?: string;
+}
+
+export function MonthlyNewView({
+  projectId: fixedProjectId,
+}: MonthlyNewViewProps = {}) {
   const router = useRouter();
   const [projects, setProjects] = React.useState<Project[]>([]);
-  const [projectId, setProjectId] = React.useState("");
+  const [projectId, setProjectId] = React.useState(fixedProjectId ?? "");
   const [month, setMonth] = React.useState(format(new Date(), "yyyy-MM"));
   const [creating, setCreating] = React.useState(false);
 
@@ -395,7 +431,11 @@ export function MonthlyNewView() {
     try {
       const report = await monthlyReportService.create(projectId, `${month}-01`);
       await monthlyReportService.compileFromWeeklies(report.id);
-      router.push(`/monthly-reports/${report.id}/workspace`);
+      router.push(
+        fixedProjectId
+          ? `/projects/${fixedProjectId}/reports/monthly/${report.id}/workspace`
+          : `/monthly-reports/${report.id}/workspace`
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not create the Monthly Report.");
       setCreating(false);
@@ -413,14 +453,26 @@ export function MonthlyNewView() {
         <div className="monthly-create-grid">
           <label>
             Project
-            <select value={projectId} onChange={(event) => setProjectId(event.target.value)}>
-              <option value="">Select a project</option>
-              {projects.map((project) => (
-                <option value={project.id} key={project.id}>
-                  {project.name}
+            {fixedProjectId ? (
+              // Fixed by the route. Rendered as the project's NAME, never its
+              // id, and disabled rather than removed so the field still reads
+              // as part of the form.
+              <select value={fixedProjectId} disabled>
+                <option value={fixedProjectId}>
+                  {projects.find((project) => project.id === fixedProjectId)
+                    ?.name ?? "This project"}
                 </option>
-              ))}
-            </select>
+              </select>
+            ) : (
+              <select value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+                <option value="">Select a project</option>
+                {projects.map((project) => (
+                  <option value={project.id} key={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </label>
           <label>
             Reporting Month
@@ -436,7 +488,15 @@ export function MonthlyNewView() {
             {creating ? "Creating…" : "Create Monthly Report"}
           </Button>
           <Button asChild variant="outline">
-            <Link href="/monthly-reports">Cancel</Link>
+            <Link
+              href={
+                fixedProjectId
+                  ? `/projects/${fixedProjectId}/reporting?tab=monthly`
+                  : "/monthly-reports"
+              }
+            >
+              Cancel
+            </Link>
           </Button>
         </div>
       </div>

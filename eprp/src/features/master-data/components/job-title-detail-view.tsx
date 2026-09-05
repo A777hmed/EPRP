@@ -100,29 +100,32 @@ export function JobTitleDetailView({ jobTitleId }: JobTitleDetailViewProps) {
           "Job title master data. A label only — it grants no access."
         }
         actions={
-          <>
-            <Button variant="outline" onClick={() => setEditing(true)}>
-              <PenLine data-icon="inline-start" aria-hidden="true" />
-              Edit
-            </Button>
-            {jobTitle.active ? (
-              <Button
-                variant="destructive"
-                onClick={() => actions.requestArchive(jobTitle)}
-              >
-                <Archive data-icon="inline-start" aria-hidden="true" />
-                Archive
+          // `has_global_operational_authority()` — see department-detail-view.
+          actions.canMutate ? (
+            <>
+              <Button variant="outline" onClick={() => setEditing(true)}>
+                <PenLine data-icon="inline-start" aria-hidden="true" />
+                Edit
               </Button>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={() => actions.requestRestore(jobTitle)}
-              >
-                <ArchiveRestore data-icon="inline-start" aria-hidden="true" />
-                Restore
-              </Button>
-            )}
-          </>
+              {jobTitle.active ? (
+                <Button
+                  variant="destructive"
+                  onClick={() => actions.requestArchive(jobTitle)}
+                >
+                  <Archive data-icon="inline-start" aria-hidden="true" />
+                  Archive
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => actions.requestRestore(jobTitle)}
+                >
+                  <ArchiveRestore data-icon="inline-start" aria-hidden="true" />
+                  Restore
+                </Button>
+              )}
+            </>
+          ) : undefined
         }
       />
 

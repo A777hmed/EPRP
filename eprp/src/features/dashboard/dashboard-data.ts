@@ -23,6 +23,7 @@
 
 import * as React from "react";
 
+import { useCurrentIdentity } from "@/features/auth/use-current-identity";
 import { isoDate, todayIso } from "@/features/calendar/calendar-types";
 import { useMasterData } from "@/features/master-data";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -100,6 +101,7 @@ export function useDashboardData(): DashboardData {
   const { records: departmentRecords } = useMasterData("department");
   const { records: contactRecords } = useMasterData("contact");
   const { records: clientRecords } = useMasterData("client");
+  const identity = useCurrentIdentity();
 
   const [projects, setProjects] = React.useState<Project[]>([]);
   const [weeklies, setWeeklies] = React.useState<WeeklyReport[]>([]);
@@ -119,21 +121,68 @@ export function useDashboardData(): DashboardData {
     let cancelled = false;
 
     const run = async () => {
+      /*
+       * Scope is part of the question, not a filter applied afterwards. Loading
+       * before the identity settles would compute a portfolio for "nobody" and
+       * paint an empty dashboard that then re-populated — so hold the loading
+       * state until it is known. The effect re-runs when it resolves.
+       */
+      if (!identity.resolved) return;
       setLoading(true);
       setError(undefined);
       try {
-        const [projectList, weeklyList, monthlyList] = await Promise.all([
-          projectService.getProjects(),
-          weeklyReportService.list(),
-          monthlyReportService.list(),
-        ]);
+        /*
+         * `loadUpcomingMilestones` used to be awaited AFTER this block, as a
+         * second sequential stage. Its two queries do not depend on the
+         * project list at all — they read `weekly_plan_items` /
+         * `monthly_plan_items` directly, and the list is used only to put a
+         * NAME on each row afterwards. So it belongs in the same wave, and
+         * the naming pass moves below where the list is known.
+         */
+        const [allProjects, weeklyList, monthlyList, upcoming] =
+          await Promise.all([
+            projectService.getProjects(),
+            weeklyReportService.list(),
+            monthlyReportService.list(),
+            loadUpcomingMilestones(),
+          ]);
         if (cancelled) return;
+
+        /*
+         * ONE PROJECT UNIVERSE, DECIDED IN ONE PLACE.
+         *
+         * This used to re-filter the list in React, because `projects_select`
+         * was `USING (true)` and handed every project to every reader — so the
+         * Dashboard showed one project while the Projects register showed five,
+         * and a Department User was told "0 of 5 reporting coverage" about four
+         * projects that were not theirs.
+         *
+         * `projects_select` is now `can_access_project(id)`, so the query
+         * itself returns exactly the reader's projects. Filtering again here
+         * would be a second implementation of the rule that could drift from
+         * the first — the defect this whole pass exists to remove. The
+         * Dashboard, the Projects register, every project picker and every
+         * report loader now get their universe from the same place.
+         *
+         * "Absence is never zero" (§7.3) is unaffected: a project with no
+         * report still contributes to no average and counts as Not Reported.
+         */
+        const projectList = allProjects;
+
         setProjects(projectList);
         setWeeklies(weeklyList);
         setMonthlies(monthlyList);
 
-        const upcoming = await loadUpcomingMilestones(projectList);
-        if (!cancelled) setMilestones(upcoming);
+        // Names resolved now that the project list is known — the rows
+        // themselves were already fetched in the wave above.
+        const nameOf = (id: string) =>
+          projectList.find((project) => project.id === id)?.name ?? "Project";
+        setMilestones(
+          upcoming.map((milestone) => ({
+            ...milestone,
+            projectName: nameOf(milestone.projectId),
+          }))
+        );
       } catch (cause) {
         if (!cancelled) {
           setError(cause instanceof Error ? cause.message : "Could not load dashboard data.");
@@ -147,7 +196,7 @@ export function useDashboardData(): DashboardData {
     return () => {
       cancelled = true;
     };
-  }, [reloadToken]);
+  }, [reloadToken, identity]);
 
   return {
     loading,
@@ -170,10 +219,13 @@ export function useDashboardData(): DashboardData {
  * items one report at a time — rendering the panel would otherwise cost a round
  * trip per report. RLS still applies, so a reader sees only their own projects.
  */
-async function loadUpcomingMilestones(projects: Project[]): Promise<DashboardMilestone[]> {
+async function loadUpcomingMilestones(): Promise<DashboardMilestone[]> {
   const client = getSupabaseBrowserClient();
   const today = todayIso();
-  const nameOf = (id: string) => projects.find((p) => p.id === id)?.name ?? "Project";
+  /* `projectName` is filled in by the caller once the project list is known —
+     this function no longer waits for it, so both can be fetched at once.
+     The placeholder below is always replaced before the rows are rendered. */
+  const nameOf = () => "Project";
 
   const [weekly, monthly] = await Promise.all([
     client
@@ -202,7 +254,7 @@ async function loadUpcomingMilestones(projects: Project[]): Promise<DashboardMil
     out.push({
       id: `w-${row.id}`,
       projectId: row.weekly_reports.project_id,
-      projectName: nameOf(row.weekly_reports.project_id),
+      projectName: nameOf(),
       departmentId: row.department_id ?? undefined,
       title: row.title,
       dueDate: row.end_date,
@@ -216,7 +268,7 @@ async function loadUpcomingMilestones(projects: Project[]): Promise<DashboardMil
     out.push({
       id: `m-${row.id}`,
       projectId: row.monthly_reports.project_id,
-      projectName: nameOf(row.monthly_reports.project_id),
+      projectName: nameOf(),
       departmentId: row.department_id ?? undefined,
       title: row.title,
       dueDate: row.target_date,

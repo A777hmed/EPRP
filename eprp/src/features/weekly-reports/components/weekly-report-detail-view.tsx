@@ -23,9 +23,15 @@ import {
   SectionCard,
 } from "@/components/shared";
 import { REPORT_STATUS_META } from "@/lib/constants";
+import { formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { weeklyWorkflow, type WorkflowStatus } from "@/config/workflows";
 import { getProjectTypeById, useMasterData } from "@/features/master-data";
+import {
+  ProjectReportingShell,
+  ReportContextHeader,
+  ReportTypeTabs,
+} from "@/features/projects/components/sections/project-reporting-shell";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
 import type {
@@ -559,6 +565,26 @@ export function WeeklyReportDetailView({
   };
 
   return (
+    <ProjectReportingShell
+      header={
+        <ReportContextHeader
+          projectCode={project?.code}
+          projectName={project?.shortName ?? project?.name ?? "Project"}
+          period={`Week ${String(report.weekNumber).padStart(2, "0")} · ${formatDate(report.periodStart)} – ${formatDate(report.periodEnd)}`}
+          status={{
+            label: REPORT_STATUS_META[report.status].label,
+            tone: REPORT_STATUS_META[report.status].tone,
+          }}
+          preparedBy={names.person(report.preparedByContactId)?.name}
+          updatedAt={formatDate(report.updatedAt)}
+        />
+      }
+      tabs={
+        projectId ? (
+          <ReportTypeTabs projectId={projectId} active="weekly" />
+        ) : undefined
+      }
+    >
     <div className="space-y-6">
       <WeeklyWorkspaceHeader
         report={report}
@@ -614,23 +640,38 @@ export function WeeklyReportDetailView({
                 </Link>
               </Button>
             )}
-            {mode === "detail" && <Button
-              variant="outline"
-              onClick={async () => {
-                const copy = await weeklyReportService.duplicate(report.id);
-                toast.success("Weekly report duplicated");
-                router.push(links.detail(copy.id));
-              }}
-            >
-              <Copy data-icon="inline-start" aria-hidden="true" />
-              Duplicate
-            </Button>}
-            {mode === "detail" && report.status !== "archived" && (
-              <Button variant="destructive" onClick={() => setArchiveOpen(true)}>
-                <Archive data-icon="inline-start" aria-hidden="true" />
-                Archive
+            {/*
+              Duplicate creates a new Weekly report and Archive changes this
+              one's lifecycle status — both are `can_manage_reporting_workflow()`,
+              not reading. They were gated on `mode === "detail"` alone, so an
+              ordinary Department User opening a report in their own project
+              was offered both and refused by RLS on click.
+              `scope.canConsolidate` is the existing mirror of that predicate
+              (true for the global authorities and for the assigned Project
+              Control / Report Coordinator), and it is already resolved on the
+              server and passed into this view — no second lookup, no new rule.
+            */}
+            {mode === "detail" && scope?.canConsolidate && (
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  const copy = await weeklyReportService.duplicate(report.id);
+                  toast.success("Weekly report duplicated");
+                  router.push(links.detail(copy.id));
+                }}
+              >
+                <Copy data-icon="inline-start" aria-hidden="true" />
+                Duplicate
               </Button>
             )}
+            {mode === "detail" &&
+              scope?.canConsolidate &&
+              report.status !== "archived" && (
+                <Button variant="destructive" onClick={() => setArchiveOpen(true)}>
+                  <Archive data-icon="inline-start" aria-hidden="true" />
+                  Archive
+                </Button>
+              )}
           </>
         }
       />
@@ -904,5 +945,6 @@ export function WeeklyReportDetailView({
         }}
       />
     </div>
+    </ProjectReportingShell>
   );
 }

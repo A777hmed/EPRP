@@ -139,10 +139,15 @@ export function MasterDataListView({
         title={config.plural}
         description={description}
         actions={
-          <Button onClick={handleAdd}>
-            <Plus data-icon="inline-start" aria-hidden="true" />
-            Add {config.singular}
-          </Button>
+          // Master-data INSERT is `has_global_operational_authority()`. The
+          // list itself stays readable to everyone — only the way in to a
+          // mutation is withheld.
+          actions.canMutate ? (
+            <Button onClick={handleAdd}>
+              <Plus data-icon="inline-start" aria-hidden="true" />
+              Add {config.singular}
+            </Button>
+          ) : undefined
         }
       />
 
@@ -195,10 +200,17 @@ export function MasterDataListView({
         columns={columns}
         emptyLabel={`No ${config.plural.toLowerCase()} match your filters.`}
         onView={handleView}
-        onEdit={handleEdit}
-        onArchive={actions.requestArchive}
-        onRestore={actions.requestRestore}
-        onDelete={actions.requestDelete}
+        {...(actions.canMutate
+          ? {
+              onEdit: handleEdit,
+              onArchive: actions.requestArchive,
+              onRestore: actions.requestRestore,
+              onDelete: actions.requestDelete,
+            }
+          : // Row-level mutations withheld together, for the same policy
+            // reason as Add. `onView` is deliberately kept: reading a record
+            // is `USING (true)`.
+            {})}
       />
 
       {actions.element}

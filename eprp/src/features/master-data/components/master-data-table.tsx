@@ -41,10 +41,16 @@ export interface MasterDataTableProps<T extends MasterRecordBase> {
   columns: MasterDataColumn<T>[];
   emptyLabel?: string;
   onView?: (record: T) => void;
-  onEdit: (record: T) => void;
-  onArchive: (record: T) => void;
-  onRestore: (record: T) => void;
-  onDelete: (record: T) => void;
+  /*
+   * Optional, like `onView`: a caller that may not mutate master data omits
+   * these, and the corresponding menu items are not rendered. The row and its
+   * View action stay, because master-data SELECT is `USING (true)` while every
+   * INSERT/UPDATE/DELETE is `has_global_operational_authority()`.
+   */
+  onEdit?: (record: T) => void;
+  onArchive?: (record: T) => void;
+  onRestore?: (record: T) => void;
+  onDelete?: (record: T) => void;
 }
 
 /**
@@ -120,25 +126,33 @@ export function MasterDataTable<T extends MasterRecordBase>({
                         <Eye aria-hidden="true" /> View
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem onClick={() => onEdit(record)}>
-                      <PenLine aria-hidden="true" /> Edit
-                    </DropdownMenuItem>
-                    {record.active ? (
-                      <DropdownMenuItem onClick={() => onArchive(record)}>
-                        <Archive aria-hidden="true" /> Archive
-                      </DropdownMenuItem>
-                    ) : (
-                      <DropdownMenuItem onClick={() => onRestore(record)}>
-                        <ArchiveRestore aria-hidden="true" /> Restore
+                    {onEdit && (
+                      <DropdownMenuItem onClick={() => onEdit(record)}>
+                        <PenLine aria-hidden="true" /> Edit
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onClick={() => onDelete(record)}
-                    >
-                      <Trash2 aria-hidden="true" /> Delete…
-                    </DropdownMenuItem>
+                    {record.active
+                      ? onArchive && (
+                          <DropdownMenuItem onClick={() => onArchive(record)}>
+                            <Archive aria-hidden="true" /> Archive
+                          </DropdownMenuItem>
+                        )
+                      : onRestore && (
+                          <DropdownMenuItem onClick={() => onRestore(record)}>
+                            <ArchiveRestore aria-hidden="true" /> Restore
+                          </DropdownMenuItem>
+                        )}
+                    {onDelete && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={() => onDelete(record)}
+                        >
+                          <Trash2 aria-hidden="true" /> Delete…
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TableCell>

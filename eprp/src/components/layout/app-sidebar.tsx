@@ -18,6 +18,7 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useCurrentIdentity } from "@/features/auth/use-current-identity";
 import { mainNavigation } from "@/config/navigation";
 import { activeProjectId } from "@/config/project-sections";
 import { siteConfig } from "@/config/site";
@@ -94,6 +95,7 @@ export function AppSidebar({ welcome }: AppSidebarProps) {
   const pathname = usePathname();
   const { isMobile } = useSidebar();
   const projectId = activeProjectId(pathname);
+  const { isGlobalAuthority } = useCurrentIdentity();
 
   return (
     <Sidebar collapsible="icon">
@@ -144,9 +146,21 @@ export function AppSidebar({ welcome }: AppSidebarProps) {
       </SidebarHeader>
       <SidebarContent>
         {mainNavigation.map((section) => {
-          const items = projectId
+          const inScope = projectId
             ? section.items.filter((item) => !HIDDEN_INSIDE_PROJECT.has(item.href))
             : section.items;
+          /*
+           * Management-only destinations are withheld from accounts that are
+           * refused them anyway. Everything else stays: read-only navigation is
+           * useful to a department-scoped user and hiding it would remove
+           * context without removing any capability.
+           *
+           * While identity is unresolved these items are hidden rather than
+           * shown, so a management link never flashes in and out on load.
+           */
+          const items = inScope.filter(
+            (item) => !item.requiresGlobalAuthority || isGlobalAuthority
+          );
           if (items.length === 0) return null;
 
           return (

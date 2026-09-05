@@ -6,6 +6,8 @@ import {
   getProjectSection,
   isProjectSection,
 } from "@/config/project-sections";
+// [reporting-perf] TEMPORARY diagnostic import — remove with src/lib/perf-temp.ts
+import { startTimer, timed } from "@/lib/perf-temp";
 
 export async function generateMetadata({
   params,
@@ -33,7 +35,13 @@ export default async function ProjectSectionPage({
 }: {
   params: Promise<{ projectId: string; section: string }>;
 }) {
-  const { projectId, section } = await params;
+  // [reporting-perf] TEMPORARY — see src/lib/perf-temp.ts. Remove with it.
+  const done = startTimer("page.render");
+  const { projectId, section } = await timed("page.params", async () => params);
   if (!isProjectSection(section)) notFound();
-  return <ProjectSectionView projectId={projectId} section={section} />;
+  const element = (
+    <ProjectSectionView projectId={projectId} section={section} />
+  );
+  done();
+  return element;
 }

@@ -116,39 +116,42 @@ export function SystemDetailView({
         title={system.name}
         description={system.description ?? "System master data."}
         actions={
-          <>
-            <Button variant="outline" asChild>
-              <Link href={addContactHref}>
-                <UserPlus data-icon="inline-start" aria-hidden="true" />
-                Add Contact
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link
-                href={withProjectContext(`/systems/${system.id}/edit`, context)}
-              >
-                <PenLine data-icon="inline-start" aria-hidden="true" />
-                Edit
-              </Link>
-            </Button>
-            {system.active ? (
-              <Button
-                variant="destructive"
-                onClick={() => actions.requestArchive(system)}
-              >
-                <Archive data-icon="inline-start" aria-hidden="true" />
-                Archive
+          // `has_global_operational_authority()` — see department-detail-view.
+          actions.canMutate ? (
+            <>
+              <Button variant="outline" asChild>
+                <Link href={addContactHref}>
+                  <UserPlus data-icon="inline-start" aria-hidden="true" />
+                  Add Contact
+                </Link>
               </Button>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={() => actions.requestRestore(system)}
-              >
-                <ArchiveRestore data-icon="inline-start" aria-hidden="true" />
-                Restore
+              <Button variant="outline" asChild>
+                <Link
+                  href={withProjectContext(`/systems/${system.id}/edit`, context)}
+                >
+                  <PenLine data-icon="inline-start" aria-hidden="true" />
+                  Edit
+                </Link>
               </Button>
-            )}
-          </>
+              {system.active ? (
+                <Button
+                  variant="destructive"
+                  onClick={() => actions.requestArchive(system)}
+                >
+                  <Archive data-icon="inline-start" aria-hidden="true" />
+                  Archive
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => actions.requestRestore(system)}
+                >
+                  <ArchiveRestore data-icon="inline-start" aria-hidden="true" />
+                  Restore
+                </Button>
+              )}
+            </>
+          ) : undefined
         }
       />
 

@@ -124,42 +124,47 @@ export function DepartmentDetailView({
         title={department.name}
         description={department.description ?? "Department master data."}
         actions={
-          <>
-            <Button variant="outline" asChild>
-              <Link href={addContactHref}>
-                <UserPlus data-icon="inline-start" aria-hidden="true" />
-                Add Contact
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link
-                href={withProjectContext(
-                  `/departments/${department.id}/edit`,
-                  context
-                )}
-              >
-                <PenLine data-icon="inline-start" aria-hidden="true" />
-                Edit
-              </Link>
-            </Button>
-            {department.active ? (
-              <Button
-                variant="destructive"
-                onClick={() => actions.requestArchive(department)}
-              >
-                <Archive data-icon="inline-start" aria-hidden="true" />
-                Archive
+          // Add Contact / Edit / Archive / Restore are all master-data
+          // mutations — `has_global_operational_authority()`. The detail view
+          // itself stays readable, which is the useful read-only context.
+          actions.canMutate ? (
+            <>
+              <Button variant="outline" asChild>
+                <Link href={addContactHref}>
+                  <UserPlus data-icon="inline-start" aria-hidden="true" />
+                  Add Contact
+                </Link>
               </Button>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={() => actions.requestRestore(department)}
-              >
-                <ArchiveRestore data-icon="inline-start" aria-hidden="true" />
-                Restore
+              <Button variant="outline" asChild>
+                <Link
+                  href={withProjectContext(
+                    `/departments/${department.id}/edit`,
+                    context
+                  )}
+                >
+                  <PenLine data-icon="inline-start" aria-hidden="true" />
+                  Edit
+                </Link>
               </Button>
-            )}
-          </>
+              {department.active ? (
+                <Button
+                  variant="destructive"
+                  onClick={() => actions.requestArchive(department)}
+                >
+                  <Archive data-icon="inline-start" aria-hidden="true" />
+                  Archive
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => actions.requestRestore(department)}
+                >
+                  <ArchiveRestore data-icon="inline-start" aria-hidden="true" />
+                  Restore
+                </Button>
+              )}
+            </>
+          ) : undefined
         }
       >
         <div className="flex flex-wrap items-center gap-2">

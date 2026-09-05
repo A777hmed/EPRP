@@ -27,7 +27,21 @@ import type { MasterKind } from "../types";
 import { useMasterData } from "../use-master-data";
 import { MasterDataDialog } from "./master-data-dialog";
 
+/**
+ * Imperative access to the picker's own inline creation dialog.
+ *
+ * A screen sometimes needs a second trigger for the SAME create action — a
+ * Project Setup step offers "+ Add System" in its card header as well as
+ * "+ Add new system" inside the dropdown. Both must behave identically, so
+ * they drive this one dialog rather than each owning a create surface.
+ */
+export interface ManagedMultiSelectHandle {
+  /** Open the create form, exactly as the in-dropdown "Add new…" does. */
+  openCreate: (initialName?: string) => void;
+}
+
 export interface ManagedMultiSelectProps {
+  ref?: React.Ref<ManagedMultiSelectHandle>;
   kind: MasterKind;
   value: string[];
   onChange: (ids: string[]) => void;
@@ -36,6 +50,13 @@ export interface ManagedMultiSelectProps {
   disabled?: boolean;
   /** Narrow the options, e.g. systems belonging to one department. */
   filter?: (record: MasterRecordBase) => boolean;
+  /**
+   * Prefill applied to records created inline from this picker, keyed by
+   * master-data field key. Pass the scope the surrounding screen already
+   * knows — the department a System is being added under — so the shared
+   * record lands correctly linked without the user re-entering it.
+   */
+  createPresetValues?: Record<string, string>;
   /** Text shown when the filter leaves nothing to choose from. */
   emptyLabel?: string;
   /**
@@ -82,6 +103,7 @@ export interface ManagedMultiSelectProps {
  * this form; the master-data records themselves are never touched.
  */
 export function ManagedMultiSelect({
+  ref,
   kind,
   value,
   onChange,
@@ -89,6 +111,7 @@ export function ManagedMultiSelect({
   placeholder,
   disabled = false,
   filter,
+  createPresetValues,
   emptyLabel,
   searchPlaceholder,
   optionsHeading,
@@ -180,6 +203,16 @@ export function ManagedMultiSelect({
     setOpen(false);
     setDialog({ open: true, mode, initialName });
   };
+
+  // `openDialog` closes over setState functions only, so the handle is
+  // stable for the life of the component.
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      openCreate: (initialName?: string) => openDialog("create", initialName),
+    }),
+    []
+  );
 
   const clearValue = () => {
     onChange([]);
@@ -312,6 +345,7 @@ export function ManagedMultiSelect({
         }
         initialMode={dialog.mode}
         initialName={dialog.initialName}
+        presetValues={createPresetValues}
         displayTerms={displayTerms}
         onCreated={(record) => onChange([...value, record.id])}
         onMutated={onMutated}

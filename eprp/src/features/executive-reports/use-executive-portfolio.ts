@@ -154,6 +154,21 @@ export function useExecutivePortfolio(
         setAllWeeklies(nextWeeklies);
 
         /*
+         * The register can paint now.
+         *
+         * `listRegister` needs the visible project ids, so it genuinely cannot
+         * join the wave above — but nothing on the first paint depends on it.
+         * It was awaited before `setLoading(false)`, which held the whole
+         * screen — including the "no Executive periods" empty state — behind
+         * two further round trips that the empty state never reads.
+         *
+         * Released here instead: the register renders from the data already
+         * in hand, and the milestone-derived panels fill in when their own
+         * fetch lands. No figure changes; only when it appears does.
+         */
+        setLoading(false);
+
+        /*
          * One batched call across every visible project — `listRegister`
          * already does two round trips regardless of project count, so this
          * adds no new API and no per-project fan-out. Grouped by project id
@@ -177,6 +192,8 @@ export function useExecutivePortfolio(
         toast.error(error instanceof Error ? error.message : "Could not load the Executive portfolio.");
         setProjects([]);
       } finally {
+        // Idempotent: already cleared on the success path above, and still the
+        // only thing that clears it when the load threw before reaching it.
         if (!cancelled) setLoading(false);
       }
     };

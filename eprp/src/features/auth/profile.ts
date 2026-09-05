@@ -7,6 +7,8 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { ProfileRow } from "@/lib/supabase/database.types";
 import type { UserRole } from "@/types";
 import { ROLE_LABELS } from "@/config/permissions";
+// [reporting-perf] TEMPORARY diagnostic import — remove with src/lib/perf-temp.ts
+import { timed } from "@/lib/perf-temp";
 import { getAuthenticatedUser } from "./session";
 
 /**
@@ -61,12 +63,17 @@ export const getCurrentUserIdentity = cache(
     const user = await getAuthenticatedUser();
     if (!user) return null;
 
-    const supabase = await createSupabaseServerClient();
-    const { data } = await supabase
-      .from("profiles")
-      .select("full_name, role, email, contact_id")
-      .eq("id", user.id)
-      .maybeSingle();
+    /* [reporting-perf] TEMPORARY — see src/lib/perf-temp.ts. Also `cache()`d,
+       so this is the single profiles read for the whole request even though
+       TopBar and SidebarWelcomeCard both ask for it. */
+    const { data } = await timed("identity.profileRow", async () => {
+      const supabase = await createSupabaseServerClient();
+      return supabase
+        .from("profiles")
+        .select("full_name, role, email, contact_id")
+        .eq("id", user.id)
+        .maybeSingle();
+    });
 
     const profile = data as Pick<
       ProfileRow,

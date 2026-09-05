@@ -81,8 +81,11 @@ const supabaseMonthlyReportService: MonthlyReportService = {
     if (!report) throw new Error("Monthly report not found");
 
     const month = report.reportingMonth.slice(0, 7);
-    const inMonth = (await weeklyReportService.list()).filter(
-      (w) => w.projectId === report.projectId && w.periodStart.slice(0, 7) === month
+    // Scoped to the report's own project in the query. The month filter stays
+    // in JS — it is a substring test the query language cannot express as
+    // cheaply — but the portfolio no longer travels to do it.
+    const inMonth = (await weeklyReportService.list(report.projectId)).filter(
+      (w) => w.periodStart.slice(0, 7) === month
     );
 
     /*

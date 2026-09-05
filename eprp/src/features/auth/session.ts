@@ -4,6 +4,8 @@ import { cache } from "react";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+// [reporting-perf] TEMPORARY diagnostic import — remove with src/lib/perf-temp.ts
+import { timed } from "@/lib/perf-temp";
 
 /**
  * Server-side session access (Phase A2).
@@ -21,8 +23,13 @@ export const getAuthenticatedUser = cache(async () => {
   // rather than throwing on every request.
   if (!isSupabaseConfigured()) return null;
 
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.getUser();
-  if (error) return null;
-  return data.user ?? null;
+  /* [reporting-perf] TEMPORARY — see src/lib/perf-temp.ts. `cache()` means
+     this body runs at most once per request, so a single line here is one
+     real round trip to the auth server, not one per caller. */
+  return timed("auth.getUser", async () => {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.getUser();
+    if (error) return null;
+    return data.user ?? null;
+  });
 });

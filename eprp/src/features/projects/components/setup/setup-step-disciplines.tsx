@@ -11,7 +11,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EmptyState, SectionCard } from "@/components/shared";
-import { ManagedMultiSelect, useMasterData } from "@/features/master-data";
+import {
+  ManagedMultiSelect,
+  useMasterData,
+  type ManagedMultiSelectHandle,
+} from "@/features/master-data";
 import type {
   Discipline,
   MasterRecordBase,
@@ -19,7 +23,6 @@ import type {
   ProjectDisciplineLink,
   System,
 } from "@/types";
-import Link from "next/link";
 import { AlertTriangle, ArrowRightLeft, Plus, X } from "lucide-react";
 
 import {
@@ -31,10 +34,7 @@ import {
 } from "../../scope-integrity";
 
 import { Button } from "@/components/ui/button";
-import {
-  withProjectContext,
-  type ProjectLinkContext,
-} from "../../project-link-context";
+import { type ProjectLinkContext } from "../../project-link-context";
 import type { HierarchyTerms } from "@/config/project-terminology";
 import { LinkedRecordRow } from "./linked-record-row";
 
@@ -54,6 +54,13 @@ export interface SetupStepDisciplinesProps {
  * A discipline is chosen per system: pick the system, then the disciplines
  * working on it. Options are limited to disciplines owned by that exact
  * system and department, so the Discipline → System → Department chain holds.
+ *
+ * Creating one never leaves the wizard. The header button and the dropdown's
+ * "Add new…" open the SAME inline dialog, pre-scoped to the System selected
+ * above (and the Department owning it), and the saved record is linked into
+ * this step's draft on the way back. Both of those fields are required on a
+ * Discipline, so without the preset the user had to re-pick the scope the
+ * screen was already showing them.
  */
 export function SetupStepDisciplines({
   project,
@@ -87,6 +94,18 @@ export function SetupStepDisciplines({
   const activeDepartmentId = activeSystem?.departmentId ?? "";
 
   const linksForSystem = links.filter((link) => link.systemId === systemId);
+
+  const picker = React.useRef<ManagedMultiSelectHandle>(null);
+
+  /*
+   * Only preset when the scope is unambiguous — a system is actually selected
+   * and its owning department resolved. Otherwise the dialog opens blank and
+   * the user chooses, exactly as the global page does.
+   */
+  const createPresetValues =
+    systemId && activeDepartmentId
+      ? { departmentId: activeDepartmentId, systemId }
+      : undefined;
 
   const setForSystem = (ids: string[]) => {
     const others = links.filter((link) => link.systemId !== systemId);
@@ -146,17 +165,13 @@ export function SetupStepDisciplines({
         title={`Link ${terms.pluralLower} to a system`}
         description={`${terms.plural} are offered from the department that owns the selected system.`}
         action={
-          <Button variant="outline" size="sm" asChild>
-            <Link
-              href={withProjectContext("/disciplines/new", {
-                ...context,
-                sourceType: "system",
-                parentId: systemId,
-              })}
-            >
-              <Plus data-icon="inline-start" aria-hidden="true" />
-              Add {terms.singular}
-            </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => picker.current?.openCreate()}
+          >
+            <Plus data-icon="inline-start" aria-hidden="true" />
+            Add {terms.singular}
           </Button>
         }
       >
@@ -183,9 +198,11 @@ export function SetupStepDisciplines({
           <div className="space-y-1.5">
             <Label htmlFor="setup-disciplines">{terms.plural}</Label>
             <ManagedMultiSelect
+              ref={picker}
               kind="discipline"
               value={linksForSystem.map((link) => link.disciplineId)}
               onChange={setForSystem}
+              createPresetValues={createPresetValues}
               filter={(record: MasterRecordBase) =>
                 (record as Discipline).departmentId === activeDepartmentId &&
                 (record as Discipline).systemId === systemId

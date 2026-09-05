@@ -37,6 +37,7 @@ import { formatVariance, projectSpi, projectVariance } from "../utils";
 import { ProgressComparison } from "./progress-comparison";
 import { ProjectSummaryHeader } from "./project-summary-header";
 import { useHierarchyTerms } from "../use-hierarchy-terms";
+import { useProjectAuthority } from "../use-project-authority";
 import { ProjectWorkflowNav } from "./project-workflow-nav";
 import {
   localizeProjectSections,
@@ -114,16 +115,16 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
   const { records: clientRecords } = useMasterData("client");
   const masterSystems = systemRecords as System[];
   const terms = useHierarchyTerms(project);
+  /* Unconditional — hooks cannot sit behind the early returns below. Returns
+     an all-false authority until both the project and the identity settle, so
+     no mutation action can flash before the answer is known. */
+  const authority = useProjectAuthority(project ?? null);
 
   React.useEffect(() => {
     projectService.getProjectById(projectId).then(setProject);
-    weeklyReportService
-      .list()
-      .then((reports) =>
-        setWeeklyReports(
-          reports.filter((report) => report.projectId === projectId)
-        )
-      );
+    // Project-scoped in the query rather than fetching the portfolio and
+    // discarding it — see the same change in `project-section-view.tsx`.
+    weeklyReportService.list(projectId).then(setWeeklyReports);
   }, [projectId]);
 
   if (project === undefined) {
@@ -190,39 +191,65 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
         project={project}
         actions={
           <>
+            {/*
+              Edit Project is `projects_update` -> `can_manage_project_setup()`
+              -> `can_manage_project_operations()`. The /edit ROUTE was closed
+              in an earlier wave but this entry point was not, so a Viewer was
+              still invited into a form they would be refused.
+            */}
+            {authority.canManageOperations && (
+              <Button variant="outline" asChild>
+                <Link href={`/projects/${project.id}/edit`}>
+                  <PenLine data-icon="inline-start" aria-hidden="true" />
+                  Edit Project
+                </Link>
+              </Button>
+            )}
+            {/*
+              Navigation, not creation — these open this project's own
+              Reporting workspace on the matching tab, where existing reports
+              are listed and the (authorized) create action lives. Reading
+              reporting is not an operations right, so they stay available to
+              everyone; the labels are plural to say "the reports", not "raise
+              a report", and a Viewer arriving there still gets no create
+              action. The project sidebar stays mounted throughout.
+            */}
             <Button variant="outline" asChild>
-              <Link href={`/projects/${project.id}/edit`}>
-                <PenLine data-icon="inline-start" aria-hidden="true" />
-                Edit Project
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href="/weekly-reports/new">
+              <Link href={`/projects/${project.id}/reporting?tab=weekly`}>
                 <CalendarDays data-icon="inline-start" aria-hidden="true" />
-                Weekly Report
+                Weekly Reports
               </Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link href="/monthly-reports/new">
+              <Link href={`/projects/${project.id}/reporting?tab=monthly`}>
                 <CalendarRange data-icon="inline-start" aria-hidden="true" />
-                Monthly Report
+                Monthly Reports
               </Link>
             </Button>
-            <ConfirmArchiveDialog
-              open={archiveOpen}
-              onOpenChange={setArchiveOpen}
-              projectName={project.name}
-              onConfirm={handleArchive}
-              trigger={
-                <Button
-                  variant="destructive"
-                  disabled={project.status === "archived"}
-                >
-                  <Archive data-icon="inline-start" aria-hidden="true" />
-                  Archive
-                </Button>
-              }
-            />
+            {/*
+              Archive is destructive project administration, and the whole
+              dialog — not merely its confirm button — is withheld: rendering
+              the trigger let a Viewer open the confirmation modal and reach a
+              Confirm control that only RLS then refused. Same predicate as
+              Edit, because archiving is an update to the project row.
+            */}
+            {authority.canManageOperations && (
+              <ConfirmArchiveDialog
+                open={archiveOpen}
+                onOpenChange={setArchiveOpen}
+                projectName={project.name}
+                onConfirm={handleArchive}
+                trigger={
+                  <Button
+                    variant="destructive"
+                    disabled={project.status === "archived"}
+                  >
+                    <Archive data-icon="inline-start" aria-hidden="true" />
+                    Archive
+                  </Button>
+                }
+              />
+            )}
           </>
         }
       />
@@ -599,8 +626,15 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
               title="Weekly Reports"
               description="Weekly progress reports raised for this project."
               action={
+                // Sends the reader to this project's Weekly tab rather than
+                // to a global create form. The create action itself lives
+                // there and is gated by `canManageReporting`, so this stays a
+                // plain navigation and never advertises an authority the
+                // reader may not hold.
                 <Button variant="outline" size="sm" asChild>
-                  <Link href="/weekly-reports/new">New Report</Link>
+                  <Link href={`/projects/${project.id}/reporting?tab=weekly`}>
+                    View all
+                  </Link>
                 </Button>
               }
             >
@@ -616,7 +650,10 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
                   {weeklyReports.map((report) => (
                     <li key={report.id}>
                       <Link
-                        href={`/weekly-reports/${report.id}`}
+                        // Project-scoped alias: this report belongs to the
+                        // project being viewed, so opening it must not leave
+                        // project context.
+                        href={`/projects/${project.id}/reports/weekly/${report.id}`}
                         className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 transition-colors hover:bg-muted/50"
                       >
                         <span className="min-w-0">

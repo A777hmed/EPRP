@@ -20,10 +20,27 @@ import { WeeklyReportHeaderForm } from "./weekly-report-header-form";
 
 export interface WeeklyReportFormViewProps {
   reportId?: string;
+  /**
+   * Create this report against ONE fixed project, and stay inside that
+   * project afterwards.
+   *
+   * Set by `/projects/[projectId]/reports/weekly/new`. The project picker is
+   * locked (the same `projectLocked` the edit path already uses), so the
+   * project cannot be re-chosen, and every exit — save, cancel — returns to a
+   * project-scoped route rather than the global register.
+   *
+   * Omitted on the global `/weekly-reports/new`, which keeps its picker and
+   * its global destinations. One form, two entry contexts; no duplicated
+   * create logic, validation or service call.
+   */
+  projectId?: string;
 }
 
 /** /weekly-reports/new and /weekly-reports/[id]/edit — form through Phase 6A.4. */
-export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
+export function WeeklyReportFormView({
+  reportId,
+  projectId: fixedProjectId,
+}: WeeklyReportFormViewProps) {
   const router = useRouter();
   const isEdit = reportId !== undefined;
   const [projects, setProjects] = React.useState<Project[] | null>(null);
@@ -76,11 +93,26 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
   const availableProjects = projects.filter(
     (project) =>
       (project.status !== "archived" && project.reporting.weeklyEnabled) ||
-      project.id === report?.projectId
+      project.id === report?.projectId ||
+      // The fixed project is always offered, so a project-scoped create cannot
+      // present an empty picker; the header form still validates it.
+      project.id === fixedProjectId
   );
   const initialValues = report
     ? weeklyReportToHeaderValues(report, activities)
-    : emptyWeeklyReportHeaderValues();
+    : {
+        ...emptyWeeklyReportHeaderValues(),
+        // Seeds the locked picker. Empty string on the global route, which
+        // leaves the existing "choose a project" behaviour untouched.
+        projectId: fixedProjectId ?? "",
+      };
+
+  /* Where this form came from decides where it goes back to. */
+  const projectScoped = !isEdit && Boolean(fixedProjectId);
+  const afterCreateHref = (createdId: string) =>
+    projectScoped
+      ? `/projects/${fixedProjectId}/reports/weekly/${createdId}`
+      : `/weekly-reports/${createdId}`;
 
   const handleSaveDraft = async (values: WeeklyReportHeaderValues) => {
     // Man-hours is optional: NaN maps to null so clearing a saved value persists.
@@ -152,7 +184,7 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
      */
     await weeklyReportService.saveActivities(created.id, activityRows);
     toast.success(`Draft ${created.reportNumber} saved`);
-    router.push(`/weekly-reports/${created.id}`);
+    router.push(afterCreateHref(created.id));
   };
 
   return (
@@ -167,13 +199,17 @@ export function WeeklyReportFormView({ reportId }: WeeklyReportFormViewProps) {
         initialValues={initialValues}
         existingReportNumber={report?.reportNumber}
         existingReportId={report?.id}
-        projectLocked={isEdit}
+        // Locked on edit (as before) and on a project-scoped create, where the
+        // project is the context the user is already standing in.
+        projectLocked={isEdit || projectScoped}
         onSaveDraft={handleSaveDraft}
         onCancel={() =>
           router.push(
             isEdit && report
               ? `/weekly-reports/${report.id}`
-              : "/weekly-reports"
+              : projectScoped
+                ? `/projects/${fixedProjectId}/reporting?tab=weekly`
+                : "/weekly-reports"
           )
         }
       />

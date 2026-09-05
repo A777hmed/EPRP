@@ -43,6 +43,15 @@ export interface MasterDataDialogProps {
   initialRecordId?: string;
   /** Prefill for create mode, e.g. the current search text. */
   initialName?: string;
+  /**
+   * Prefill for create mode beyond the name, keyed by master-data field key —
+   * the same shape `MasterDataForm` already accepts from the page-level form.
+   *
+   * Lets a caller that already knows the parent scope (a Project Setup step
+   * creating a System under one department) hand that scope to the shared
+   * form, instead of making the user re-enter what the screen already knows.
+   */
+  presetValues?: Record<string, string>;
   /** Called after a create so the select can auto-pick the new record. */
   onCreated?: (record: MasterRecordBase) => void;
   /** Called after any successful mutation (dirty tracking, refreshes). */
@@ -69,6 +78,7 @@ export function MasterDataDialog({
   initialMode = "list",
   initialRecordId,
   initialName,
+  presetValues,
   onCreated,
   onMutated,
   displayTerms,
@@ -218,6 +228,7 @@ export function MasterDataDialog({
               kind={kind}
               record={state.view === "edit" ? state.record : undefined}
               initialName={state.view === "create" ? initialName : undefined}
+              presetValues={state.view === "create" ? presetValues : undefined}
               onSaved={handleSaved}
               onCancel={() => setState({ view: "list" })}
             />

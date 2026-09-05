@@ -36,7 +36,9 @@ import {
   duplicateManagerIssues,
   validateAssignments,
 } from "../../assignment-rules";
+import { useCurrentIdentity } from "@/features/auth/use-current-identity";
 import { useHierarchyTerms } from "../../use-hierarchy-terms";
+import { useProjectAuthority } from "../../use-project-authority";
 import { useProjectWorkflow } from "../../use-project-workflow";
 import { ProjectForm } from "../project-form";
 import { ProjectWorkflowNav } from "../project-workflow-nav";
@@ -85,6 +87,12 @@ export function ProjectSetupView({
   const [usedCodes, setUsedCodes] = React.useState<string[] | null>(null);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [reloadKey, setReloadKey] = React.useState(0);
+  // Unconditional — hooks cannot run behind the early returns below. Stays
+  // unresolved (all false) until both the project and the identity settle, so
+  // the wizard is never rendered on an unknown answer.
+  const authority = useProjectAuthority(project ?? null);
+  // Creation is decided from identity alone — there is no project to scope by.
+  const identity = useCurrentIdentity();
 
   React.useEffect(() => {
     let cancelled = false;
@@ -124,6 +132,86 @@ export function ProjectSetupView({
 
   if (usedCodes === null || project === undefined) {
     return <LoadingState variant="page" label="Loading project setup…" />;
+  }
+
+  /*
+   * CREATE mode (`/projects/new`, no `projectId`).
+   *
+   * The gate below is per-project and cannot answer this case: there is no
+   * project yet, so `useProjectAuthority` stays unresolved and every check
+   * against it passes by default. That is exactly how a Viewer typing
+   * /projects/new still reached a live wizard with Save Draft and
+   * Create & Continue.
+   *
+   * Creation is its own policy — `projects_insert` -> `can_create_project()`
+   * -> `has_global_operational_authority()` — so it is answered from identity
+   * alone. Held while identity is still loading so no form flashes first.
+   */
+  if (!projectId && !identity.resolved) {
+    return <LoadingState variant="page" label="Loading project setup…" />;
+  }
+
+  if (!projectId && !identity.isGlobalAuthority) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow="Projects"
+          title="New Project"
+          description="Projects are created by Project Control."
+        />
+        <SectionCard title="Created by Project Control">
+          <EmptyState
+            icon={Lock}
+            title="You cannot create projects"
+            description="Creating a project is limited to Project Control and platform administrators. You can open any project you are assigned to from the Projects list."
+            action={
+              <Button variant="outline" asChild>
+                <Link href="/projects">Back to Projects</Link>
+              </Button>
+            }
+            className="py-8"
+          />
+        </SectionCard>
+      </div>
+    );
+  }
+
+  /*
+   * Project Setup is `can_manage_project_setup()`, which the database defines
+   * as `can_manage_project_operations()` — Project Control on this project, or
+   * a global authority. Nothing here checked that, so a Department User was
+   * shown the whole wizard with live Save controls and got a refusal from RLS
+   * on every one of them.
+   *
+   * Refused as a whole rather than field by field: the wizard has no read-only
+   * mode, and its steps mutate a shared draft. The project's scope stays fully
+   * readable through the project sections, which is where a non-manager is
+   * pointed. `/projects/new` (no `projectId`) is governed by `can_create_project`
+   * and is left to the existing create path.
+   */
+  if (projectId && authority.resolved && !authority.canManageOperations) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow={project?.code}
+          title="Project Setup"
+          description="Guided setup for this project's scope."
+        />
+        <SectionCard title="Managed by Project Control">
+          <EmptyState
+            icon={Lock}
+            title="You do not manage this project's setup"
+            description="Project Setup is limited to Project Control and platform administrators. You can still review this project's departments, systems, scope items, contacts and team from the project sidebar."
+            action={
+              <Button variant="outline" asChild>
+                <Link href={`/projects/${projectId}`}>Back to Project</Link>
+              </Button>
+            }
+            className="py-8"
+          />
+        </SectionCard>
+      </div>
+    );
   }
 
   if (projectId && project === null) {
@@ -566,7 +654,6 @@ function LoadedSteps({
           onDraftChange={applyDraft}
           terms={workflow.terms}
           initialDisciplineId={initialDisciplineId}
-          onBeforeAddContact={dirty ? save : async () => true}
         />
       )}
       {step === "team" && (

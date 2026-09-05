@@ -204,7 +204,17 @@ export interface WeeklyMilestoneDraftInput {
 }
 
 export interface WeeklyReportService {
-  list(): Promise<WeeklyReport[]>;
+  /**
+   * Weekly reports, newest first. Pass `projectId` to fetch only one
+   * project's — the same optional narrowing `monthlyReportService.list`
+   * already offers.
+   *
+   * Callers inside a project were fetching the whole portfolio and filtering
+   * in JavaScript afterwards, which also pulled every report's submissions,
+   * entries and activities through the three child-table reads below. Filtering
+   * in the query removes that work rather than discarding its result.
+   */
+  list(projectId?: string): Promise<WeeklyReport[]>;
   getById(id: string): Promise<WeeklyReport | null>;
   create(input: WeeklyReportCreateInput): Promise<WeeklyReport>;
   update(id: string, input: WeeklyReportUpdateInput): Promise<WeeklyReport>;
@@ -334,9 +344,10 @@ function nextId(prefix: string): string {
 }
 
 const mockWeeklyReportService: WeeklyReportService = {
-  async list() {
+  async list(projectId) {
     await delay();
     return [...reportStore.values()]
+      .filter((report) => !projectId || report.projectId === projectId)
       .map(clone)
       .sort((a, b) => b.periodStart.localeCompare(a.periodStart));
   },

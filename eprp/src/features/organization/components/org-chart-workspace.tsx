@@ -72,6 +72,17 @@ export interface OrgChartWorkspaceProps {
   onChartChange?: (chart: OrganizationChart) => void;
   /** Raised after the chart is archived, so the owner can re-resolve. */
   onArchived?: () => void;
+  /**
+   * Whether this account may CHANGE the chart —
+   * `can_manage_project_operations(project_id)`, the policy on
+   * `organization_charts` and `organization_positions`.
+   *
+   * Separate from the lifecycle question `isChartEditable(status)` answers, and
+   * combined with it below: a chart can be open for editing and still not be
+   * yours to edit. Defaults to false so a caller that forgets to pass it gets
+   * the read-only chart rather than a live one.
+   */
+  canManage?: boolean;
 }
 
 /** Tone for each lifecycle state, so the badge reads at a glance. */
@@ -95,6 +106,7 @@ export function OrgChartWorkspace({
   chart,
   onChartChange,
   onArchived,
+  canManage = false,
 }: OrgChartWorkspaceProps) {
   const [positions, setPositions] = React.useState<
     OrganizationPosition[] | null
@@ -114,8 +126,18 @@ export function OrgChartWorkspace({
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [lifecycleBusy, setLifecycleBusy] = React.useState(false);
 
-  // Approved and locked charts are a record, not a working document.
-  const editable = isChartEditable(chart.status);
+  /*
+   * Two independent conditions, both required:
+   *   lifecycle — approved and locked charts are a record, not a working document
+   *   authority — `can_manage_project_operations()` on this chart's project
+   *
+   * `editable` gates every mutation control in this workspace (Add, Add Child,
+   * Add Sibling, Duplicate, Delete, reorder, reparent, Load Template, Import
+   * Excel, settings, lifecycle transitions and the position editor), so
+   * folding authority into it here closes all of them at once rather than
+   * leaving eighteen call sites to be gated one by one and drift apart.
+   */
+  const editable = isChartEditable(chart.status) && canManage;
   // Collapsed branches are a view preference, not chart data.
   const [collapsedIds, setCollapsedIds] = React.useState<ReadonlySet<string>>(
     () => new Set()
@@ -494,7 +516,12 @@ export function OrgChartWorkspace({
 
         {!editable && (
           <p className="text-xs text-muted-foreground text-pretty">
-            {lockReason(chart.status)}
+            {/* Say the real reason. `lockReason` explains a LIFECYCLE lock and
+                would be untrue for a chart that is open but not this
+                account's to change. */}
+            {canManage
+              ? lockReason(chart.status)
+              : "This organization chart is managed by Project Control. You can view it, but not change it."}
           </p>
         )}
 

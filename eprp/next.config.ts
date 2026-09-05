@@ -28,6 +28,40 @@ const nextConfig: NextConfig = {
     process.env.NEXT_DIST_DIR ??
     (process.env.NODE_ENV === "development" ? ".next-dev" : ".next"),
 
+  experimental: {
+    /*
+     * Turbopack's persistent filesystem cache, OFF for the dev server.
+     *
+     * Next 16 turns this on by default and documents it as beta
+     * (node_modules/next/dist/docs/01-app/03-api-reference/08-turbopack.md:
+     * "turbopackFileSystemCacheForDev ... Default (dev): true"). On this
+     * project it is the source of the long "Compiling..." stalls, and
+     * deleting the directory is only a temporary reprieve:
+     *
+     *   - the store grew to 2.1 GB, was deleted, and regrew to 1.8 GB in a
+     *     single fresh session;
+     *   - that session logged three "Finished filesystem cache database
+     *     compaction" pauses of 10.6s, 15.3s and 12.2s inside one minute,
+     *     one of them while a route was compiling;
+     *   - the earlier session logged a 2.5min cache write and an 82s compile.
+     *
+     * Compaction cost scales with the store, so the stalls return as soon as
+     * it refills — this is recurring, not one-time cold compilation.
+     *
+     * THE TRADE-OFF: without the persistent cache, nothing is carried across
+     * dev-server RESTARTS, so the first compile after each `npm run dev` is
+     * cold. Within a session compilation is unaffected — Turbopack still
+     * caches in memory — which is exactly where the stalls were being felt.
+     * Restarts are occasional; navigation is constant.
+     *
+     * Dev only. `next build` is untouched: `turbopackFileSystemCacheForBuild`
+     * is opt-in and already off, so production builds keep their behaviour.
+     * Remove this line to return to the Next default once the feature leaves
+     * beta.
+     */
+    turbopackFileSystemCacheForDev: false,
+  },
+
   async redirects() {
     // Phase 4C route restructure: report routes moved to top level.
     return [

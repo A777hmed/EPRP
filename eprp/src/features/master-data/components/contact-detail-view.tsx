@@ -126,36 +126,39 @@ export function ContactDetailView({
         title={contact.name}
         description={contact.position ?? "Contact master data."}
         actions={
-          <>
-            <Button variant="outline" asChild>
-              <Link
-                href={withProjectContext(
-                  `/contacts/${contact.id}/edit`,
-                  context
-                )}
-              >
-                <PenLine data-icon="inline-start" aria-hidden="true" />
-                Edit
-              </Link>
-            </Button>
-            {contact.active ? (
-              <Button
-                variant="destructive"
-                onClick={() => actions.requestArchive(contact)}
-              >
-                <Archive data-icon="inline-start" aria-hidden="true" />
-                Archive
+          // `has_global_operational_authority()` — see department-detail-view.
+          actions.canMutate ? (
+            <>
+              <Button variant="outline" asChild>
+                <Link
+                  href={withProjectContext(
+                    `/contacts/${contact.id}/edit`,
+                    context
+                  )}
+                >
+                  <PenLine data-icon="inline-start" aria-hidden="true" />
+                  Edit
+                </Link>
               </Button>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={() => actions.requestRestore(contact)}
-              >
-                <ArchiveRestore data-icon="inline-start" aria-hidden="true" />
-                Restore
-              </Button>
-            )}
-          </>
+              {contact.active ? (
+                <Button
+                  variant="destructive"
+                  onClick={() => actions.requestArchive(contact)}
+                >
+                  <Archive data-icon="inline-start" aria-hidden="true" />
+                  Archive
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => actions.requestRestore(contact)}
+                >
+                  <ArchiveRestore data-icon="inline-start" aria-hidden="true" />
+                  Restore
+                </Button>
+              )}
+            </>
+          ) : undefined
         }
       />
 

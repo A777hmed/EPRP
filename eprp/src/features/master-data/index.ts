@@ -23,6 +23,7 @@ export { useMasterData } from "./use-master-data";
 export { ManagedSelect, type ManagedSelectProps } from "./components/managed-select";
 export {
   ManagedMultiSelect,
+  type ManagedMultiSelectHandle,
   type ManagedMultiSelectProps,
 } from "./components/managed-multi-select";
 export {

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import type { MasterRecordBase } from "@/types";
 import type { HierarchyTerms } from "@/config/project-terminology";
+import { useCurrentIdentity } from "@/features/auth/use-current-identity";
 import { getMasterService, MASTER_KIND_CONFIG } from "../services";
 import type { MasterKind } from "../types";
 import {
@@ -24,6 +25,7 @@ export function useMasterDataActions(
   kind: MasterKind,
   options: { onMutated?: () => void; displayTerms?: HierarchyTerms } = {}
 ) {
+  const { isGlobalAuthority, resolved } = useCurrentIdentity();
   const service = getMasterService(kind);
   const config = MASTER_KIND_CONFIG[kind];
   const singular = options.displayTerms?.singular ?? config.singular;
@@ -114,5 +116,27 @@ export function useMasterDataActions(
     </>
   );
 
-  return { requestArchive, requestRestore, requestDelete, element };
+  return {
+    requestArchive,
+    requestRestore,
+    requestDelete,
+    element,
+    /**
+     * Whether this account may mutate master data at all.
+     *
+     * Every master-data table carries the SAME policy for INSERT, UPDATE and
+     * DELETE — `has_global_operational_authority()`, i.e. System Admin or
+     * Project Control Admin — while SELECT is `USING (true)`. So one answer
+     * covers Add, Edit, Archive, Restore and Delete across all seven kinds,
+     * and reading stays open to everyone.
+     *
+     * Surfaced here rather than resolved in each view because every view that
+     * renders those controls already calls this hook.
+     *
+     * PRESENTATION AUTHORITY ONLY — RLS remains the boundary.
+     */
+    canMutate: isGlobalAuthority,
+    /** False until identity settles, so no control flashes before it is known. */
+    authorityResolved: resolved,
+  };
 }

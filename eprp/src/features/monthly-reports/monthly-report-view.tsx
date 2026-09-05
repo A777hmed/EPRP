@@ -14,10 +14,17 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState } from "@/components/shared";
+import { REPORT_STATUS_META } from "@/lib/constants";
+import { formatDate } from "@/lib/formatters";
 import { getMonthLabel } from "@/lib/reporting";
 import { monthlyReportService } from "@/services/monthly-report-service";
 import { siteConfig } from "@/config/site";
 import type { MonthlyReport, Project } from "@/types";
+import {
+  ProjectReportingShell,
+  ReportContextHeader,
+  ReportTypeTabs,
+} from "@/features/projects/components/sections/project-reporting-shell";
 import { MonthlyReportDocument, type MonthlyReportBundle } from "./monthly-report-document";
 import { useMonthlyBundle } from "./use-monthly-bundle";
 
@@ -201,6 +208,27 @@ export function MonthlyReportView({
   const importedCount = bundle.comments.filter((comment) => comment.sourceKind === "weekly").length;
 
   return (
+    <ProjectReportingShell
+      header={
+        <ReportContextHeader
+          projectCode={bundle.project?.code}
+          projectName={
+            bundle.project?.shortName ?? bundle.project?.name ?? "Project"
+          }
+          period={getMonthLabel(bundle.report.reportingMonth)}
+          status={{
+            label: REPORT_STATUS_META[bundle.report.status].label,
+            tone: REPORT_STATUS_META[bundle.report.status].tone,
+          }}
+          updatedAt={formatDate(bundle.report.updatedAt)}
+        />
+      }
+      tabs={
+        projectId ? (
+          <ReportTypeTabs projectId={projectId} active="monthly" />
+        ) : undefined
+      }
+    >
     <div className="monthly-screen-stage">
       <MonthlyTopBar report={bundle.report} project={bundle.project} siblings={siblings} links={links} />
       <WeeklyImportStrip reportId={bundle.report.id} importedCount={importedCount} onDone={reload} />
@@ -232,6 +260,7 @@ export function MonthlyReportView({
       </div>
       <MonthlyReportDocument {...bundle} />
     </div>
+    </ProjectReportingShell>
   );
 }
 

@@ -315,6 +315,53 @@ export function isProjectControlPlanning(
   );
 }
 
+/**
+ * Whether a person holds ANY assignment on this project.
+ *
+ * The TypeScript mirror of the membership clause in
+ * `public.weekly_can_access_project()`, which admits any `project_contacts`
+ * row for the contact regardless of its role or scope. Both sources the client
+ * holds are consulted, for the same reason {@link isProjectConsolidator}
+ * consults both: the project's five singular responsibility columns, and the
+ * scoped team rows.
+ *
+ * This is the READ predicate — "does this project concern me at all?" — and it
+ * is deliberately the widest of the three. It grants no authority to change
+ * anything; use {@link isProjectControlPlanning} for operations and
+ * {@link isProjectConsolidator} for reporting consolidation.
+ *
+ * Note that `projects_select` is `USING (true)`, so the database returns every
+ * project row to every authenticated reader. Presenting a portfolio therefore
+ * has to narrow the list itself — RLS will not do it — which is exactly what
+ * this predicate is for.
+ */
+export function hasProjectAssignment(
+  project: Pick<
+    Project,
+    | "team"
+    | "projectManagerId"
+    | "projectControlManagerId"
+    | "reportingCoordinatorId"
+    | "clientRepresentativeId"
+    | "projectSponsorId"
+  >,
+  contactId: string | null | undefined
+): boolean {
+  if (!contactId) return false;
+
+  if ((project.team ?? []).some((member) => member.contactId === contactId)) {
+    return true;
+  }
+
+  return [
+    project.projectManagerId,
+    project.projectControlManagerId,
+    project.reportingCoordinatorId,
+    project.clientRepresentativeId,
+    project.projectSponsorId,
+  ].includes(contactId);
+}
+
 /** The single Department Manager for a department, if one is assigned. */
 export function departmentManager(
   project: Project,

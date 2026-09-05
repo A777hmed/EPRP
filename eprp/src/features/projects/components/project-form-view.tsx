@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FolderX } from "lucide-react";
+import { FolderX, Lock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState, PageHeader } from "@/components/shared";
@@ -16,6 +16,7 @@ import {
   projectToFormValues,
   type ProjectFormValues,
 } from "@/features/projects/schemas/project-form";
+import { useProjectAuthority } from "@/features/projects/use-project-authority";
 import { ProjectForm } from "./project-form";
 
 export interface ProjectFormViewProps {
@@ -35,6 +36,8 @@ export function ProjectFormView({ projectId }: ProjectFormViewProps) {
     isEdit ? undefined : null
   );
   const [usedCodes, setUsedCodes] = React.useState<string[] | null>(null);
+  // Unconditional — hooks cannot sit behind the early returns below.
+  const authority = useProjectAuthority(project ?? null);
 
   React.useEffect(() => {
     projectService.getUsedCodes(projectId).then(setUsedCodes);
@@ -59,6 +62,44 @@ export function ProjectFormView({ projectId }: ProjectFormViewProps) {
           </Button>
         }
       />
+    );
+  }
+
+  /*
+   * Editing an existing project is `can_manage_project_setup()`, which the
+   * database defines as `can_manage_project_operations()` — Project Control on
+   * this project, or a global authority. Deliberately NOT the consolidator
+   * pair: a Report Coordinator consolidates reports and holds no project
+   * operations authority, and `isProjectControlPlanning` is the predicate that
+   * says so.
+   *
+   * The Edit Project buttons were gated in the previous wave, but the ROUTE
+   * was not: typing /projects/[id]/edit still rendered a live form whose save
+   * RLS would refuse. Refused here instead, pointing at the read-only Overview.
+   *
+   * `/projects/new` (no `projectId`) is a different policy — `can_create_project`
+   * — and is left alone.
+   */
+  if (isEdit && authority.resolved && !authority.canManageOperations) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow={project?.code}
+          title={project?.name ?? "Project"}
+          description="Project details are managed by Project Control."
+        />
+        <EmptyState
+          icon={Lock}
+          title="You do not manage this project"
+          description="Editing a project's details is limited to Project Control and platform administrators. You can still review this project in full from its Overview."
+          action={
+            <Button variant="outline" asChild>
+              <Link href={`/projects/${projectId}`}>Project Overview</Link>
+            </Button>
+          }
+          className="py-8"
+        />
+      </div>
     );
   }
 

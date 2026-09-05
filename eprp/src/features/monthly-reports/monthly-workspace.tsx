@@ -18,9 +18,15 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState, StatusBadge } from "@/components/shared";
 import { MILESTONE_STATUS_META, PRIORITY_META, REPORT_STATUS_META } from "@/lib/constants";
+import { formatDate } from "@/lib/formatters";
 import { getMonthLabel } from "@/lib/reporting";
 import { monthlyReportService } from "@/services/monthly-report-service";
 import type { Contact, MonthlyComment, MonthlyPlanItem, MonthlyReport } from "@/types";
+import {
+  ProjectReportingShell,
+  ReportContextHeader,
+  ReportTypeTabs,
+} from "@/features/projects/components/sections/project-reporting-shell";
 import { EmptyRow, type MonthlyReportBundle } from "./monthly-report-document";
 import { MONTHLY_UPDATE_TYPE_OPTIONS, MonthlyCommentForm } from "./monthly-comment-form";
 import { MonthlyManagementPanel } from "./monthly-management";
@@ -892,6 +898,27 @@ export function MonthlyWorkspaceView({
   const active = PANELS.find((item) => item.key === panel) ?? PANELS[0];
 
   return (
+    <ProjectReportingShell
+      header={
+        <ReportContextHeader
+          projectCode={bundle.project?.code}
+          projectName={
+            bundle.project?.shortName ?? bundle.project?.name ?? "Project"
+          }
+          period={getMonthLabel(bundle.report.reportingMonth)}
+          status={{
+            label: REPORT_STATUS_META[bundle.report.status].label,
+            tone: REPORT_STATUS_META[bundle.report.status].tone,
+          }}
+          updatedAt={formatDate(bundle.report.updatedAt)}
+        />
+      }
+      tabs={
+        projectId ? (
+          <ReportTypeTabs projectId={projectId} active="monthly" />
+        ) : undefined
+      }
+    >
     <div className="monthly-workspace">
       <div className="monthly-ws-header">
         <div>
@@ -937,5 +964,6 @@ export function MonthlyWorkspaceView({
       {panel === "summary" && <SummaryPanel bundle={bundle} reload={reload} />}
       {panel === "approval" && <ApprovalPanel bundle={bundle} reload={reload} />}
     </div>
+    </ProjectReportingShell>
   );
 }

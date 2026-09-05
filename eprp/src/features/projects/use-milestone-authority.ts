@@ -2,12 +2,10 @@
 
 import * as React from "react";
 
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { useCurrentIdentity } from "@/features/auth/use-current-identity";
 import { resolveWeeklyScope, type WeeklyScope } from "@/features/weekly-reports/scope";
 import { isProjectControlPlanning } from "./assignment-rules";
 import type { Project } from "@/types";
-import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * What the signed-in account may do with this project's milestones.
@@ -78,58 +76,11 @@ const UNRESOLVED: MilestoneAuthority = {
 export function useMilestoneAuthority(
   project: Project | null | undefined
 ): MilestoneAuthority {
-  const [identity, setIdentity] = React.useState<{
-    contactId: string;
-    isAdmin: boolean;
-    role: string;
-    resolved: boolean;
-  }>(() =>
-    // No backend means no login to resolve. Settle immediately as "nobody"
-    // rather than leaving the panel spinning on an identity that cannot arrive.
-    isSupabaseConfigured()
-      ? { contactId: "", isAdmin: false, role: "", resolved: false }
-      : { contactId: "", isAdmin: false, role: "", resolved: true }
-  );
-
-  React.useEffect(() => {
-    if (!isSupabaseConfigured()) return;
-    let active = true;
-
-    const run = async () => {
-      const sb = getSupabaseBrowserClient() as unknown as SupabaseClient;
-      const { data: auth } = await sb.auth.getUser();
-      const userId = auth.user?.id;
-      if (!userId) {
-        if (active) setIdentity({ contactId: "", isAdmin: false, role: "", resolved: true });
-        return;
-      }
-
-      // The account's own profile row, reachable through `profiles_select_own`.
-      // `contact_id` is what links a login to a person the project assigns work
-      // to; without it nobody can be matched to an assignment.
-      const { data } = await sb
-        .from("profiles")
-        .select("role, contact_id")
-        .eq("id", userId)
-        .maybeSingle();
-      if (!active) return;
-
-      const profile = data as { role?: string; contact_id?: string | null } | null;
-      setIdentity({
-        contactId: profile?.contact_id ?? "",
-        isAdmin: profile?.role === "system_admin",
-        role: profile?.role ?? "",
-        resolved: true,
-      });
-    };
-
-    void run().catch(() => {
-      if (active) setIdentity({ contactId: "", isAdmin: false, role: "", resolved: true });
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+  /* Identity resolution used to be inlined here, and was byte-for-byte the
+     same lookup three other client views were each making for themselves.
+     `useCurrentIdentity` is that one read. It resolves WHO is asking and
+     nothing else; the rules below are unchanged. */
+  const identity = useCurrentIdentity();
 
   return React.useMemo(() => {
     if (!project || !identity.resolved) return UNRESOLVED;
@@ -153,8 +104,8 @@ export function useMilestoneAuthority(
      * comments in Weekly and Monthly.
      */
     const managesOperations = isProjectControlPlanning(project, identity.contactId, {
-      isGlobalAuthority:
-        identity.isAdmin || identity.role === "project_control_admin",
+      // System Admin or Project Control Admin — `has_global_operational_authority()`.
+      isGlobalAuthority: identity.isGlobalAuthority,
     });
 
     return {

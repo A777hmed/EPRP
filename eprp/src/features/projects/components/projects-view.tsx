@@ -24,6 +24,7 @@ import { useMasterData } from "@/features/master-data";
 import type { Client, Contact } from "@/types";
 import { projectService } from "@/services/project-service";
 import type { Project } from "@/types";
+import { useCurrentIdentity } from "@/features/auth/use-current-identity";
 import { projectVariance } from "@/features/projects/utils";
 import {
   defaultProjectFilters,
@@ -77,6 +78,11 @@ function applyFilters(
 /** /projects — stats, filters, and the table/grid with all view states. */
 export function ProjectsView() {
   const router = useRouter();
+  /* `can_create_project()` is `has_global_operational_authority()` — System
+     Admin or Project Control Admin. Which projects are LISTED is not decided
+     here at all: `projects_select` scopes that in the database, so this page
+     and the Dashboard receive the same universe without either one filtering. */
+  const { isGlobalAuthority: canCreateProject } = useCurrentIdentity();
   // Live master data — reflects records added through the managed selects.
   const { activeRecords: clientRecords } = useMasterData("client");
   const { activeRecords: contactRecords } = useMasterData("contact");
@@ -164,12 +170,18 @@ export function ProjectsView() {
         title="Projects"
         description="Project master data: status, progress, responsibility, and reporting configuration."
         actions={
-          <Button asChild>
-            <Link href="/projects/new">
-              <Plus data-icon="inline-start" aria-hidden="true" />
-              Add Project
-            </Link>
-          </Button>
+          // `projects_insert` -> `can_create_project()` ->
+          // `has_global_operational_authority()`. The register itself is now
+          // scoped by `projects_select`, so what a reader sees here is already
+          // their own project universe — only the way to add one is withheld.
+          canCreateProject ? (
+            <Button asChild>
+              <Link href="/projects/new">
+                <Plus data-icon="inline-start" aria-hidden="true" />
+                Add Project
+              </Link>
+            </Button>
+          ) : undefined
         }
       />
 
@@ -206,15 +218,21 @@ export function ProjectsView() {
       ) : projects.length === 0 ? (
         <EmptyState
           icon={FolderKanban}
-          title="No projects yet"
-          description="Create the first project to start collecting progress reports."
+          title={canCreateProject ? "No projects yet" : "No projects assigned"}
+          description={
+            canCreateProject
+              ? "Create the first project to start collecting progress reports."
+              : "You are not assigned to any project yet. Projects you are assigned to will appear here."
+          }
           action={
-            <Button asChild>
-              <Link href="/projects/new">
-                <Plus data-icon="inline-start" aria-hidden="true" />
-                Add Project
-              </Link>
-            </Button>
+            canCreateProject ? (
+              <Button asChild>
+                <Link href="/projects/new">
+                  <Plus data-icon="inline-start" aria-hidden="true" />
+                  Add Project
+                </Link>
+              </Button>
+            ) : undefined
           }
         />
       ) : visible.length === 0 ? (

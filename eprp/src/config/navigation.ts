@@ -23,6 +23,23 @@ export interface NavItem {
   href: string;
   icon: LucideIcon;
   description?: string;
+  /**
+   * Marks an item as pure MANAGEMENT navigation: it exists only to administer
+   * the platform, and leads to surfaces every non-administrator is refused.
+   *
+   * Deliberately narrow. Most items here lead to READ-ONLY value for a
+   * department-scoped user — a Department User legitimately looks up a
+   * contact, checks which systems their department covers, reads an approved
+   * Executive Report, or opens their own Weekly. Hiding those would remove
+   * useful context to no security benefit, since reading is what RLS already
+   * allows (`contacts_select` and friends are `USING (true)`; Executive read
+   * admits approved records). Only where the destination is management and
+   * nothing else does this flag apply.
+   *
+   * Presentation only. It hides a door that is already locked — it is not the
+   * lock. RLS remains the boundary.
+   */
+  requiresGlobalAuthority?: boolean;
 }
 
 export interface NavSection {
@@ -154,14 +171,22 @@ export const mainNavigation: NavSection[] = [
         href: "/administration",
         icon: ShieldCheck,
         description: "Users, roles, and permissions",
+        requiresGlobalAuthority: true,
       },
       {
         title: "Job Titles",
         href: "/administration/job-titles",
         icon: IdCard,
         description: "Admin-managed job titles used across the directory",
+        // Master data whose every mutation is `has_global_operational_authority()`,
+        // and — unlike Departments or Contacts — with no read-only use for a
+        // department-scoped user: it is a directory label, reached through the
+        // person record that already shows it.
+        requiresGlobalAuthority: true,
       },
       {
+        // Personal account settings, not platform administration. Everyone
+        // keeps this, whatever the group it sits in is called.
         title: "Settings",
         href: "/settings",
         icon: Settings,

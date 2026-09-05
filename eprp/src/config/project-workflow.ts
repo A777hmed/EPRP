@@ -221,12 +221,6 @@ function departmentChecks(project: Project): WorkflowCheck[] {
       "Pick the departments contributing to this project."
     ),
     check(
-      "Every department has a lead",
-      assignments.length > 0 &&
-        assignments.every((assignment) => Boolean(assignment.leadName)),
-      "Name the lead for each department."
-    ),
-    check(
       "At least one department submits weekly input",
       assignments.some((assignment) => assignment.reportingRequired),
       "Mark at least one department as required for weekly reporting."
@@ -290,15 +284,24 @@ function contactChecks(
   }
   return [
     ...base,
-    ...project.departments.map((assignment) =>
+    ...project.departments.flatMap((assignment) => [
       check(
         `${departmentName(assignment.departmentId)} has a contact`,
         team.some(
           (member) => member.departmentId === assignment.departmentId
         ),
         `Add a team contact for ${departmentName(assignment.departmentId)}.`
-      )
-    ),
+      ),
+      check(
+        `${departmentName(assignment.departmentId)} has a Department Manager`,
+        team.some(
+          (member) =>
+            member.departmentId === assignment.departmentId &&
+            member.assignmentRole === "department_manager"
+        ),
+        `Assign a Department Manager for ${departmentName(assignment.departmentId)}.`
+      ),
+    ]),
   ];
 }
 

@@ -40,7 +40,21 @@ export const getWeeklyViewerScope = cache(
     const contactId = identity?.contactId ?? "";
 
     return resolveWeeklyScope(project, contactId, {
-      isAdmin: identity?.role === "system_admin",
+      /*
+       * BOTH global operational authorities, mirroring
+       * `has_global_operational_authority()`.
+       *
+       * This read `system_admin` alone, which scoped a Project Control Admin
+       * down to their own assignments even though the model and every RLS
+       * policy treat them as portfolio-wide — the same defect
+       * `executive-access.ts` records having fixed on its side. It mattered
+       * once `canConsolidate` began gating the Weekly management actions:
+       * an unassigned Project Control Admin would have lost Duplicate and
+       * Archive on reports the database still lets them manage.
+       */
+      isAdmin:
+        identity?.role === "system_admin" ||
+        identity?.role === "project_control_admin",
       projectType,
     });
   }

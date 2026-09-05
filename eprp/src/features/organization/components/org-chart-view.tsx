@@ -11,7 +11,8 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { LoadingState, SectionCard } from "@/components/shared";
+import { EmptyState, LoadingState, SectionCard } from "@/components/shared";
+import { useProjectAuthority } from "@/features/projects/use-project-authority";
 import { organizationChartService } from "@/services/organization-chart-service";
 import type { OrganizationChart, Project } from "@/types";
 import { OrgChartWorkspace } from "./org-chart-workspace";
@@ -41,6 +42,9 @@ export interface OrgChartViewProps {
  * exists only once someone starts one.
  */
 export function OrgChartView({ project }: OrgChartViewProps) {
+  /* Chart mutation is `can_manage_project_operations(project_id)` — the same
+     predicate as Project Setup and Master Milestones, and the same helper. */
+  const authority = useProjectAuthority(project);
   const [chart, setChart] = React.useState<
     OrganizationChart | null | undefined
   >();
@@ -137,11 +141,39 @@ export function OrgChartView({ project }: OrgChartViewProps) {
     }
   };
 
-  if (chart === undefined) {
+  // Hold for the identity too, so the start options never flash for an
+  // account that is about to be shown the read-only state instead.
+  if (chart === undefined || !authority.resolved) {
     return <LoadingState variant="card" label="Loading organization chart…" />;
   }
 
   if (chart === null) {
+    /*
+     * Every way of STARTING a chart — blank, template, Excel import — inserts
+     * into `organization_charts` / `organization_positions`, whose INSERT and
+     * UPDATE policies are `can_manage_project_operations(project_id)`. None of
+     * them was gated, so a Department User with no chart on their project was
+     * offered all three and refused by RLS on click.
+     *
+     * The dialogs are withheld along with the buttons: rendering them left
+     * mounted mutation flows reachable by other means.
+     */
+    if (!authority.canManageOperations) {
+      return (
+        <SectionCard
+          title="Project organization chart"
+          description="No chart has been created for this project yet."
+        >
+          <EmptyState
+            icon={Network}
+            title="No organization chart yet"
+            description="This project's organization chart has not been created. Charts are built by Project Control; once one exists it will appear here."
+            className="py-10"
+          />
+        </SectionCard>
+      );
+    }
+
     return (
       <>
         <StartOptions
@@ -176,6 +208,7 @@ export function OrgChartView({ project }: OrgChartViewProps) {
     >
       <OrgChartWorkspace
         chart={chart}
+        canManage={authority.canManageOperations}
         onChartChange={setChart}
         onArchived={() => {
           // The chart just left the project; fall back to whatever remains,

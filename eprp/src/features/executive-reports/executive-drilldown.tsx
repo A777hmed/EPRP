@@ -29,6 +29,11 @@ import { ENTRY_STATUS_META, MILESTONE_STATUS_META, PRIORITY_META, REPORT_STATUS_
 import { formatReportingPeriod, getMonthLabel, scheduleVariance } from "@/lib/reporting";
 import { useMasterData } from "@/features/master-data";
 import { milestoneStates as deriveMilestoneStates, type MilestoneState } from "@/features/projects/milestone-state";
+import {
+  ProjectReportingShell,
+  ReportContextHeader,
+  ReportTypeTabs,
+} from "@/features/projects/components/sections/project-reporting-shell";
 import { monthlyReportService } from "@/services/monthly-report-service";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
@@ -716,6 +721,17 @@ export function ExecutiveProjectDrilldown({
   const monthly = detail.selection.report;
 
   return (
+    <ProjectReportingShell
+      header={
+        <ReportContextHeader
+          projectCode={model.project.code}
+          projectName={model.projectName}
+          period={detail.month ? monthLabelOf(detail.month) : undefined}
+          status={{ label: basis.label, tone: basis.tone }}
+        />
+      }
+      tabs={<ReportTypeTabs projectId={projectId} active="executive" />}
+    >
     <div className="exec-drilldown">
       <div className="exec-drilldown-head">
         <Link className="exec-back" href="/executive-reports">
@@ -1018,5 +1034,6 @@ export function ExecutiveProjectDrilldown({
         </span>
       </div>
     </div>
+    </ProjectReportingShell>
   );
 }

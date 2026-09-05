@@ -5,21 +5,20 @@ import * as React from "react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState, SectionCard } from "@/components/shared";
-import { ManagedMultiSelect } from "@/features/master-data";
+import {
+  ManagedMultiSelect,
+  type ManagedMultiSelectHandle,
+} from "@/features/master-data";
 import type {
   DepartmentAssignment,
   MasterRecordBase,
   Project,
   System,
 } from "@/types";
-import Link from "next/link";
 import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  withProjectContext,
-  type ProjectLinkContext,
-} from "../../project-link-context";
+import { type ProjectLinkContext } from "../../project-link-context";
 import { LinkedRecordRow } from "./linked-record-row";
 
 export interface SetupStepSystemsProps {
@@ -35,6 +34,13 @@ export interface SetupStepSystemsProps {
  *
  * The picker for a department only offers systems owned by that department,
  * which is what keeps the System → Department link honest.
+ *
+ * Creating a System never leaves the wizard. Both "+ Add System" in a card
+ * header and "+ Add new system" inside the dropdown open the SAME inline
+ * dialog, pre-scoped to that card's department, and the saved record is
+ * selected into this step's draft on the way back. Sending the user to
+ * /systems/new instead dropped the project sidebar, the step they were on,
+ * and any unsaved edits on this step.
  */
 export function SetupStepSystems({
   project,
@@ -44,6 +50,16 @@ export function SetupStepSystems({
   onDraftChange,
 }: SetupStepSystemsProps) {
   const assignments = project.departments;
+
+  /*
+   * One handle per department card, so a header button can open that card's
+   * own picker dialog. A map rather than a hook per card — the cards are
+   * rendered from a list, and extracting a component just to own a ref would
+   * be a much larger change than the fix warrants.
+   */
+  const pickers = React.useRef(
+    new Map<string, ManagedMultiSelectHandle | null>()
+  );
 
   const setSystems = (departmentId: string, ids: string[]) => {
     const next: DepartmentAssignment[] = assignments.map((assignment) =>
@@ -117,29 +133,34 @@ export function SetupStepSystems({
               available.length === 1 ? "" : "s"
             } belong to this department.`}
             action={
-              <Button variant="outline" size="sm" asChild>
-                <Link
-                  href={withProjectContext("/systems/new", {
-                    ...context,
-                    sourceType: "department",
-                    parentId: assignment.departmentId,
-                  })}
-                >
-                  <Plus data-icon="inline-start" aria-hidden="true" />
-                  Add System
-                </Link>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  pickers.current.get(assignment.departmentId)?.openCreate()
+                }
+              >
+                <Plus data-icon="inline-start" aria-hidden="true" />
+                Add System
               </Button>
             }
           >
             <div className="space-y-1.5">
               <Label htmlFor={inputId}>Systems in scope</Label>
               <ManagedMultiSelect
+                ref={(handle) => {
+                  pickers.current.set(assignment.departmentId, handle);
+                }}
                 kind="system"
                 value={assignment.systems.map((system) => system.id)}
                 onChange={(ids) => setSystems(assignment.departmentId, ids)}
                 filter={(record: MasterRecordBase) =>
                   (record as System).departmentId === assignment.departmentId
                 }
+                // The card is already scoped to one department, so a System
+                // created here inherits it rather than being saved unowned
+                // and then filtered out of the very list that created it.
+                createPresetValues={{ departmentId: assignment.departmentId }}
                 emptyLabel="No systems belong to this department yet."
                 placeholder="Select systems…"
                 controlProps={{ id: inputId }}

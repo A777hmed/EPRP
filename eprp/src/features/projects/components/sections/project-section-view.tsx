@@ -37,7 +37,13 @@ import { formatVariance, projectSpi, projectVariance } from "../../utils";
 import { ProgressComparison } from "../progress-comparison";
 import { ProjectDetailsView } from "../project-details-view";
 import { OrganizationChartSection } from "./organization-chart-section";
+// [reporting-perf] TEMPORARY diagnostic import — remove with src/lib/perf-temp.ts
+import { startTimer, timed } from "@/lib/perf-temp";
 import { useHierarchyTerms } from "../../use-hierarchy-terms";
+import {
+  useProjectAuthority,
+  type ProjectAuthority,
+} from "../../use-project-authority";
 import { ProjectScopeSection } from "./project-scope-section";
 import { ProjectSectionLayout } from "./project-section-layout";
 import { ProjectDocumentsPanel } from "../project-documents-panel";
@@ -66,16 +72,25 @@ export function ProjectSectionView({
   // Called before the early returns below — hooks cannot run conditionally.
   // Handles null/undefined by falling back to the default wording.
   const terms = useHierarchyTerms(project);
+  // Same reason: resolved unconditionally, and returns an all-false authority
+  // until both the project and the identity have settled, so no mutation
+  // control can flash before the answer is known.
+  const authority = useProjectAuthority(project);
 
   React.useEffect(() => {
-    projectService.getProjectById(projectId).then(setProject);
-    weeklyReportService
-      .list()
-      .then((reports) =>
-        setWeeklyReports(
-          reports.filter((report) => report.projectId === projectId)
-        )
-      );
+    // [reporting-perf] TEMPORARY — see src/lib/perf-temp.ts. Remove with it.
+    const doneAll = startTimer("sectionView.effect.total");
+    void timed("sectionView.getProjectById", () =>
+      projectService.getProjectById(projectId)
+    ).then(setProject);
+    /* Was `list()` — the whole portfolio, plus every report's submissions,
+       entries and activities — discarded down to one project in JavaScript.
+       The filter belongs in the query. */
+    void timed("sectionView.weeklyList", () =>
+      weeklyReportService.list(projectId)
+    )
+      .then(setWeeklyReports)
+      .finally(doneAll);
   }, [projectId]);
 
   // Overview is the existing project page; reuse it wholesale rather than
@@ -118,12 +133,18 @@ export function ProjectSectionView({
                 Project Overview
               </Link>
             </Button>
-            <Button variant="outline" asChild>
-              <Link href={`/projects/${project.id}/edit`}>
-                <PenLine data-icon="inline-start" aria-hidden="true" />
-                Edit Project
-              </Link>
-            </Button>
+            {/* Edit Project is `can_manage_project_setup()`, which the database
+                defines as `can_manage_project_operations()`. It was offered to
+                every reader, so a Department User was invited into a form whose
+                every save RLS refused. */}
+            {authority.canManageOperations && (
+              <Button variant="outline" asChild>
+                <Link href={`/projects/${project.id}/edit`}>
+                  <PenLine data-icon="inline-start" aria-hidden="true" />
+                  Edit Project
+                </Link>
+              </Button>
+            )}
           </>
         }
       />
@@ -132,6 +153,7 @@ export function ProjectSectionView({
         project={project}
         section={section}
         weeklyReports={weeklyReports}
+        authority={authority}
       />
     </div>
   );
@@ -141,19 +163,21 @@ function SectionBody({
   project,
   section,
   weeklyReports,
+  authority,
 }: {
   project: Project;
   section: ProjectSectionId;
   weeklyReports: WeeklyReport[];
+  authority: ProjectAuthority;
 }) {
   const terms = useHierarchyTerms(project);
   const definition = localizeProjectSection(getProjectSection(section), terms);
 
   switch (section) {
     case "setup":
-      return <SetupSection project={project} />;
+      return <SetupSection project={project} authority={authority} />;
     case "team":
-      return <TeamSection project={project} />;
+      return <TeamSection project={project} authority={authority} />;
     case "organization-chart":
       return <OrganizationChartSection project={project} />;
     case "departments":
@@ -169,8 +193,10 @@ function SectionBody({
         />
       );
     case "kpis":
-      return <KpiSection project={project} />;
+      return <KpiSection project={project} authority={authority} />;
     case "milestones":
+      // The panel gates its own Add / Edit / Archive and approval queue
+      // through `useMilestoneAuthority`, which mirrors the same policy.
       return <MilestonesSection project={project} />;
     case "deliverables":
       return <DeliverablesSection project={project} />;
@@ -183,10 +209,16 @@ function SectionBody({
       );
     case "weekly-reports":
       return (
-        <WeeklyReportsSection project={project} reports={weeklyReports} />
+        <WeeklyReportsSection
+          project={project}
+          reports={weeklyReports}
+          authority={authority}
+        />
       );
     case "monthly-reports":
-      return <MonthlyReportsSection project={project} />;
+      return (
+        <MonthlyReportsSection project={project} authority={authority} />
+      );
     case "documents":
       return <DocumentsSection project={project} />;
     case "attachments":
@@ -200,18 +232,26 @@ function SectionBody({
 
 /* ------------------------------- Sections -------------------------------- */
 
-function SetupSection({ project }: { project: Project }) {
+function SetupSection({
+  project,
+  authority,
+}: {
+  project: Project;
+  authority: ProjectAuthority;
+}) {
   const terms = useHierarchyTerms(project);
   return (
     <ProjectSectionLayout
       title="Guided setup"
       description="Work through the six steps to scope this project."
       quickActions={
-        <Button asChild>
-          <Link href={projectWorkflowHref(project.id, "info")}>
-            Open setup wizard
-          </Link>
-        </Button>
+        authority.canManageOperations ? (
+          <Button asChild>
+            <Link href={projectWorkflowHref(project.id, "info")}>
+              Open setup wizard
+            </Link>
+          </Button>
+        ) : undefined
       }
     >
       <p className="text-sm text-muted-foreground">
@@ -219,11 +259,23 @@ function SetupSection({ project }: { project: Project }) {
         {terms.plural}, Contacts, and Review — each step saving before it
         advances and unlocking the next one.
       </p>
+      {authority.resolved && !authority.canManageOperations && (
+        <p className="mt-3 text-sm text-muted-foreground">
+          Project Setup is managed by Project Control for this project. You can
+          review the resulting scope from the sections in the project sidebar.
+        </p>
+      )}
     </ProjectSectionLayout>
   );
 }
 
-function TeamSection({ project }: { project: Project }) {
+function TeamSection({
+  project,
+  authority,
+}: {
+  project: Project;
+  authority: ProjectAuthority;
+}) {
   const responsibilities = [
     { label: "Project Manager", id: project.projectManagerId },
     { label: "Project Control", id: project.projectControlManagerId },
@@ -254,9 +306,13 @@ function TeamSection({ project }: { project: Project }) {
       description="The five accountable roles on this project."
       quickActions={
         <>
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/projects/${project.id}/edit`}>Edit roles</Link>
-          </Button>
+          {/* Read-only visibility of WHO is accountable is deliberately kept
+              for everyone; only the edit route is withheld. */}
+          {authority.canManageOperations && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/projects/${project.id}/edit`}>Edit roles</Link>
+            </Button>
+          )}
           <Button variant="outline" size="sm" asChild>
             <Link href={projectSectionHref(project.id, "contacts")}>
               View contacts
@@ -294,7 +350,13 @@ function TeamSection({ project }: { project: Project }) {
   );
 }
 
-function KpiSection({ project }: { project: Project }) {
+function KpiSection({
+  project,
+  authority,
+}: {
+  project: Project;
+  authority: ProjectAuthority;
+}) {
   const variance = projectVariance(project);
   const stats: StatCardProps[] = [
     { label: "Planned progress", value: `${project.plannedProgress}%` },
@@ -310,9 +372,11 @@ function KpiSection({ project }: { project: Project }) {
       description="Planned versus actual completion for this project."
       quickActions={
         <>
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/projects/${project.id}/edit`}>Update progress</Link>
-          </Button>
+          {authority.canManageOperations && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/projects/${project.id}/edit`}>Update progress</Link>
+            </Button>
+          )}
           <Button variant="outline" size="sm" asChild>
             <Link href={projectSectionHref(project.id, "weekly-reports")}>
               Weekly reports
@@ -341,9 +405,11 @@ function KpiSection({ project }: { project: Project }) {
 function WeeklyReportsSection({
   project,
   reports,
+  authority,
 }: {
   project: Project;
   reports: WeeklyReport[];
+  authority: ProjectAuthority;
 }) {
   const stats: StatCardProps[] = [
     { label: "Reports raised", value: String(reports.length), icon: CalendarDays },
@@ -365,17 +431,33 @@ function WeeklyReportsSection({
       title="Weekly reports"
       description="Reports raised for this project, newest first."
       action={
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/weekly-reports/new">New report</Link>
-        </Button>
+        // Raising a report is `can_manage_reporting_workflow()`. A Department
+        // User contributes to a report they do not raise.
+        // Project-scoped create: this section is already inside the project.
+        authority.canManageReporting ? (
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/projects/${project.id}/reports/weekly/new`}>
+              New report
+            </Link>
+          </Button>
+        ) : undefined
       }
       quickActions={
         <>
+          {authority.canManageReporting && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/projects/${project.id}/reports/weekly/new`}>
+                New weekly report
+              </Link>
+            </Button>
+          )}
+          {/* "This project's Weekly reporting", not the portfolio register —
+              the label said "All weekly reports" while sitting inside one
+              project, and the route it used left the project entirely. */}
           <Button variant="outline" size="sm" asChild>
-            <Link href="/weekly-reports/new">New weekly report</Link>
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/weekly-reports">All weekly reports</Link>
+            <Link href={`/projects/${project.id}/reporting?tab=weekly`}>
+              Reporting workspace
+            </Link>
           </Button>
         </>
       }
@@ -392,7 +474,8 @@ function WeeklyReportsSection({
           {reports.map((report) => (
             <li key={report.id}>
               <Link
-                href={`/weekly-reports/${report.id}`}
+                // This project's own report — keep project context.
+                href={`/projects/${project.id}/reports/weekly/${report.id}`}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 transition-colors hover:bg-muted/50"
               >
                 <span className="min-w-0">
@@ -415,7 +498,13 @@ function WeeklyReportsSection({
   );
 }
 
-function MonthlyReportsSection({ project }: { project: Project }) {
+function MonthlyReportsSection({
+  project,
+  authority,
+}: {
+  project: Project;
+  authority: ProjectAuthority;
+}) {
   const stats: StatCardProps[] = [
     {
       label: "Monthly reporting",
@@ -435,11 +524,17 @@ function MonthlyReportsSection({ project }: { project: Project }) {
       description="Compiled from the approved weekly reports."
       quickActions={
         <>
+          {authority.canManageReporting && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/projects/${project.id}/reports/monthly/new`}>
+                New monthly report
+              </Link>
+            </Button>
+          )}
           <Button variant="outline" size="sm" asChild>
-            <Link href="/monthly-reports/new">New monthly report</Link>
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/monthly-reports">All monthly reports</Link>
+            <Link href={`/projects/${project.id}/reporting?tab=monthly`}>
+              Reporting workspace
+            </Link>
           </Button>
         </>
       }
