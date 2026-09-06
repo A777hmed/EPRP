@@ -932,6 +932,88 @@ async function fetchProjectSiteRows(
   return grouped;
 }
 
+/* ------------------------------ One project ------------------------------- */
+
+/**
+ * Read one project and its six child collections. Always a real read — no
+ * cache, no sharing. Mutations use this directly so a write is never followed
+ * by a snapshot taken before it.
+ */
+async function loadProjectById(id: string): Promise<Project | null> {
+  if (!isUuid(id)) return null;
+  // [reporting-perf] TEMPORARY — see src/lib/perf-temp.ts. Remove with it.
+  const doneTotal = startTimer("getProjectById.TOTAL");
+  const { data, error } = await timed("getProjectById.baseRow", async () =>
+    client().from("projects").select("*").eq("id", id).maybeSingle()
+  );
+  if (error) throw new Error(error.message);
+  if (!data) {
+    doneTotal();
+    return null;
+  }
+  const row = data as ProjectRow;
+  const doneGroup = startTimer("getProjectById.childGroup");
+  const [
+    deptRows,
+    disciplineRows,
+    teamRows,
+    delegationRows,
+    siteRows,
+    positionRows,
+  ] = await Promise.all([
+    timed("getProjectById.departments", () => fetchDepartmentRows([row.id])),
+    timed("getProjectById.disciplines", () => fetchDisciplineRows([row.id])),
+    timed("getProjectById.team", () => fetchTeamRows([row.id])),
+    timed("getProjectById.delegations", () => fetchDelegationRows([row.id])),
+    timed("getProjectById.sites", () => fetchProjectSiteRows([row.id])),
+    timed("getProjectById.positions", () => fetchProjectPositionRows([row.id])),
+  ]);
+  doneGroup();
+  doneTotal();
+  return rowToProject(
+    row,
+    deptRows.get(row.id) ?? [],
+    disciplineRows.get(row.id) ?? [],
+    teamRows.get(row.id) ?? [],
+    delegationRows.get(row.id) ?? [],
+    siteRows.get(row.id) ?? [],
+    positionRows.get(row.id) ?? []
+  );
+}
+
+/**
+ * Reads for the SAME project that are already in flight, shared rather than
+ * repeated.
+ *
+ * One project screen asks for the project from several places at once. Opening
+ * the Overview measured four concurrent `getProjectById` resolutions — twenty
+ * eight PostgREST requests — because `ProjectSectionView` and
+ * `ProjectDetailsView` each load it and React's development Strict Mode runs
+ * every effect twice. Departments and Systems measured two. They are the same
+ * question, asked in the same tick, by the same account.
+ *
+ * This is request deduplication, NOT a cache. An entry lives only while its
+ * request is in flight and is removed the moment it settles, so:
+ *   - the next caller after it settles issues a real read; nothing is stale;
+ *   - a failure is never shared beyond the callers already waiting on it;
+ *   - nothing survives a navigation, a sign-out, or an account change, so no
+ *     project data can cross between users.
+ * Authorization is untouched: this is still one PostgREST read under the
+ * caller's own token, and Row Level Security decides what it returns.
+ */
+const inFlightProjects = new Map<string, Promise<Project | null>>();
+
+function loadProjectByIdShared(id: string): Promise<Project | null> {
+  const pending = inFlightProjects.get(id);
+  if (pending) return pending;
+
+  const request = loadProjectById(id).finally(() => {
+    inFlightProjects.delete(id);
+  });
+  inFlightProjects.set(id, request);
+  return request;
+}
+
 /* ------------------------------- Service ---------------------------------- */
 
 export const supabaseProjectService: ProjectService = {
@@ -972,45 +1054,7 @@ export const supabaseProjectService: ProjectService = {
   },
 
   async getProjectById(id) {
-    if (!isUuid(id)) return null;
-    // [reporting-perf] TEMPORARY — see src/lib/perf-temp.ts. Remove with it.
-    const doneTotal = startTimer("getProjectById.TOTAL");
-    const { data, error } = await timed("getProjectById.baseRow", async () =>
-      client().from("projects").select("*").eq("id", id).maybeSingle()
-    );
-    if (error) throw new Error(error.message);
-    if (!data) {
-      doneTotal();
-      return null;
-    }
-    const row = data as ProjectRow;
-    const doneGroup = startTimer("getProjectById.childGroup");
-    const [
-      deptRows,
-      disciplineRows,
-      teamRows,
-      delegationRows,
-      siteRows,
-      positionRows,
-    ] = await Promise.all([
-      timed("getProjectById.departments", () => fetchDepartmentRows([row.id])),
-      timed("getProjectById.disciplines", () => fetchDisciplineRows([row.id])),
-      timed("getProjectById.team", () => fetchTeamRows([row.id])),
-      timed("getProjectById.delegations", () => fetchDelegationRows([row.id])),
-      timed("getProjectById.sites", () => fetchProjectSiteRows([row.id])),
-      timed("getProjectById.positions", () => fetchProjectPositionRows([row.id])),
-    ]);
-    doneGroup();
-    doneTotal();
-    return rowToProject(
-      row,
-      deptRows.get(row.id) ?? [],
-      disciplineRows.get(row.id) ?? [],
-      teamRows.get(row.id) ?? [],
-      delegationRows.get(row.id) ?? [],
-      siteRows.get(row.id) ?? [],
-      positionRows.get(row.id) ?? []
-    );
+    return loadProjectByIdShared(id);
   },
 
   async createProject(input) {
@@ -1043,7 +1087,7 @@ export const supabaseProjectService: ProjectService = {
     await replaceDelegations(row.id, input.delegations ?? []);
     await replaceProjectSites(row.id, input.sites ?? []);
     await replaceProjectPositions(row.id, input.positions ?? []);
-    const created = await supabaseProjectService.getProjectById(row.id);
+    const created = await loadProjectById(row.id);
     if (!created) throw new Error("Project was created but could not be read back.");
     return created;
   },
@@ -1093,13 +1137,13 @@ export const supabaseProjectService: ProjectService = {
     if ("sites" in input && input.sites) {
       await replaceProjectSites(id, input.sites);
     }
-    const updated = await supabaseProjectService.getProjectById(id);
+    const updated = await loadProjectById(id);
     if (!updated) throw new Error(`Project ${id} not found`);
     return updated;
   },
 
   async duplicateProject(id) {
-    const source = await supabaseProjectService.getProjectById(id);
+    const source = await loadProjectById(id);
     if (!source) throw new Error(`Project ${id} not found`);
     const {
       id: _id,
@@ -1128,7 +1172,7 @@ export const supabaseProjectService: ProjectService = {
       })
       .eq("id", id);
     if (error) throw new Error(error.message);
-    const archived = await supabaseProjectService.getProjectById(id);
+    const archived = await loadProjectById(id);
     if (!archived) throw new Error(`Project ${id} not found`);
     return archived;
   },

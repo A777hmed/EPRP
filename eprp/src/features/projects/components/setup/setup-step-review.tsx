@@ -77,7 +77,7 @@ export function SetupStepReview({
     ? `${client.shortName} — ${client.name}`
     : (client?.name ?? "—");
   const contactName = (id: string) =>
-    contacts.find((contact) => contact.id === id)?.name ?? id;
+    contacts.find((contact) => contact.id === id)?.name ?? "Unknown contact";
 
   // Judged against the full record set, archived included — the `disciplines`
   // prop carries active records only and would report archived-but-correct
@@ -90,12 +90,15 @@ export function SetupStepReview({
   );
   const nameOfDiscipline = (id: string) =>
     (allDisciplineRecords as Discipline[]).find((record) => record.id === id)
-      ?.name ?? id;
+      ?.name ?? `Unknown ${terms.singularLower}`;
   const nameOfSystem = (id?: string) =>
     id
       ? ((allSystemRecords as System[]).find((system) => system.id === id)
-          ?.name ?? id)
+          ?.name ?? "Unknown system")
       : "No system";
+  const scopedDisciplineName = (id: string) =>
+    disciplines.find((discipline) => discipline.id === id)?.name ??
+    `Unknown ${terms.singularLower}`;
 
   return (
     <div className="space-y-4">
@@ -238,7 +241,7 @@ export function SetupStepReview({
                     {departmentName(assignment.departmentId)}
                     {manager && (
                       <span className="ml-2 text-xs font-normal text-muted-foreground">
-                        Manager: {contacts.find((c) => c.id === manager.contactId)?.name ?? manager.contactId}
+                        Manager: {contactName(manager.contactId)}
                       </span>
                     )}
                   </p>
@@ -265,12 +268,22 @@ export function SetupStepReview({
                             systemLinks.map((link) => link.disciplineId)
                           ),
                         ];
+                        // Assignments snapshot the system's name/code at the
+                        // time it was added, so a stale or bad snapshot value
+                        // renders forever unless the live master record — the
+                        // same one `nameOfSystem` already resolves — is
+                        // preferred whenever it still exists.
+                        const masterSystem = (
+                          allSystemRecords as System[]
+                        ).find((record) => record.id === system.id);
+                        const displayName = masterSystem?.name ?? system.name;
+                        const displayCode = masterSystem?.code ?? system.code;
                         return (
                           <li key={system.id} className="rounded-md bg-muted/50 p-2.5">
                             <p className="text-xs font-medium">
                               <span className="text-muted-foreground">System:</span>{" "}
-                              {system.name}
-                              {system.code ? ` (${system.code})` : ""}
+                              {displayName}
+                              {displayCode ? ` (${displayCode})` : ""}
                             </p>
                             {disciplineIds.length > 0 ? (
                               <ul className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -282,7 +295,7 @@ export function SetupStepReview({
                                     key={id}
                                     className="rounded-md border bg-background px-2 py-0.5 text-xs"
                                   >
-                                    {disciplines.find((d) => d.id === id)?.name ?? id}
+                                    {scopedDisciplineName(id)}
                                   </li>
                                 ))}
                               </ul>
@@ -316,11 +329,7 @@ export function SetupStepReview({
                                 .map((link) => link.disciplineId)
                             ),
                           ]
-                            .map(
-                              (id) =>
-                                disciplines.find((discipline) => discipline.id === id)
-                                  ?.name ?? id
-                            )
+                            .map((id) => scopedDisciplineName(id))
                             .join(", ")}
                         </li>
                       )}
@@ -343,9 +352,7 @@ export function SetupStepReview({
                           Boolean(contact?.departmentId) &&
                           contact?.departmentId !== assignment.departmentId;
                         const reportsTo = entry.reportsToContactId
-                          ? (contacts.find(
-                              (c) => c.id === entry.reportsToContactId
-                            )?.name ?? entry.reportsToContactId)
+                          ? contactName(entry.reportsToContactId)
                           : undefined;
                         return (
                           <li
@@ -353,7 +360,7 @@ export function SetupStepReview({
                             className="flex flex-wrap items-center gap-1.5 text-xs"
                           >
                             <span className="rounded-md bg-muted px-2 py-0.5">
-                              {contact?.name ?? entry.contactId}
+                              {contact?.name ?? "Unknown contact"}
                             </span>
                             {isCrossDepartment && contact?.departmentId && (
                               <span className="text-muted-foreground">
@@ -396,9 +403,7 @@ export function SetupStepReview({
                       <StatusBadge tone="success">
                         Acting / Delegated Manager
                       </StatusBadge>
-                      {contacts.find(
-                        (c) => c.id === delegation.delegateContactId
-                      )?.name ?? delegation.delegateContactId}
+                      {contactName(delegation.delegateContactId)}
                       <span>· until {delegation.endDate}</span>
                     </p>
                   ))}

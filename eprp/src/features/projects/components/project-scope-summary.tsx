@@ -414,7 +414,7 @@ export function ProjectScopeSummary({
                   code={record?.code}
                   meta={
                     manager
-                      ? `Manager: ${managerName ?? manager.contactId}`
+                      ? `Manager: ${managerName ?? "Unknown contact"}`
                       : "Manager assigned on Contacts step"
                   }
                   chips={
@@ -490,7 +490,7 @@ export function ProjectScopeSummary({
                   icon={<Layers className="size-4.5" />}
                   accent={SCOPE_ACCENTS.system}
                   name={record.name}
-                  code={system.code ?? record.code}
+                  code={record.code ?? system.code}
                   meta={departmentName(system.departmentId)}
                   chips={
                     <>
@@ -548,7 +548,7 @@ export function ProjectScopeSummary({
                   key={person.contactId}
                   icon={<UserRound className="size-4.5" />}
                   accent={SCOPE_ACCENTS.contact}
-                  name={contact?.name ?? person.contactId}
+                  name={contact?.name ?? "Unknown contact"}
                   meta={
                     <>
                       {contact?.position ?? "No job title"}

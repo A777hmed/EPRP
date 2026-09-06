@@ -77,12 +77,32 @@ export function ProjectSectionView({
   // control can flash before the answer is known.
   const authority = useProjectAuthority(project);
 
+  /*
+   * Overview delegates to `ProjectDetailsView`, which loads the project and
+   * the weekly reports for itself. Loading them here as well meant every
+   * Overview open resolved the same project twice and the same weekly report
+   * list twice — and neither copy was ever read, because this component
+   * returns before it touches them.
+   */
+  const owningOverview = section === "overview";
+  // Only two sections read `weeklyReports`; see `SectionBody` below. Everywhere
+  // else the list — plus its submissions, entries and activities — was fetched
+  // and discarded, four PostgREST requests per open on screens such as
+  // Departments and Systems that never show a report.
+  const needsWeeklyReports =
+    section === "reporting" || section === "weekly-reports";
+
   React.useEffect(() => {
+    if (owningOverview) return;
     // [reporting-perf] TEMPORARY — see src/lib/perf-temp.ts. Remove with it.
     const doneAll = startTimer("sectionView.effect.total");
     void timed("sectionView.getProjectById", () =>
       projectService.getProjectById(projectId)
     ).then(setProject);
+    if (!needsWeeklyReports) {
+      doneAll();
+      return;
+    }
     /* Was `list()` — the whole portfolio, plus every report's submissions,
        entries and activities — discarded down to one project in JavaScript.
        The filter belongs in the query. */
@@ -91,11 +111,11 @@ export function ProjectSectionView({
     )
       .then(setWeeklyReports)
       .finally(doneAll);
-  }, [projectId]);
+  }, [projectId, owningOverview, needsWeeklyReports]);
 
   // Overview is the existing project page; reuse it wholesale rather than
   // maintaining a second version of the same screen.
-  if (section === "overview") {
+  if (owningOverview) {
     return <ProjectDetailsView projectId={projectId} />;
   }
 

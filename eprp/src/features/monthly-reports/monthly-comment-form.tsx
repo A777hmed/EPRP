@@ -88,7 +88,7 @@ function MonthlyCommentEditor({
   const availableSystems = projectSystems(project, departmentId || undefined);
   const availableDisciplines = projectScopeItemIds(project, departmentId || undefined, systemId || undefined);
   const owners = eligibleOwners(project, { departmentId, systemId, disciplineId });
-  const nameOf = (id: string, rows: { id: string; name: string }[]) => rows.find((row) => row.id === id)?.name ?? id;
+  const nameOf = (id: string, rows: { id: string; name: string }[]) => rows.find((row) => row.id === id)?.name ?? "Unknown";
 
   const save = async () => {
     if (!text.trim()) {

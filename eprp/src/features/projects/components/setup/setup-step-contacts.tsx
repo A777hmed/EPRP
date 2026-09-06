@@ -196,7 +196,7 @@ export function SetupStepContacts({
   };
 
   const contactName = (id: string) =>
-    contacts.find((contact) => contact.id === id)?.name ?? id;
+    contacts.find((contact) => contact.id === id)?.name ?? "Unknown contact";
   /*
    * `assignmentDepartmentIds` is every department this project assigns the
    * person into — a person may hold scope in more than one. Their Home
@@ -250,7 +250,8 @@ export function SetupStepContacts({
             )
         );
   const disciplineName = (id: string) =>
-    disciplines.find((discipline) => discipline.id === id)?.name ?? id;
+    disciplines.find((discipline) => discipline.id === id)?.name ??
+    `Unknown ${terms.singularLower}`;
 
   /*
    * Home Department for a Person created here, taken from the department that

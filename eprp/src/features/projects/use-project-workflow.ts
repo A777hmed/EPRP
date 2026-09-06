@@ -54,7 +54,8 @@ export function useProjectWorkflow(project: Project): ProjectWorkflowState {
 
   const departmentName = React.useCallback(
     (id: string) =>
-      departments.find((department) => department.id === id)?.name ?? id,
+      departments.find((department) => department.id === id)?.name ??
+      "Unknown department",
     [departments]
   );
 

@@ -74,7 +74,7 @@ export function SetupStepSystems({
               );
               return {
                 id,
-                name: record?.name ?? existing?.name ?? id,
+                name: record?.name ?? existing?.name ?? "Unknown system",
                 code: record?.code ?? existing?.code,
                 projectDescription: existing?.projectDescription,
               };
@@ -169,54 +169,63 @@ export function SetupStepSystems({
 
             {assignment.systems.length > 0 && (
               <ul className="mt-3 space-y-2">
-                {assignment.systems.map((system) => (
-                  <li key={system.id}>
-                    <LinkedRecordRow
-                      kind="system"
-                      id={system.id}
-                      name={system.name}
-                      meta={system.code}
-                      context={context}
-                      onRemove={() =>
-                        setSystems(
-                          assignment.departmentId,
-                          assignment.systems
-                            .filter((s) => s.id !== system.id)
-                            .map((s) => s.id)
-                        )
-                      }
-                    >
-                      <div className="mt-3 space-y-1">
-                        <Label
-                          htmlFor={`system-description-${assignment.departmentId}-${system.id}`}
-                          className="text-xs text-muted-foreground"
-                        >
-                          System Scope in This Project (optional)
-                        </Label>
-                        <Textarea
-                          id={`system-description-${assignment.departmentId}-${system.id}`}
-                          value={system.projectDescription ?? ""}
-                          rows={2}
-                          placeholder={
-                            systems.find((record) => record.id === system.id)
-                              ?.description ??
-                            "Add scope or notes specific to this project"
-                          }
-                          onChange={(event) =>
-                            patchSystemDescription(
-                              assignment.departmentId,
-                              system.id,
-                              event.target.value
-                            )
-                          }
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Leave blank to use the shared System description.
-                        </p>
-                      </div>
-                    </LinkedRecordRow>
-                  </li>
-                ))}
+                {assignment.systems.map((system) => {
+                  // The project stores a name/code SNAPSHOT on assignment so a
+                  // system removed from master data still shows something —
+                  // but that means a stale or bad snapshot (e.g. from data
+                  // predating a later fix) renders forever unless the live
+                  // master record is preferred whenever it still resolves.
+                  const master = systems.find(
+                    (record) => record.id === system.id
+                  );
+                  return (
+                    <li key={system.id}>
+                      <LinkedRecordRow
+                        kind="system"
+                        id={system.id}
+                        name={master?.name ?? system.name}
+                        meta={master?.code ?? system.code}
+                        context={context}
+                        onRemove={() =>
+                          setSystems(
+                            assignment.departmentId,
+                            assignment.systems
+                              .filter((s) => s.id !== system.id)
+                              .map((s) => s.id)
+                          )
+                        }
+                      >
+                        <div className="mt-3 space-y-1">
+                          <Label
+                            htmlFor={`system-description-${assignment.departmentId}-${system.id}`}
+                            className="text-xs text-muted-foreground"
+                          >
+                            System Scope in This Project (optional)
+                          </Label>
+                          <Textarea
+                            id={`system-description-${assignment.departmentId}-${system.id}`}
+                            value={system.projectDescription ?? ""}
+                            rows={2}
+                            placeholder={
+                              master?.description ??
+                              "Add scope or notes specific to this project"
+                            }
+                            onChange={(event) =>
+                              patchSystemDescription(
+                                assignment.departmentId,
+                                system.id,
+                                event.target.value
+                              )
+                            }
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Leave blank to use the shared System description.
+                          </p>
+                        </div>
+                      </LinkedRecordRow>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </SectionCard>

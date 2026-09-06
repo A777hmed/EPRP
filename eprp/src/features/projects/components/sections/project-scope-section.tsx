@@ -172,12 +172,20 @@ export function ProjectScopeSection({
   const projectSystems = React.useMemo(
     () =>
       project.departments.flatMap((assignment) =>
-        assignment.systems.map((system) => ({
-          ...system,
-          departmentId: assignment.departmentId,
-        }))
+        assignment.systems.map((system) => {
+          // Assignments snapshot the system's name/code at the time it was
+          // added, so a stale or bad snapshot value renders forever unless
+          // the live master record is preferred whenever it still resolves.
+          const master = systems.find((record) => record.id === system.id);
+          return {
+            ...system,
+            name: master?.name ?? system.name,
+            code: master?.code ?? system.code,
+            departmentId: assignment.departmentId,
+          };
+        })
       ),
-    [project.departments]
+    [project.departments, systems]
   );
 
   const projectDisciplines = React.useMemo(() => {
@@ -208,11 +216,11 @@ export function ProjectScopeSection({
           )?.name;
           return {
             id: assignment.departmentId,
-            name: record?.name ?? assignment.departmentId,
+            name: record?.name ?? "Unknown department",
             code: record?.code,
             departmentId: assignment.departmentId,
             meta: manager
-              ? `Manager: ${managerName ?? manager.contactId}`
+              ? `Manager: ${managerName ?? "Unknown contact"}`
               : "Manager assigned on Contacts step",
             badge: (
               <StatusBadge
@@ -262,7 +270,9 @@ export function ProjectScopeSection({
             compareTeamDisplayOrder(
               left,
               right,
-              (id) => contacts.find((contact) => contact.id === id)?.name ?? id
+              (id) =>
+                contacts.find((contact) => contact.id === id)?.name ??
+                "Unknown contact"
             )
           )
           .map((member) => {
@@ -271,7 +281,7 @@ export function ProjectScopeSection({
           );
           return {
             id: `${member.contactId}-${member.disciplineId ?? member.systemId ?? "none"}`,
-            name: record?.name ?? member.contactId,
+            name: record?.name ?? "Unknown contact",
             departmentId: member.departmentId,
             systemId: member.systemId,
             meta: [

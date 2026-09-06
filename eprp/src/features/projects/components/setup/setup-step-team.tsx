@@ -221,13 +221,15 @@ export function SetupStepTeam({
 }: SetupStepTeamProps) {
   const contactName = React.useCallback(
     (id: string) =>
-      contacts.find((candidate) => candidate.id === id)?.name ?? id,
+      contacts.find((candidate) => candidate.id === id)?.name ??
+      "Unknown contact",
     [contacts]
   );
   const disciplineName = React.useCallback(
     (id: string) =>
-      disciplines.find((candidate) => candidate.id === id)?.name ?? id,
-    [disciplines]
+      disciplines.find((candidate) => candidate.id === id)?.name ??
+      `Unknown ${terms.singularLower}`,
+    [disciplines, terms]
   );
 
   /* Departments that actually have participants, in project order. */

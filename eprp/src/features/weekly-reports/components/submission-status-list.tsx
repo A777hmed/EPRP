@@ -33,7 +33,7 @@ export function SubmissionStatusList({
           >
             <div className="min-w-0">
               <p className="text-sm font-medium">
-                {dept?.name ?? sub.departmentId}
+                {dept?.name ?? "Unknown department"}
                 {dept?.code && (
                   <span className="ml-1.5 font-mono text-xs text-muted-foreground">
                     {dept.code}

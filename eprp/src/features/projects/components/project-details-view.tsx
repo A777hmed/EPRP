@@ -470,10 +470,10 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-sm font-medium">
-                            {dept?.name ?? assignment.departmentId}
+                            {dept?.name ?? "Unknown department"}
                             {manager && (
                               <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                Manager: {managerName ?? manager.contactId}
+                                Manager: {managerName ?? "Unknown contact"}
                               </span>
                             )}
                           </p>
@@ -544,25 +544,31 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
                       <li key={assignment.departmentId}>
                         <p className="text-xs text-muted-foreground">
                           {getDepartmentById(assignment.departmentId)?.name ??
-                            assignment.departmentId}
+                            "Unknown department"}
                         </p>
                         <ul className="mt-1 space-y-1.5">
                           {assignment.systems.map((system) => {
-                            const masterDescription = masterSystems.find(
+                            // Assignments snapshot the system's name/code at
+                            // the time it was added, so a stale or bad
+                            // snapshot value renders forever unless the live
+                            // master record is preferred whenever it exists.
+                            const master = masterSystems.find(
                               (record) => record.id === system.id
-                            )?.description;
+                            );
                             const effectiveDescription =
                               system.projectDescription?.trim() ||
-                              masterDescription?.trim();
+                              master?.description?.trim();
+                            const displayName = master?.name ?? system.name;
+                            const displayCode = master?.code ?? system.code;
                             return (
                               <li
                                 key={system.id}
                                 className="rounded-md bg-muted px-2 py-1.5 text-xs"
                               >
-                                {system.name}
-                                {system.code && (
+                                {displayName}
+                                {displayCode && (
                                   <span className="ml-1 font-mono text-muted-foreground">
-                                    {system.code}
+                                    {displayCode}
                                   </span>
                                 )}
                                 {effectiveDescription && (

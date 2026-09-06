@@ -80,11 +80,21 @@ export function SetupStepDisciplines({
   const { records: allSystemRecords } = useMasterData("system");
 
   // Every system on the project, flattened with its owning department.
+  // Assignments snapshot the system's name/code at the time it was added, so
+  // a stale or bad snapshot value renders forever unless the live master
+  // record is preferred whenever it still resolves.
   const projectSystems = assignments.flatMap((assignment) =>
-    assignment.systems.map((system) => ({
-      ...system,
-      departmentId: assignment.departmentId,
-    }))
+    assignment.systems.map((system) => {
+      const master = (allSystemRecords as System[]).find(
+        (record) => record.id === system.id
+      );
+      return {
+        ...system,
+        name: master?.name ?? system.name,
+        code: master?.code ?? system.code,
+        departmentId: assignment.departmentId,
+      };
+    })
   );
 
   const [systemId, setSystemId] = React.useState(
@@ -132,11 +142,11 @@ export function SetupStepDisciplines({
       (discipline) => discipline.id === id
     )?.name ??
     disciplines.find((discipline) => discipline.id === id)?.name ??
-    id;
+    `Unknown ${terms.singularLower}`;
   const systemName = (id?: string) =>
     id
       ? ((allSystemRecords as System[]).find((system) => system.id === id)
-          ?.name ?? id)
+          ?.name ?? "Unknown system")
       : "No system";
 
   const misplaced = misplacedScopeLinks(

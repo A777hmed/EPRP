@@ -230,7 +230,13 @@ export function ProjectInfoWorkspace({
       count: systemCount,
       summary:
         draft.departments
-          .flatMap((a) => a.systems.map((s) => s.name))
+          .flatMap((a) =>
+            a.systems.map(
+              (s) =>
+                workflow.systems.find((record) => record.id === s.id)
+                  ?.name ?? s.name
+            )
+          )
           .join(", ") || "None assigned yet",
       body: (
         <SetupStepSystems
@@ -250,7 +256,8 @@ export function ProjectInfoWorkspace({
         disciplineIds
           .map(
             (id) =>
-              workflow.disciplines.find((d) => d.id === id)?.name ?? id
+              workflow.disciplines.find((d) => d.id === id)?.name ??
+              `Unknown ${workflow.terms.singularLower}`
           )
           .join(", ") || "None linked yet",
       body: (
@@ -288,7 +295,7 @@ export function ProjectInfoWorkspace({
   ];
 
   const contactName = (id: string) =>
-    workflow.contacts.find((c) => c.id === id)?.name ?? id;
+    workflow.contacts.find((c) => c.id === id)?.name ?? "Unknown contact";
 
   return (
     <div className="space-y-4">

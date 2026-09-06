@@ -389,7 +389,7 @@ function ResponsibilityRow({
               unfilled && "text-muted-foreground"
             )}
           >
-            {person.name ?? (unfilled ? "Not assigned" : entry.contactId)}
+            {person.name ?? (unfilled ? "Not assigned" : "Unknown contact")}
           </p>
           <p className="truncate text-xs text-muted-foreground">
             {person.position ?? (unfilled ? "—" : "No job title")}

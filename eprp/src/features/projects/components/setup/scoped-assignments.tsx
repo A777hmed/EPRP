@@ -81,7 +81,7 @@ export function ScopedAssignments({
     const incumbentName =
       (contactRecords as Contact[]).find(
         (record) => record.id === incumbent.contactId
-      )?.name ?? incumbent.contactId;
+      )?.name ?? "Unknown contact";
     toast.error(
       `${incumbentName} is already the Department Manager. A department has exactly one — change it in Department Manager on the Contacts step.`
     );
