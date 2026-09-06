@@ -632,7 +632,18 @@ export function WeeklyReportDetailView({
                 Preview
               </Link>
             </Button>
-            {mode === "detail" && isEditableReport(report) && editability.canEdit && (
+            {/*
+              Edit opens the Weekly HEADER form — project-wide report content,
+              written to `weekly_reports`, whose update policy is
+              `can_manage_reporting_workflow()`. Gated on `canConsolidate` for
+              the same reason Duplicate and Archive below already are: without
+              it a Department User was offered Edit on a report in their own
+              project and refused by row-level security on save.
+            */}
+            {mode === "detail" &&
+              isEditableReport(report) &&
+              editability.canEdit &&
+              scope?.canConsolidate && (
               <Button variant="outline" asChild>
                 <Link href={links.edit(report.id)}>
                   <PenLine data-icon="inline-start" aria-hidden="true" />
@@ -762,6 +773,13 @@ export function WeeklyReportDetailView({
           reportId={report.id}
           reportNumber={report.reportNumber}
           projectId={report.projectId}
+          /* The facts the department's request has to carry. All read from
+             the report and the project already loaded here — nothing is
+             restated and nothing is hardcoded. */
+          projectName={project?.name ?? "Project"}
+          projectCode={project?.code}
+          periodStart={report.periodStart}
+          periodEnd={report.periodEnd}
           /* Every department assigned to the project — the scope candidates.
              Sourced from the project, so a department from another project can
              never appear. */
@@ -783,6 +801,17 @@ export function WeeklyReportDetailView({
           reportId={report.id}
           workspace={workspace}
           canEdit={mode === "workspace" && editability.canEdit}
+          /*
+             Who may accept a department's work. The Department Manager is the
+             business owner of that decision (`05` §1.2); `canConsolidate` rides
+             alongside so an administrator can still unblock a stuck report, and
+             is not the normal path. Both halves come straight off the scope
+             already resolved on the server — no second lookup, no new rule.
+          */
+          verdictAuthority={{
+            canConsolidate: Boolean(scope?.canConsolidate),
+            managedDepartmentIds: scope?.managedDepartmentIds ?? [],
+          }}
           viewerContactId={scope?.contactId}
           onSaved={handleSaved}
           onEntrySaved={handleEntrySaved}
@@ -805,6 +834,16 @@ export function WeeklyReportDetailView({
         </SectionCard>
       )}
 
+      {/*
+        Project-level management items are project-wide report content, and
+        `weekly_entries_insert` admits a department user only for a COMMENT
+        carrying their own department. A department contributor was therefore
+        shown "Add Item" and "Save items" here and refused by row-level
+        security on click. Gated on the same `canConsolidate` the sibling
+        Project Control plan and the Distribution panel already use — the
+        existing mirror of `can_manage_reporting_workflow()`, resolved on the
+        server. No new rule, and reading is unchanged.
+      */}
       {mode === "workspace" && workspace && scope && (
         <WeeklyManagementItems
           reportId={report.id}
@@ -813,7 +852,7 @@ export function WeeklyReportDetailView({
           scopeItemCount={workspace.scopeItemLevelCount}
           names={names}
           terms={scope.terms}
-          canEdit={editability.canEdit}
+          canEdit={editability.canEdit && Boolean(scope.canConsolidate)}
           onEntrySaved={handleEntrySaved}
           onEntryDeleted={handleEntryDeleted}
         />
@@ -904,7 +943,10 @@ export function WeeklyReportDetailView({
           contacts={contacts}
           defaultPrepared={defaultPrepared}
           saved={report.signatories}
-          editable={editability.canEdit}
+          /* Sign-off writes `weekly_reports`, which is
+             `can_manage_reporting_workflow()` — same reason as the
+             management items above. Still rendered, still read-only. */
+          editable={editability.canEdit && Boolean(scope?.canConsolidate)}
           onSaved={(signatories) =>
             setReport((current) => (current ? { ...current, signatories } : current))
           }

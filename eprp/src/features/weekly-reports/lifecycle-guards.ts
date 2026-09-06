@@ -23,7 +23,17 @@ export interface LifecycleContext {
     | "reviewedByContactId"
     | "approvedByContactId"
   >;
-  submissions: Pick<WeeklySubmission, "status">[];
+  /**
+   * Every `weekly_submissions` row on the report — BOTH grains.
+   *
+   * `departmentId` and `disciplineId` are carried because the stage
+   * conditions count DEPARTMENTS, and this table holds more than one row per
+   * department. See {@link departmentApproval}.
+   */
+  submissions: Pick<
+    WeeklySubmission,
+    "status" | "departmentId" | "disciplineId"
+  >[];
   /**
    * An explicit, audited administrative override. Absent for normal
    * transitions — it is never implied and never defaulted.
@@ -49,11 +59,11 @@ export interface GuardResult {
 }
 
 /**
- * A submission counts as complete once the department's lead accepts it, which
+ * A department counts as complete once its lead accepts it, which
  * `SubmissionStatus` spells `approved`.
  *
- * This compared against `"accepted"` — a value that exists nowhere. The column
- * constraint `weekly_submissions_status_valid` admits
+ * This once compared against `"accepted"` — a value that exists nowhere. The
+ * column constraint `weekly_submissions_status_valid` admits
  * `pending | in_progress | submitted | returned | approved`, and
  * {@link SubmissionStatus} says the same. The comparison could therefore never
  * match, so `needsAllSubmissions` always failed and **no Weekly report could
@@ -61,8 +71,53 @@ export interface GuardResult {
  * application. Corrected in P0.3, because P0.3 mirrors these conditions into
  * SQL and would otherwise have made an unsatisfiable rule authoritative.
  */
-function acceptedCount(submissions: { status: string }[]): number {
-  return submissions.filter((s) => s.status === "approved").length;
+
+/** One row of `weekly_submissions`, at whichever grain it was stored. */
+type CountableSubmission = Pick<
+  WeeklySubmission,
+  "status" | "departmentId" | "disciplineId"
+>;
+
+/**
+ * How many DEPARTMENTS owe input, and how many have been approved.
+ *
+ * `weekly_submissions` holds two grains against one department: the canonical
+ * department-level row (`disciplineId` absent) and one row per scope item the
+ * department covers. Both this function and its SQL mirror used to count
+ * `rows`, which is why a single department carrying one scope item reported
+ *
+ *     0 of 2 department submissions approved — all are required
+ *
+ * while the Weekly scope on screen showed exactly one department. The scope
+ * items were being demanded as if each were a department in its own right, and
+ * nothing in the product ever approves a scope item, so the Weekly could not
+ * leave Collecting at all.
+ *
+ * The canonical department-level row is the department's submission — that is
+ * the row a Department Manager approves — so it alone decides the verdict. A
+ * department that is in scope but has no canonical row yet counts toward the
+ * total and not toward the approvals, because its submission does not exist to
+ * have been approved.
+ *
+ * The row model is deliberately NOT restructured here; `docs/specs/weekly-report.md`
+ * records that as an open decision. This only stops the guard from misreading it.
+ */
+function departmentApproval(submissions: CountableSubmission[]): {
+  total: number;
+  approved: number;
+} {
+  const departments = new Set<string>();
+  const approved = new Set<string>();
+
+  for (const row of submissions) {
+    if (!row.departmentId) continue;
+    departments.add(row.departmentId);
+    if (!row.disciplineId && row.status === "approved") {
+      approved.add(row.departmentId);
+    }
+  }
+
+  return { total: departments.size, approved: approved.size };
 }
 
 /**
@@ -73,16 +128,17 @@ function acceptedCount(submissions: { status: string }[]): number {
  */
 function unmetConditions(to: ReportStatus, ctx: LifecycleContext): string[] {
   const { report, submissions } = ctx;
-  const total = submissions.length;
-  const accepted = acceptedCount(submissions);
+  const { total, approved } = departmentApproval(submissions);
   const unmet: string[] = [];
 
   const needsAllSubmissions = () => {
     if (total === 0) {
       unmet.push("No department submissions exist for this report.");
-    } else if (accepted < total) {
+    } else if (approved < total) {
+      // Departments, not rows — the count on screen must match the Weekly
+      // scope the user is looking at.
       unmet.push(
-        `${accepted} of ${total} department submissions approved — all are required.`
+        `${approved} of ${total} department${total === 1 ? "" : "s"} approved — every department in the Weekly scope must be approved by its Department Manager.`
       );
     }
   };

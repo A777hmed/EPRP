@@ -1,6 +1,7 @@
 import type { HierarchyTerms } from "@/config/project-terminology";
 import { hierarchyTermsFor } from "@/config/project-terminology";
-import type { Project, ProjectType } from "@/types";
+import { isEditableStatus } from "@/config/workflows";
+import type { Project, ProjectType, ReportStatus } from "@/types";
 import {
   assignedScopeItems,
   departmentAssignments,
@@ -53,6 +54,16 @@ export interface WeeklyScope {
   capability: WeeklyCapability;
   /** Departments this person may work in, always a subset of the project's. */
   departmentIds: string[];
+  /**
+   * The departments this person is the assigned Department Manager of.
+   *
+   * A subset of `departmentIds`, and usually empty. Separate from capability
+   * because it answers a different question: capability says how WIDE the
+   * reach is, this says where the person carries the Lead's authority to
+   * accept their department's Weekly (`05` §1.2). `is_weekly_department_manager()`
+   * is the database's statement of the same rule.
+   */
+  managedDepartmentIds: string[];
   /** Per department: the scope items they may reach. */
   itemsByDepartment: Record<string, ScopeItemAccess>;
   /** Display wording for the scope-item level. Never used for access. */
@@ -138,6 +149,9 @@ export function resolveWeeklyScope(
     ...base,
     capability,
     departmentIds: departments,
+    // A project-wide authority is not a Department Manager of anything; it
+    // reaches every department by a different route entirely.
+    managedDepartmentIds: [],
     itemsByDepartment: Object.fromEntries(
       departments.map((id) => [id, ALL_ITEMS as ScopeItemAccess])
     ),
@@ -171,6 +185,7 @@ export function resolveWeeklyScope(
       ...base,
       capability: "none",
       departmentIds: [],
+      managedDepartmentIds: [],
       itemsByDepartment: {},
       canConsolidate: false,
     };
@@ -180,6 +195,7 @@ export function resolveWeeklyScope(
     ...base,
     capability: managed.length > 0 ? "department" : "scope_items",
     departmentIds: reachable,
+    managedDepartmentIds: managed,
     itemsByDepartment: {
       ...Object.fromEntries(
         managed.map((id) => [id, ALL_ITEMS as ScopeItemAccess])
@@ -305,7 +321,7 @@ export interface WeeklyEditability {
  */
 export function weeklyEditability(
   scope: WeeklyScope,
-  reportStatus: string
+  reportStatus: ReportStatus
 ): WeeklyEditability {
   if (scope.capability === "none") {
     return {
@@ -328,6 +344,31 @@ export function weeklyEditability(
         scope.capability === "all_projects"
           ? undefined
           : "This report is approved. Only an administrator can still change it.",
+    };
+  }
+  /*
+   * Department input closes once the Weekly leaves collection — the same
+   * moment `weekly_can_manage_project`-gated writes (Project Control's) keep
+   * going, because `weekly_submissions_update`'s consolidator branch never
+   * checks report status at all. `canConsolidate` is that same split here.
+   *
+   * This used to fall straight through to `canEdit: true` for every status
+   * that reached this line — including `under_review`, `submitted` and
+   * `rejected` — so a Department Manager or Team Member saw live controls on
+   * a report the database had already closed to them, and Save failed with a
+   * raw RLS error instead of the control never having been offered.
+   *
+   * `isEditableStatus("weekly", …)` — `config/workflows.ts` — is the existing
+   * canonical status list (`draft | collecting | returned`) that
+   * `weekly_report_accepts_department_input()` was written to mirror. Reused
+   * as-is rather than restated, so this can only agree with the database, not
+   * drift from it a second way.
+   */
+  if (!scope.canConsolidate && !isEditableStatus("weekly", reportStatus)) {
+    return {
+      canEdit: false,
+      reason:
+        "This report has left department collection, so your department input is read-only. It reopens if Project Control returns the report to Collecting.",
     };
   }
   return { canEdit: true };

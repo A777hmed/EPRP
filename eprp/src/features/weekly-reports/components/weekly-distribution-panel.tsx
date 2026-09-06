@@ -13,9 +13,12 @@
  * Weekly does not mean a department has started it, and stamping a status would
  * silently overwrite work already in progress.
  *
- * EMAIL IS NOT FAKED. The platform has no outbound mail configured, so "send"
- * starts the collection workflow and the link is copied by hand. The panel says
- * so plainly rather than implying a message was delivered.
+ * EMAIL IS NOT FAKED. The platform has no outbound mail transport — no
+ * provider, no credential, no server route — so nothing here ever reports a
+ * message as delivered. Starting collection stamps the workflow; reaching the
+ * recipient is done either by copying the project-scoped link or by opening a
+ * pre-filled draft in the sender's OWN mail client, which is delivery by the
+ * sender and is labelled as such.
  */
 
 import * as React from "react";
@@ -26,6 +29,7 @@ import {
   Copy,
   ExternalLink,
   Link2,
+  Mail,
   Send,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -36,12 +40,21 @@ import type { Department, WeeklySubmission } from "@/types";
 import {
   GAP_LABEL,
   manageContactsHref,
+  weeklyDepartmentLink,
+  weeklyInvitationMailto,
+  weeklyInvitationMessage,
   type DepartmentRecipients,
   type Recipient,
+  type WeeklyInvitationContext,
 } from "../weekly-recipients";
 import { weeklyReportService } from "@/services/weekly-report-service";
 
-/** No mail transport is configured anywhere in the platform. */
+/**
+ * No mail transport is configured anywhere in the platform, and none is faked.
+ * Flipping this to `true` would not make the platform send: that needs a
+ * provider, a credential and a server route, none of which exist. It stays so
+ * the honest notice below cannot be lost by accident.
+ */
 const EMAIL_CONFIGURED = false;
 
 const DEFAULT_DEADLINE_HOURS = 48;
@@ -108,8 +121,18 @@ export interface DistributionRow {
 export interface WeeklyDistributionPanelProps {
   reportId: string;
   reportNumber: string;
-  /** For the "Manage Project Contacts" action on an unassigned department. */
+  /**
+   * The project this Weekly belongs to.
+   *
+   * Required for a project-scoped recipient link, and also what the
+   * "Manage Project Contacts" action on an unassigned department needs.
+   */
   projectId?: string;
+  /** Facts the recipient's request needs to carry. Display only. */
+  projectName: string;
+  projectCode?: string;
+  periodStart: string;
+  periodEnd: string;
   /** EVERY department assigned to this project — the candidates for scope. */
   projectDepartments: { id: string; name: string }[];
   /** Whether the viewer may change the Weekly's department scope. */
@@ -123,6 +146,10 @@ export function WeeklyDistributionPanel({
   reportId,
   reportNumber,
   projectId,
+  projectName,
+  projectCode,
+  periodStart,
+  periodEnd,
   projectDepartments,
   canEditScope,
   rows,
@@ -131,10 +158,30 @@ export function WeeklyDistributionPanel({
   const [dialogFor, setDialogFor] = React.useState<string[] | null>(null);
   const [busy, setBusy] = React.useState(false);
 
+  /*
+   * The recipient link. Project-scoped — see `weeklyDepartmentLink` for why
+   * the global register's route was the wrong destination and why the
+   * department is carried in the query string as well as the fragment.
+   */
   const linkFor = React.useCallback(
     (departmentId: string) =>
-      `${window.location.origin}/weekly-reports/${reportId}/workspace#dept-${departmentId}`,
-    [reportId]
+      weeklyDepartmentLink(window.location.origin, projectId, reportId, departmentId),
+    [projectId, reportId]
+  );
+
+  /** Everything one department's request has to say, assembled once per row. */
+  const invitationFor = React.useCallback(
+    (row: DistributionRow): WeeklyInvitationContext => ({
+      projectName,
+      projectCode,
+      reportNumber,
+      periodStart,
+      periodEnd,
+      departmentName: row.departmentName,
+      dueAt: row.submission?.dueAt,
+      link: linkFor(row.departmentId),
+    }),
+    [linkFor, periodEnd, periodStart, projectCode, projectName, reportNumber]
   );
 
   const copy = async (text: string, message: string) => {
@@ -197,7 +244,9 @@ export function WeeklyDistributionPanel({
       {!EMAIL_CONFIGURED && (
         <p className="wd-notice">
           <AlertTriangle aria-hidden />
-          Email delivery is not configured — use Copy Link.
+          This platform does not send email. Nothing here has been delivered —
+          use <b>Email Draft</b> to open the request in your own mail client, or
+          copy the link and send it yourself.
         </p>
       )}
 
@@ -359,6 +408,36 @@ export function WeeklyDistributionPanel({
                       <Send aria-hidden />
                       {row.submission?.sentAt ? "Remind" : "Start Collection"}
                     </button>
+                    {/*
+                      Opens the sender's own mail client with the request
+                      pre-filled. The platform sends nothing, so this is
+                      offered only where an address is actually stored — an
+                      empty `mailto:` would look like an action and do
+                      nothing.
+                    */}
+                    {row.recipients.emails.length > 0 && (
+                      <a
+                        href={weeklyInvitationMailto(
+                          row.recipients.emails,
+                          invitationFor(row)
+                        )}
+                        title="Open a pre-filled draft in your mail client"
+                      >
+                        <Mail aria-hidden /> Email Draft
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copy(
+                          weeklyInvitationMessage(invitationFor(row)).body,
+                          `Request text copied for ${row.departmentName}.`
+                        )
+                      }
+                      title="Copy the request text, link included"
+                    >
+                      <Copy aria-hidden /> Message
+                    </button>
                     <button
                       type="button"
                       onClick={() => copy(linkFor(row.departmentId), `Link copied for ${row.departmentName}.`)}
@@ -470,7 +549,7 @@ function DistributionDialog({
             <p className="wd-delivery">
               {EMAIL_CONFIGURED
                 ? "Email and department link."
-                : "Department link only — email delivery is not configured, so copy the link to each department after starting."}
+                : "The platform sends no email. Starting collection records the deadline and opens each department's input; send the request yourself from the row's Email Draft or Message action."}
             </p>
           </div>
         </div>

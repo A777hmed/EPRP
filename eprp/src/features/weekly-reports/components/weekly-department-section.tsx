@@ -3,10 +3,12 @@
 import * as React from "react";
 import {
   AlertTriangle,
+  Check,
   ChevronDown,
   Loader2,
   Plus,
   Save,
+  Undo2,
   Unlink,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -58,6 +60,64 @@ import type {
 } from "../workspace";
 import { WeeklyUpdateFields } from "./weekly-update-fields";
 import { ScopedPersonSelect } from "./scoped-person-select";
+
+/**
+ * Who may record a VERDICT — Approved or Returned — and on which department.
+ *
+ * `approved` and `returned` are the acceptance of a department's work.
+ * `docs/05_PERMISSION_MODEL.md` §1.2 gives that to the **Department Lead**:
+ * "Approves the department's Weekly submission … A department's submission
+ * cannot skip the Lead." Everything else in the list is the department
+ * reporting on itself.
+ *
+ * TWO THINGS THIS DELIBERATELY NARROWS.
+ *
+ *   WHERE. A verdict belongs to the department's canonical submission, not to
+ *   each scope item under it. Offering Approved on every Program & Study row
+ *   invited a per-item approval that nothing in the product means and that the
+ *   lifecycle guard does not read.
+ *
+ *   WHO. `managedDepartmentIds` are the departments this viewer actually
+ *   manages, so a manager rules on their own department and no other.
+ *   `canConsolidate` (Project Control / Report Coordinator / admin) is kept
+ *   alongside it so an administrator is not locked out of a stuck report — it
+ *   is the exception, not the normal business path.
+ *
+ * Carried on context rather than drilled: the Status control sits four
+ * components below the panel and every one of them would otherwise gain props
+ * it does not use. The default grants nothing, so a tree rendered without the
+ * provider offers department input only.
+ *
+ * This decides what to OFFER. `weekly_submissions_update` remains the boundary
+ * and enforces the same two narrowings independently.
+ */
+export interface SubmissionVerdictAuthority {
+  /** Project Control / Report Coordinator / platform administrator. */
+  canConsolidate: boolean;
+  /** Departments this viewer is the assigned Department Manager of. */
+  managedDepartmentIds: string[];
+}
+
+const NO_VERDICT_AUTHORITY: SubmissionVerdictAuthority = {
+  canConsolidate: false,
+  managedDepartmentIds: [],
+};
+
+const SubmissionVerdictAuthorityContext =
+  React.createContext<SubmissionVerdictAuthority>(NO_VERDICT_AUTHORITY);
+
+export const SubmissionVerdictAuthorityProvider =
+  SubmissionVerdictAuthorityContext.Provider;
+
+/** What a department may say about its own work. */
+const DEPARTMENT_INPUT_STATUSES: SubmissionStatus[] = [
+  "pending",
+  "in_progress",
+  "submitted",
+];
+
+/** The verdict pair, in the order a reviewer meets them. */
+const VERDICT_STATUSES: SubmissionStatus[] = ["returned", "approved"];
 
 /** Badge tone per completion state. Neutral until work actually starts. */
 const STATE_TONE: Record<DepartmentState, StatusTone> = {
@@ -386,6 +446,19 @@ function UpdateEditor({
     (items?.entries ?? []).map(toWeeklyUpdateDraft)
   );
 
+  const verdictAuthority = React.useContext(SubmissionVerdictAuthorityContext);
+  /*
+   * A verdict is offered on the department's canonical row only, and only to
+   * someone who may rule on THIS department. Both halves matter: without the
+   * level check a Program & Study row offers an approval nothing reads;
+   * without the department check a manager of one department is offered a
+   * verdict on another and refused by RLS on save.
+   */
+  const mayRecordVerdict =
+    level === "department" &&
+    (verdictAuthority.canConsolidate ||
+      verdictAuthority.managedDepartmentIds.includes(departmentId));
+
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [commentError, setCommentError] = React.useState<string | null>(null);
@@ -542,17 +615,27 @@ function UpdateEditor({
     }
   };
 
-  const save = async () => {
-    if (blocked || !dirty) return;
+  /**
+   * Save the summary, optionally forcing the status.
+   *
+   * `verdict` is what the Approve / Return buttons pass. It bypasses the dirty
+   * check on purpose: recording a verdict on an unchanged row IS the change,
+   * and requiring the reviewer to edit something first would be nonsense.
+   * Everything else about the write is identical, so a verdict travels the
+   * same service call and the same policy as any other department save.
+   */
+  const save = async (verdict?: SubmissionStatus) => {
+    const effective = verdict ? { ...draft, status: verdict } : draft;
+    if (blocked || (!dirty && !verdict)) return;
     setSaving(true);
     setError(null);
     try {
-      if (updateDirty) {
+      if (updateDirty || verdict) {
         const saved = await weeklyReportService.saveDepartmentUpdate(reportId, {
           id: submissionId,
           departmentId,
           disciplineId: items?.disciplineId,
-          status: draft.status,
+          status: effective.status,
           progressPercent: progress,
           summary: draft.summary,
           keyAchievement: draft.keyAchievement,
@@ -562,15 +645,20 @@ function UpdateEditor({
           targetDate: draft.targetDate,
         });
         setSubmissionId(saved.id);
-        setPristine(draft);
+        setDraft(effective);
+        setPristine(effective);
         onSaved(saved);
       }
 
       setSavedAt(Date.now());
       toast.success(
-        level === "scope_item"
-          ? "Scope summary saved"
-          : "Department summary saved"
+        verdict === "approved"
+          ? "Department submission approved"
+          : verdict === "returned"
+            ? "Department submission returned for revision"
+            : level === "scope_item"
+              ? "Scope summary saved"
+              : "Department summary saved"
       );
     } catch (e) {
       const message =
@@ -595,6 +683,51 @@ function UpdateEditor({
           separately below.
         </p>
       </div>
+
+      {/*
+        Department review.
+
+        Shown only on the department's canonical submission and only to someone
+        who may rule on THIS department — see `mayRecordVerdict`. It is the one
+        place a verdict is recorded: the scope items below carry working state,
+        not acceptance, and the Weekly's own lifecycle is Project Control's and
+        is not reachable from here.
+      */}
+      {mayRecordVerdict && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed px-3 py-2">
+          <div className="mr-auto">
+            <p className="text-xs font-semibold">Department Review</p>
+            <p className="text-xs text-muted-foreground">
+              {draft.status === "approved"
+                ? "Approved. Project Control can now include this department in the Weekly review."
+                : draft.status === "returned"
+                  ? "Returned to the department for revision."
+                  : draft.status === "submitted"
+                    ? "Submitted by the department and awaiting your decision."
+                    : "The department has not submitted this Weekly yet."}
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => save("approved")}
+            disabled={saving || blocked || draft.status === "approved"}
+          >
+            <Check data-icon="inline-start" aria-hidden="true" />
+            Approve Department Submission
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => save("returned")}
+            disabled={saving || blocked || draft.status === "returned"}
+          >
+            <Undo2 data-icon="inline-start" aria-hidden="true" />
+            Return for Revision
+          </Button>
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field>
           <FieldLabel htmlFor={`${fieldId}-status`}>Status</FieldLabel>
@@ -610,13 +743,24 @@ function UpdateEditor({
               <SelectValue placeholder="Select status" />
             </SelectTrigger>
             <SelectContent>
-              {(Object.keys(SUBMISSION_STATUS_META) as SubmissionStatus[]).map(
-                (status) => (
+              {/*
+                The current value is always listed, even when it is a verdict
+                this viewer cannot set: a row Project Control has already
+                Approved must still READ as Approved rather than render an
+                empty Status box.
+              */}
+              {(Object.keys(SUBMISSION_STATUS_META) as SubmissionStatus[])
+                .filter(
+                  (status) =>
+                    DEPARTMENT_INPUT_STATUSES.includes(status) ||
+                    (mayRecordVerdict && VERDICT_STATUSES.includes(status)) ||
+                    status === draft.status
+                )
+                .map((status) => (
                   <SelectItem key={status} value={status}>
                     {SUBMISSION_STATUS_META[status].label}
                   </SelectItem>
-                )
-              )}
+                ))}
             </SelectContent>
           </Select>
           <FieldDescription>
@@ -803,7 +947,7 @@ function UpdateEditor({
         <Button
           type="button"
           size="sm"
-          onClick={save}
+          onClick={() => save()}
           disabled={saving || !dirty || blocked}
         >
           {saving ? (

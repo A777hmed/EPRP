@@ -1,13 +1,17 @@
 "use client";
 
+import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { EyeOff } from "lucide-react";
 
 import { SectionCard } from "@/components/shared";
 import type { WeeklyEntry, WeeklySubmission } from "@/types";
 import type { WeeklyWorkspace } from "../workspace";
 import {
+  SubmissionVerdictAuthorityProvider,
   WeeklyDepartmentSection,
   useWeeklyNameLookup,
+  type SubmissionVerdictAuthority,
 } from "./weekly-department-section";
 
 export interface WeeklyDepartmentsPanelProps {
@@ -15,6 +19,12 @@ export interface WeeklyDepartmentsPanelProps {
   workspace: WeeklyWorkspace;
   /** The reason it may be false is stated once, at page level. */
   canEdit: boolean;
+  /**
+   * Who this viewer may Approve or Return, as opposed to only reporting
+   * department input. See `SubmissionVerdictAuthority` in
+   * `weekly-department-section` for why it is a pair rather than a boolean.
+   */
+  verdictAuthority: SubmissionVerdictAuthority;
   viewerContactId?: string;
   onSaved: (submission: WeeklySubmission) => void;
   onEntrySaved: (entry: WeeklyEntry) => void;
@@ -34,13 +44,43 @@ export function WeeklyDepartmentsPanel({
   reportId,
   workspace,
   canEdit,
+  verdictAuthority,
   viewerContactId,
   onSaved,
   onEntrySaved,
   onEntryDeleted,
 }: WeeklyDepartmentsPanelProps) {
   const names = useWeeklyNameLookup();
+
+  /*
+   * The department a distributed link asked for.
+   *
+   * The link carries it twice — `#dept-<id>` for the browser and
+   * `?dept=<id>` for everything the fragment cannot survive. Sign-in is the
+   * case that matters: a fragment is never sent to the server, so the proxy's
+   * `?next=` round trip keeps the query string and loses the anchor. Reading
+   * the query here means a recipient who had to sign in still lands on their
+   * own department.
+   *
+   * NAVIGATION ONLY. A department that is not in `workspace.departments` is
+   * one this viewer cannot reach, and no id in a URL changes that — the
+   * section simply is not rendered, and row-level security refuses its rows
+   * independently.
+   */
+  const requestedDepartment = useSearchParams().get("dept");
   const total = workspace.departments.length;
+  const visibleIds = workspace.departments.map((section) => section.departmentId);
+  const focusDepartment =
+    requestedDepartment && visibleIds.includes(requestedDepartment)
+      ? requestedDepartment
+      : undefined;
+
+  React.useEffect(() => {
+    if (!focusDepartment) return;
+    document
+      .getElementById(`dept-${focusDepartment}`)
+      ?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [focusDepartment]);
   const complete = workspace.departments.filter(
     (d) => d.state === "complete"
   ).length;
@@ -51,6 +91,7 @@ export function WeeklyDepartmentsPanel({
   );
 
   return (
+    <SubmissionVerdictAuthorityProvider value={verdictAuthority}>
     <SectionCard
       title="Departments"
       description="Department input for this reporting week."
@@ -88,9 +129,10 @@ export function WeeklyDepartmentsPanel({
             names={names}
             canEdit={canEdit}
             viewerContactId={viewerContactId}
-            // Opened by default when the viewer covers exactly one department:
-            // they came here to fill it in, not to look at a closed row.
-            defaultOpen={total === 1}
+            // Opened by default when the viewer covers exactly one department
+            // — they came here to fill it in, not to look at a closed row —
+            // or when a distributed link named this one.
+            defaultOpen={total === 1 || section.departmentId === focusDepartment}
             onSaved={onSaved}
             onEntrySaved={onEntrySaved}
             onEntryDeleted={onEntryDeleted}
@@ -108,5 +150,6 @@ export function WeeklyDepartmentsPanel({
         </p>
       )}
     </SectionCard>
+    </SubmissionVerdictAuthorityProvider>
   );
 }

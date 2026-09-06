@@ -162,3 +162,132 @@ export function resolveDepartmentRecipients(
 export function manageContactsHref(projectId: string | undefined): string {
   return projectId ? `/projects/${projectId}/team` : "/projects";
 }
+
+/* --------------------------- Reaching a recipient -------------------------- */
+
+/**
+ * The canonical destination a department recipient is sent to.
+ *
+ * PROJECT-SCOPED, DELIBERATELY. This used to hand out
+ * `/weekly-reports/{id}/workspace#dept-{d}` — the global register's route.
+ * Following it dropped the recipient out of the project they were being asked
+ * to report on: no project sidebar, no project breadcrumb, and a "back" that
+ * led to the whole-portfolio Weekly list. The project the Weekly belongs to is
+ * already known wherever this link is built, so the link carries it.
+ *
+ * The department is carried TWICE, on purpose:
+ *
+ *   ?dept=<id>   survives the sign-in round trip. The proxy preserves
+ *                `pathname + search` in `?next=`, and a URL fragment is never
+ *                sent to the server at all — so a recipient who is signed out
+ *                when they click would otherwise land on the Weekly with no
+ *                idea which department was asked of them.
+ *   #dept-<id>   is the anchor the departments panel already renders, so an
+ *                already-signed-in recipient jumps straight to their section
+ *                with no scripting involved.
+ */
+export function weeklyDepartmentLink(
+  origin: string,
+  projectId: string | undefined,
+  reportId: string,
+  departmentId: string
+): string {
+  const path = projectId
+    ? `/projects/${projectId}/reports/weekly/${reportId}/workspace`
+    : `/weekly-reports/${reportId}/workspace`;
+  return `${origin}${path}?dept=${encodeURIComponent(departmentId)}#dept-${departmentId}`;
+}
+
+/** What the recipient needs to know, beyond the link itself. */
+export interface WeeklyInvitationContext {
+  projectName: string;
+  projectCode?: string;
+  reportNumber: string;
+  periodStart: string;
+  periodEnd: string;
+  departmentName: string;
+  /** ISO timestamp; omitted when the Weekly carries no deadline. */
+  dueAt?: string;
+  link: string;
+}
+
+function shortDate(value: string | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString(undefined, {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+}
+
+function shortDateTime(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : `${shortDate(value)} ${date.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
+}
+
+/**
+ * The request for department input, as plain text.
+ *
+ * Concise on purpose: the facts a department manager needs to act, and the
+ * link. No branding, no HTML — it is pasted into, or opened in, the sender's
+ * own mail client, which supplies both.
+ */
+export function weeklyInvitationMessage(context: WeeklyInvitationContext): {
+  subject: string;
+  body: string;
+} {
+  const project = context.projectCode
+    ? `${context.projectName} (${context.projectCode})`
+    : context.projectName;
+
+  const subject = `Weekly Report ${context.reportNumber} — ${context.departmentName} input required`;
+
+  const lines = [
+    `Department input is requested for the Weekly Report below.`,
+    ``,
+    `Project:      ${project}`,
+    `Report:       ${context.reportNumber}`,
+    `Period:       ${shortDate(context.periodStart)} – ${shortDate(context.periodEnd)}`,
+    `Department:   ${context.departmentName}`,
+  ];
+  if (context.dueAt) {
+    lines.push(`Deadline:     ${shortDateTime(context.dueAt)}`);
+  }
+  lines.push(
+    ``,
+    `Open the Weekly Report:`,
+    context.link,
+    ``,
+    `Sign in if prompted — you will be returned to this report.`,
+    ``,
+    `EPROM Progress Report`
+  );
+
+  return { subject, body: lines.join("\n") };
+}
+
+/**
+ * A `mailto:` the sender's own mail client opens as a pre-filled draft.
+ *
+ * This is NOT delivery by the platform, and nothing that uses it may say that
+ * it is: the message is handed to the sender, who sends it. It exists because
+ * the alternative — a third-party mail provider — is a dependency and a
+ * credential this platform does not have, and copying a link by hand loses
+ * every fact the recipient needs.
+ */
+export function weeklyInvitationMailto(
+  emails: string[],
+  context: WeeklyInvitationContext
+): string {
+  const { subject, body } = weeklyInvitationMessage(context);
+  const query = `subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  return `mailto:${emails.map(encodeURIComponent).join(",")}?${query}`;
+}
