@@ -2713,6 +2713,23 @@
 .dark .monthly-list-card .monthly-link { color: var(--dash-blue); }
 
 /*
+ * The report panel strip scrolls rather than wraps (see `ReportPanelNav`), so
+ * on platforms that reserve space for a scrollbar it would otherwise gain a
+ * permanent grey bar under nine tabs that usually fit. Thin, themed, and only
+ * on this strip.
+ */
+[data-slot="report-panel-nav"] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+[data-slot="report-panel-nav"]::-webkit-scrollbar { height: 6px; }
+[data-slot="report-panel-nav"]::-webkit-scrollbar-track { background: transparent; }
+[data-slot="report-panel-nav"]::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--border);
+}
+
+/*
  * Monthly WORKSPACE panel interiors, dark theme.
  *
  * The workspace panel used to be `.monthly-ws-panel { background: white }` with

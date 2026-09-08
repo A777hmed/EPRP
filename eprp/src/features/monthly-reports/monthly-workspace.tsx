@@ -63,12 +63,27 @@ const PLAN_STATUSES = ["not_started", "in_progress", "completed", "delayed", "pe
 
 type PanelKey = "overview" | "weekly" | "collection" | "milestones" | "comments" | "management" | "plan" | "summary" | "approval";
 
+/*
+ * Tab LABELS are shortened; the panels, their keys and their hints are not.
+ *
+ * Nine full labels measure 1243px and the workspace column is 1120px at a
+ * 1440 viewport, so the strip could not sit on one row at any normal width —
+ * "Approval" wrapped away from the set. Three labels said "Monthly" or
+ * "Progress" inside the Monthly workspace, where both are given; dropping the
+ * redundant words fits the row at laptop width without removing a tab,
+ * collapsing one into an overflow menu, or shrinking the type further.
+ *
+ * The full wording survives where it does work: each panel's `hint` renders
+ * under the strip, and each panel's own card title is unchanged. "Master
+ * Milestones" deliberately keeps "Master" — the milestone register and Next
+ * Month Plan items are different things and must not read as the same one.
+ */
 const PANELS: { key: PanelKey; label: string; hint: string }[] = [
-  { key: "overview", label: "Monthly Overview", hint: "Report identity and month-end KPIs" },
+  { key: "overview", label: "Overview", hint: "Report identity and month-end KPIs" },
   { key: "weekly", label: "Weekly Inputs", hint: "Import and review this month's Weekly Reports" },
   { key: "collection", label: "Department Collection", hint: "Ask each department to review the month and add what the Weekly Reports did not say" },
-  { key: "milestones", label: "Master Milestone Progress", hint: "Governed milestone position, read-only" },
-  { key: "comments", label: "Monthly Comments", hint: "Add and curate Monthly updates" },
+  { key: "milestones", label: "Master Milestones", hint: "Governed milestone position, read-only" },
+  { key: "comments", label: "Comments", hint: "Add and curate Monthly updates" },
   { key: "management", label: "Management Items", hint: "Decisions and escalations for leadership" },
   { key: "plan", label: "Next Month Plan", hint: "Plan items and focus for the coming month" },
   { key: "summary", label: "Executive Summary", hint: "The narrative leadership reads first" },
@@ -980,15 +995,12 @@ function MonthlyDepartmentWorkspace({
       tabs={projectId ? <ReportTypeTabs projectId={projectId} active="monthly" /> : undefined}
     >
       <div className="monthly-workspace space-y-4">
+        {/* Project, month and lifecycle status are stated once, by
+            `ReportContextHeader` above. This is the document. */}
         <ReportWorkspaceHeader
           eyebrow="Monthly Department Input"
-          title={`${bundle.project?.name ?? NOT_RECORDED} — ${getMonthLabel(bundle.report.reportingMonth)}`}
+          title="Monthly Progress Report"
           reportNumber={bundle.report.reportNumber}
-          badges={
-            <StatusBadge tone={monthlyStatusMeta(bundle.report.status).tone}>
-              {monthlyStatusMeta(bundle.report.status).label}
-            </StatusBadge>
-          }
         />
 
         <ReportViewerStrip
@@ -1128,8 +1140,10 @@ export function MonthlyWorkspaceView({
     <div className="monthly-workspace space-y-4">
       <ReportWorkspaceHeader
         eyebrow="Monthly Workspace"
-        title={`${bundle.project?.name ?? NOT_RECORDED} — ${getMonthLabel(bundle.report.reportingMonth)}`}
+        title="Monthly Progress Report"
         reportNumber={bundle.report.reportNumber}
+        /* The month-end verdict, not the lifecycle status — a different fact,
+           carried nowhere else on this screen. */
         badges={
           <StatusBadge tone={monthEndStatus(bundle.report).tone}>
             {monthEndStatus(bundle.report).label}

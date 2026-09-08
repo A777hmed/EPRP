@@ -171,11 +171,23 @@ export function ProjectReportingShell({
 export interface ReportWorkspaceHeaderProps {
   /** Kicker above the title, e.g. "Monthly Workspace". */
   eyebrow: string;
-  /** Caller-composed, e.g. "PSAIM — September 2026". Never a raw id. */
+  /**
+   * The CONTROLLED DOCUMENT'S name — "Weekly Project Progress Report",
+   * "Monthly Progress Report" — not the project and not the period.
+   *
+   * Those two belong to `ReportContextHeader` directly above, which states
+   * them once. Composing them into this title as well ("PSAIM – SOPC — Week
+   * 28") is what made the top of the screen say the project, the period and
+   * the status twice each.
+   */
   title: string;
   /** Document number. Monospace, beside the badges; omitted when absent. */
   reportNumber?: string;
-  /** Status chips the screen has already resolved. */
+  /**
+   * Chips this screen resolves that the context bar does NOT carry — the
+   * Monthly month-end verdict, for instance. Never the lifecycle status: the
+   * context bar owns that one.
+   */
   badges?: React.ReactNode;
   /** Screen actions. Hidden in print — they are furniture, not document. */
   actions?: React.ReactNode;
@@ -184,9 +196,14 @@ export interface ReportWorkspaceHeaderProps {
 /**
  * The operational header of a report workspace.
  *
- * Deliberately compact: `ReportContextHeader` directly above it already carries
- * project, period, status and last-updated, so this states what the screen is
- * and what can be done on it, and repeats none of that.
+ * Reads as the document's masthead without being one: the navy, tracked,
+ * uppercase title is the typography of the printed report's title band, at
+ * screen weight and with no branding, QR or field grid behind it. That whole
+ * apparatus stays in Preview/Print.
+ *
+ * It states the DOCUMENT — what this is and its number. `ReportContextHeader`
+ * above states the SUBJECT — which project, which period, what status, who
+ * prepared it, when it last moved. Each fact appears in exactly one of the two.
  */
 export function ReportWorkspaceHeader({
   eyebrow,
@@ -196,13 +213,13 @@ export function ReportWorkspaceHeader({
   actions,
 }: ReportWorkspaceHeaderProps) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-l-[3px] border-primary pl-3">
       <div className="min-w-0">
         <p className="text-[0.625rem] font-bold tracking-[0.11em] text-muted-foreground uppercase">
           {eyebrow}
         </p>
         <h1
-          className="mt-1 truncate text-xl font-bold text-primary"
+          className="mt-0.5 truncate text-lg font-bold tracking-[0.04em] text-primary uppercase sm:text-xl"
           title={title}
         >
           {title}
@@ -255,9 +272,24 @@ export function ReportPanelNav({
 }: ReportPanelNavProps) {
   return (
     <div className="print:hidden">
+      {/*
+       * ONE ROW, ALWAYS.
+       *
+       * Nine Monthly panels do not fit a laptop width if they are allowed to
+       * wrap — "Approval", the last and most consequential of them, dropped to
+       * a second row and stopped looking like part of the set. A tab strip
+       * that reflows is also a moving target: the row a panel sits on changes
+       * with the viewport, so the muscle memory for reaching it never forms.
+       *
+       * So the strip never wraps, and scrolls horizontally when it must. No
+       * panel is hidden, collapsed into an overflow menu, or dropped at narrow
+       * widths. `-mx-px px-px` keeps the focus ring of the first and last
+       * button from being clipped by the scroll container.
+       */}
       <nav
         aria-label={label}
-        className="flex flex-wrap gap-1 rounded-lg border bg-card p-1"
+        data-slot="report-panel-nav"
+        className="-mx-px flex gap-0.5 overflow-x-auto rounded-lg border bg-card p-0.5 px-px"
       >
         {items.map((item) => {
           const isActive = item.key === value;
@@ -268,7 +300,7 @@ export function ReportPanelNav({
               aria-current={isActive ? "true" : undefined}
               onClick={() => onValueChange(item.key)}
               className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+                "shrink-0 rounded-md px-2 py-1.5 text-[0.7rem] font-semibold whitespace-nowrap transition-colors",
                 "focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none",
                 isActive
                   ? "bg-primary text-primary-foreground"
@@ -296,13 +328,21 @@ export interface ReportSectionProps {
 }
 
 /**
- * One numbered-report section, on the platform card.
+ * One report section, on the platform card.
  *
  * Wraps the shared `SectionCard` so a reporting section is the same object as
- * every other section in the product, and tints only the title to the EPROM
- * navy that the printed report's section bands use. Nothing about the section's
- * CONTENT is touched — existing tables, grids and editors keep their own
- * markup and classes.
+ * every other section in the product, then gives its header the EPROM section
+ * treatment: a faint navy wash, a navy rule under it, and a navy title.
+ *
+ * This is the printed report's blue section band at screen weight. The band
+ * itself — solid navy, reversed white text, a section number — belongs to the
+ * document and stays in Preview/Print; reproducing it on nine stacked
+ * authoring panels would be the giant printable form again. What carries over
+ * is the hierarchy it creates: a reader's eye finds the section boundaries
+ * before it reads any of them.
+ *
+ * Nothing about the section's CONTENT is touched — existing tables, grids and
+ * editors keep their own markup and classes.
  */
 export function ReportSection({
   title,
@@ -317,7 +357,12 @@ export function ReportSection({
       title={title}
       description={hint}
       action={action}
-      className={cn("[&_[data-slot=card-title]]:text-primary", className)}
+      className={cn(
+        "[&_[data-slot=card-header]]:bg-primary/[0.045]",
+        "[&_[data-slot=card-header]]:border-b-primary/20",
+        "[&_[data-slot=card-title]]:text-primary [&_[data-slot=card-title]]:font-semibold [&_[data-slot=card-title]]:tracking-[0.01em]",
+        className
+      )}
       contentClassName={contentClassName}
     >
       {children}

@@ -178,7 +178,6 @@ function WeeklyDocumentHeader({
 export function WeeklyWorkspaceHeader(props: WeeklyWorkspaceHeaderProps) {
   const {
     report,
-    project,
     actions,
     viewerName,
     viewerRoleLabel,
@@ -191,17 +190,15 @@ export function WeeklyWorkspaceHeader(props: WeeklyWorkspaceHeaderProps) {
   if (mode !== "workspace") return <WeeklyDocumentHeader {...props} />;
 
   const status = REPORT_STATUS_META[report.status];
-  const projectName = project?.shortName ?? project?.name ?? "Project";
 
   return (
     <div className="space-y-4">
+      {/* Project, week, period and lifecycle status are stated once, by
+          `ReportContextHeader` above. This is the document. */}
       <ReportWorkspaceHeader
         eyebrow="Weekly Workspace"
-        title={`${projectName} — Week ${String(report.weekNumber).padStart(2, "0")}`}
+        title="Weekly Project Progress Report"
         reportNumber={report.reportNumber}
-        /* Period is deliberately absent: `ReportContextHeader`, directly
-           above, already carries it. */
-        badges={<StatusBadge tone={status.tone}>{status.label}</StatusBadge>}
         actions={actions}
       />
 
