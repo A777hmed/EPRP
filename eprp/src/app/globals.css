@@ -2712,6 +2712,65 @@
 /* Same scoping reason: `.monthly-link` also appears inside the document. */
 .dark .monthly-list-card .monthly-link { color: var(--dash-blue); }
 
+/* ==========================================================================
+   The EPROM report section band
+   --------------------------------------------------------------------------
+   The printed Weekly and Monthly reports open each section with a solid navy
+   band carrying a number and a reversed title — "1 · REPORT INFORMATION". That
+   band is the strongest thing in the original design and the reason a reader
+   can find their way around a dense report at a glance.
+
+   Reproduced literally on a screen full of stacked authoring panels it would
+   be the giant printable form again, so what carries over here is the
+   HIERARCHY rather than the band: a faint navy wash, a navy rule, a navy
+   title, and the section number. The band itself stays in Preview/Print.
+
+   Applied from a WRAPPER, not from each card, for two reasons. Most of
+   Weekly's sections are rendered by components this work may not modify
+   (distribution, departments, insights, sign-off) and they call `SectionCard`
+   directly — a wrapper reaches them without touching a line. And one rule set
+   for both tiers cannot drift the way a component's classes plus a stylesheet
+   would.
+
+   Selectors are pinned to SectionCard's own structure (Card > CardHeader >
+   CardTitle as direct children), so a card nested INSIDE a section's content
+   is neither restyled nor numbered.
+   ========================================================================== */
+
+.eprp-report-sections {
+  counter-reset: eprp-section;
+}
+
+.eprp-report-sections > * > [data-slot="section-card"] > [data-slot="card-header"],
+.eprp-report-sections > [data-slot="section-card"] > [data-slot="card-header"] {
+  background: color-mix(in oklab, var(--primary) 4.5%, transparent);
+  border-bottom-color: color-mix(in oklab, var(--primary) 20%, transparent);
+}
+
+.eprp-report-sections > * > [data-slot="section-card"] > [data-slot="card-header"] > [data-slot="card-title"],
+.eprp-report-sections > [data-slot="section-card"] > [data-slot="card-header"] > [data-slot="card-title"] {
+  color: var(--primary);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* Numbering is opt-in: a tier that renders one section per department, say,
+   has no sequence to number. */
+.eprp-report-sections[data-numbered] > * > [data-slot="section-card"],
+.eprp-report-sections[data-numbered] > [data-slot="section-card"] {
+  counter-increment: eprp-section;
+}
+
+.eprp-report-sections[data-numbered] > * > [data-slot="section-card"] > [data-slot="card-header"] > [data-slot="card-title"]::before,
+.eprp-report-sections[data-numbered] > [data-slot="section-card"] > [data-slot="card-header"] > [data-slot="card-title"]::before {
+  content: counter(eprp-section) " · ";
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  /* One step quieter than the title, so the number orders the sections
+     without competing with what they are called. */
+  color: color-mix(in oklab, var(--primary) 62%, transparent);
+}
+
 /*
  * The report panel strip scrolls rather than wraps (see `ReportPanelNav`), so
  * on platforms that reserve space for a scrollbar it would otherwise gain a

@@ -584,7 +584,18 @@ export function WeeklyReportDetailView({
         ) : undefined
       }
     >
-    <div className="space-y-6">
+    {/*
+      `eprp-report-sections` gives every section card below the EPROM band and
+      its number, including the ones rendered by the distribution, departments,
+      insights and sign-off components — none of which is touched. Numbering is
+      a CSS counter over what is actually on screen, so a section withheld from
+      this viewer leaves no hole in the sequence.
+
+      `space-y-4` rather than `space-y-6`: Monthly already used 4, and the two
+      tiers scrolling at different rhythms was one of the things that made them
+      read as separate products.
+    */}
+    <div className="eprp-report-sections space-y-4" data-numbered>
       <WeeklyWorkspaceHeader
         report={report}
         project={project}

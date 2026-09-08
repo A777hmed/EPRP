@@ -204,11 +204,13 @@ export function WeeklyWorkspaceHeader(props: WeeklyWorkspaceHeaderProps) {
 
       <ReportViewerStrip
         title="Access & Scope"
+        /* "Report Status", not "Lifecycle Status": this screen also carries a
+           project performance verdict, and the two must not read as one. */
         facts={[
-          { label: "Current User", value: viewerName ?? "Current user" },
+          { label: "User", value: viewerName ?? "Current user" },
           { label: "Role", value: viewerRoleLabel ?? "Resolved project role" },
-          { label: "Lifecycle Status", value: status.label },
-          { label: "Effective Scope", value: effectiveScope ?? "Project scope" },
+          { label: "Report Status", value: status.label },
+          { label: "Scope", value: effectiveScope ?? "Project scope" },
         ]}
         access={{
           canEdit: Boolean(canEdit),

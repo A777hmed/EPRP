@@ -26,8 +26,10 @@ import type { Contact, MonthlyComment, MonthlyPlanItem, MonthlyReport } from "@/
 import {
   ProjectReportingShell,
   ReportContextHeader,
+  LabeledStatus,
   ReportPanelNav,
   ReportSection,
+  ReportSectionGroup,
   ReportTypeTabs,
   ReportViewerStrip,
   ReportWorkspaceHeader,
@@ -1006,18 +1008,18 @@ function MonthlyDepartmentWorkspace({
         <ReportViewerStrip
           title="Access & Scope"
           facts={[
-            { label: "Current User", value: viewer.viewerName ?? "Current user" },
+            { label: "User", value: viewer.viewerName ?? "Current user" },
             { label: "Role", value: viewer.viewerRoleLabel ?? "Resolved project role" },
             {
-              label: "Effective Scope",
+              label: "Report Status",
+              value: monthlyStatusMeta(bundle.report.status).label,
+            },
+            {
+              label: "Scope",
               value:
                 departmentIds
                   .map((id) => nameOf(id, bundle.departments, "Unknown department"))
                   .join(" · ") || "No department scope",
-            },
-            {
-              label: "Monthly Status",
-              value: monthlyStatusMeta(bundle.report.status).label,
             },
           ]}
           access={{
@@ -1036,18 +1038,22 @@ function MonthlyDepartmentWorkspace({
             icon={Plus}
           />
         ) : (
-          departmentIds.map((departmentId) => (
-            <MonthlyDepartmentInput
-              key={departmentId}
-              bundle={bundle}
-              departmentId={departmentId}
-              roundOpen={roundOpen}
-              canContribute
-              canConsolidate={scope.canConsolidate}
-              managedDepartmentIds={scope.managedDepartmentIds}
-              onChanged={reload}
-            />
-          ))
+          /* Band, but not numbered: one card per department the viewer covers
+             is a list, not a report's section sequence. */
+          <ReportSectionGroup className="space-y-4">
+            {departmentIds.map((departmentId) => (
+              <MonthlyDepartmentInput
+                key={departmentId}
+                bundle={bundle}
+                departmentId={departmentId}
+                roundOpen={roundOpen}
+                canContribute
+                canConsolidate={scope.canConsolidate}
+                managedDepartmentIds={scope.managedDepartmentIds}
+                onChanged={reload}
+              />
+            ))}
+          </ReportSectionGroup>
         )}
       </div>
     </ProjectReportingShell>
@@ -1143,11 +1149,12 @@ export function MonthlyWorkspaceView({
         title="Monthly Progress Report"
         reportNumber={bundle.report.reportNumber}
         /* The month-end verdict, not the lifecycle status — a different fact,
-           carried nowhere else on this screen. */
+           carried nowhere else on this screen, and named so the two do not
+           read as a contradiction. */
         badges={
-          <StatusBadge tone={monthEndStatus(bundle.report).tone}>
+          <LabeledStatus label="Performance" tone={monthEndStatus(bundle.report).tone}>
             {monthEndStatus(bundle.report).label}
-          </StatusBadge>
+          </LabeledStatus>
         }
         actions={
           <>
@@ -1172,25 +1179,34 @@ export function MonthlyWorkspaceView({
         hint={active.hint}
       />
 
-      {panel === "overview" && <OverviewPanel bundle={bundle} reload={reload} />}
-      {panel === "weekly" && (
-        <WeeklyPanel bundle={bundle} reload={reload} links={links} />
-      )}
-      {panel === "collection" && (
-        <MonthlyCollectionPanel
-          bundle={bundle}
-          /* No viewer resolved means the pre-existing behaviour: this workspace
-             was only ever reachable by Project Control. */
-          canManage={viewer?.scope ? viewer.scope.canConsolidate : true}
-          onChanged={reload}
-        />
-      )}
-      {panel === "milestones" && <MilestonesPanel bundle={bundle} />}
-      {panel === "comments" && <CommentsPanel bundle={bundle} reload={reload} />}
-      {panel === "management" && <MonthlyManagementPanel bundle={bundle} reload={reload} />}
-      {panel === "plan" && <PlanPanel bundle={bundle} reload={reload} />}
-      {panel === "summary" && <SummaryPanel bundle={bundle} reload={reload} />}
-      {panel === "approval" && <ApprovalPanel bundle={bundle} reload={reload} />}
+      {/*
+        One panel is mounted at a time, so the section number is seeded from the
+        panel's position in the tab strip rather than counted — see
+        `ReportSectionGroup`. The Department Collection panel and every other
+        panel below are untouched; they gain the section band by being inside
+        this wrapper.
+      */}
+      <ReportSectionGroup numbered startAt={PANELS.findIndex((item) => item.key === panel) + 1}>
+        {panel === "overview" && <OverviewPanel bundle={bundle} reload={reload} />}
+        {panel === "weekly" && (
+          <WeeklyPanel bundle={bundle} reload={reload} links={links} />
+        )}
+        {panel === "collection" && (
+          <MonthlyCollectionPanel
+            bundle={bundle}
+            /* No viewer resolved means the pre-existing behaviour: this workspace
+               was only ever reachable by Project Control. */
+            canManage={viewer?.scope ? viewer.scope.canConsolidate : true}
+            onChanged={reload}
+          />
+        )}
+        {panel === "milestones" && <MilestonesPanel bundle={bundle} />}
+        {panel === "comments" && <CommentsPanel bundle={bundle} reload={reload} />}
+        {panel === "management" && <MonthlyManagementPanel bundle={bundle} reload={reload} />}
+        {panel === "plan" && <PlanPanel bundle={bundle} reload={reload} />}
+        {panel === "summary" && <SummaryPanel bundle={bundle} reload={reload} />}
+        {panel === "approval" && <ApprovalPanel bundle={bundle} reload={reload} />}
+      </ReportSectionGroup>
     </div>
     </ProjectReportingShell>
   );

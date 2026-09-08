@@ -39,6 +39,39 @@ export interface ReportContextHeaderProps {
 }
 
 /**
+ * A status badge that says WHICH status it is.
+ *
+ * A reporting screen carries two unrelated verdicts, and unlabelled they read
+ * as a contradiction: a report can legitimately be "Approved" (its lifecycle —
+ * reviewed, signed, closed) while the project it reports on is "Behind Plan"
+ * (its performance — schedule variance against baseline). Seeing `Approved`
+ * and `Delayed` side by side with no labels invites the reader to conclude one
+ * of them is wrong.
+ *
+ * Presentation only: the label names an existing value, and neither the stored
+ * status nor the lifecycle that governs it is touched.
+ */
+export function LabeledStatus({
+  label,
+  tone,
+  children,
+}: {
+  /** "Report", "Performance" — the question this verdict answers. */
+  label: string;
+  tone: StatusTone;
+  children: React.ReactNode;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="text-[0.625rem] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+        {label}
+      </span>
+      <StatusBadge tone={tone}>{children}</StatusBadge>
+    </span>
+  );
+}
+
+/**
  * Compact identity strip — project code/name, reporting period, status,
  * and (where the caller already has it) prepared-by/updated-at. Never
  * repeats the full project identity the sidebar already shows; only
@@ -73,7 +106,14 @@ export function ReportContextHeader({
       </div>
       {(status || preparedBy || updatedAt) && (
         <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          {status && <StatusBadge tone={status.tone}>{status.label}</StatusBadge>}
+          {/* Named "Report", because a reader otherwise has to guess whether
+              "Approved" describes the document or the project. See
+              `LabeledStatus`. */}
+          {status && (
+            <LabeledStatus label="Report" tone={status.tone}>
+              {status.label}
+            </LabeledStatus>
+          )}
           {preparedBy && <span>Prepared by {preparedBy}</span>}
           {updatedAt && <span>Updated {updatedAt}</span>}
         </div>
@@ -330,18 +370,20 @@ export interface ReportSectionProps {
 /**
  * One report section, on the platform card.
  *
- * Wraps the shared `SectionCard` so a reporting section is the same object as
- * every other section in the product, then gives its header the EPROM section
- * treatment: a faint navy wash, a navy rule under it, and a navy title.
+ * A thin alias for `SectionCard`. The EPROM section treatment itself — the
+ * faint navy wash, the navy rule, the navy title and the section number — is
+ * NOT applied here; it lives in `.eprp-report-sections` in `globals.css` and
+ * reaches every section card inside that wrapper.
  *
- * This is the printed report's blue section band at screen weight. The band
- * itself — solid navy, reversed white text, a section number — belongs to the
- * document and stays in Preview/Print; reproducing it on nine stacked
- * authoring panels would be the giant printable form again. What carries over
- * is the hierarchy it creates: a reader's eye finds the section boundaries
- * before it reads any of them.
+ * That is deliberate, and it is the only arrangement that could work. Most of
+ * Weekly's sections are rendered by components this pass may not edit —
+ * `weekly-distribution-panel`, `weekly-departments-panel`, `weekly-insights`,
+ * the sign-off panel — and they call `SectionCard` directly. Styling from the
+ * wrapper reaches those without touching one line of them, and guarantees the
+ * two tiers cannot drift, because there is one rule set rather than a
+ * component's classes plus a stylesheet's.
  *
- * Nothing about the section's CONTENT is touched — existing tables, grids and
+ * Nothing about a section's CONTENT is touched — existing tables, grids and
  * editors keep their own markup and classes.
  */
 export function ReportSection({
@@ -357,16 +399,63 @@ export function ReportSection({
       title={title}
       description={hint}
       action={action}
-      className={cn(
-        "[&_[data-slot=card-header]]:bg-primary/[0.045]",
-        "[&_[data-slot=card-header]]:border-b-primary/20",
-        "[&_[data-slot=card-title]]:text-primary [&_[data-slot=card-title]]:font-semibold [&_[data-slot=card-title]]:tracking-[0.01em]",
-        className
-      )}
+      className={className}
       contentClassName={contentClassName}
     >
       {children}
     </SectionCard>
+  );
+}
+
+export interface ReportSectionGroupProps {
+  /**
+   * Number the sections inside, EPROM-style ("3 · Department Collection").
+   *
+   * Numbering is a CSS counter over the section cards actually rendered, so it
+   * never disagrees with the screen: a section withheld from this viewer does
+   * not leave a hole in the sequence.
+   */
+  numbered?: boolean;
+  /**
+   * Where the numbering starts, for a tier that shows ONE section at a time.
+   *
+   * Weekly stacks its sections down one page, so the counter runs 1..n by
+   * itself. Monthly is tabbed — a single panel is mounted — so a bare counter
+   * would label every panel "1". Passing the panel's position in the tab strip
+   * makes the number mean the same thing in both tiers: where this section
+   * sits in the report.
+   */
+  startAt?: number;
+  className?: string;
+  children: React.ReactNode;
+}
+
+/**
+ * The EPROM section band, applied to everything inside.
+ *
+ * See `ReportSection` for why the treatment is a wrapper rather than a prop on
+ * each card.
+ */
+export function ReportSectionGroup({
+  numbered,
+  startAt,
+  className,
+  children,
+}: ReportSectionGroupProps) {
+  return (
+    <div
+      className={cn("eprp-report-sections", className)}
+      data-numbered={numbered ? "" : undefined}
+      style={
+        /* `counter-reset` seeds the counter to one BEFORE the first section,
+           so a panel at position 3 increments to 3. */
+        numbered && startAt !== undefined
+          ? ({ counterReset: `eprp-section ${startAt - 1}` } as React.CSSProperties)
+          : undefined
+      }
+    >
+      {children}
+    </div>
   );
 }
 
@@ -386,8 +475,15 @@ export interface ReportViewerStripProps {
 /**
  * "Who am I here, and may I write?" — resolved by the server, stated once.
  *
- * Weekly and Monthly both answered this question in their own markup with the
- * same four facts. One component so the answer reads identically in both.
+ * A single compact rail rather than a four-column grid. The grid version stood
+ * five text lines tall directly under the header and outweighed the report it
+ * was annotating: on Weekly it was the loudest thing above the fold, while
+ * Monthly carried the same facts far more quietly. This says exactly as much,
+ * in two lines, at the weight of an annotation.
+ *
+ * Nothing was dropped. Every fact the caller passes still renders, and the
+ * editability verdict still states its reason in full and in warning colour —
+ * these are authorization cues, and shortening them would be hiding them.
  */
 export function ReportViewerStrip({
   title,
@@ -395,21 +491,23 @@ export function ReportViewerStrip({
   access,
 }: ReportViewerStripProps) {
   return (
-    <div className="border-primary/20 bg-primary/5 rounded-lg border p-3 print:hidden">
-      <p className="text-primary mb-2 text-[0.6875rem] font-bold tracking-[0.14em] uppercase">
+    <div className="border-primary/20 bg-primary/5 flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-lg border px-3 py-2 print:hidden">
+      <p className="text-primary shrink-0 text-[0.625rem] font-bold tracking-[0.12em] uppercase">
         {title}
       </p>
-      <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
+      <dl className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
         {facts.map((fact) => (
-          <div key={fact.label} className="min-w-0">
-            <dt className="text-xs text-muted-foreground">{fact.label}</dt>
-            <dd className="truncate text-sm font-medium">{fact.value}</dd>
+          <div key={fact.label} className="flex min-w-0 items-baseline gap-1.5">
+            <dt className="shrink-0 text-[0.6875rem] text-muted-foreground">
+              {fact.label}
+            </dt>
+            <dd className="truncate text-xs font-medium">{fact.value}</dd>
           </div>
         ))}
       </dl>
       <p
         className={cn(
-          "mt-2 text-xs",
+          "basis-full text-[0.6875rem]",
           access.canEdit ? "text-success" : "text-warning"
         )}
       >
