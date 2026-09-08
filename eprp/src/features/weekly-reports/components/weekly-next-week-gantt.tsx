@@ -50,7 +50,7 @@ export function NextWeekAxisHeader({
   return (
     <div
       className={cn(
-        "grid overflow-hidden rounded-md border bg-muted/40",
+        "grid overflow-hidden rounded-md border border-primary/25 bg-primary/[0.06]",
         className
       )}
       style={columnStyle(days.length)}
@@ -58,13 +58,13 @@ export function NextWeekAxisHeader({
       {days.map((day) => (
         <div
           key={day.date}
-          className="border-r px-1 py-1 text-center last:border-r-0"
+          className="border-r border-primary/20 py-1 text-center last:border-r-0"
           title={formatDate(day.date)}
         >
-          <span className="block text-[0.625rem] font-bold tracking-[0.08em] text-primary uppercase">
+          <span className="block text-[0.625rem] leading-tight font-bold tracking-[0.08em] text-primary uppercase">
             {day.label}
           </span>
-          <span className="block text-[0.625rem] tabular-nums text-muted-foreground">
+          <span className="block text-[0.6875rem] leading-tight font-semibold tabular-nums text-primary/70">
             {day.dayOfMonth}
           </span>
         </div>
@@ -76,13 +76,19 @@ export function NextWeekAxisHeader({
 /**
  * One task's bar, over the same column grid as the header.
  *
- * The ruled day columns are drawn first and the bar is laid OVER them as a
- * single element, rather than a coloured block per column. A task running
- * Monday to Thursday is one span of work, and four separate blocks with gaps at
- * every column boundary read as four — which is not what the data says.
+ * A CALENDAR SPAN, NOT A PROGRESS BAR — and the difference is the whole point
+ * of this component. The first version drew a thin rounded pill across the
+ * track, which is the shape of a progress meter: a reader saw "how far along"
+ * rather than "which days". A task running Sunday to Wednesday on a Sunday-to
+ * -Thursday week filled four fifths of the track and read as 80% complete,
+ * which is not a claim the data makes at all — `weekly_plan_items` records
+ * status, never percent.
  *
- * The empty track stays visible behind it, which is what lets a reader see the
- * shape of the week rather than a bar floating in space.
+ * So the bar is a block that FILLS the day cells it occupies, and the day rules
+ * are drawn back over the top of it. The cell boundaries stay visible through
+ * the bar, so the span can be counted in days rather than estimated as a
+ * fraction, and its right edge is a wall between two days rather than a point
+ * on a scale.
  */
 export function NextWeekBar({
   days,
@@ -107,35 +113,58 @@ export function NextWeekBar({
 
   return (
     <div
-      className="relative overflow-hidden rounded-md border bg-muted/25"
+      className="relative overflow-hidden rounded-md border bg-muted/30"
       role="img"
       aria-label={label}
     >
-      {/* The ruled track. */}
+      {/* The day cells. */}
       <div className="grid" style={columnStyle(days.length)}>
         {days.map((day) => (
-          <div key={day.date} className="h-6 border-r last:border-r-0" />
+          <div key={day.date} className="h-7" />
         ))}
       </div>
 
+      {/*
+        The span. Positioned on exact column fractions — `startIndex / n` to
+        `(endIndex + 1) / n` — so an edge always falls on a day boundary and
+        never between two days.
+      */}
       {drawn && (
-        <span
+        <div
+          data-slot="next-week-bar"
           className={cn(
-            "absolute top-1/2 h-2.5 -translate-y-1/2",
+            "absolute inset-y-[3px]",
             meta[status].color,
-            /* A clipped end stays square, so a bar that really does continue
-               past the window never looks finished. */
-            !placement.clippedStart && "rounded-l-full",
-            !placement.clippedEnd && "rounded-r-full"
+            /* A clipped end stays square: a task that really does continue past
+               the window must not look as though it finishes at the edge. */
+            !placement.clippedStart && "rounded-l-sm",
+            !placement.clippedEnd && "rounded-r-sm"
           )}
           style={{
-            left: `calc(${(placement.startIndex! / days.length) * 100}% + 2px)`,
-            width: `calc(${
+            left: `${(placement.startIndex! / days.length) * 100}%`,
+            width: `${
               ((placement.endIndex! - placement.startIndex! + 1) / days.length) * 100
-            }% - 4px)`,
+            }%`,
           }}
         />
       )}
+
+      {/*
+        Day rules, drawn LAST so they sit over the bar. This is what turns a
+        filled block into a countable run of days.
+      */}
+      <div
+        className="pointer-events-none absolute inset-0 grid"
+        style={columnStyle(days.length)}
+        aria-hidden="true"
+      >
+        {days.map((day) => (
+          <div
+            key={day.date}
+            className="border-r border-background/70 last:border-r-0"
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -146,10 +175,11 @@ export function NextWeekBar({
  * agree today will not agree after the next edit.
  */
 export const NEXT_WEEK_GRID =
-  /* The task name and the owner are what a reader scans; the chart only needs
-     enough width to be read at a glance. Weighted so none of the three is
-     truncated at 1280 with the project sidebar open. */
-  "lg:grid-cols-[minmax(11rem,2.2fr)_9.5rem_minmax(11rem,1.8fr)_minmax(10rem,1.5fr)_6.5rem]";
+  /* Task | Start | End | timeline | Status.
+     Owner and department moved under the task title as metadata — they are
+     reference, not the thing being scanned, and giving their column back to the
+     timeline is what makes the day cells wide enough to read at 1280. */
+  "lg:grid-cols-[minmax(12rem,2.4fr)_6.5rem_6.5rem_minmax(15rem,2.6fr)_7rem]";
 
 /**
  * What the bar could not say, in words.
@@ -187,4 +217,19 @@ export function planItemRange(
   endDate: string
 ): string {
   return startDate ? `${formatDate(startDate)} – ${formatDate(endDate)}` : formatDate(endDate);
+}
+
+/**
+ * A column heading in the Gantt table.
+ *
+ * Small, uppercase and always present. The reviewer's note was that two bare
+ * date inputs side by side give no way to tell Start from End; a heading over
+ * every column is the cheapest fix that also holds for the read-only table.
+ */
+export function GanttColumnLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="hidden text-[0.625rem] font-semibold tracking-[0.08em] text-muted-foreground uppercase lg:block">
+      {children}
+    </span>
+  );
 }

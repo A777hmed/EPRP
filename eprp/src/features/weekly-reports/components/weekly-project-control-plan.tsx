@@ -41,6 +41,7 @@ import type {
 import { eligibleOwners } from "../project-scope";
 import { nextWeekWindow, placeOnWindow } from "../next-week-window";
 import {
+  GanttColumnLabel,
   NEXT_WEEK_GRID,
   NextWeekAxisHeader,
   NextWeekBar,
@@ -105,6 +106,35 @@ function newGovernedDraft(key: string): GovernedDraft {
     milestoneId: "",
     status: "not_started",
   };
+}
+
+/**
+ * One labelled control in the Next Week editor.
+ *
+ * The label is always rendered, not a placeholder: a placeholder disappears the
+ * moment a value is entered, which is exactly when a reader scanning a row of
+ * two date fields most needs to know which is which.
+ */
+function PlanField({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="min-w-0 space-y-1">
+      <label
+        htmlFor={htmlFor}
+        className="block text-[0.625rem] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+      >
+        {label}
+      </label>
+      {children}
+    </div>
+  );
 }
 
 function Timeline({
@@ -843,19 +873,11 @@ export function WeeklyProjectControlPlan({
             </div>
           ) : (
             <div className={`grid gap-x-3 px-3 ${NEXT_WEEK_GRID}`}>
-              <span className="hidden text-[0.625rem] font-semibold tracking-[0.08em] text-muted-foreground uppercase lg:block">
-                Task
-              </span>
-              <span className="hidden text-[0.625rem] font-semibold tracking-[0.08em] text-muted-foreground uppercase lg:block">
-                Start – End
-              </span>
+              <GanttColumnLabel>Task</GanttColumnLabel>
+              <GanttColumnLabel>Start</GanttColumnLabel>
+              <GanttColumnLabel>End</GanttColumnLabel>
               <NextWeekAxisHeader days={nextWeekDays} />
-              <span className="hidden text-[0.625rem] font-semibold tracking-[0.08em] text-muted-foreground uppercase lg:block">
-                Owner / Department
-              </span>
-              <span className="hidden text-[0.625rem] font-semibold tracking-[0.08em] text-muted-foreground uppercase lg:block">
-                Status
-              </span>
+              <GanttColumnLabel>Status</GanttColumnLabel>
             </div>
           )
         )}
@@ -877,137 +899,180 @@ export function WeeklyProjectControlPlan({
             return editable ? (
               <div
                 key={row.key}
-                className="grid gap-2 rounded-lg border bg-background p-3 lg:grid-cols-[minmax(12rem,2fr)_9rem_9rem_11rem_11rem_auto]"
+                className="space-y-3 rounded-lg border bg-background p-3"
               >
-                <Input
-                  aria-label="Next Week task"
-                  placeholder="Task"
-                  value={row.title}
-                  onChange={(event) =>
-                    patchPlan(row.key, { title: event.target.value })
-                  }
-                />
-                <Input
-                  aria-label="From"
-                  type="date"
-                  value={row.startDate ?? ""}
-                  onChange={(event) =>
-                    patchPlan(row.key, { startDate: event.target.value })
-                  }
-                />
-                <Input
-                  aria-label="To"
-                  type="date"
-                  value={row.endDate}
-                  onChange={(event) =>
-                    patchPlan(row.key, { endDate: event.target.value })
-                  }
-                />
-                <Select
-                  value={row.departmentId ?? NONE}
-                  onValueChange={(value) =>
-                    patchPlan(row.key, {
-                      departmentId: value === NONE ? undefined : value,
-                    })
-                  }
-                >
-                  <SelectTrigger aria-label="Owner department">
-                    <SelectValue placeholder="Department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NONE}>Project Control</SelectItem>
-                    {(project?.departments ?? []).map((department) => (
-                      <SelectItem
-                        key={department.departmentId}
-                        value={department.departmentId}
-                      >
-                        {names.department(department.departmentId)?.name ??
-                          department.departmentId}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={row.ownerContactId ?? NONE}
-                  onValueChange={(value) =>
-                    patchPlan(row.key, {
-                      ownerContactId: value === NONE ? undefined : value,
-                    })
-                  }
-                >
-                  <SelectTrigger aria-label="Plan owner">
-                    <SelectValue placeholder="Owner" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NONE}>No owner</SelectItem>
-                    {owners.map((owner) => (
-                      <SelectItem key={owner.contactId} value={owner.contactId}>
-                        {names.person(owner.contactId)?.name ?? "Assigned person"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex gap-1">
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    aria-label="Save Next Week task"
-                    onClick={() => savePlan(row)}
-                    disabled={saving === row.key}
-                  >
-                    {saving === row.key ? (
-                      <Loader2 className="animate-spin" aria-hidden="true" />
-                    ) : (
-                      <Save aria-hidden="true" />
-                    )}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label="Remove Next Week task"
-                    onClick={() => removePlan(row)}
-                    disabled={saving === row.key}
-                  >
-                    <Trash2 aria-hidden="true" />
-                  </Button>
+                {/*
+                  Every control is labelled. Two bare date inputs side by side
+                  gave a reader no way to tell Start from End, and an
+                  unexplained floppy-disk icon gave no way to tell Save from
+                  anything else.
+                */}
+                <div className="grid gap-2 lg:grid-cols-[minmax(11rem,2fr)_8.5rem_8.5rem_10rem_10rem_9rem]">
+                  <PlanField label="Task" htmlFor={`task-${row.key}`}>
+                    <Input
+                      id={`task-${row.key}`}
+                      aria-label="Next Week task"
+                      placeholder="Task"
+                      value={row.title}
+                      onChange={(event) =>
+                        patchPlan(row.key, { title: event.target.value })
+                      }
+                    />
+                  </PlanField>
+
+                  <PlanField label="Start" htmlFor={`start-${row.key}`}>
+                    <Input
+                      id={`start-${row.key}`}
+                      aria-label="Task start date"
+                      type="date"
+                      value={row.startDate ?? ""}
+                      onChange={(event) =>
+                        patchPlan(row.key, { startDate: event.target.value })
+                      }
+                    />
+                  </PlanField>
+
+                  <PlanField label="End" htmlFor={`end-${row.key}`}>
+                    <Input
+                      id={`end-${row.key}`}
+                      aria-label="Task end date"
+                      type="date"
+                      value={row.endDate}
+                      onChange={(event) =>
+                        patchPlan(row.key, { endDate: event.target.value })
+                      }
+                    />
+                  </PlanField>
+
+                  <PlanField label="Department">
+                    <Select
+                      value={row.departmentId ?? NONE}
+                      onValueChange={(value) =>
+                        patchPlan(row.key, {
+                          departmentId: value === NONE ? undefined : value,
+                        })
+                      }
+                    >
+                      <SelectTrigger aria-label="Owner department">
+                        <SelectValue placeholder="Department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>Project Control</SelectItem>
+                        {(project?.departments ?? []).map((department) => (
+                          <SelectItem
+                            key={department.departmentId}
+                            value={department.departmentId}
+                          >
+                            {names.department(department.departmentId)?.name ??
+                              department.departmentId}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </PlanField>
+
+                  <PlanField label="Owner">
+                    <Select
+                      value={row.ownerContactId ?? NONE}
+                      onValueChange={(value) =>
+                        patchPlan(row.key, {
+                          ownerContactId: value === NONE ? undefined : value,
+                        })
+                      }
+                    >
+                      <SelectTrigger aria-label="Plan owner">
+                        <SelectValue placeholder="Owner" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>No owner</SelectItem>
+                        {owners.map((owner) => (
+                          <SelectItem key={owner.contactId} value={owner.contactId}>
+                            {names.person(owner.contactId)?.name ?? "Assigned person"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </PlanField>
+
+                  <PlanField label="Status">
+                    <Select
+                      value={row.status}
+                      onValueChange={(value) =>
+                        patchPlan(row.key, { status: value as WeeklyPlanStatus })
+                      }
+                    >
+                      <SelectTrigger aria-label="Task status">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Object.keys(STATUS) as WeeklyPlanStatus[]).map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {STATUS[status].label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </PlanField>
                 </div>
-                <Select
-                  value={row.status}
-                  onValueChange={(value) =>
-                    patchPlan(row.key, { status: value as WeeklyPlanStatus })
-                  }
-                >
-                  <SelectTrigger
-                    className="lg:col-start-4"
-                    aria-label="Task status"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(STATUS) as WeeklyPlanStatus[]).map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {STATUS[status].label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {/* Same task record, same grid as the axis above. */}
-                <div className="space-y-1 self-center lg:col-span-full">
-                  {nextWeekDays.length > 0 && (
-                    <NextWeekBar
-                      days={nextWeekDays}
-                      placement={placeOnWindow(row, nextWeekDays)}
-                      status={row.status}
-                      meta={STATUS}
-                      label={`${row.title || "Untitled task"} · ${planItemRange(row.startDate, row.endDate)}`}
-                    />
-                  )}
-                  {nextWeekDays.length > 0 && (
-                    <NextWeekPlacementNote
-                      placement={placeOnWindow(row, nextWeekDays)}
-                    />
-                  )}
+
+                {/*
+                  The bar gets a line to ITSELF, at the full width of the row.
+                  It shared a flex line with the action buttons at first, which
+                  made its track 937px against the axis header's 1062px — every
+                  bar was then drawn about 12% narrow, and its right edge landed
+                  inside the wrong day. Measured, not eyeballed; see the
+                  geometry assertions in the pass report.
+                */}
+                {nextWeekDays.length > 0 && (
+                  <NextWeekBar
+                    days={nextWeekDays}
+                    placement={placeOnWindow(row, nextWeekDays)}
+                    status={row.status}
+                    meta={STATUS}
+                    label={`${row.title || "Untitled task"} · ${planItemRange(row.startDate, row.endDate)}`}
+                  />
+                )}
+
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    {nextWeekDays.length > 0 && (
+                      <NextWeekPlacementNote
+                        placement={placeOnWindow(row, nextWeekDays)}
+                      />
+                    )}
+                  </div>
+                  {/* The action reads as an action: a word, not a glyph. */}
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => savePlan(row)}
+                      disabled={saving === row.key}
+                    >
+                      {saving === row.key ? (
+                        <Loader2
+                          data-icon="inline-start"
+                          className="animate-spin motion-reduce:animate-none"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <Save data-icon="inline-start" aria-hidden="true" />
+                      )}
+                      {saving === row.key ? "Saving…" : "Save"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      aria-label={`Delete task${row.title ? `: ${row.title}` : ""}`}
+                      title="Delete task"
+                      onClick={() => removePlan(row)}
+                      disabled={saving === row.key}
+                    >
+                      <Trash2 aria-hidden="true" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1015,11 +1080,29 @@ export function WeeklyProjectControlPlan({
                 key={row.key}
                 className={`grid items-center gap-x-3 gap-y-2 rounded-lg border bg-background p-3 ${NEXT_WEEK_GRID}`}
               >
-                <p className="min-w-0 truncate text-sm font-medium" title={row.title}>
-                  {row.title}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium" title={row.title}>
+                    {row.title}
+                  </p>
+                  {/* Owner and department are reference, so they sit under the
+                      name as metadata rather than taking a column from the
+                      chart. */}
+                  <p
+                    className="truncate text-xs text-muted-foreground"
+                    title={`${names.person(row.ownerContactId)?.name ?? "No owner"} · ${
+                      names.department(row.departmentId)?.name ?? "Project Control"
+                    }`}
+                  >
+                    {names.person(row.ownerContactId)?.name ?? "No owner"}
+                    {" · "}
+                    {names.department(row.departmentId)?.name ?? "Project Control"}
+                  </p>
+                </div>
+                <p className="text-xs tabular-nums text-muted-foreground">
+                  {row.startDate ? formatDate(row.startDate) : "—"}
                 </p>
                 <p className="text-xs tabular-nums text-muted-foreground">
-                  {planItemRange(row.startDate, row.endDate)}
+                  {formatDate(row.endDate)}
                 </p>
                 <div className="space-y-1">
                   {nextWeekDays.length > 0 && (
@@ -1037,18 +1120,6 @@ export function WeeklyProjectControlPlan({
                     </>
                   )}
                 </div>
-                <p
-                  className="min-w-0 truncate text-xs text-muted-foreground"
-                  /* Truncation must not lose the name — see the design
-                     constitution on clamping. */
-                  title={`${names.person(row.ownerContactId)?.name ?? "No owner"} · ${
-                    names.department(row.departmentId)?.name ?? "Project Control"
-                  }`}
-                >
-                  {names.person(row.ownerContactId)?.name ?? "No owner"}
-                  {" · "}
-                  {names.department(row.departmentId)?.name ?? "Project Control"}
-                </p>
                 <StatusBadge tone={STATUS[row.status].tone}>
                   {STATUS[row.status].label}
                 </StatusBadge>
