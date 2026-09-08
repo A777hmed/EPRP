@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { HierarchyTerms } from "@/config/project-terminology";
+import { formatDate } from "@/lib/formatters";
 import { milestoneStates } from "@/features/projects/milestone-state";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { milestoneService } from "@/services/milestone-service";
@@ -38,6 +39,14 @@ import type {
   WeeklyPlanStatus,
 } from "@/types";
 import { eligibleOwners } from "../project-scope";
+import { nextWeekWindow, placeOnWindow } from "../next-week-window";
+import {
+  NEXT_WEEK_GRID,
+  NextWeekAxisHeader,
+  NextWeekBar,
+  NextWeekPlacementNote,
+  planItemRange,
+} from "./weekly-next-week-gantt";
 import type { WeeklyNameLookup } from "./weekly-department-section";
 
 const NONE = "__none__";
@@ -158,6 +167,18 @@ export function WeeklyProjectControlPlan({
   const [governedDrafts, setGovernedDrafts] = React.useState<GovernedDraft[]>(
     []
   );
+  /*
+   * The Next Week axis.
+   *
+   * Derived from the REPORT's own period and the project's configured working
+   * week — never from today's date, so the same report shows the same week
+   * whenever it is opened. See `next-week-window.ts`.
+   */
+  const nextWeekDays = React.useMemo(
+    () => nextWeekWindow(periodEnd, project?.reporting?.workingWeek),
+    [periodEnd, project?.reporting?.workingWeek]
+  );
+
   const [milestones, setMilestones] = React.useState<MasterMilestone[]>([]);
   const [updates, setUpdates] = React.useState<MilestoneUpdate[]>([]);
   const [canManageGoverned, setCanManageGoverned] = React.useState(false);
@@ -782,8 +803,19 @@ export function WeeklyProjectControlPlan({
       )}
 
       <section className="space-y-2">
-        <div className="flex items-center justify-between gap-2 border-b pb-2">
-          <h4 className="text-sm font-semibold">B. Next Week Project Tasks</h4>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+          <div className="min-w-0">
+            <h4 className="text-sm font-semibold">
+              B. Next Week Plan — Gantt
+            </h4>
+            {nextWeekDays.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {formatDate(nextWeekDays[0].date)} –{" "}
+                {formatDate(nextWeekDays[nextWeekDays.length - 1].date)} ·
+                working week {project?.reporting?.workingWeek ?? "Sun – Thu"}
+              </p>
+            )}
+          </div>
           {editable && (
             <Button
               type="button"
@@ -796,6 +828,45 @@ export function WeeklyProjectControlPlan({
             </Button>
           )}
         </div>
+
+        {/*
+          The axis, once, on the SAME grid as the rows below it — otherwise the
+          day headings sit over the wrong part of the row and the chart lies.
+          In the editor the bar spans the full row width, so the axis does too;
+          in the read-only Gantt it occupies the timeline column and the axis is
+          placed in that same column with `NEXT_WEEK_GRID`.
+        */}
+        {nextWeekDays.length > 0 && nextWeek.length > 0 && (
+          editable ? (
+            <div className="px-3">
+              <NextWeekAxisHeader days={nextWeekDays} />
+            </div>
+          ) : (
+            <div className={`grid gap-x-3 px-3 ${NEXT_WEEK_GRID}`}>
+              <span className="hidden text-[0.625rem] font-semibold tracking-[0.08em] text-muted-foreground uppercase lg:block">
+                Task
+              </span>
+              <span className="hidden text-[0.625rem] font-semibold tracking-[0.08em] text-muted-foreground uppercase lg:block">
+                Start – End
+              </span>
+              <NextWeekAxisHeader days={nextWeekDays} />
+              <span className="hidden text-[0.625rem] font-semibold tracking-[0.08em] text-muted-foreground uppercase lg:block">
+                Owner / Department
+              </span>
+              <span className="hidden text-[0.625rem] font-semibold tracking-[0.08em] text-muted-foreground uppercase lg:block">
+                Status
+              </span>
+            </div>
+          )
+        )}
+
+        {nextWeekDays.length === 0 && nextWeek.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            The next working week could not be derived from this report&apos;s
+            period, so the timeline is not shown. Task dates below are unaffected.
+          </p>
+        )}
+
         {nextWeek.length === 0 ? (
           <p className="text-xs text-muted-foreground">No tasks recorded.</p>
         ) : (
@@ -921,38 +992,66 @@ export function WeeklyProjectControlPlan({
                     ))}
                   </SelectContent>
                 </Select>
-                <div className="self-center lg:col-span-3">
-                  <Timeline
-                    item={row}
-                    periodStart={periodStart}
-                    periodEnd={periodEnd}
-                  />
+                {/* Same task record, same grid as the axis above. */}
+                <div className="space-y-1 self-center lg:col-span-full">
+                  {nextWeekDays.length > 0 && (
+                    <NextWeekBar
+                      days={nextWeekDays}
+                      placement={placeOnWindow(row, nextWeekDays)}
+                      status={row.status}
+                      meta={STATUS}
+                      label={`${row.title || "Untitled task"} · ${planItemRange(row.startDate, row.endDate)}`}
+                    />
+                  )}
+                  {nextWeekDays.length > 0 && (
+                    <NextWeekPlacementNote
+                      placement={placeOnWindow(row, nextWeekDays)}
+                    />
+                  )}
                 </div>
               </div>
             ) : (
               <div
                 key={row.key}
-                className="grid gap-2 rounded-lg border bg-background p-3 sm:grid-cols-[minmax(12rem,2fr)_9rem_10rem]"
+                className={`grid items-center gap-x-3 gap-y-2 rounded-lg border bg-background p-3 ${NEXT_WEEK_GRID}`}
               >
-                <div>
-                  <p className="text-sm font-medium">{row.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {names.department(row.departmentId)?.name ?? "Project Control"}
-                    {" · "}
-                    {names.person(row.ownerContactId)?.name ?? "No owner"}
-                    {" · "}
-                    {row.startDate ? `${row.startDate} – ` : ""}
-                    {row.endDate}
-                  </p>
+                <p className="min-w-0 truncate text-sm font-medium" title={row.title}>
+                  {row.title}
+                </p>
+                <p className="text-xs tabular-nums text-muted-foreground">
+                  {planItemRange(row.startDate, row.endDate)}
+                </p>
+                <div className="space-y-1">
+                  {nextWeekDays.length > 0 && (
+                    <>
+                      <NextWeekBar
+                        days={nextWeekDays}
+                        placement={placeOnWindow(row, nextWeekDays)}
+                        status={row.status}
+                        meta={STATUS}
+                        label={`${row.title || "Untitled task"} · ${planItemRange(row.startDate, row.endDate)}`}
+                      />
+                      <NextWeekPlacementNote
+                        placement={placeOnWindow(row, nextWeekDays)}
+                      />
+                    </>
+                  )}
                 </div>
+                <p
+                  className="min-w-0 truncate text-xs text-muted-foreground"
+                  /* Truncation must not lose the name — see the design
+                     constitution on clamping. */
+                  title={`${names.person(row.ownerContactId)?.name ?? "No owner"} · ${
+                    names.department(row.departmentId)?.name ?? "Project Control"
+                  }`}
+                >
+                  {names.person(row.ownerContactId)?.name ?? "No owner"}
+                  {" · "}
+                  {names.department(row.departmentId)?.name ?? "Project Control"}
+                </p>
                 <StatusBadge tone={STATUS[row.status].tone}>
                   {STATUS[row.status].label}
                 </StatusBadge>
-                <Timeline
-                  item={row}
-                  periodStart={periodStart}
-                  periodEnd={periodEnd}
-                />
               </div>
             );
           })
