@@ -40,6 +40,7 @@ import {
   SIGNATORY_ROLE_LABEL,
   isSnapshotEmpty,
   newSignatoryId,
+  signatoryContactId,
 } from "@/lib/report-signatories";
 import { useMasterData } from "@/features/master-data";
 import { weeklyReportService } from "@/services/weekly-report-service";
@@ -319,7 +320,33 @@ export function WeeklySignoffPanel({
   const save = async () => {
     setSaving(true);
     try {
-      await weeklyReportService.update(reportId, { signatories: snapshot });
+      /*
+       * Two things are written, because the report needs both.
+       *
+       *   `signatories` is the SNAPSHOT — what prints, frozen at save time.
+       *   The three contact columns are what the LIFECYCLE reads:
+       *   `weekly_transition_blockers()` refuses "No reviewer recorded." on
+       *   `reviewed_by_contact_id is null` and never consults the snapshot, so
+       *   a sign-off saved only as a snapshot left the Weekly stuck at Under
+       *   Review with the reviewer visibly named on screen.
+       *
+       * A role resolves to a Contact only when the person was PICKED from
+       * Contacts. Someone typed in by hand has no Contact row and no id to
+       * record, so that key is omitted entirely — the service writes a column
+       * only for a key it is given (`input.x !== undefined`), so an omitted
+       * role leaves whatever is already stored untouched rather than clearing
+       * a sign-off that is already recorded.
+       */
+      const preparedByContactId = signatoryContactId(snapshot.prepared);
+      const reviewedByContactId = signatoryContactId(snapshot.reviewed);
+      const approvedByContactId = signatoryContactId(snapshot.approved);
+
+      await weeklyReportService.update(reportId, {
+        signatories: snapshot,
+        ...(preparedByContactId ? { preparedByContactId } : {}),
+        ...(reviewedByContactId ? { reviewedByContactId } : {}),
+        ...(approvedByContactId ? { approvedByContactId } : {}),
+      });
       onSaved(snapshot);
       setEdited(null);
       toast.success("Report sign-off saved.");

@@ -58,6 +58,35 @@ export function newSignatoryId(): string {
   return `sig-${Date.now().toString(36)}-${fallbackCounter}`;
 }
 
+/* ------------------------- Canonical id resolution ------------------------- */
+
+/**
+ * The Contact a role's sign-off should be RECORDED against, if there is one.
+ *
+ * The snapshot is what PRINTS and stays frozen. The three
+ * `weekly_reports.prepared_by/reviewed_by/approved_by_contact_id` columns are a
+ * different thing: they are what the lifecycle reads. `weekly_transition_blockers()`
+ * tests `reviewed_by_contact_id is null` and refuses "No reviewer recorded." —
+ * it does not look at the snapshot — so a sign-off saved only as a snapshot
+ * leaves the Weekly unable to reach Approved even though the reviewer is named
+ * on screen and on the printed report.
+ *
+ * FIRST, not merged. The columns hold one Contact each and the snapshot is an
+ * ordered list the author can reorder, so the first entry that came from
+ * Contacts is the one the lifecycle records. The rest keep printing exactly as
+ * saved — nothing about the snapshot changes.
+ *
+ * `undefined` when the role is empty or holds only typed-in people: a free-typed
+ * client representative has no Contact row, and these columns are foreign keys
+ * to `contacts`. Callers must then leave the column ALONE rather than clear it —
+ * see the save path in `weekly-signoff-panel.tsx`.
+ */
+export function signatoryContactId(
+  people: ReportSignatory[] | undefined
+): string | undefined {
+  return people?.find((person) => person.contactId)?.contactId;
+}
+
 /* -------------------------------- Parsing ---------------------------------- */
 
 function cleanText(value: unknown): string | undefined {
