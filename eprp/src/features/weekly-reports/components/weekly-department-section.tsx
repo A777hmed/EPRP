@@ -8,6 +8,7 @@ import {
   Loader2,
   Plus,
   Save,
+  Send,
   Undo2,
   Unlink,
 } from "lucide-react";
@@ -685,49 +686,17 @@ function UpdateEditor({
       </div>
 
       {/*
-        Department review.
+        The department verdict is NOT recorded here.
 
-        Shown only on the department's canonical submission and only to someone
-        who may rule on THIS department — see `mayRecordVerdict`. It is the one
-        place a verdict is recorded: the scope items below carry working state,
-        not acceptance, and the Weekly's own lifecycle is Project Control's and
-        is not reachable from here.
+        It used to be, and that was the defect: this editor only mounts inside
+        the "Department Overall Update" disclosure, which is optional narrative
+        and starts closed, so a Department Manager had no reachable Approve
+        action at all. The verdict now lives on `DepartmentWorkflowBar`, which
+        renders unconditionally at the top of the department card. The rule
+        itself is unchanged and still `mayRecordVerdict` — kept here because the
+        Status list below must still OFFER a verdict value to someone who may
+        set one, and must still display one already recorded.
       */}
-      {mayRecordVerdict && (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed px-3 py-2">
-          <div className="mr-auto">
-            <p className="text-xs font-semibold">Department Review</p>
-            <p className="text-xs text-muted-foreground">
-              {draft.status === "approved"
-                ? "Approved. Project Control can now include this department in the Weekly review."
-                : draft.status === "returned"
-                  ? "Returned to the department for revision."
-                  : draft.status === "submitted"
-                    ? "Submitted by the department and awaiting your decision."
-                    : "The department has not submitted this Weekly yet."}
-            </p>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => save("approved")}
-            disabled={saving || blocked || draft.status === "approved"}
-          >
-            <Check data-icon="inline-start" aria-hidden="true" />
-            Approve Department Submission
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => save("returned")}
-            disabled={saving || blocked || draft.status === "returned"}
-          >
-            <Undo2 data-icon="inline-start" aria-hidden="true" />
-            Return for Revision
-          </Button>
-        </div>
-      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field>
           <FieldLabel htmlFor={`${fieldId}-status`}>Status</FieldLabel>
@@ -1432,6 +1401,16 @@ function OverallUpdateBlock({
         </p>
         {canEdit ? (
           <UpdateEditor
+            /*
+             * Re-seed when the canonical row's status changes underneath us.
+             * The editor deliberately does not sync its draft from props — that
+             * is what stops a background reload clobbering typing — but the
+             * status is now also set from the workflow bar above. Without this
+             * key the editor would keep the status it mounted with and a later
+             * "Save Department Summary" would quietly write an approval back to
+             * Pending.
+             */
+            key={`${submission?.id ?? "new"}:${submission?.status ?? "pending"}`}
             reportId={reportId}
             departmentId={section.departmentId}
             level="department"
@@ -1457,6 +1436,212 @@ function OverallUpdateBlock({
         )}
       </CollapsibleContent>
     </Collapsible>
+  );
+}
+
+/* -------------------------- Department workflow bar ------------------------ */
+
+interface DepartmentWorkflowBarProps {
+  reportId: string;
+  section: DepartmentSection;
+  /** Department input is open to this viewer — the same flag the editors use. */
+  canEdit: boolean;
+  onSaved: (submission: WeeklySubmission) => void;
+}
+
+/**
+ * The department's own step in the Weekly cycle: Submit, then the Manager's
+ * verdict — on the department's CANONICAL submission (scope item NULL).
+ *
+ * WHY THIS EXISTS AT ALL. Both actions used to live only inside the
+ * department-level `UpdateEditor`, which mounts only inside the "Department
+ * Overall Update" disclosure. That disclosure is optional narrative and starts
+ * closed, and a closed Collapsible mounts nothing — so a Department Manager
+ * signed in on a Weekly he owned had no Approve control anywhere on the page,
+ * and the department had no Submit control either. The canonical row is the one
+ * row `weekly_transition_blockers()` and `departmentApproval()` read, so the
+ * step the lifecycle REQUIRES was the step the UI hid behind an affordance
+ * labelled Optional. This bar is that step, rendered where it belongs.
+ *
+ * WHAT IT DOES NOT CHANGE.
+ *
+ *   Authority. `mayRecordVerdict` is the same pair as before —
+ *   `canConsolidate` (Project Control / Report Coordinator / admin) or an
+ *   assigned Department Manager of THIS department, read from the same context.
+ *   Platform role is never consulted, here or anywhere below it.
+ *
+ *   The boundary. `weekly_submissions_update` still decides. A Team Member
+ *   reaches the contributor statuses only; the verdict pair belongs to the
+ *   manager branch, which additionally requires `discipline_id is null`. This
+ *   decides what to OFFER and nothing more.
+ *
+ *   The row. Every stored field is sent back exactly as it was read, so a
+ *   status transition can never blank a summary, a progress figure or an owner.
+ *   `healthStatus` is deliberately not sent: the service leaves a column it is
+ *   not given untouched.
+ *
+ *   The lifecycle. `canEdit` already carries `isEditableStatus("weekly", …)`
+ *   for anyone who is not Project Control — the same draft/collecting/returned
+ *   set as `weekly_report_accepts_department_input()`. Outside that window the
+ *   bar is not offered, which is what the database would enforce anyway.
+ */
+function DepartmentWorkflowBar({
+  reportId,
+  section,
+  canEdit,
+  onSaved,
+}: DepartmentWorkflowBarProps) {
+  const verdictAuthority = React.useContext(SubmissionVerdictAuthorityContext);
+  const [saving, setSaving] = React.useState<SubmissionStatus | null>(null);
+
+  const existing = section.overallUpdate;
+  const status: SubmissionStatus = existing?.status ?? "pending";
+
+  const mayRecordVerdict =
+    verdictAuthority.canConsolidate ||
+    verdictAuthority.managedDepartmentIds.includes(section.departmentId);
+
+  // Submitting is the department reporting on itself, so it follows department
+  // input rights rather than the verdict pair. Already submitted or already
+  // ruled on, there is nothing to submit.
+  const maySubmit = status === "pending" || status === "in_progress" || status === "returned";
+
+  /*
+   * A verdict answers a submission. `03_REPORTING_ARCHITECTURE.md` §4.5 states
+   * the department cycle as Not started -> In progress -> Submitted -> Accepted,
+   * so approving a department that has never submitted would skip a step the
+   * specification requires — the mirror of "a department's submission cannot
+   * skip the Lead" (`05` §1.2). `approved` and `returned` both imply a prior
+   * submission, so they count as answerable too.
+   *
+   * `canConsolidate` keeps its override: Project Control / an administrator
+   * unblocking a stuck report is the documented exception, and taking it away
+   * here would be a new restriction, not a fix. A Department Manager gets the
+   * buttons either way — DISABLED with the reason stated, never absent, because
+   * `03` §5 transition rule 6 requires the next required action to be visible.
+   */
+  const answerable =
+    status === "submitted" || status === "approved" || status === "returned";
+  const verdictBlocked = !answerable && !verdictAuthority.canConsolidate;
+
+  if (!canEdit) return null;
+  if (!maySubmit && !mayRecordVerdict) return null;
+
+  const record = async (next: SubmissionStatus) => {
+    setSaving(next);
+    try {
+      const saved = await weeklyReportService.saveDepartmentUpdate(reportId, {
+        id: existing?.id,
+        departmentId: section.departmentId,
+        // Omitted, not null: the canonical department row is the one whose
+        // scope item is absent, and the save matches it with `is null`.
+        status: next,
+        progressPercent: existing?.progressPercent,
+        summary: existing?.summary,
+        keyAchievement: existing?.keyAchievement,
+        delayConstraint: existing?.delayConstraint,
+        nextWeekPlan: existing?.nextWeekPlan,
+        responsibleContactId: existing?.responsibleContactId,
+        targetDate: existing?.targetDate,
+      });
+      onSaved(saved);
+      toast.success(
+        next === "approved"
+          ? "Department submission approved"
+          : next === "returned"
+            ? "Department submission returned for revision"
+            : "Department input submitted for review"
+      );
+    } catch (e) {
+      toast.error(
+        e instanceof Error
+          ? e.message
+          : "Could not record this department decision."
+      );
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+      <div className="mr-auto min-w-0">
+        <p className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+          {mayRecordVerdict ? "Department Review" : "Department Submission"}
+          <StatusBadge tone={SUBMISSION_STATUS_META[status].tone}>
+            {SUBMISSION_STATUS_META[status].label}
+          </StatusBadge>
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {status === "approved"
+            ? "Approved. Project Control can now include this department in the Weekly review."
+            : status === "returned"
+              ? "Returned to the department for revision."
+              : status === "submitted"
+                ? mayRecordVerdict
+                  ? "Submitted by the department and awaiting your decision."
+                  : "Submitted. Awaiting the Department Manager’s decision."
+                : mayRecordVerdict
+                  ? verdictBlocked
+                    ? "The department has not submitted this Weekly yet. Submit it, or wait for the department to, before recording a decision."
+                    : "The department has not submitted this Weekly yet."
+                  : "Submit once this department’s input is complete."}
+        </p>
+      </div>
+
+      {maySubmit && (
+        <Button
+          type="button"
+          size="sm"
+          variant={mayRecordVerdict ? "outline" : "default"}
+          onClick={() => record("submitted")}
+          disabled={saving !== null}
+        >
+          {saving === "submitted" ? (
+            <Loader2
+              data-icon="inline-start"
+              className="animate-spin motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+          ) : (
+            <Send data-icon="inline-start" aria-hidden="true" />
+          )}
+          Submit Department Input
+        </Button>
+      )}
+
+      {mayRecordVerdict && (
+        <>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => record("approved")}
+            disabled={saving !== null || status === "approved" || verdictBlocked}
+          >
+            {saving === "approved" ? (
+              <Loader2
+                data-icon="inline-start"
+                className="animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+            ) : (
+              <Check data-icon="inline-start" aria-hidden="true" />
+            )}
+            Approve Department Submission
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => record("returned")}
+            disabled={saving !== null || status === "returned" || verdictBlocked}
+          >
+            <Undo2 data-icon="inline-start" aria-hidden="true" />
+            Return for Revision
+          </Button>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -1580,6 +1765,19 @@ export function WeeklyDepartmentSection({
             Showing your assigned scope only.
           </p>
         )}
+
+        {/*
+          First, not buried: this is the department's step in the Weekly cycle
+          and the row the lifecycle guard reads. It renders nothing at all for
+          a viewer who may neither submit nor rule, so nobody gains an
+          affordance they did not already have.
+        */}
+        <DepartmentWorkflowBar
+          reportId={reportId}
+          section={section}
+          canEdit={canEdit}
+          onSaved={onSaved}
+        />
 
         <OverallUpdateBlock
           reportId={reportId}
