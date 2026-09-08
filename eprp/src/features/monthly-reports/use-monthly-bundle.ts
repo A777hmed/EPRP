@@ -20,6 +20,7 @@ import type {
   MonthlyDepartmentSummary,
   MonthlyPlanItem,
   MonthlyReport,
+  MonthlySubmission,
   Project,
   WeeklyReport,
 } from "@/types";
@@ -53,6 +54,7 @@ export function useMonthlyBundle(reportId: string): MonthlyBundleState {
   const [comments, setComments] = React.useState<MonthlyComment[]>([]);
   const [plans, setPlans] = React.useState<MonthlyPlanItem[]>([]);
   const [summaries, setSummaries] = React.useState<MonthlyDepartmentSummary[]>([]);
+  const [monthlySubmissions, setMonthlySubmissions] = React.useState<MonthlySubmission[]>([]);
   const [weeklies, setWeeklies] = React.useState<WeeklyReport[]>([]);
   const [submissions, setSubmissions] = React.useState<WeeklySubmissionInMonth[]>([]);
   const [siblings, setSiblings] = React.useState<MonthlyReport[]>([]);
@@ -72,12 +74,13 @@ export function useMonthlyBundle(reportId: string): MonthlyBundleState {
       const milestoneRegisterPromise = isSupabaseConfigured()
         ? milestoneService.listRegister([next.projectId])
         : Promise.resolve({ milestones: [], updates: [] });
-      const [nextProject, nextComments, nextPlans, nextSummaries, projectReports, allWeeklies, milestoneRegister] =
+      const [nextProject, nextComments, nextPlans, nextSummaries, nextMonthlySubmissions, projectReports, allWeeklies, milestoneRegister] =
         await Promise.all([
           projectService.getProjectById(next.projectId),
           monthlyReportService.listComments(next.id),
           monthlyReportService.listPlanItems(next.id),
           monthlyReportService.listSummaries(next.id),
+          monthlyReportService.listSubmissions(next.id),
           monthlyReportService.list(next.projectId),
           weeklyReportService.list(),
           milestoneRegisterPromise,
@@ -102,6 +105,7 @@ export function useMonthlyBundle(reportId: string): MonthlyBundleState {
       setComments(nextComments);
       setPlans(nextPlans);
       setSummaries(nextSummaries);
+      setMonthlySubmissions(nextMonthlySubmissions);
       setWeeklies(inMonth);
       setSubmissions(submissionRows);
       setMilestoneStates(deriveMilestoneStates(milestoneRegister.milestones, milestoneRegister.updates));
@@ -130,6 +134,7 @@ export function useMonthlyBundle(reportId: string): MonthlyBundleState {
       comments,
       weeklies,
       submissions,
+      monthlySubmissions,
       summaries,
       plans,
       milestoneStates,
@@ -146,6 +151,7 @@ export function useMonthlyBundle(reportId: string): MonthlyBundleState {
     comments,
     weeklies,
     submissions,
+    monthlySubmissions,
     summaries,
     plans,
     milestoneStates,

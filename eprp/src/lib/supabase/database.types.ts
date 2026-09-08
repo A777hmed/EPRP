@@ -569,6 +569,24 @@ export interface MonthlyCommentRow {
   updated_at: string;
 }
 
+/** See migration 20260908000001_monthly_department_collection.sql. */
+export interface MonthlySubmissionRow {
+  id: string;
+  monthly_report_id: string;
+  department_id: string;
+  status: string;
+  no_additional_comments: boolean;
+  sent_at: string | null;
+  due_at: string | null;
+  submitted_by_contact_id: string | null;
+  submitted_at: string | null;
+  reviewed_by_contact_id: string | null;
+  reviewed_at: string | null;
+  return_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface MonthlyDepartmentSummaryRow {
   id: string;
   monthly_report_id: string;
@@ -750,6 +768,7 @@ export interface Database {
       weekly_activities: TableDef<WeeklyActivityRow, Omit<WeeklyActivityRow, "id" | "created_at" | "updated_at">, Partial<WeeklyActivityRow>>;
       monthly_reports: TableDef<MonthlyReportRow, Omit<MonthlyReportRow, "id" | "created_at" | "updated_at" | "active" | "archived_at">, Partial<MonthlyReportRow>>;
       monthly_comments: TableDef<MonthlyCommentRow, Omit<MonthlyCommentRow, "id" | "created_at" | "updated_at" | "created_by_contact_id" | "updated_by_contact_id">, Partial<MonthlyCommentRow>>;
+      monthly_submissions: TableDef<MonthlySubmissionRow, Omit<MonthlySubmissionRow, "id" | "created_at" | "updated_at" | "submitted_by_contact_id" | "submitted_at" | "reviewed_by_contact_id" | "reviewed_at">, Partial<MonthlySubmissionRow>>;
       monthly_department_summaries: TableDef<MonthlyDepartmentSummaryRow, Omit<MonthlyDepartmentSummaryRow, "id" | "created_at" | "updated_at" | "created_by_contact_id" | "updated_by_contact_id">, Partial<MonthlyDepartmentSummaryRow>>;
       monthly_plan_items: TableDef<MonthlyPlanItemRow, Omit<MonthlyPlanItemRow, "id" | "created_at" | "updated_at">, Partial<MonthlyPlanItemRow>>;
     };

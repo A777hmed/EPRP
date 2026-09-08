@@ -11,13 +11,14 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { Check, Eye, Pencil, Plus, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState, StatusBadge } from "@/components/shared";
-import { MILESTONE_STATUS_META, PRIORITY_META, REPORT_STATUS_META } from "@/lib/constants";
+import { MILESTONE_STATUS_META, PRIORITY_META } from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
 import { getMonthLabel } from "@/lib/reporting";
 import { monthlyReportService } from "@/services/monthly-report-service";
@@ -36,12 +37,17 @@ import {
   buildProjectMonthlyLinks,
   type MonthlyReportLinks,
 } from "./monthly-report-view";
+import { monthlyTransitionBlockers } from "./monthly-collection";
+import { MonthlyCollectionPanel } from "./monthly-collection-panel";
+import { MonthlyDepartmentInput } from "./monthly-department-input";
 import { useMonthlyBundle } from "./use-monthly-bundle";
 import {
+  MONTHLY_STATUS_OPTIONS,
   NOT_RECORDED,
   autoDraftExecutiveSummary,
   commentStatusMeta,
   monthEndStatus,
+  monthlyStatusMeta,
   nameOf,
   nextMonthLabel,
   weekStatus,
@@ -51,11 +57,12 @@ const typeLabels = Object.fromEntries(MONTHLY_UPDATE_TYPE_OPTIONS) as Record<Mon
 const KPI_RATINGS = ["excellent", "good", "fair", "at_risk", "critical"] as const;
 const PLAN_STATUSES = ["not_started", "in_progress", "completed", "delayed", "pending"] as const;
 
-type PanelKey = "overview" | "weekly" | "milestones" | "comments" | "management" | "plan" | "summary" | "approval";
+type PanelKey = "overview" | "weekly" | "collection" | "milestones" | "comments" | "management" | "plan" | "summary" | "approval";
 
 const PANELS: { key: PanelKey; label: string; hint: string }[] = [
   { key: "overview", label: "Monthly Overview", hint: "Report identity and month-end KPIs" },
   { key: "weekly", label: "Weekly Inputs", hint: "Import and review this month's Weekly Reports" },
+  { key: "collection", label: "Department Collection", hint: "Ask each department to review the month and add what the Weekly Reports did not say" },
   { key: "milestones", label: "Master Milestone Progress", hint: "Governed milestone position, read-only" },
   { key: "comments", label: "Monthly Comments", hint: "Add and curate Monthly updates" },
   { key: "management", label: "Management Items", hint: "Decisions and escalations for leadership" },
@@ -807,6 +814,20 @@ function ApprovalPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
        */
       await monthlyReportService.update(report.id, { reviewedByContactId: reviewedBy, approvedByContactId: approvedBy });
       if (status !== report.status) {
+        /*
+         * Pre-flight the department round.
+         *
+         * `monthly_transition_blockers()` is the boundary and refuses this
+         * independently; asking first is what turns a raw database error into
+         * the sentence that says which departments are still outstanding. The
+         * wording is shared with the SQL so the two cannot drift.
+         */
+        const blockers = monthlyTransitionBlockers(status, bundle.monthlySubmissions);
+        if (blockers.length > 0) {
+          throw new Error(
+            `Cannot move this Monthly Report to ${monthlyStatusMeta(status).label}: ${blockers.join(" ")}`
+          );
+        }
         await monthlyReportService.changeStatus(report.id, status);
       }
       await reload();
@@ -855,9 +876,9 @@ function ApprovalPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
         <label>
           Report Status
           <select value={status} onChange={(event) => setStatus(event.target.value as MonthlyReport["status"])}>
-            {Object.entries(REPORT_STATUS_META).map(([value, meta]) => (
+            {MONTHLY_STATUS_OPTIONS.map((value) => (
               <option key={value} value={value}>
-                {meta.label}
+                {monthlyStatusMeta(value).label}
               </option>
             ))}
           </select>
@@ -872,9 +893,166 @@ function ApprovalPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
 
 /* -------------------------------- Workspace -------------------------------- */
 
+/**
+ * The server's answer to "who is asking?", narrowed to what this view needs.
+ *
+ * Structurally the Weekly `WeeklyScope` plus its editability verdict — the same
+ * resolution, because a Department Manager is a project assignment and not a
+ * report-tier idea. Declared here rather than imported wholesale so the
+ * workspace depends on the two facts it uses, not on the Weekly module.
+ */
+export interface MonthlyWorkspaceViewer {
+  scope: {
+    contactId: string;
+    canConsolidate: boolean;
+    departmentIds: string[];
+    managedDepartmentIds: string[];
+  } | null;
+  editability: { canEdit: boolean; reason?: string } | null;
+  viewerName?: string;
+  viewerRoleLabel?: string;
+}
+
+/**
+ * What a department sees: its own Monthly round, and nothing else.
+ *
+ * One card per department the viewer covers — usually exactly one. The `?dept=`
+ * the distribution link carries is used to ORDER, so a recipient who followed a
+ * link lands on their own department first; it grants nothing, and a department
+ * outside `scope.departmentIds` is simply not here.
+ */
+function MonthlyDepartmentWorkspace({
+  bundle,
+  viewer,
+  projectId,
+  reload,
+}: {
+  bundle: MonthlyReportBundle;
+  viewer: MonthlyWorkspaceViewer;
+  projectId?: string;
+  reload: () => Promise<void>;
+}) {
+  const scope = viewer.scope!;
+  /*
+   * The department a distribution link asked for. Carried in the QUERY as well
+   * as the fragment because a fragment never reaches the server, so the
+   * sign-in round trip keeps `?dept=` and loses the anchor — which is exactly
+   * the case that matters for a recipient who had to log in first.
+   *
+   * NAVIGATION ONLY: it reorders the cards. A department outside
+   * `scope.departmentIds` is not rendered whatever the URL says, and RLS
+   * refuses its rows independently.
+   */
+  const requested = useSearchParams().get("dept");
+
+  const departmentIds = React.useMemo(() => {
+    const ids = scope.departmentIds.filter((id) =>
+      (bundle.project?.departments ?? []).some(
+        (assignment) => assignment.departmentId === id
+      )
+    );
+    if (!requested || !ids.includes(requested)) return ids;
+    return [requested, ...ids.filter((id) => id !== requested)];
+  }, [scope.departmentIds, bundle.project, requested]);
+
+  const roundOpen = Boolean(viewer.editability?.canEdit);
+
+  return (
+    <ProjectReportingShell
+      header={
+        <ReportContextHeader
+          projectCode={bundle.project?.code}
+          projectName={bundle.project?.shortName ?? bundle.project?.name ?? "Project"}
+          period={getMonthLabel(bundle.report.reportingMonth)}
+          status={{
+            label: monthlyStatusMeta(bundle.report.status).label,
+            tone: monthlyStatusMeta(bundle.report.status).tone,
+          }}
+          updatedAt={formatDate(bundle.report.updatedAt)}
+        />
+      }
+      tabs={projectId ? <ReportTypeTabs projectId={projectId} active="monthly" /> : undefined}
+    >
+      <div className="monthly-workspace">
+        <div className="monthly-ws-header">
+          <div>
+            <p className="monthly-eyebrow">Monthly Department Input</p>
+            <h1>
+              {bundle.project?.name ?? NOT_RECORDED} — {getMonthLabel(bundle.report.reportingMonth)}
+            </h1>
+            <span>
+              {bundle.report.reportNumber} ·{" "}
+              <StatusBadge tone={monthlyStatusMeta(bundle.report.status).tone}>
+                {monthlyStatusMeta(bundle.report.status).label}
+              </StatusBadge>
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+          <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt className="text-xs text-muted-foreground">Current User</dt>
+              <dd className="text-sm font-medium">{viewer.viewerName ?? "Current user"}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Role</dt>
+              <dd className="text-sm font-medium">
+                {viewer.viewerRoleLabel ?? "Resolved project role"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Effective Scope</dt>
+              <dd className="text-sm font-medium">
+                {departmentIds
+                  .map((id) => nameOf(id, bundle.departments, "Unknown department"))
+                  .join(" · ") || "No department scope"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Monthly Status</dt>
+              <dd className="text-sm font-medium">
+                {monthlyStatusMeta(bundle.report.status).label}
+              </dd>
+            </div>
+          </dl>
+          <p className={`mt-2 text-xs ${roundOpen ? "text-success" : "text-warning"}`}>
+            {roundOpen
+              ? "This Monthly Report is open for your department's input."
+              : viewer.editability?.reason ??
+                "This Monthly Report is read-only for you."}
+          </p>
+        </div>
+
+        {departmentIds.length === 0 ? (
+          <EmptyState
+            title="No department scope on this project"
+            description="You have no department assignment on this project, so there is no Monthly input for you to give."
+            icon={Plus}
+          />
+        ) : (
+          departmentIds.map((departmentId) => (
+            <MonthlyDepartmentInput
+              key={departmentId}
+              bundle={bundle}
+              departmentId={departmentId}
+              roundOpen={roundOpen}
+              canContribute
+              canConsolidate={scope.canConsolidate}
+              managedDepartmentIds={scope.managedDepartmentIds}
+              onChanged={reload}
+            />
+          ))
+        )}
+      </div>
+    </ProjectReportingShell>
+  );
+}
+
 export function MonthlyWorkspaceView({
   reportId,
   projectId,
+  viewer,
 }: {
   reportId: string;
   /**
@@ -883,6 +1061,15 @@ export function MonthlyWorkspaceView({
    * `MonthlyReportView` for why.
    */
   projectId?: string;
+  /**
+   * Who is asking, resolved on the server by `getMonthlyViewerContext`.
+   *
+   * Absent means the page did not resolve one — mock mode, or a route that has
+   * not been updated. The workspace then behaves exactly as it did before the
+   * department round existed: the full authoring surface, because that is who
+   * was ever able to open it.
+   */
+  viewer?: MonthlyWorkspaceViewer;
 }) {
   const links = projectId
     ? buildProjectMonthlyLinks(projectId)
@@ -893,6 +1080,32 @@ export function MonthlyWorkspaceView({
   if (bundle === undefined) return <LoadingState label="Loading Monthly Workspace…" />;
   if (bundle === null) {
     return <EmptyState title="Monthly Report not found" description="This report is unavailable or you do not have access to it." icon={Plus} />;
+  }
+
+  /*
+   * A department contributor gets a DEPARTMENT view, not a disabled copy of the
+   * authoring workspace.
+   *
+   * Rendering the full tab set with controls switched off would put Monthly
+   * Overview figures, Master Milestones, the Executive Summary and the Approval
+   * panel on their screen and rely on every one of those panels to refuse them.
+   * Building the department view from its own component means those panels are
+   * never mounted at all, so there is nothing to defeat.
+   */
+  const departmentOnly =
+    viewer?.scope != null &&
+    !viewer.scope.canConsolidate &&
+    viewer.scope.departmentIds.length > 0;
+
+  if (departmentOnly && viewer?.scope) {
+    return (
+      <MonthlyDepartmentWorkspace
+        bundle={bundle}
+        viewer={viewer}
+        projectId={projectId}
+        reload={reload}
+      />
+    );
   }
 
   const active = PANELS.find((item) => item.key === panel) ?? PANELS[0];
@@ -907,8 +1120,8 @@ export function MonthlyWorkspaceView({
           }
           period={getMonthLabel(bundle.report.reportingMonth)}
           status={{
-            label: REPORT_STATUS_META[bundle.report.status].label,
-            tone: REPORT_STATUS_META[bundle.report.status].tone,
+            label: monthlyStatusMeta(bundle.report.status).label,
+            tone: monthlyStatusMeta(bundle.report.status).tone,
           }}
           updatedAt={formatDate(bundle.report.updatedAt)}
         />
@@ -956,6 +1169,15 @@ export function MonthlyWorkspaceView({
       {panel === "overview" && <OverviewPanel bundle={bundle} reload={reload} />}
       {panel === "weekly" && (
         <WeeklyPanel bundle={bundle} reload={reload} links={links} />
+      )}
+      {panel === "collection" && (
+        <MonthlyCollectionPanel
+          bundle={bundle}
+          /* No viewer resolved means the pre-existing behaviour: this workspace
+             was only ever reachable by Project Control. */
+          canManage={viewer?.scope ? viewer.scope.canConsolidate : true}
+          onChanged={reload}
+        />
       )}
       {panel === "milestones" && <MilestonesPanel bundle={bundle} />}
       {panel === "comments" && <CommentsPanel bundle={bundle} reload={reload} />}

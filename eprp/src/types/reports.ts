@@ -245,10 +245,50 @@ export interface WeeklyReport extends ReportBase {
 
 /* --------------------------------- Monthly -------------------------------- */
 
+/**
+ * One department's participation in one Monthly report.
+ *
+ * Department-grained and nothing else: the Monthly round asks a department to
+ * review the month and answer for itself. `weekly_submissions` additionally
+ * carries a scope-item grain in the same table, and reading those two grains as
+ * one is what broke the Weekly lifecycle count — so Monthly keeps one row per
+ * (report, department) and the scope of any individual remark lives on the
+ * comment it belongs to.
+ */
+export interface MonthlySubmission {
+  id: string;
+  monthlyReportId: string;
+  departmentId: string;
+  status: SubmissionStatus;
+  /**
+   * The department reviewed the month and had nothing to add. A deliberate nil
+   * return, which is not the same fact as never having answered.
+   */
+  noAdditionalComments: boolean;
+  /** When collection was sent to the department. */
+  sentAt?: IsoDateTime;
+  /** The deadline Project Control set, if any. */
+  dueAt?: IsoDateTime;
+  submittedByContactId?: string;
+  submittedAt?: IsoDateTime;
+  /** Stamped by the database when a Department Manager rules on the row. */
+  reviewedByContactId?: string;
+  reviewedAt?: IsoDateTime;
+  returnReason?: string;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
 export interface MonthlyComment {
   id: string;
   monthlyReportId: string;
-  sourceKind: "weekly" | "monthly_manual";
+  /**
+   * Where the comment came from:
+   *   weekly ............. compiled from an approved Weekly entry
+   *   monthly_manual ..... added by Project Control on the Monthly itself
+   *   monthly_department . added by a department during the Monthly round
+   */
+  sourceKind: "weekly" | "monthly_manual" | "monthly_department";
   sourceWeeklyEntryId?: string;
   sourceWeeklyReportId?: string;
   weekNumber?: number;

@@ -6,7 +6,7 @@
  */
 
 import * as React from "react";
-import { compilationMessage } from "./monthly-data";
+import { compilationMessage, monthlyStatusMeta } from "./monthly-data";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, Eye, FilePlus2, PenLine, Plus, Printer, RefreshCw } from "lucide-react";
@@ -14,7 +14,6 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState } from "@/components/shared";
-import { REPORT_STATUS_META } from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
 import { getMonthLabel } from "@/lib/reporting";
 import { monthlyReportService } from "@/services/monthly-report-service";
@@ -217,8 +216,8 @@ export function MonthlyReportView({
           }
           period={getMonthLabel(bundle.report.reportingMonth)}
           status={{
-            label: REPORT_STATUS_META[bundle.report.status].label,
-            tone: REPORT_STATUS_META[bundle.report.status].tone,
+            label: monthlyStatusMeta(bundle.report.status).label,
+            tone: monthlyStatusMeta(bundle.report.status).tone,
           }}
           updatedAt={formatDate(bundle.report.updatedAt)}
         />
