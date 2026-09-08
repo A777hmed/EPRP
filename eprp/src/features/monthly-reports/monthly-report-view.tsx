@@ -8,8 +8,7 @@
 import * as React from "react";
 import { compilationMessage, monthlyStatusMeta } from "./monthly-data";
 import Link from "next/link";
-import Image from "next/image";
-import { ArrowLeft, Eye, FilePlus2, PenLine, Plus, Printer, RefreshCw } from "lucide-react";
+import { ArrowLeft, CalendarDays, Eye, FilePlus2, PenLine, Plus, Printer, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -17,11 +16,11 @@ import { EmptyState, LoadingState } from "@/components/shared";
 import { formatDate } from "@/lib/formatters";
 import { getMonthLabel } from "@/lib/reporting";
 import { monthlyReportService } from "@/services/monthly-report-service";
-import { siteConfig } from "@/config/site";
-import type { MonthlyReport, Project } from "@/types";
+import type { MonthlyReport } from "@/types";
 import {
   ProjectReportingShell,
   ReportContextHeader,
+  ReportPeriodSwitcher,
   ReportTypeTabs,
 } from "@/features/projects/components/sections/project-reporting-shell";
 import { MonthlyReportDocument, type MonthlyReportBundle } from "./monthly-report-document";
@@ -80,53 +79,51 @@ export function buildProjectMonthlyLinks(projectId: string): MonthlyReportLinks 
 
 /* --------------------------------- Chrome ---------------------------------- */
 
-function MonthlyTopBar({
+/**
+ * Move between this project's Monthly reporting periods.
+ *
+ * WHAT THIS REPLACED, AND WHY NOTHING WAS LOST. The Monthly detail screen used
+ * to open with a second in-page application bar carrying the EPROM logo, the
+ * title "Monthly Progress Report", the project name, and three links. Every one
+ * of those was already on the screen: the logo and title in the platform sidebar
+ * and the report document itself, the project name and status in
+ * `ReportContextHeader`, and Workspace / Print Preview in the action row below.
+ * Four layers of chrome answered the same question.
+ *
+ * The month tabs were the exception — the one thing that bar offered which
+ * nothing else did — so they are kept here, on the shared
+ * `ReportPeriodSwitcher`. "Weekly Reports" was the other, and it moved into the
+ * action row beside the destinations it belongs with.
+ */
+function MonthlyPeriodBar({
   report,
-  project,
   siblings,
   links,
 }: {
   report: MonthlyReport;
-  project: Project | null;
   siblings: MonthlyReport[];
   links: MonthlyReportLinks;
 }) {
   const tabs = [report, ...siblings].sort((a, b) => b.reportingMonth.localeCompare(a.reportingMonth)).slice(0, 4);
 
   return (
-    <div className="monthly-app-chrome print:hidden">
-      <div className="monthly-app-bar">
-        <Image src={siteConfig.logo.full} alt="EPROM" width={111} height={30} unoptimized />
-        <strong>Monthly Progress Report</strong>
-        <span className="monthly-app-divider" />
-        <span className="monthly-project-selector">{project?.name ?? project?.shortName ?? project?.code ?? "Project"}</span>
-        <Link href={links.weeklyList} className="monthly-chrome-button">
-          ← Weekly Reports
-        </Link>
-        <Link href={links.workspace(report.id)} className="monthly-chrome-button">
-          <PenLine /> Workspace
-        </Link>
-        <Link href={links.preview(report.id)} className="monthly-chrome-button">
-          <Printer /> Print / Export PDF
-        </Link>
-      </div>
-      <div className="monthly-month-tabs">
-        <span>Monthly</span>
-        {tabs.map((item) => (
-          <Link
-            key={item.id}
-            className={item.id === report.id ? "active" : ""}
-            href={links.detail(item.id)}
-            prefetch={false}
-          >
-            {getMonthLabel(item.reportingMonth)}
+    <ReportPeriodSwitcher
+      label="Monthly"
+      items={tabs.map((item) => ({
+        id: item.id,
+        label: getMonthLabel(item.reportingMonth),
+        href: links.detail(item.id),
+        active: item.id === report.id,
+      }))}
+      action={
+        <Button asChild variant="outline" size="sm">
+          <Link href="/monthly-reports/new" aria-label="Create Monthly Report">
+            <Plus data-icon="inline-start" aria-hidden="true" />
+            New
           </Link>
-        ))}
-        <Link href="/monthly-reports/new" aria-label="Create Monthly Report">
-          <Plus />
-        </Link>
-      </div>
-    </div>
+        </Button>
+      }
+    />
   );
 }
 
@@ -229,7 +226,7 @@ export function MonthlyReportView({
       }
     >
     <div className="monthly-screen-stage">
-      <MonthlyTopBar report={bundle.report} project={bundle.project} siblings={siblings} links={links} />
+      <MonthlyPeriodBar report={bundle.report} siblings={siblings} links={links} />
       <WeeklyImportStrip reportId={bundle.report.id} importedCount={importedCount} onDone={reload} />
       <div className="monthly-stage-actions print:hidden">
         {/*
@@ -244,6 +241,13 @@ export function MonthlyReportView({
             </Link>
           </Button>
         )}
+        {/* Carried over from the removed in-page app bar. */}
+        <Button asChild variant="outline">
+          <Link href={links.weeklyList}>
+            <CalendarDays />
+            Weekly Reports
+          </Link>
+        </Button>
         <Button asChild>
           <Link href={links.workspace(bundle.report.id)}>
             <PenLine />

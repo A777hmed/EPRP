@@ -26,7 +26,11 @@ import type { Contact, MonthlyComment, MonthlyPlanItem, MonthlyReport } from "@/
 import {
   ProjectReportingShell,
   ReportContextHeader,
+  ReportPanelNav,
+  ReportSection,
   ReportTypeTabs,
+  ReportViewerStrip,
+  ReportWorkspaceHeader,
 } from "@/features/projects/components/sections/project-reporting-shell";
 import { EmptyRow, type MonthlyReportBundle } from "./monthly-report-document";
 import { MONTHLY_UPDATE_TYPE_OPTIONS, MonthlyCommentForm } from "./monthly-comment-form";
@@ -92,18 +96,20 @@ function commentToInput(comment: MonthlyComment) {
   };
 }
 
+/**
+ * A Monthly workspace panel.
+ *
+ * Same signature it has always had, so every call site below is untouched; only
+ * what it renders changed. It now delegates to the shared `ReportSection`, so a
+ * Monthly panel is the same card as a Weekly section and as the Department
+ * Collection panel that already used `SectionCard` directly — and it gains a
+ * dark theme, which `.monthly-ws-panel` never had.
+ */
 function WorkspacePanel({ title, hint, action, children }: { title: string; hint: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="monthly-ws-panel">
-      <div className="monthly-ws-panel-head">
-        <div>
-          <b>{title}</b>
-          <span>{hint}</span>
-        </div>
-        {action}
-      </div>
+    <ReportSection title={title} hint={hint} action={action}>
       {children}
-    </section>
+    </ReportSection>
   );
 }
 
@@ -973,56 +979,43 @@ function MonthlyDepartmentWorkspace({
       }
       tabs={projectId ? <ReportTypeTabs projectId={projectId} active="monthly" /> : undefined}
     >
-      <div className="monthly-workspace">
-        <div className="monthly-ws-header">
-          <div>
-            <p className="monthly-eyebrow">Monthly Department Input</p>
-            <h1>
-              {bundle.project?.name ?? NOT_RECORDED} — {getMonthLabel(bundle.report.reportingMonth)}
-            </h1>
-            <span>
-              {bundle.report.reportNumber} ·{" "}
-              <StatusBadge tone={monthlyStatusMeta(bundle.report.status).tone}>
-                {monthlyStatusMeta(bundle.report.status).label}
-              </StatusBadge>
-            </span>
-          </div>
-        </div>
+      <div className="monthly-workspace space-y-4">
+        <ReportWorkspaceHeader
+          eyebrow="Monthly Department Input"
+          title={`${bundle.project?.name ?? NOT_RECORDED} — ${getMonthLabel(bundle.report.reportingMonth)}`}
+          reportNumber={bundle.report.reportNumber}
+          badges={
+            <StatusBadge tone={monthlyStatusMeta(bundle.report.status).tone}>
+              {monthlyStatusMeta(bundle.report.status).label}
+            </StatusBadge>
+          }
+        />
 
-        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-          <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <dt className="text-xs text-muted-foreground">Current User</dt>
-              <dd className="text-sm font-medium">{viewer.viewerName ?? "Current user"}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">Role</dt>
-              <dd className="text-sm font-medium">
-                {viewer.viewerRoleLabel ?? "Resolved project role"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">Effective Scope</dt>
-              <dd className="text-sm font-medium">
-                {departmentIds
+        <ReportViewerStrip
+          title="Access & Scope"
+          facts={[
+            { label: "Current User", value: viewer.viewerName ?? "Current user" },
+            { label: "Role", value: viewer.viewerRoleLabel ?? "Resolved project role" },
+            {
+              label: "Effective Scope",
+              value:
+                departmentIds
                   .map((id) => nameOf(id, bundle.departments, "Unknown department"))
-                  .join(" · ") || "No department scope"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">Monthly Status</dt>
-              <dd className="text-sm font-medium">
-                {monthlyStatusMeta(bundle.report.status).label}
-              </dd>
-            </div>
-          </dl>
-          <p className={`mt-2 text-xs ${roundOpen ? "text-success" : "text-warning"}`}>
-            {roundOpen
+                  .join(" · ") || "No department scope",
+            },
+            {
+              label: "Monthly Status",
+              value: monthlyStatusMeta(bundle.report.status).label,
+            },
+          ]}
+          access={{
+            canEdit: roundOpen,
+            message: roundOpen
               ? "This Monthly Report is open for your department's input."
-              : viewer.editability?.reason ??
-                "This Monthly Report is read-only for you."}
-          </p>
-        </div>
+              : (viewer.editability?.reason ??
+                "This Monthly Report is read-only for you."),
+          }}
+        />
 
         {departmentIds.length === 0 ? (
           <EmptyState
@@ -1132,39 +1125,38 @@ export function MonthlyWorkspaceView({
         ) : undefined
       }
     >
-    <div className="monthly-workspace">
-      <div className="monthly-ws-header">
-        <div>
-          <p className="monthly-eyebrow">Monthly Workspace</p>
-          <h1>
-            {bundle.project?.name ?? NOT_RECORDED} — {getMonthLabel(bundle.report.reportingMonth)}
-          </h1>
-          <span>
-            {bundle.report.reportNumber} · <StatusBadge tone={monthEndStatus(bundle.report).tone}>{monthEndStatus(bundle.report).label}</StatusBadge>
-          </span>
-        </div>
-        <div className="monthly-ws-header-actions">
-          <Button asChild variant="outline">
-            <Link href={links.detail(bundle.report.id)}>
-              <Eye />
-              View Report
-            </Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href={links.preview(bundle.report.id)}>Print Preview</Link>
-          </Button>
-        </div>
-      </div>
+    <div className="monthly-workspace space-y-4">
+      <ReportWorkspaceHeader
+        eyebrow="Monthly Workspace"
+        title={`${bundle.project?.name ?? NOT_RECORDED} — ${getMonthLabel(bundle.report.reportingMonth)}`}
+        reportNumber={bundle.report.reportNumber}
+        badges={
+          <StatusBadge tone={monthEndStatus(bundle.report).tone}>
+            {monthEndStatus(bundle.report).label}
+          </StatusBadge>
+        }
+        actions={
+          <>
+            <Button asChild variant="outline">
+              <Link href={links.detail(bundle.report.id)}>
+                <Eye />
+                View Report
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href={links.preview(bundle.report.id)}>Print Preview</Link>
+            </Button>
+          </>
+        }
+      />
 
-      <nav className="monthly-ws-nav" aria-label="Workspace sections">
-        {PANELS.map((item) => (
-          <button key={item.key} type="button" className={item.key === panel ? "active" : ""} onClick={() => setPanel(item.key)}>
-            {item.label}
-          </button>
-        ))}
-      </nav>
-
-      <p className="monthly-ws-hint">{active.hint}</p>
+      <ReportPanelNav
+        label="Workspace sections"
+        items={PANELS}
+        value={panel}
+        onValueChange={(key) => setPanel(key as PanelKey)}
+        hint={active.hint}
+      />
 
       {panel === "overview" && <OverviewPanel bundle={bundle} reload={reload} />}
       {panel === "weekly" && (

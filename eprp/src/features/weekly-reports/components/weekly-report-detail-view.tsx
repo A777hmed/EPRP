@@ -11,7 +11,6 @@ import {
   Eye,
   FileX,
   PenLine,
-  ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -687,16 +686,14 @@ export function WeeklyReportDetailView({
         }
       />
 
-      {/* Why this report is read-only, said once and up front. */}
-      {mode === "workspace" && !editability.canEdit && editability.reason && (
-        <p
-          role="status"
-          className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning/10 px-4 py-3 text-sm text-warning"
-        >
-          <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          {editability.reason}
-        </p>
-      )}
+      {/*
+        Why this report is read-only is now stated by the workspace's own
+        access strip (`ReportViewerStrip`), immediately above this point and in
+        the same warning colour. It used to be repeated here because the strip
+        was buried inside the full document header, several hundred pixels up;
+        with the compact header the two sat one under the other saying the same
+        sentence twice.
+      */}
 
       {/*
         The report reads top to bottom the way a printed one does: what the
