@@ -168,7 +168,7 @@ export const mainNavigation: NavSection[] = [
     items: [
       {
         title: "Users & Roles",
-        href: "/administration",
+        href: "/administration/users",
         icon: ShieldCheck,
         description: "Users, roles, and permissions",
         requiresGlobalAuthority: true,
