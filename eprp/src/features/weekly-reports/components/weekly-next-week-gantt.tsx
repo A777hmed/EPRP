@@ -120,7 +120,7 @@ export function NextWeekBar({
       {/* The day cells. */}
       <div className="grid" style={columnStyle(days.length)}>
         {days.map((day) => (
-          <div key={day.date} className="h-7" />
+          <div key={day.date} className="h-8" />
         ))}
       </div>
 
@@ -133,7 +133,7 @@ export function NextWeekBar({
         <div
           data-slot="next-week-bar"
           className={cn(
-            "absolute inset-y-[3px]",
+            "absolute inset-y-1",
             meta[status].color,
             /* A clipped end stays square: a task that really does continue past
                the window must not look as though it finishes at the edge. */
@@ -161,7 +161,7 @@ export function NextWeekBar({
         {days.map((day) => (
           <div
             key={day.date}
-            className="border-r border-background/70 last:border-r-0"
+            className="border-r border-background last:border-r-0"
           />
         ))}
       </div>
@@ -175,11 +175,12 @@ export function NextWeekBar({
  * agree today will not agree after the next edit.
  */
 export const NEXT_WEEK_GRID =
-  /* Task | Start | End | timeline | Status.
-     Owner and department moved under the task title as metadata — they are
-     reference, not the thing being scanned, and giving their column back to the
-     timeline is what makes the day cells wide enough to read at 1280. */
-  "lg:grid-cols-[minmax(12rem,2.4fr)_6.5rem_6.5rem_minmax(15rem,2.6fr)_7rem]";
+  /* Task | Start | End | timeline | Status — the original Weekly's shape.
+     The task column is wide enough for a real EPROM task name to wrap to two
+     readable lines rather than being clipped, and the timeline keeps enough
+     width that a day cell stays countable at 1280 with the project sidebar
+     open. Both were measured, not guessed. */
+  "lg:grid-cols-[minmax(14rem,2.6fr)_5.5rem_5.5rem_minmax(14rem,2.4fr)_6.5rem]";
 
 /**
  * What the bar could not say, in words.

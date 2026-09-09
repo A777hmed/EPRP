@@ -21,6 +21,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { HierarchyTerms } from "@/config/project-terminology";
 import { formatDate } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 import { milestoneStates } from "@/features/projects/milestone-state";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { milestoneService } from "@/services/milestone-service";
@@ -118,14 +119,16 @@ function newGovernedDraft(key: string): GovernedDraft {
 function PlanField({
   label,
   htmlFor,
+  className,
   children,
 }: {
   label: string;
   htmlFor?: string;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-w-0 space-y-1">
+    <div className={cn("min-w-0 space-y-1", className)}>
       <label
         htmlFor={htmlFor}
         className="block text-[0.625rem] font-semibold tracking-[0.08em] text-muted-foreground uppercase"
@@ -907,7 +910,7 @@ export function WeeklyProjectControlPlan({
                   unexplained floppy-disk icon gave no way to tell Save from
                   anything else.
                 */}
-                <div className="grid gap-2 lg:grid-cols-[minmax(11rem,2fr)_8.5rem_8.5rem_10rem_10rem_9rem]">
+                <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_8.5rem_8.5rem_9.5rem]">
                   <PlanField label="Task" htmlFor={`task-${row.key}`}>
                     <Input
                       id={`task-${row.key}`}
@@ -944,56 +947,6 @@ export function WeeklyProjectControlPlan({
                     />
                   </PlanField>
 
-                  <PlanField label="Department">
-                    <Select
-                      value={row.departmentId ?? NONE}
-                      onValueChange={(value) =>
-                        patchPlan(row.key, {
-                          departmentId: value === NONE ? undefined : value,
-                        })
-                      }
-                    >
-                      <SelectTrigger aria-label="Owner department">
-                        <SelectValue placeholder="Department" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={NONE}>Project Control</SelectItem>
-                        {(project?.departments ?? []).map((department) => (
-                          <SelectItem
-                            key={department.departmentId}
-                            value={department.departmentId}
-                          >
-                            {names.department(department.departmentId)?.name ??
-                              department.departmentId}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </PlanField>
-
-                  <PlanField label="Owner">
-                    <Select
-                      value={row.ownerContactId ?? NONE}
-                      onValueChange={(value) =>
-                        patchPlan(row.key, {
-                          ownerContactId: value === NONE ? undefined : value,
-                        })
-                      }
-                    >
-                      <SelectTrigger aria-label="Plan owner">
-                        <SelectValue placeholder="Owner" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={NONE}>No owner</SelectItem>
-                        {owners.map((owner) => (
-                          <SelectItem key={owner.contactId} value={owner.contactId}>
-                            {names.person(owner.contactId)?.name ?? "Assigned person"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </PlanField>
-
                   <PlanField label="Status">
                     <Select
                       value={row.status}
@@ -1016,32 +969,66 @@ export function WeeklyProjectControlPlan({
                 </div>
 
                 {/*
-                  The bar gets a line to ITSELF, at the full width of the row.
-                  It shared a flex line with the action buttons at first, which
-                  made its track 937px against the axis header's 1062px — every
-                  bar was then drawn about 12% narrow, and its right edge landed
-                  inside the wrong day. Measured, not eyeballed; see the
-                  geometry assertions in the pass report.
+                  ROW 2 — the secondary attributes and the actions.
+                  Department and Owner are reference rather than the thing being
+                  scanned, so they sit below the identity line; the actions live
+                  at the end of the same line, which is what stops Save and
+                  Delete floating under unrelated whitespace. Six controls forced
+                  onto one line collided at real workspace width once a
+                  department was called "Instrumentation & Control" and an owner
+                  carried a company suffix.
                 */}
-                {nextWeekDays.length > 0 && (
-                  <NextWeekBar
-                    days={nextWeekDays}
-                    placement={placeOnWindow(row, nextWeekDays)}
-                    status={row.status}
-                    meta={STATUS}
-                    label={`${row.title || "Untitled task"} · ${planItemRange(row.startDate, row.endDate)}`}
-                  />
-                )}
+                <div className="flex flex-wrap items-end gap-2">
+                  <PlanField label="Department" className="min-w-[11rem] flex-1">
+                    <Select
+                      value={row.departmentId ?? NONE}
+                      onValueChange={(value) =>
+                        patchPlan(row.key, {
+                          departmentId: value === NONE ? undefined : value,
+                        })
+                      }
+                    >
+                      <SelectTrigger className="w-full" aria-label="Owner department">
+                        <SelectValue placeholder="Department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>Project Control</SelectItem>
+                        {(project?.departments ?? []).map((department) => (
+                          <SelectItem
+                            key={department.departmentId}
+                            value={department.departmentId}
+                          >
+                            {names.department(department.departmentId)?.name ??
+                              department.departmentId}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </PlanField>
 
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    {nextWeekDays.length > 0 && (
-                      <NextWeekPlacementNote
-                        placement={placeOnWindow(row, nextWeekDays)}
-                      />
-                    )}
-                  </div>
-                  {/* The action reads as an action: a word, not a glyph. */}
+                  <PlanField label="Owner" className="min-w-[11rem] flex-1">
+                    <Select
+                      value={row.ownerContactId ?? NONE}
+                      onValueChange={(value) =>
+                        patchPlan(row.key, {
+                          ownerContactId: value === NONE ? undefined : value,
+                        })
+                      }
+                    >
+                      <SelectTrigger className="w-full" aria-label="Plan owner">
+                        <SelectValue placeholder="Owner" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>No owner</SelectItem>
+                        {owners.map((owner) => (
+                          <SelectItem key={owner.contactId} value={owner.contactId}>
+                            {names.person(owner.contactId)?.name ?? "Assigned person"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </PlanField>
+
                   <div className="flex shrink-0 gap-2">
                     <Button
                       type="button"
@@ -1074,28 +1061,54 @@ export function WeeklyProjectControlPlan({
                     </Button>
                   </div>
                 </div>
+
+                {/*
+                  The bar gets a line to ITSELF, at the full width of the row.
+                  It shared a flex line with the action buttons at first, which
+                  made its track 937px against the axis header's 1062px — every
+                  bar was then drawn about 12% narrow, and its right edge landed
+                  inside the wrong day. Measured, not eyeballed; see the
+                  geometry assertions in the pass report.
+                */}
+                {nextWeekDays.length > 0 && (
+                  <NextWeekBar
+                    days={nextWeekDays}
+                    placement={placeOnWindow(row, nextWeekDays)}
+                    status={row.status}
+                    meta={STATUS}
+                    label={`${row.title || "Untitled task"} · ${planItemRange(row.startDate, row.endDate)}`}
+                  />
+                )}
+
+                {nextWeekDays.length > 0 && (
+                  <NextWeekPlacementNote
+                    placement={placeOnWindow(row, nextWeekDays)}
+                  />
+                )}
               </div>
             ) : (
               <div
                 key={row.key}
-                className={`grid items-center gap-x-3 gap-y-2 rounded-lg border bg-background p-3 ${NEXT_WEEK_GRID}`}
+                className={`grid items-start gap-x-3 gap-y-2 rounded-lg border bg-background p-3 ${NEXT_WEEK_GRID}`}
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium" title={row.title}>
+                  {/*
+                    WRAPS, never truncates. "Complete CDU-2 equipment data
+                    validation for RBI Study" is an ordinary task name here and
+                    clipping it to "Complete CDU-2 equipment data valida…" loses
+                    the only thing that identifies the row. A second line costs
+                    a few pixels of height; the alternative costs the meaning.
+                  */}
+                  <p className="text-sm leading-snug font-medium break-words">
                     {row.title}
                   </p>
-                  {/* Owner and department are reference, so they sit under the
-                      name as metadata rather than taking a column from the
-                      chart. */}
-                  <p
-                    className="truncate text-xs text-muted-foreground"
-                    title={`${names.person(row.ownerContactId)?.name ?? "No owner"} · ${
-                      names.department(row.departmentId)?.name ?? "Project Control"
-                    }`}
-                  >
-                    {names.person(row.ownerContactId)?.name ?? "No owner"}
-                    {" · "}
+                  {/* Department · Owner, as the original Weekly had it:
+                      secondary metadata under the name rather than columns
+                      taken from the timeline. */}
+                  <p className="text-xs leading-snug text-muted-foreground break-words">
                     {names.department(row.departmentId)?.name ?? "Project Control"}
+                    {" · "}
+                    {names.person(row.ownerContactId)?.name ?? "No owner"}
                   </p>
                 </div>
                 <p className="text-xs tabular-nums text-muted-foreground">
