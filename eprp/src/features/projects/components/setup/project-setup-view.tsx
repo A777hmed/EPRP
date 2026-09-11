@@ -647,6 +647,7 @@ function LoadedSteps({
       {step === "contacts" && (
         <SetupStepContacts
           project={current}
+          savedProject={project}
           context={context}
           contacts={workflow.contacts}
           disciplines={workflow.disciplines}
