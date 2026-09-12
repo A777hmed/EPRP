@@ -72,7 +72,47 @@ export interface DashboardMilestone {
   status: string;
   /** Present only where the source records one; never invented. */
   percentComplete?: number;
-  href: string;
+  /** The Weekly or Monthly report this plan item was raised against — every
+      milestone's only source record besides the project's own register. */
+  source: { kind: "weekly" | "monthly"; reportId: string; href: string };
+}
+
+/** The 4 statuses the schema actually allows across both plan-item tables.
+    Anything else (a legacy value, or monthly's extra 'pending') falls into
+    Not Started rather than being invented a bucket of its own. Kept separate
+    from the Milestone Modal's own identical categorization — duplicated
+    intentionally so panel-preview work here can never change modal
+    behavior. */
+export type MilestoneStatusBucket = "not_started" | "in_progress" | "delayed" | "completed";
+
+export function milestoneStatusBucket(status: string): MilestoneStatusBucket {
+  if (status === "completed" || status === "done") return "completed";
+  if (status === "delayed" || status === "at_risk") return "delayed";
+  if (status === "in_progress") return "in_progress";
+  return "not_started";
+}
+
+const ATTENTION_ORDER: Record<MilestoneStatusBucket, number> = {
+  delayed: 0,
+  in_progress: 1,
+  not_started: 2,
+  completed: 3,
+};
+
+/**
+ * Worst-status-first, then nearest due date — how the Dashboard's compact,
+ * fixed-size milestone previews decide what to surface first when there is
+ * more in scope than the card can show. The Milestone Modal keeps its own
+ * separate plain date order; nothing here changes it.
+ */
+export function compareMilestonesByAttention(a: DashboardMilestone, b: DashboardMilestone): number {
+  const diff =
+    ATTENTION_ORDER[milestoneStatusBucket(a.status)] - ATTENTION_ORDER[milestoneStatusBucket(b.status)];
+  return diff !== 0 ? diff : a.dueDate.localeCompare(b.dueDate);
+}
+
+export function sortMilestonesByAttention(milestones: DashboardMilestone[]): DashboardMilestone[] {
+  return [...milestones].sort(compareMilestonesByAttention);
 }
 
 interface PlanRow {
@@ -259,7 +299,11 @@ async function loadUpcomingMilestones(): Promise<DashboardMilestone[]> {
       title: row.title,
       dueDate: row.end_date,
       status: row.status ?? "not_started",
-      href: `/weekly-reports/${row.weekly_reports.id}`,
+      source: {
+        kind: "weekly",
+        reportId: row.weekly_reports.id,
+        href: `/weekly-reports/${row.weekly_reports.id}`,
+      },
     });
   }
 
@@ -273,7 +317,11 @@ async function loadUpcomingMilestones(): Promise<DashboardMilestone[]> {
       title: row.title,
       dueDate: row.target_date,
       status: row.status ?? "not_started",
-      href: `/monthly-reports/${row.monthly_reports.id}`,
+      source: {
+        kind: "monthly",
+        reportId: row.monthly_reports.id,
+        href: `/monthly-reports/${row.monthly_reports.id}`,
+      },
     });
   }
 

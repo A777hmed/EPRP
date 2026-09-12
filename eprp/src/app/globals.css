@@ -3251,6 +3251,9 @@ html:has(.dash-stage) { --epr-rail: var(--dash-canvas); }
 }
 .dash-link { margin-left: auto; color: var(--dash-blue); font-size: .665rem; font-weight: 700; white-space: nowrap; }
 .dash-link:hover { text-decoration: underline; }
+/* Some "View All" controls open an in-page drawer instead of navigating —
+   same look, a <button> instead of an <a>. */
+button.dash-link { background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; line-height: inherit; }
 
 .dash-panel-body {
   display: flex;
@@ -3393,7 +3396,26 @@ span.dash-plotkey { cursor: default; }
   padding: 4px 0 2px;
   list-style: none;
 }
-.dash-bars li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 5px 10px; }
+.dash-bars > li,
+.dash-bar-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 5px 10px; }
+/* Milestone rows open the Milestone Modal rather than navigate, so they are
+   <button>s nested one level inside <li> — reset the native chrome so a row
+   reads identically to the non-interactive rows elsewhere in this component
+   (e.g. Progress by Project, which stays a plain <li>). */
+.dash-bar-row {
+  width: 100%;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .14s ease;
+}
+.dash-bar-row:hover { background: var(--dash-surface-2); }
+.dash-bar-row:focus-visible { outline: 2px solid var(--dash-blue); outline-offset: 1px; }
 .dash-bar-name {
   overflow: hidden;
   color: var(--dash-ink);
@@ -3402,12 +3424,38 @@ span.dash-plotkey { cursor: default; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dash-bars > li > b { font-size: .625rem; font-weight: 700; white-space: nowrap; }
-.dash-bars > li > b.is-success { color: var(--dash-teal); }
-.dash-bars > li > b.is-warning { color: var(--dash-amber); }
-.dash-bars > li > b.is-danger { color: var(--dash-red); }
-.dash-bars > li > b.is-default { color: var(--dash-muted); }
-.dash-bars > li > small { grid-column: 1 / -1; overflow: hidden; color: var(--dash-muted); font-size: .585rem; text-overflow: ellipsis; white-space: nowrap; }
+.dash-bars b { font-size: .625rem; font-weight: 700; white-space: nowrap; }
+.dash-bars b.is-success { color: var(--dash-teal); }
+.dash-bars b.is-warning { color: var(--dash-amber); }
+.dash-bars b.is-danger { color: var(--dash-red); }
+.dash-bars b.is-default { color: var(--dash-muted); }
+.dash-bars small { grid-column: 1 / -1; overflow: hidden; color: var(--dash-muted); font-size: .585rem; text-overflow: ellipsis; white-space: nowrap; }
+
+/* All Projects mode stacks the stage label with a "+N" count in the same
+   top-right slot a lone stage label otherwise occupies. */
+.dash-bar-badges { display: grid; justify-items: end; gap: 2px; }
+.dash-bar-more { font-size: .58rem; font-weight: 700; color: var(--dash-muted); }
+
+/* The panel-level "N more" overflow line — Milestone Progress and
+   Milestones Upcoming both use it to open the Milestone Modal on whatever
+   this card could not fit. */
+.dash-more-footer {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 4px 0;
+  border: 0;
+  border-top: 1px dashed var(--dash-hairline);
+  background: none;
+  color: var(--dash-blue);
+  font: inherit;
+  font-size: .625rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.dash-more-footer:hover { text-decoration: underline; }
+.dash-more-footer:focus-visible { outline: 2px solid var(--dash-blue); outline-offset: 1px; }
 
 /* Three discrete segments, one per lifecycle stage. Deliberately NOT a
    percentage fill: the platform records a stage, not a completion figure. */
@@ -3440,7 +3488,8 @@ span.dash-plotkey { cursor: default; }
 
 .dash-items { display: grid; margin: 0; padding: 0; list-style: none; }
 .dash-items li + li { border-top: 1px solid var(--dash-hairline); }
-.dash-items a {
+.dash-items a,
+.dash-items button {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) auto;
   align-items: center;
@@ -3449,14 +3498,27 @@ span.dash-plotkey { cursor: default; }
   border-radius: 8px;
   transition: background .14s ease;
 }
-.dash-items a:hover { background: var(--dash-surface-2); }
+.dash-items a:hover,
+.dash-items button:hover { background: var(--dash-surface-2); }
+/* Milestone rows open a drawer rather than navigate, so they are <button>s —
+   reset the native chrome so a row reads identically either way. */
+.dash-items button {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
 .dash-item-icon { width: 15px; height: 15px; color: var(--dash-muted); }
 .dash-item-icon.is-info { color: var(--dash-blue); }
 .dash-item-icon.is-success { color: var(--dash-teal); }
 .dash-item-icon.is-warning { color: var(--dash-amber); }
 .dash-item-icon.is-danger { color: var(--dash-red); }
 .dash-item-icon.is-default { color: var(--dash-muted); }
-.dash-items a > span { display: grid; gap: 2px; min-width: 0; }
+.dash-items a > span,
+.dash-items button > span { display: grid; gap: 2px; min-width: 0; }
 .dash-items b {
   overflow: hidden;
   color: var(--dash-ink);
@@ -3595,7 +3657,8 @@ span.dash-plotkey { cursor: default; }
 .dash-cal-bar button:focus-visible,
 .dash-cal-cell:focus-visible,
 .dash-cal-agenda button:focus-visible,
-.dash-items a:focus-visible {
+.dash-items a:focus-visible,
+.dash-items button:focus-visible {
   outline: 2px solid var(--dash-blue);
   outline-offset: 2px;
 }

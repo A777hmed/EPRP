@@ -40,7 +40,9 @@ import { CircleCheck, TriangleAlert } from "lucide-react";
 
 import {
   HEALTH_META,
+  compareMilestonesByAttention,
   round,
+  sortMilestonesByAttention,
   type DashboardMilestone,
   type PortfolioTotals,
   type ProjectPosition,
@@ -57,7 +59,7 @@ const PLANNED = "var(--dash-chart-planned)";
 const ACTUAL = "var(--dash-chart-actual)";
 
 type HealthKey = ProjectPosition["health"];
-type Tone = "success" | "warning" | "behind" | "danger" | "default";
+export type Tone = "success" | "warning" | "behind" | "danger" | "default";
 
 /* ================================ KPI strip ================================= */
 
@@ -566,7 +568,7 @@ export function ProgressByProjectPanel({ positions }: { positions: ProjectPositi
  * reports — recorded, in progress, complete — and the label states that stage
  * in words. Three discrete segments, no invented number.
  */
-const STAGES: Record<string, { step: number; label: string; tone: Tone }> = {
+export const MILESTONE_STAGES: Record<string, { step: number; label: string; tone: Tone }> = {
   not_started: { step: 1, label: "Not Started", tone: "default" },
   planned: { step: 1, label: "Planned", tone: "default" },
   in_progress: { step: 2, label: "In Progress", tone: "warning" },
@@ -576,29 +578,82 @@ const STAGES: Record<string, { step: number; label: string; tone: Tone }> = {
   done: { step: 3, label: "Completed", tone: "success" },
 };
 
-export function MilestonePanel({ milestones }: { milestones: DashboardMilestone[] }) {
-  const rows = milestones.slice(0, 5);
+/** The one place a milestone's raw `status` becomes a step/label/tone — shared
+    by the lifecycle bars here and the drawer's detail view, so neither can
+    describe a status differently from the other. */
+export function milestoneStageOf(status: string): { step: number; label: string; tone: Tone } {
+  return MILESTONE_STAGES[status] ?? { step: 1, label: titleCase(status), tone: "default" };
+}
+
+/** Fixed-size preview cards, so the panel stays useful with 5 projects or
+    500 — one representative row each, everything else behind "+N". */
+const MAX_PROJECT_PREVIEW = 5;
+const MAX_MILESTONE_PREVIEW = 5;
+
+export function MilestonePanel({
+  milestones,
+  singleProject,
+  onViewAll,
+  onSelectMilestone,
+}: {
+  /** The FULL scoped set, not capped — the panel does its own capping so its
+      "+N" and overflow counts are always accurate against everything in
+      scope, not just whatever a caller happened to slice off first. */
+  milestones: DashboardMilestone[];
+  /** True once the Dashboard is scoped to one project — previews milestones
+      directly instead of one row per project. */
+  singleProject: boolean;
+  onViewAll: () => void;
+  /** Opens the Milestone Modal straight to this milestone's detail. */
+  onSelectMilestone: (milestoneId: string) => void;
+}) {
+  const hasMilestones = milestones.length > 0;
 
   return (
     <Panel
       title="Milestone Progress"
-      hint="Lifecycle stage"
-      href="/weekly-reports"
-      className={rows.length ? "dash-milestones" : "dash-milestones is-collapsed"}
+      hint={singleProject ? "Attention priority" : "By project · attention priority"}
+      onAction={onViewAll}
+      className={hasMilestones ? "dash-milestones" : "dash-milestones is-collapsed"}
     >
-      {rows.length === 0 ? (
+      {!hasMilestones ? (
         <PanelEmpty>No dated milestone is recorded ahead of today for this scope.</PanelEmpty>
+      ) : singleProject ? (
+        <MilestoneRowsPreview milestones={milestones} onSelect={onSelectMilestone} onViewAll={onViewAll} />
       ) : (
-        <ul className="dash-bars">
-          {rows.map((milestone) => {
-            const stage = STAGES[milestone.status] ?? {
-              step: 1,
-              label: titleCase(milestone.status),
-              tone: "default" as Tone,
-            };
-            return (
-              <li key={milestone.id}>
-                <span className="dash-bar-name" title={`${milestone.title} — ${milestone.projectName}`}>
+        <ProjectSummaryRows milestones={milestones} onSelect={onSelectMilestone} onViewAll={onViewAll} />
+      )}
+    </Panel>
+  );
+}
+
+/**
+ * Single-project mode: the scope is already one project, so the preview
+ * shows milestones directly — worst status first, then nearest due date —
+ * rather than the (redundant, here) project-summary rows below.
+ */
+function MilestoneRowsPreview({
+  milestones,
+  onSelect,
+  onViewAll,
+}: {
+  milestones: DashboardMilestone[];
+  onSelect: (id: string) => void;
+  onViewAll: () => void;
+}) {
+  const ordered = sortMilestonesByAttention(milestones);
+  const shown = ordered.slice(0, MAX_MILESTONE_PREVIEW);
+  const hidden = ordered.length - shown.length;
+
+  return (
+    <>
+      <ul className="dash-bars">
+        {shown.map((milestone) => {
+          const stage = milestoneStageOf(milestone.status);
+          return (
+            <li key={milestone.id}>
+              <button type="button" className="dash-bar-row" onClick={() => onSelect(milestone.id)}>
+                <span className="dash-bar-name" title={milestone.title}>
                   {milestone.title}
                 </span>
                 <b className={`is-${stage.tone}`}>{stage.label}</b>
@@ -615,14 +670,137 @@ export function MilestonePanel({ milestones }: { milestones: DashboardMilestone[
                     />
                   ))}
                 </span>
-                <small>{milestone.projectName}</small>
-              </li>
-            );
-          })}
-        </ul>
+                <small>{formatShortDate(milestone.dueDate)}</small>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {hidden > 0 && (
+        <button type="button" className="dash-more-footer" onClick={onViewAll}>
+          + {hidden} more {plural(hidden, "milestone")}
+        </button>
       )}
-    </Panel>
+    </>
   );
+}
+
+interface ProjectMilestoneSummary {
+  projectId: string;
+  projectName: string;
+  /** The one milestone this project's row previews — see `buildProjectSummaries`. */
+  representative: DashboardMilestone;
+  /** Other dated milestones on this project, not individually shown. */
+  extraCount: number;
+}
+
+/**
+ * All Projects mode: ONE row per project (never several from the same
+ * project), so the card stays a fixed height with 2 projects or 200. Each
+ * row previews that project's single most attention-worthy milestone; a
+ * "+N" marks the rest.
+ */
+function ProjectSummaryRows({
+  milestones,
+  onSelect,
+  onViewAll,
+}: {
+  milestones: DashboardMilestone[];
+  onSelect: (id: string) => void;
+  onViewAll: () => void;
+}) {
+  const summaries = buildProjectSummaries(milestones);
+  const shown = summaries.slice(0, MAX_PROJECT_PREVIEW);
+  const hiddenSummaries = summaries.slice(MAX_PROJECT_PREVIEW);
+  /* Milestones already counted by a VISIBLE row's own "+N" badge are not
+     counted again here — the footer covers only entire projects the 5-row
+     cap pushed out of view, never the overflow a shown row already states. */
+  const hiddenMilestones = hiddenSummaries.reduce((sum, summary) => sum + summary.extraCount + 1, 0);
+
+  return (
+    <>
+      <ul className="dash-bars">
+        {shown.map((summary) => {
+          const stage = milestoneStageOf(summary.representative.status);
+          return (
+            <li key={summary.projectId}>
+              <button
+                type="button"
+                className="dash-bar-row"
+                onClick={() => onSelect(summary.representative.id)}
+              >
+                <span className="dash-bar-name" title={summary.projectName}>
+                  {summary.projectName}
+                </span>
+                <span className="dash-bar-badges">
+                  <b className={`is-${stage.tone}`}>{stage.label}</b>
+                  {summary.extraCount > 0 && <em className="dash-bar-more">+{summary.extraCount}</em>}
+                </span>
+                <span
+                  className="dash-bar-track"
+                  role="img"
+                  aria-label={`${summary.representative.title}: stage ${stage.step} of 3, ${stage.label}`}
+                >
+                  {[1, 2, 3].map((step) => (
+                    <i
+                      key={step}
+                      className={step <= stage.step ? `is-${stage.tone}` : undefined}
+                      style={{ "--d": `${step * 90}ms` } as React.CSSProperties}
+                    />
+                  ))}
+                </span>
+                <small title={summary.representative.title}>{summary.representative.title}</small>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {hiddenSummaries.length > 0 && (
+        <button type="button" className="dash-more-footer" onClick={onViewAll}>
+          {overflowLabel(hiddenSummaries.length, hiddenMilestones)}
+        </button>
+      )}
+    </>
+  );
+}
+
+/**
+ * One summary per project: its representative milestone (priority: Delayed
+ * -> In Progress -> Not Started -> Completed, then nearest due date) and how
+ * many others it has. Projects then surface in that same attention order,
+ * so a project whose worst milestone is Delayed leads a project whose worst
+ * is merely Not Started.
+ */
+function buildProjectSummaries(milestones: DashboardMilestone[]): ProjectMilestoneSummary[] {
+  const groups = new Map<string, DashboardMilestone[]>();
+  for (const milestone of milestones) {
+    const list = groups.get(milestone.projectId);
+    if (list) list.push(milestone);
+    else groups.set(milestone.projectId, [milestone]);
+  }
+
+  const summaries = [...groups.entries()].map(([projectId, items]) => {
+    const ordered = sortMilestonesByAttention(items);
+    return {
+      projectId,
+      projectName: items[0].projectName,
+      representative: ordered[0],
+      extraCount: ordered.length - 1,
+    };
+  });
+
+  return summaries.sort((a, b) => compareMilestonesByAttention(a.representative, b.representative));
+}
+
+/** Called only once the 5-project cap has actually hidden a whole project,
+    so both counts are always positive — never the "0 more" a shown row's
+    own "+N" already speaks for. */
+function overflowLabel(hiddenProjects: number, hiddenMilestones: number): string {
+  return `+ ${hiddenProjects} more ${plural(hiddenProjects, "project")} · ${hiddenMilestones} ${plural(hiddenMilestones, "milestone")}`;
+}
+
+function formatShortDate(date: string): string {
+  return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
 /* ================================ Fragments ================================= */
@@ -631,6 +809,7 @@ export function Panel({
   title,
   hint,
   href,
+  onAction,
   linkLabel = "View All",
   className,
   children,
@@ -638,6 +817,9 @@ export function Panel({
   title: string;
   hint?: string;
   href?: string;
+  /** Alternative to `href` for a "View All" that opens something in-page
+      (a drawer) rather than navigating — e.g. Milestone Progress. */
+  onAction?: () => void;
   linkLabel?: string;
   className?: string;
   children: React.ReactNode;
@@ -649,10 +831,16 @@ export function Panel({
           <b>{title}</b>
           {hint && <small>{hint}</small>}
         </div>
-        {href && (
+        {href ? (
           <Link href={href} className="dash-link">
             {linkLabel}
           </Link>
+        ) : (
+          onAction && (
+            <button type="button" className="dash-link" onClick={onAction}>
+              {linkLabel}
+            </button>
+          )
         )}
       </header>
       <div className="dash-panel-body">{children}</div>
