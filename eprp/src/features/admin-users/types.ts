@@ -34,4 +34,11 @@ export interface UserRow {
   /** The linked Contact's directory email — never the Login Email. */
   workEmail: string | null;
   assignments: UserAssignmentEntry[];
+  /**
+   * Portfolio-wide READ ONLY entitlement (`portfolio_read_grants`) — a fourth
+   * axis, independent of platform role and every project/department
+   * assignment above. `null` means no grant. Never implies write authority;
+   * see `docs/` Phase B for the full model.
+   */
+  portfolioReadTier: "full" | "published" | null;
 }

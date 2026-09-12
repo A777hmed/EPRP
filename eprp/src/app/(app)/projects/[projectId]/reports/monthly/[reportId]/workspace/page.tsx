@@ -38,6 +38,7 @@ export default async function ProjectMonthlyReportWorkspacePage({
               canControlReportLifecycle: scope.canControlReportLifecycle,
               departmentIds: scope.departmentIds,
               managedDepartmentIds: scope.managedDepartmentIds,
+              isPortfolioReadOnly: scope.capability === "portfolio_read",
             }
           : null,
         editability,

@@ -23,6 +23,7 @@ export default async function ExecutiveWorkspacePage({
       deniedReason={viewer.deniedReason}
       contactId={viewer.contactId}
       isAdmin={viewer.isAdmin}
+      portfolioReadTier={viewer.portfolioReadTier}
       viewerName={viewer.viewerName}
       roleLabel={viewer.roleLabel}
       requestedMonth={month}

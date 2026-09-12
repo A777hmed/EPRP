@@ -40,6 +40,7 @@ import { resolveSignatories, type SignatorySnapshot } from "./executive-signator
 import { buildExecutivePanels } from "./executive-panels";
 import { ExecutiveDocument, type ExecutiveDocumentModel } from "./executive-document";
 import { emptyPortfolioReason, type ExecutiveScopeInput } from "./executive-scope";
+import type { PortfolioReadTier } from "@/features/auth/portfolio-read";
 import { useExecutivePortfolio } from "./use-executive-portfolio";
 
 /**
@@ -77,6 +78,13 @@ export interface ExecutiveViewerProps {
   deniedReason?: string;
   contactId: string | null;
   isAdmin: boolean;
+  /**
+   * Phase B: portfolio-wide READ ONLY tier, or `"none"`. Threaded straight
+   * into every `ExecutiveScopeInput` this module builds — see
+   * `executive-scope.ts`'s `canAccessProject`. Read reach only; never a
+   * write capability.
+   */
+  portfolioReadTier: PortfolioReadTier;
   viewerName?: string;
   roleLabel?: string;
   /** Reporting period selected in the register, via `?month=`. */
@@ -387,8 +395,12 @@ function ControlBar({
 
 export function ExecutivePortfolioView(props: ExecutiveViewerProps) {
   const scope = React.useMemo<ExecutiveScopeInput>(
-    () => ({ contactId: props.contactId, isAdmin: props.isAdmin }),
-    [props.contactId, props.isAdmin]
+    () => ({
+      contactId: props.contactId,
+      isAdmin: props.isAdmin,
+      portfolioReadTier: props.portfolioReadTier,
+    }),
+    [props.contactId, props.isAdmin, props.portfolioReadTier]
   );
   const portfolio = useExecutivePortfolio(scope, props.requestedMonth);
   const [filters, setFilters] = React.useState<FilterState>(EMPTY_FILTERS);
@@ -497,8 +509,12 @@ export function ExecutivePortfolioView(props: ExecutiveViewerProps) {
 
 export function ExecutivePreviewView(props: ExecutiveViewerProps) {
   const scope = React.useMemo<ExecutiveScopeInput>(
-    () => ({ contactId: props.contactId, isAdmin: props.isAdmin }),
-    [props.contactId, props.isAdmin]
+    () => ({
+      contactId: props.contactId,
+      isAdmin: props.isAdmin,
+      portfolioReadTier: props.portfolioReadTier,
+    }),
+    [props.contactId, props.isAdmin, props.portfolioReadTier]
   );
   const portfolio = useExecutivePortfolio(scope, props.requestedMonth);
   const { model, filtered } = useDocumentModel(portfolio, EMPTY_FILTERS, props);

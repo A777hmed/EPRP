@@ -533,8 +533,12 @@ export function ExecutiveProjectDrilldown({
   requestedTab?: string;
 }) {
   const scope = React.useMemo<ExecutiveScopeInput>(
-    () => ({ contactId: viewer.contactId, isAdmin: viewer.isAdmin }),
-    [viewer.contactId, viewer.isAdmin]
+    () => ({
+      contactId: viewer.contactId,
+      isAdmin: viewer.isAdmin,
+      portfolioReadTier: viewer.portfolioReadTier,
+    }),
+    [viewer.contactId, viewer.isAdmin, viewer.portfolioReadTier]
   );
   const { loading, detail } = useProjectDetail(projectId, scope, requestedMonth);
   /* Preparation authority is PROJECT-SCOPED. It was `viewer.allowed`, which is

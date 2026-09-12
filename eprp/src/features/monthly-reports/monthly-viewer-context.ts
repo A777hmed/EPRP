@@ -88,6 +88,18 @@ function monthlyEditability(
         "You have no assignments on this project, so this Monthly Report is read-only for you.",
     };
   }
+  if (scope.capability === "portfolio_read") {
+    // Same distinction as the Weekly mirror (`scope.ts`'s weeklyEditability):
+    // a portfolio-wide READ grant working as designed, not a missing
+    // assignment — and never editable, regardless of the round being open.
+    return {
+      canEdit: false,
+      reason:
+        scope.portfolioReadTier === "published"
+          ? "You have Published Portfolio Read access. This Monthly Report is shown because it is finalized or locked; editing requires an assignment on this project."
+          : "You have Full Portfolio Read access to this project. Viewing only — editing requires an assignment on this project.",
+    };
+  }
   if (scope.canConsolidate) return { canEdit: true };
   if (!isEditableStatus("monthly", status)) {
     return {

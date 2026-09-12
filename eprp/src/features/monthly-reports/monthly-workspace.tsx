@@ -961,6 +961,17 @@ export interface MonthlyWorkspaceViewer {
     canControlReportLifecycle: boolean;
     departmentIds: string[];
     managedDepartmentIds: string[];
+    /**
+     * True when `departmentIds` above is populated by a portfolio-wide READ
+     * grant (Phase B), not by any project assignment — i.e. `scope.capability
+     * === "portfolio_read"` on the server. `canConsolidate` and
+     * `canControlReportLifecycle` are already `false` in that case, but they
+     * answer "may this person do X"; this answers the different question the
+     * workspace needs to route on: "does reaching every department here mean
+     * a real assignment, or only a read grant?" — see `departmentOnly` and
+     * the panel-disabling fieldsets below.
+     */
+    isPortfolioReadOnly: boolean;
   } | null;
   editability: { canEdit: boolean; reason?: string } | null;
   viewerName?: string;
@@ -1134,8 +1145,18 @@ export function MonthlyWorkspaceView({
    * Building the department view from its own component means those panels are
    * never mounted at all, so there is nothing to defeat.
    */
+  /*
+   * A portfolio-wide reader (Phase B) is deliberately EXCLUDED here even
+   * though `canConsolidate` is false for them too: the department-card view
+   * below assumes every id in `departmentIds` is a real assignment (see
+   * `canContribute` on `MonthlyDepartmentWorkspace`), and a portfolio grant
+   * is read reach across the WHOLE workspace, not a narrow department round.
+   * They fall through to the full multi-panel workspace below instead,
+   * which every panel renders inside a disabled `<fieldset>` for them.
+   */
   const departmentOnly =
     viewer?.scope != null &&
+    !viewer.scope.isPortfolioReadOnly &&
     !viewer.scope.canConsolidate &&
     viewer.scope.departmentIds.length > 0;
 
@@ -1151,6 +1172,29 @@ export function MonthlyWorkspaceView({
   }
 
   const active = PANELS.find((item) => item.key === panel) ?? PANELS[0];
+  /*
+   * Every panel below was built assuming only a real consolidator (Report
+   * Coordinator, Project Control / Planning, or admin) ever reaches this
+   * branch — none of Overview, Weekly Inputs, Department Collection,
+   * Comments, Management Items, Next Month Plan, Executive Summary or
+   * Approval takes an edit-authority prop of its own, several ignore the one
+   * they DO take for their OWN save button (`ApprovalPanel`'s Reviewed
+   * By / Approved By / Save are not gated by `canControlReportLifecycle` at
+   * all — only which Report Status options are offered is), and none was
+   * ever exercised with a viewer who has zero write authority. A portfolio
+   * reader (Phase B) is exactly that viewer, and now reaches this branch
+   * (see `departmentOnly` above).
+   *
+   * Rather than auditing and re-wiring every one of those panels' internal
+   * controls individually, each is wrapped in a native `<fieldset disabled>`
+   * at the point it is mounted: `disabled` on a `<fieldset>` disables every
+   * form control and button in its subtree regardless of that control's own
+   * props, so this is real, functional read-only enforcement — not a visual
+   * suggestion — with zero risk of missing one field. `className="contents"`
+   * removes the fieldset from layout entirely, so it changes nothing for
+   * every other viewer, for whom `disabled` is always `false`.
+   */
+  const isPortfolioReadOnly = viewer?.scope?.isPortfolioReadOnly ?? false;
 
   return (
     <ProjectReportingShell
@@ -1175,6 +1219,36 @@ export function MonthlyWorkspaceView({
       }
     >
     <div className="monthly-workspace space-y-4">
+      {/*
+        The only viewer who reaches this full multi-panel branch with zero
+        write authority (Phase B's portfolio-wide read grant — see
+        `isPortfolioReadOnly` above) gets a plain statement of that fact,
+        the same message `monthlyEditability()` already resolved server-side.
+        Every other viewer here already had real authority before Phase B
+        existed, so this strip is new only for them.
+      */}
+      {isPortfolioReadOnly && (
+        <ReportViewerStrip
+          title="Access & Scope"
+          facts={[
+            { label: "User", value: viewer?.viewerName ?? "Current user" },
+            {
+              label: "Role",
+              value: viewer?.viewerRoleLabel ?? "Portfolio reader",
+            },
+            {
+              label: "Report Status",
+              value: monthlyStatusMeta(bundle.report.status).label,
+            },
+          ]}
+          access={{
+            canEdit: false,
+            message:
+              viewer?.editability?.reason ??
+              "You have portfolio-wide read access. This workspace is read-only for you.",
+          }}
+        />
+      )}
       <ReportWorkspaceHeader
         eyebrow="Monthly Workspace"
         title="Monthly Progress Report"
@@ -1218,34 +1292,62 @@ export function MonthlyWorkspaceView({
         this wrapper.
       */}
       <ReportSectionGroup numbered startAt={PANELS.findIndex((item) => item.key === panel) + 1}>
-        {panel === "overview" && <OverviewPanel bundle={bundle} reload={reload} />}
+        {panel === "overview" && (
+          <fieldset disabled={isPortfolioReadOnly} className="contents">
+            <OverviewPanel bundle={bundle} reload={reload} />
+          </fieldset>
+        )}
         {panel === "weekly" && (
-          <WeeklyPanel bundle={bundle} reload={reload} links={links} />
+          <fieldset disabled={isPortfolioReadOnly} className="contents">
+            <WeeklyPanel bundle={bundle} reload={reload} links={links} />
+          </fieldset>
         )}
         {panel === "collection" && (
-          <MonthlyCollectionPanel
-            bundle={bundle}
-            /* No viewer resolved means the pre-existing behaviour: this workspace
-               was only ever reachable by Project Control. */
-            canManage={viewer?.scope ? viewer.scope.canConsolidate : true}
-            onChanged={reload}
-          />
+          <fieldset disabled={isPortfolioReadOnly} className="contents">
+            <MonthlyCollectionPanel
+              bundle={bundle}
+              /* No viewer resolved means the pre-existing behaviour: this workspace
+                 was only ever reachable by Project Control. */
+              canManage={viewer?.scope ? viewer.scope.canConsolidate : true}
+              onChanged={reload}
+            />
+          </fieldset>
         )}
+        {/* Already read-only for everyone — governed milestone position, no
+            controls to disable — so it is not wrapped. */}
         {panel === "milestones" && <MilestonesPanel bundle={bundle} />}
-        {panel === "comments" && <CommentsPanel bundle={bundle} reload={reload} />}
-        {panel === "management" && <MonthlyManagementPanel bundle={bundle} reload={reload} />}
-        {panel === "plan" && <PlanPanel bundle={bundle} reload={reload} />}
-        {panel === "summary" && <SummaryPanel bundle={bundle} reload={reload} />}
+        {panel === "comments" && (
+          <fieldset disabled={isPortfolioReadOnly} className="contents">
+            <CommentsPanel bundle={bundle} reload={reload} />
+          </fieldset>
+        )}
+        {panel === "management" && (
+          <fieldset disabled={isPortfolioReadOnly} className="contents">
+            <MonthlyManagementPanel bundle={bundle} reload={reload} />
+          </fieldset>
+        )}
+        {panel === "plan" && (
+          <fieldset disabled={isPortfolioReadOnly} className="contents">
+            <PlanPanel bundle={bundle} reload={reload} />
+          </fieldset>
+        )}
+        {panel === "summary" && (
+          <fieldset disabled={isPortfolioReadOnly} className="contents">
+            <SummaryPanel bundle={bundle} reload={reload} />
+          </fieldset>
+        )}
         {panel === "approval" && (
-          <ApprovalPanel
-            bundle={bundle}
-            reload={reload}
-            /* No viewer resolved means the pre-existing behaviour: this
-               workspace was only ever reachable by Project Control. */
-            canControlReportLifecycle={
-              viewer?.scope ? viewer.scope.canControlReportLifecycle : true
-            }
-          />
+          <fieldset disabled={isPortfolioReadOnly} className="contents">
+            <ApprovalPanel
+              bundle={bundle}
+              reload={reload}
+              /* No viewer resolved means the pre-existing behaviour: this
+                 workspace was only ever reachable by Project Control. */
+              canControlReportLifecycle={
+                viewer?.scope ? viewer.scope.canControlReportLifecycle : true
+              }
+            />
+          </fieldset>
         )}
       </ReportSectionGroup>
     </div>

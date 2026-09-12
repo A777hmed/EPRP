@@ -443,6 +443,11 @@ export function WeeklyReportDetailView({
     if (scope.capability === "all_projects" || scope.capability === "project") {
       return "Full project workspace";
     }
+    if (scope.capability === "portfolio_read") {
+      return scope.portfolioReadTier === "published"
+        ? "Published Portfolio Read (read-only)"
+        : "Full Portfolio Read (read-only)";
+    }
     return workspace.departments
       .map((department) => {
         const departmentName = names.department(department.departmentId)?.name ?? "Department";

@@ -23,3 +23,6 @@ export function changeLinkedPersonDescription(
 
 export const LAST_ADMIN_BLOCKED_MESSAGE =
   "Cannot proceed — this is the last active System Administrator, and the platform must keep at least one.";
+
+export const PORTFOLIO_READ_HELP_TEXT =
+  "Read-only visibility across projects and reports. Does not grant editing, submission, approval, or administration authority.";

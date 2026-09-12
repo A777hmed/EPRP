@@ -60,8 +60,12 @@ const STATUSES: ExecutiveReportStatus[] = ["draft", "under_review", "approved", 
 export function ExecutiveWorkspaceView(props: ExecutiveViewerProps) {
   const month = props.requestedMonth;
   const scope = React.useMemo<ExecutiveScopeInput>(
-    () => ({ contactId: props.contactId, isAdmin: props.isAdmin }),
-    [props.contactId, props.isAdmin]
+    () => ({
+      contactId: props.contactId,
+      isAdmin: props.isAdmin,
+      portfolioReadTier: props.portfolioReadTier,
+    }),
+    [props.contactId, props.isAdmin, props.portfolioReadTier]
   );
   const portfolio = useExecutivePortfolio(scope, month);
   const { records: contactRecords } = useMasterData("contact");

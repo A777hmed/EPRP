@@ -118,6 +118,7 @@ export function ExecutiveRegisterView(props: ExecutiveViewerProps) {
       const projects = visibleProjects(allProjects, {
         contactId: props.contactId,
         isAdmin: props.isAdmin,
+        portfolioReadTier: props.portfolioReadTier,
       });
       const visibleIds = new Set(projects.map((project) => project.id));
       setRows(buildRegister(reports.filter((r) => visibleIds.has(r.projectId)), projects, records));
@@ -125,7 +126,7 @@ export function ExecutiveRegisterView(props: ExecutiveViewerProps) {
       toast.error(error instanceof Error ? error.message : "Could not load Executive reporting periods.");
       setRows([]);
     }
-  }, [props.contactId, props.isAdmin]);
+  }, [props.contactId, props.isAdmin, props.portfolioReadTier]);
 
   React.useEffect(() => {
     void load();

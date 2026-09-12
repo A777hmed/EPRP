@@ -24,6 +24,7 @@ export default async function MonthlyReportWorkspacePage({ params }: { params: P
               canControlReportLifecycle: scope.canControlReportLifecycle,
               departmentIds: scope.departmentIds,
               managedDepartmentIds: scope.managedDepartmentIds,
+              isPortfolioReadOnly: scope.capability === "portfolio_read",
             }
           : null,
         editability,

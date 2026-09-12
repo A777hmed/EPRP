@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import {
+  BookOpenCheck,
   Building2,
   FolderKanban,
   Link2,
@@ -62,7 +63,13 @@ import { fetchAdminUsersData } from "../data";
 import { wouldOrphanActiveAdmins } from "../guards";
 import { client } from "../supabase-client";
 import type { UserRow } from "../types";
+import { PortfolioReadDialog } from "./portfolio-read-dialog";
 import { UserFormDialog } from "./user-form-dialog";
+
+const PORTFOLIO_TIER_LABELS: Record<"full" | "published", string> = {
+  full: "Full Portfolio Read",
+  published: "Published Portfolio Read",
+};
 
 const ALL_ROLES = Object.keys(ROLE_LABELS) as UserRole[];
 
@@ -116,6 +123,8 @@ export function UsersRolesView() {
   const [deactivateTarget, setDeactivateTarget] = React.useState<UserRow | null>(
     null
   );
+  const [portfolioReadTarget, setPortfolioReadTarget] =
+    React.useState<UserRow | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -370,6 +379,7 @@ export function UsersRolesView() {
                 <TableHead>Login Email</TableHead>
                 <TableHead>Platform Role</TableHead>
                 <TableHead>Linked Person</TableHead>
+                <TableHead>Portfolio Read</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">
                   <span className="sr-only">Actions</span>
@@ -400,6 +410,15 @@ export function UsersRolesView() {
                       </div>
                     ) : (
                       <StatusBadge tone="warning">Person Not Linked</StatusBadge>
+                    )}
+                  </TableCell>
+                  <TableCell className="min-w-32 align-top whitespace-nowrap">
+                    {row.portfolioReadTier ? (
+                      <StatusBadge tone="info">
+                        {PORTFOLIO_TIER_LABELS[row.portfolioReadTier]}
+                      </StatusBadge>
+                    ) : (
+                      <span className="text-muted-foreground">None</span>
                     )}
                   </TableCell>
                   <TableCell className="align-top whitespace-nowrap">
@@ -435,6 +454,12 @@ export function UsersRolesView() {
                             <Unlink aria-hidden="true" /> Unlink Person
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem
+                          onClick={() => setPortfolioReadTarget(row)}
+                        >
+                          <BookOpenCheck aria-hidden="true" /> Set Portfolio
+                          Read Access
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {row.active ? (
                           <DropdownMenuItem
@@ -472,6 +497,14 @@ export function UsersRolesView() {
             setDialog(null);
             reload();
           }}
+        />
+      )}
+
+      {portfolioReadTarget && (
+        <PortfolioReadDialog
+          row={portfolioReadTarget}
+          onClose={() => setPortfolioReadTarget(null)}
+          onSaved={reload}
         />
       )}
 

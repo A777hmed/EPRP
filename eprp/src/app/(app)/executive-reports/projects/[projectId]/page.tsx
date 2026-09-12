@@ -36,6 +36,7 @@ export default async function ExecutiveProjectPage({
         deniedReason: viewer.deniedReason,
         contactId: viewer.contactId,
         isAdmin: viewer.isAdmin,
+        portfolioReadTier: viewer.portfolioReadTier,
         viewerName: viewer.viewerName,
         roleLabel: viewer.roleLabel,
       }}

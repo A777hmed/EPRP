@@ -42,6 +42,17 @@ export type WeeklyCapability =
   | "department"
   /** Only the scope items assigned to them. Scoped team member. */
   | "scope_items"
+  /**
+   * Every department, READ ONLY — from a portfolio-wide read grant (Phase B,
+   * `portfolio_read_grants`), not from any project assignment.
+   *
+   * Chosen only when nothing above already grants real reach on THIS
+   * project — see the precedence note on {@link WeeklyScope.portfolioReadTier}.
+   * Never implies `canConsolidate` or `canControlReportLifecycle`, and never
+   * a `managedDepartmentIds` entry: a portfolio grant is READ reach only,
+   * proven by that migration's own zero-write-consumer post-check.
+   */
+  | "portfolio_read"
   /** Nothing — not on this project. */
   | "none";
 
@@ -85,6 +96,15 @@ export interface WeeklyScope {
    * update` now require for a verdict value (approved/returned).
    */
   canControlReportLifecycle: boolean;
+  /**
+   * Which portfolio-wide read tier produced this scope, when `capability` is
+   * `"portfolio_read"`. Undefined for every other capability.
+   *
+   * Presentation/messaging only (e.g. "Portfolio Read (Full)" labelling) —
+   * every access decision already lives in `capability` and the other
+   * fields above; nothing branches on this value.
+   */
+  portfolioReadTier?: "full" | "published";
 }
 
 export interface ResolveOptions {
@@ -92,6 +112,19 @@ export interface ResolveOptions {
   isAdmin?: boolean;
   /** The project's type record, for terminology only. */
   projectType?: ProjectType | null;
+  /**
+   * Phase B: an active portfolio-wide READ ONLY grant (`portfolio_read_grants`),
+   * independent of every axis above.
+   *
+   * PRECEDENCE — consulted ONLY when nothing above already grants real reach
+   * on THIS project: real operational assignment (admin, project controller,
+   * department manager, scoped team member) always wins, so a Department
+   * Manager on Project A keeps ordinary Department Manager capability there,
+   * and is scoped down to portfolio read-only only on the OTHER projects
+   * they hold no real assignment on. This is decided per project, by the
+   * caller passing the same tier into every `resolveWeeklyScope` call.
+   */
+  portfolioReadTier?: "full" | "published";
 }
 
 /**
@@ -207,6 +240,25 @@ export function resolveWeeklyScope(
 
   const reachable = [...managed, ...Object.keys(owned)];
   if (reachable.length === 0) {
+    // No real assignment on THIS project — the one point a portfolio-wide
+    // read grant is consulted (see the precedence note on
+    // `ResolveOptions.portfolioReadTier`). A grant reads every department,
+    // unconditionally: once RLS admits the report, a portfolio reader sees
+    // all of it, not a scoped subset.
+    if (options.portfolioReadTier) {
+      return {
+        ...base,
+        capability: "portfolio_read",
+        departmentIds: departments,
+        managedDepartmentIds: [],
+        itemsByDepartment: Object.fromEntries(
+          departments.map((id) => [id, ALL_ITEMS as ScopeItemAccess])
+        ),
+        canConsolidate: false,
+        canControlReportLifecycle: false,
+        portfolioReadTier: options.portfolioReadTier,
+      };
+    }
     return {
       ...base,
       capability: "none",
@@ -307,7 +359,14 @@ export function filterWeeklyRows<T extends WeeklyScopedRow>(
   rows: T[]
 ): T[] {
   return rows.filter((row) => {
-    if (!row.departmentId) return scope.canConsolidate;
+    // A null department is project-wide content (e.g. a consolidated
+    // rollup). `canConsolidate` is the write-side reason a Coordinator sees
+    // it; a portfolio reader sees it too, for the read-side reason that
+    // "read ALL... department entries/submissions/comments" (Phase B) means
+    // every row RLS returns, not only the ones tied to a specific department.
+    if (!row.departmentId) {
+      return scope.canConsolidate || scope.capability === "portfolio_read";
+    }
     if (!canAccessDepartment(scope, row.departmentId)) return false;
     const items = visibleScopeItems(scope, row.departmentId);
     if (items === ALL_ITEMS) return true;
@@ -326,7 +385,13 @@ export function filterWeeklyRows<T extends WeeklyScopedRow>(
  * they hold items in.
  */
 export function departmentsAwaitingInput(scope: WeeklyScope): string[] {
-  if (scope.capability === "all_projects" || scope.capability === "project") {
+  if (
+    scope.capability === "all_projects" ||
+    scope.capability === "project" ||
+    // A portfolio reader owes no input anywhere — it is a read grant, never
+    // a responsibility to chase.
+    scope.capability === "portfolio_read"
+  ) {
     return [];
   }
   return scope.departmentIds;
@@ -358,6 +423,20 @@ export function weeklyEditability(
       canEdit: false,
       reason:
         "You have no assignments on this project, so this report is read-only for you.",
+    };
+  }
+  if (scope.capability === "portfolio_read") {
+    // Distinct from the "no assignments" message above: this is not a
+    // missing assignment, it is a portfolio-wide READ grant working exactly
+    // as designed. Never editable, whatever the report's own lifecycle
+    // status is — a portfolio grant has no write authority to regain once a
+    // report reopens, unlike every branch below this one.
+    return {
+      canEdit: false,
+      reason:
+        scope.portfolioReadTier === "published"
+          ? "You have Published Portfolio Read access. This report is shown because it is finalized or locked; editing requires an assignment on this project."
+          : "You have Full Portfolio Read access to this project. Viewing only — editing requires an assignment on this project.",
     };
   }
   if (reportStatus === "locked" || reportStatus === "finalized") {

@@ -264,3 +264,72 @@ export async function createUserAccount(
 
   return { status: "created", profileId: authUser.id };
 }
+
+export type PortfolioReadTier = "full" | "published" | null;
+
+/**
+ * Sets one account's portfolio-read tier: revokes any current grant, then
+ * records a new one if a tier was chosen. Two statements rather than one
+ * upsert because `portfolio_read_grants` never overwrites a row — revoking
+ * sets `revoked_by`/`revoked_at` on the old grant and a tier change is a new
+ * row, preserving who held what and when, the same history-is-never-
+ * overwritten rule this project applies to comments and delegations.
+ *
+ * Gated by {@link requireActiveSystemAdmin} — the same independent,
+ * service-role-adjacent re-check every other mutation in this file uses.
+ * `portfolio_read_grants`' own RLS (`is_system_admin()` on insert/update)
+ * backstops this identically, so a bug here would still be refused at the
+ * database, not just by this check.
+ */
+export async function setPortfolioReadGrant(
+  profileId: string,
+  tier: PortfolioReadTier,
+  reason?: string
+): Promise<void> {
+  await requireActiveSystemAdmin();
+
+  const user = await getAuthenticatedUser();
+  if (!user) throw new Error("Sign in required.");
+
+  const supabase = (await createSupabaseServerClient()) as unknown as SupabaseClient;
+
+  const { error: revokeError } = await supabase
+    .from("portfolio_read_grants")
+    .update({ revoked_by: user.id, revoked_at: new Date().toISOString() })
+    .eq("profile_id", profileId)
+    .is("revoked_at", null);
+  if (revokeError) throw new Error(revokeError.message);
+
+  if (tier) {
+    const { error: insertError } = await supabase
+      .from("portfolio_read_grants")
+      .insert({
+        profile_id: profileId,
+        tier,
+        granted_by: user.id,
+        reason: reason?.trim() || null,
+      });
+    if (insertError) throw new Error(insertError.message);
+  }
+}
+
+export interface PortfolioReadGrantRow {
+  profileId: string;
+  tier: "full" | "published";
+}
+
+/** Every account's current (unrevoked) portfolio-read tier, for the list view. */
+export async function listPortfolioReadGrants(): Promise<
+  PortfolioReadGrantRow[]
+> {
+  const supabase = (await createSupabaseServerClient()) as unknown as SupabaseClient;
+  const { data, error } = await supabase
+    .from("portfolio_read_grants")
+    .select("profile_id, tier")
+    .is("revoked_at", null);
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as { profile_id: string; tier: "full" | "published" }[]).map(
+    (row) => ({ profileId: row.profile_id, tier: row.tier })
+  );
+}

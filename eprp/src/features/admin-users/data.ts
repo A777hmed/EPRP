@@ -19,6 +19,7 @@ import type {
   UserProfile,
   UserRole,
 } from "@/types";
+import { listPortfolioReadGrants } from "./actions";
 import type { UserAssignmentEntry, UserRow } from "./types";
 
 /**
@@ -133,18 +134,22 @@ export interface AdminUsersData {
 /** Everything the Users & Roles screen needs, joined client-side from
  * existing tables and services — no new query surface on the database. */
 export async function fetchAdminUsersData(): Promise<AdminUsersData> {
-  const [profiles, contacts, departments, jobTitles, projects] =
+  const [profiles, contacts, departments, jobTitles, projects, portfolioGrants] =
     await Promise.all([
       fetchProfiles(),
       contactService.getAll(),
       departmentService.getAll(),
       jobTitleService.getAll(),
       projectService.getProjects(),
+      listPortfolioReadGrants(),
     ]);
 
   const contactsById = new Map(contacts.map((c) => [c.id, c]));
   const departmentsById = new Map(departments.map((d) => [d.id, d]));
   const jobTitlesById = new Map(jobTitles.map((j) => [j.id, j]));
+  const portfolioTierByProfileId = new Map(
+    portfolioGrants.map((g) => [g.profileId, g.tier])
+  );
 
   const rows: UserRow[] = profiles.map((profile) => {
     const contact = profile.contactId
@@ -168,6 +173,7 @@ export async function fetchAdminUsersData(): Promise<AdminUsersData> {
       assignments: contact
         ? assignmentsForContact(contact.id, projects, departmentsById, jobTitlesById)
         : [],
+      portfolioReadTier: portfolioTierByProfileId.get(profile.id) ?? null,
     };
   });
 
