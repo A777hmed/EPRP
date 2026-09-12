@@ -40,6 +40,22 @@ interface MonthlyCommentFormProps {
   onCancel?: () => void;
   /** Render the editor immediately, when the caller owns the open/close state. */
   forceOpen?: boolean;
+  /**
+   * Which round is authoring this comment. Department input is recorded as
+   * `monthly_department` so "who said this, and in which round?" stays
+   * answerable; Project Control's own additions keep the existing default.
+   * Only applies to a NEW comment — an existing one keeps the source it was
+   * created with.
+   */
+  sourceKind?: "monthly_manual" | "monthly_department";
+  /**
+   * Pin the comment to one department and take the picker away.
+   *
+   * The department round is a department answering for itself, so the scope is
+   * already known and must not be re-chosen. `monthly_comments` RLS refuses a
+   * department the author cannot reach independently of this.
+   */
+  lockedDepartmentId?: string;
 }
 
 export function MonthlyCommentForm(props: MonthlyCommentFormProps) {
@@ -71,11 +87,13 @@ function MonthlyCommentEditor({
   onSaved,
   comment,
   defaultType,
+  sourceKind,
+  lockedDepartmentId,
   onClose,
 }: MonthlyCommentFormProps & { onClose: () => void }) {
   const [saving, setSaving] = React.useState(false);
   const [type, setType] = React.useState<MonthlyComment["updateType"]>(comment?.updateType ?? defaultType ?? "progress_update");
-  const [departmentId, setDepartmentId] = React.useState(comment?.departmentId ?? "");
+  const [departmentId, setDepartmentId] = React.useState(lockedDepartmentId ?? comment?.departmentId ?? "");
   const [systemId, setSystemId] = React.useState(comment?.systemId ?? "");
   const [disciplineId, setDisciplineId] = React.useState(comment?.disciplineId ?? "");
   const [responsibleContactId, setResponsibleContactId] = React.useState(comment?.responsibleContactId ?? "");
@@ -99,6 +117,9 @@ function MonthlyCommentEditor({
     try {
       await monthlyReportService.saveComment(reportId, {
         id: comment?.id,
+        // New comments only: an existing row keeps the source it was created
+        // with, and the service never lets a caller claim a Weekly source.
+        ...(comment ? {} : { sourceKind }),
         updateType: type,
         originalText: text,
         presentationText: comment?.sourceKind === "weekly" ? text : undefined,
@@ -141,10 +162,19 @@ function MonthlyCommentEditor({
           </select>
         </Field>
         <Field label="Department">
-          <select value={departmentId} onChange={(event) => { setDepartmentId(event.target.value); setSystemId(""); setDisciplineId(""); setResponsibleContactId(""); }}>
-            <option value="">Project-level</option>
-            {(project?.departments ?? []).map((item) => <option key={item.departmentId} value={item.departmentId}>{nameOf(item.departmentId, departments)}</option>)}
-          </select>
+          {lockedDepartmentId ? (
+            /* Scope already decided by whose round this is. Rendered as text so
+               it is visible and unarguable rather than a disabled control that
+               looks like it could be changed. */
+            <p className="rounded-md border bg-muted/40 px-2.5 py-1.5 text-sm">
+              {nameOf(lockedDepartmentId, departments)}
+            </p>
+          ) : (
+            <select value={departmentId} onChange={(event) => { setDepartmentId(event.target.value); setSystemId(""); setDisciplineId(""); setResponsibleContactId(""); }}>
+              <option value="">Project-level</option>
+              {(project?.departments ?? []).map((item) => <option key={item.departmentId} value={item.departmentId}>{nameOf(item.departmentId, departments)}</option>)}
+            </select>
+          )}
         </Field>
         <Field label="System">
           <select value={systemId} disabled={!departmentId} onChange={(event) => { setSystemId(event.target.value); setDisciplineId(""); setResponsibleContactId(""); }}>

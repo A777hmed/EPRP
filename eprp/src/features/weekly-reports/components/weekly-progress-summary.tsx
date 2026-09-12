@@ -1,6 +1,7 @@
 "use client";
 
 import { SectionCard, StatusBadge } from "@/components/shared";
+import { LabeledStatus } from "@/features/projects/components/sections/project-reporting-shell";
 import {
   KPI_RATING_META,
   PROGRESS_STATUS_META,
@@ -114,8 +115,14 @@ export function WeeklyProgressSummary({
       title="Project Progress"
       description="Planned against actual for the reporting week."
       contentClassName="space-y-4"
+      /* Named "Performance": this verdict is about the PROJECT's schedule, and
+         the report's own lifecycle status sits a few centimetres above it in
+         the context bar. Unlabelled, "Behind Schedule" under "Finalized" reads
+         as a contradiction rather than as two different questions. */
       action={
-        <StatusBadge tone={headline.tone}>{headline.label}</StatusBadge>
+        <LabeledStatus label="Performance" tone={headline.tone}>
+          {headline.label}
+        </LabeledStatus>
       }
     >
       <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">

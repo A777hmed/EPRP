@@ -160,3 +160,42 @@ export function isEditableStatus(
 ): boolean {
   return reportWorkflows[type].editableIn.includes(status);
 }
+
+/**
+ * The ONLY (from, to) pairs a Report Coordinator may perform on a whole
+ * report — preparation and consolidation, nothing that rules on the report.
+ *
+ * Mirrors `public.report_preparation_transition()` in
+ * `supabase/migrations/20260912000002_report_lifecycle_authority_narrowing.sql`
+ * exactly; the two must be changed together, the same way this file and
+ * `report_transition_allowed()` already are. Every transition NOT listed here
+ * — approve, return outside these paths, reject, finalize, lock, archive, or
+ * anything added later — requires Project Control / Planning (or a global
+ * authority), never the Coordinator alone.
+ */
+const PREPARATION_TRANSITIONS: Record<
+  ReportWorkflowType,
+  Partial<Record<WorkflowStatus, WorkflowStatus[]>>
+> = {
+  weekly: {
+    draft: ["collecting"],
+    collecting: ["under_review"],
+    returned: ["collecting"],
+  },
+  monthly: {
+    draft: ["auto_compiled"],
+    auto_compiled: ["department_review"],
+    department_review: ["under_review"],
+    returned: ["department_review"],
+  },
+  executive: {},
+};
+
+/** Whether `from → to` is a Report Coordinator preparation transition. */
+export function isPreparationTransition(
+  type: ReportWorkflowType,
+  from: WorkflowStatus,
+  to: WorkflowStatus
+): boolean {
+  return PREPARATION_TRANSITIONS[type][from]?.includes(to) ?? false;
+}

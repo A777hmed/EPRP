@@ -8,6 +8,7 @@ import {
   FolderX,
   Gauge,
   PenLine,
+  Repeat,
   Users,
 } from "lucide-react";
 
@@ -20,12 +21,14 @@ import {
   type StatCardProps,
 } from "@/components/shared";
 import { formatDate } from "@/lib/formatters";
-import { getContactById } from "@/features/master-data";
+import { getContactById, useMasterData } from "@/features/master-data";
+import { ReplacePersonDialog } from "../replace-person-dialog";
+import type { FixedResponsibilityField } from "../../responsibilities";
 import { WeeklyStatusBadge } from "@/features/weekly-reports/components/weekly-status-badge";
 import { mockProjectActivity } from "@/data/mock/project-activity.mock";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
-import type { Project, WeeklyReport } from "@/types";
+import type { JobTitle, Project, WeeklyReport } from "@/types";
 import {
   getProjectSection,
   localizeProjectSection,
@@ -91,6 +94,15 @@ export function ProjectSectionView({
   // Departments and Systems that never show a report.
   const needsWeeklyReports =
     section === "reporting" || section === "weekly-reports";
+
+  // Re-fetches this same project — the one existing load path — so a mutation
+  // made from within a section (Replace Person, so far) can bring the loaded
+  // `project` current without a full page reload. Not used by the effect
+  // below on purpose: the effect owns first load and the reporting/section
+  // switch; this is only for "something changed the project, refresh it".
+  const reloadProject = React.useCallback(() => {
+    return projectService.getProjectById(projectId).then(setProject);
+  }, [projectId]);
 
   React.useEffect(() => {
     if (owningOverview) return;
@@ -174,6 +186,7 @@ export function ProjectSectionView({
         section={section}
         weeklyReports={weeklyReports}
         authority={authority}
+        reloadProject={reloadProject}
       />
     </div>
   );
@@ -184,11 +197,13 @@ function SectionBody({
   section,
   weeklyReports,
   authority,
+  reloadProject,
 }: {
   project: Project;
   section: ProjectSectionId;
   weeklyReports: WeeklyReport[];
   authority: ProjectAuthority;
+  reloadProject: () => Promise<void>;
 }) {
   const terms = useHierarchyTerms(project);
   const definition = localizeProjectSection(getProjectSection(section), terms);
@@ -197,7 +212,13 @@ function SectionBody({
     case "setup":
       return <SetupSection project={project} authority={authority} />;
     case "team":
-      return <TeamSection project={project} authority={authority} />;
+      return (
+        <TeamSection
+          project={project}
+          authority={authority}
+          onReplaced={reloadProject}
+        />
+      );
     case "organization-chart":
       return <OrganizationChartSection project={project} />;
     case "departments":
@@ -210,6 +231,7 @@ function SectionBody({
           kind={section}
           sectionId={section}
           description={definition.description}
+          onReplaced={reloadProject}
         />
       );
     case "kpis":
@@ -292,16 +314,41 @@ function SetupSection({
 function TeamSection({
   project,
   authority,
+  onReplaced,
 }: {
   project: Project;
   authority: ProjectAuthority;
+  onReplaced: () => void | Promise<void>;
 }) {
-  const responsibilities = [
-    { label: "Project Manager", id: project.projectManagerId },
-    { label: "Project Control", id: project.projectControlManagerId },
-    { label: "Client Representative", id: project.clientRepresentativeId },
-    { label: "Reporting Coordinator", id: project.reportingCoordinatorId },
-    { label: "Sponsor", id: project.projectSponsorId },
+  /*
+   * getContactById() below reads a synchronous cache that only hydrates once
+   * something subscribes via useMasterData() — subscribe() is what lazily
+   * triggers the load, and useSyncExternalStore is what re-renders this
+   * component once it resolves. Nothing else on this page subscribes, so
+   * landing here directly (no prior page warmed the same contact cache) left
+   * every responsibility reading "Not assigned" — including a genuinely
+   * assigned one — which also hid the Replace action below, since it renders
+   * only when `contact` resolves. Pre-existing gap in getContactById/
+   * getByIdSync, not introduced here; this is the smallest fix that makes
+   * this section correct on a cold load without touching that cache itself.
+   */
+  useMasterData("contact");
+  // Same lazy-load gap as `contact` above — nothing else on this page
+  // subscribes to job titles either, and the additional-positions list below
+  // resolves `jobTitleId` through this cache.
+  const { records: jobTitleRecords } = useMasterData("jobTitle");
+  const jobTitles = jobTitleRecords as JobTitle[];
+
+  const responsibilities: {
+    label: string;
+    field: FixedResponsibilityField;
+    id: string | undefined;
+  }[] = [
+    { label: "Project Manager", field: "projectManagerId", id: project.projectManagerId },
+    { label: "Project Control", field: "projectControlManagerId", id: project.projectControlManagerId },
+    { label: "Client Representative", field: "clientRepresentativeId", id: project.clientRepresentativeId },
+    { label: "Reporting Coordinator", field: "reportingCoordinatorId", id: project.reportingCoordinatorId },
+    { label: "Sponsor", field: "projectSponsorId", id: project.projectSponsorId },
   ];
   const filled = responsibilities.filter((role) => Boolean(role.id)).length;
   const team = project.team ?? [];
@@ -350,14 +397,42 @@ function TeamSection({
               className="flex items-baseline justify-between gap-2 border-b border-dashed pb-1.5 last:border-0"
             >
               <dt className="text-xs text-muted-foreground">{role.label}</dt>
-              <dd className="text-right text-sm font-medium">
+              <dd className="flex items-center justify-end gap-1.5 text-right text-sm font-medium">
                 {contact ? (
-                  <Link
-                    href={`/contacts/${contact.id}`}
-                    className="underline underline-offset-2"
-                  >
-                    {contact.name}
-                  </Link>
+                  <>
+                    <Link
+                      href={`/contacts/${contact.id}`}
+                      className="underline underline-offset-2"
+                    >
+                      {contact.name}
+                    </Link>
+                    {/* Same authority as "Edit roles" above — the UI must
+                        never offer what can_manage_project_responsibilities()
+                        would refuse. */}
+                    {authority.canManageOperations && (
+                      <ReplacePersonDialog
+                        project={project}
+                        unit={{
+                          kind: "fixed_responsibility",
+                          responsibilityField: role.field,
+                        }}
+                        responsibilityLabel={role.label}
+                        currentContactId={contact.id}
+                        onReplaced={onReplaced}
+                        trigger={
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-6 text-muted-foreground hover:text-foreground"
+                            aria-label={`Replace ${role.label}`}
+                            title="Replace Person"
+                          >
+                            <Repeat className="size-3.5" aria-hidden="true" />
+                          </Button>
+                        }
+                      />
+                    )}
+                  </>
                 ) : (
                   <span className="text-muted-foreground">Not assigned</span>
                 )}
@@ -366,6 +441,72 @@ function TeamSection({
           );
         })}
       </dl>
+
+      {(project.positions ?? []).length > 0 && (
+        <>
+          <Separator className="my-4" />
+          <p className="mb-2 text-xs font-medium text-muted-foreground">
+            Additional positions
+          </p>
+          <dl className="space-y-2">
+            {(project.positions ?? []).map((position) => {
+              const contact = getContactById(position.contactId);
+              const label =
+                jobTitles.find((title) => title.id === position.jobTitleId)
+                  ?.name ?? "Position not set";
+              return (
+                <div
+                  key={position.id ?? `${position.jobTitleId}-${position.sortOrder}`}
+                  className="flex items-baseline justify-between gap-2 border-b border-dashed pb-1.5 last:border-0"
+                >
+                  <dt className="text-xs text-muted-foreground">{label}</dt>
+                  <dd className="flex items-center justify-end gap-1.5 text-right text-sm font-medium">
+                    {contact ? (
+                      <>
+                        <Link
+                          href={`/contacts/${contact.id}`}
+                          className="underline underline-offset-2"
+                        >
+                          {contact.name}
+                        </Link>
+                        {/* Replace requires a persisted position id — a row
+                            can only reach this project via the setup wizard's
+                            save, so this is always true in practice, but the
+                            type keeps it optional. */}
+                        {authority.canManageOperations && position.id && (
+                          <ReplacePersonDialog
+                            project={project}
+                            unit={{
+                              kind: "project_position",
+                              positionId: position.id,
+                            }}
+                            responsibilityLabel={label}
+                            currentContactId={contact.id}
+                            onReplaced={onReplaced}
+                            trigger={
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-6 text-muted-foreground hover:text-foreground"
+                                aria-label={`Replace ${label}`}
+                                title="Replace Person"
+                              >
+                                <Repeat className="size-3.5" aria-hidden="true" />
+                              </Button>
+                            }
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">Not assigned</span>
+                    )}
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
+        </>
+      )}
     </ProjectSectionLayout>
   );
 }

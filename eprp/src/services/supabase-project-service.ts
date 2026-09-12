@@ -27,6 +27,11 @@ import type {
 // [reporting-perf] TEMPORARY diagnostic import — remove with src/lib/perf-temp.ts
 import { startTimer, timed } from "@/lib/perf-temp";
 import type { ProjectService } from "./project-service";
+import {
+  ReplacePersonError,
+  type ReplacePersonInput,
+  type ReplacePersonResult,
+} from "./replace-person";
 
 /**
  * Supabase-backed project service (Phase 5C). Maps the nested Project model
@@ -770,6 +775,46 @@ function isMissingColumn(error: { code?: string; message?: string } | null) {
   );
 }
 
+/**
+ * `replace_project_responsibility()` tags every raised message with a stable
+ * `[REASON]` prefix (Pass A migration `20260909000001_replace_person_
+ * foundation.sql`) precisely so this mapping never has to guess at Postgres's
+ * own wording or expose a raw SQLSTATE/UUID to a user. An error that does not
+ * carry a recognized tag — a genuinely unexpected failure — falls back to a
+ * fully generic message rather than forwarding whatever Postgres said.
+ */
+const REPLACE_PERSON_TAG_REASON: Record<string, ReplacePersonError["reason"]> = {
+  UNAUTHORIZED: "unauthorized",
+  NOT_FOUND: "not_found",
+  SAME_PERSON: "same_person",
+  INVALID_INPUT: "invalid_replacement",
+  INACTIVE_REPLACEMENT: "invalid_replacement",
+  REASON_REQUIRED: "reason_required",
+  NOT_PROJECT_MEMBER: "not_project_member",
+  LAST_MEMBERSHIP_REFERENCED: "last_membership_referenced",
+  STALE_ASSIGNMENT: "stale_assignment",
+  DUPLICATE_ASSIGNMENT: "duplicate_assignment",
+  MANAGER_CONFLICT: "manager_conflict",
+};
+
+function mapReplacePersonError(error: {
+  message?: string;
+} | null): ReplacePersonError {
+  const match = /^\[(\w+)]\s*(.*)$/.exec(error?.message ?? "");
+  if (match) {
+    const [, tag, text] = match;
+    const reason = REPLACE_PERSON_TAG_REASON[tag] ?? "invalid_replacement";
+    return new ReplacePersonError(
+      reason,
+      text || "The replacement could not be completed."
+    );
+  }
+  return new ReplacePersonError(
+    "invalid_replacement",
+    "The replacement could not be completed. No changes were made."
+  );
+}
+
 async function replaceDelegations(
   projectId: string,
   delegations: ProjectDelegation[]
@@ -1200,5 +1245,64 @@ export const supabaseProjectService: ProjectService = {
     return ((data ?? []) as { id: string; code: string }[])
       .filter((p) => p.id !== excludeId)
       .map((p) => p.code.toUpperCase());
+  },
+
+  /**
+   * Replace Person, Pass A. One RPC call — see `replace_project_
+   * responsibility()` in `20260909000001_replace_person_foundation.sql` for
+   * the authoritative validation, authorization, reporting-line repoint and
+   * history write, all inside one Postgres transaction. This wrapper only
+   * shapes the three unit kinds into the function's flat parameter list and
+   * maps a refusal to a {@link ReplacePersonError}; it performs no separate
+   * writes of its own.
+   */
+  async replacePerson(input: ReplacePersonInput): Promise<ReplacePersonResult> {
+    const { projectId, unit, fromContactId, toContactId, reason } = input;
+
+    let responsibilityRole: string | null = null;
+    if (unit.kind === "fixed_responsibility") {
+      const meta = RESPONSIBILITY_ROLES.find(
+        (candidate) => candidate.key === unit.responsibilityField
+      );
+      if (!meta) {
+        throw new ReplacePersonError(
+          "invalid_replacement",
+          "Unrecognized responsibility."
+        );
+      }
+      responsibilityRole = meta.role;
+    }
+
+    const { data, error } = await client().rpc("replace_project_responsibility", {
+      p_project: projectId,
+      p_unit_kind: unit.kind,
+      p_from_contact: fromContactId,
+      p_to_contact: toContactId,
+      p_responsibility_role: responsibilityRole,
+      p_department_id: unit.kind === "department_assignment" ? unit.departmentId : null,
+      p_assignment_role: unit.kind === "department_assignment" ? unit.assignmentRole : null,
+      p_position_id: unit.kind === "project_position" ? unit.positionId : null,
+      // The RPC re-validates trimmed-non-empty itself (REASON_REQUIRED); this
+      // trim is only so an all-whitespace value reads the same refusal a
+      // blank one would, one round trip earlier.
+      p_reason: reason.trim(),
+    });
+    if (error) throw mapReplacePersonError(error);
+
+    const result = data as {
+      historyId: string;
+      rowsUpdated: number;
+      reportsRepointed: number;
+      delegationsAsDelegate: number;
+      delegationsRequiringReview: number;
+    };
+    return {
+      historyId: result.historyId,
+      unitKind: unit.kind,
+      rowsUpdated: result.rowsUpdated,
+      reportsRepointed: result.reportsRepointed,
+      delegationsAsDelegate: result.delegationsAsDelegate,
+      delegationsRequiringReview: result.delegationsRequiringReview,
+    };
   },
 };

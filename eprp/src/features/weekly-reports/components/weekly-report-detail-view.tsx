@@ -11,7 +11,6 @@ import {
   Eye,
   FileX,
   PenLine,
-  ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,7 +24,11 @@ import {
 import { REPORT_STATUS_META } from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import { weeklyWorkflow, type WorkflowStatus } from "@/config/workflows";
+import {
+  isPreparationTransition,
+  weeklyWorkflow,
+  type WorkflowStatus,
+} from "@/config/workflows";
 import { getProjectTypeById, useMasterData } from "@/features/master-data";
 import {
   ProjectReportingShell,
@@ -585,7 +588,18 @@ export function WeeklyReportDetailView({
         ) : undefined
       }
     >
-    <div className="space-y-6">
+    {/*
+      `eprp-report-sections` gives every section card below the EPROM band and
+      its number, including the ones rendered by the distribution, departments,
+      insights and sign-off components — none of which is touched. Numbering is
+      a CSS counter over what is actually on screen, so a section withheld from
+      this viewer leaves no hole in the sequence.
+
+      `space-y-4` rather than `space-y-6`: Monthly already used 4, and the two
+      tiers scrolling at different rhythms was one of the things that made them
+      read as separate products.
+    */}
+    <div className="eprp-report-sections space-y-4" data-numbered>
       <WeeklyWorkspaceHeader
         report={report}
         project={project}
@@ -675,8 +689,13 @@ export function WeeklyReportDetailView({
                 Duplicate
               </Button>
             )}
+            {/*
+              Archive requires can_manage_project_operations() as of Phase A2
+              — a Report Coordinator prepares/consolidates but never archives.
+              scope.canControlReportLifecycle is that predicate's mirror.
+            */}
             {mode === "detail" &&
-              scope?.canConsolidate &&
+              scope?.canControlReportLifecycle &&
               report.status !== "archived" && (
                 <Button variant="destructive" onClick={() => setArchiveOpen(true)}>
                   <Archive data-icon="inline-start" aria-hidden="true" />
@@ -687,16 +706,14 @@ export function WeeklyReportDetailView({
         }
       />
 
-      {/* Why this report is read-only, said once and up front. */}
-      {mode === "workspace" && !editability.canEdit && editability.reason && (
-        <p
-          role="status"
-          className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning/10 px-4 py-3 text-sm text-warning"
-        >
-          <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          {editability.reason}
-        </p>
-      )}
+      {/*
+        Why this report is read-only is now stated by the workspace's own
+        access strip (`ReportViewerStrip`), immediately above this point and in
+        the same warning colour. It used to be repeated here because the strip
+        was buried inside the full document header, several hundred pixels up;
+        with the compact header the two sat one under the other saying the same
+        sentence twice.
+      */}
 
       {/*
         The report reads top to bottom the way a printed one does: what the
@@ -719,19 +736,39 @@ export function WeeklyReportDetailView({
               {workspace.markedForMonthly === 1 ? "" : "s"} marked for Monthly
             </span>
           )}
-          {scope?.canConsolidate && allowedTransitions.map((to) => (
-            <Button
-              key={to}
-              size="sm"
-              variant={
-                to === "rejected" || to === "returned" ? "outline" : "default"
-              }
-              disabled={pendingStatus !== null}
-              onClick={() => changeStatus(to)}
-            >
-              Move to {REPORT_STATUS_META[to as ReportStatus].label}
-            </Button>
-          ))}
+          {/*
+            Per-target gating, not one blanket scope.canConsolidate: a
+            preparation transition (e.g. collecting -> under_review) stays
+            open to the Report Coordinator, while a whole-report ruling
+            (approve / return / reject / finalize / lock) requires
+            scope.canControlReportLifecycle — Project Control / Planning, or
+            a global authority. isPreparationTransition() mirrors
+            public.report_preparation_transition() exactly; the two must be
+            changed together.
+          */}
+          {allowedTransitions
+            .filter((to) =>
+              isPreparationTransition(
+                "weekly",
+                report.status as WorkflowStatus,
+                to as WorkflowStatus
+              )
+                ? scope?.canConsolidate
+                : scope?.canControlReportLifecycle
+            )
+            .map((to) => (
+              <Button
+                key={to}
+                size="sm"
+                variant={
+                  to === "rejected" || to === "returned" ? "outline" : "default"
+                }
+                disabled={pendingStatus !== null}
+                onClick={() => changeStatus(to)}
+              >
+                Move to {REPORT_STATUS_META[to as ReportStatus].label}
+              </Button>
+            ))}
         </div>
       </div>
 
@@ -802,14 +839,14 @@ export function WeeklyReportDetailView({
           workspace={workspace}
           canEdit={mode === "workspace" && editability.canEdit}
           /*
-             Who may accept a department's work. The Department Manager is the
-             business owner of that decision (`05` §1.2); `canConsolidate` rides
-             alongside so an administrator can still unblock a stuck report, and
-             is not the normal path. Both halves come straight off the scope
+             Who may accept a department's work: the assigned Department
+             Manager of THAT department, and nobody else — no Project
+             Control / Planning or global override, per Phase A2's
+             department-verdict correction and the matching
+             weekly_submissions_update policy. Read straight off the scope
              already resolved on the server — no second lookup, no new rule.
           */
           verdictAuthority={{
-            canConsolidate: Boolean(scope?.canConsolidate),
             managedDepartmentIds: scope?.managedDepartmentIds ?? [],
           }}
           viewerContactId={scope?.contactId}

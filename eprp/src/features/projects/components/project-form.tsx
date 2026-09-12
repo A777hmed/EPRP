@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertTriangle,
   Building2,
   Info,
   Loader2,
+  Lock,
   PenLine,
   Plus,
   Save,
@@ -67,6 +69,13 @@ import {
   responsibilityPerson,
   type ResponsibilityEntry,
 } from "@/features/projects/responsibilities";
+import {
+  isFixedResponsibilityOccupied,
+  isProjectPositionOccupied,
+  REPLACE_PERSON_HELP_TEXT,
+  REPLACE_PERSON_POSITION_HELP_TEXT,
+} from "@/features/projects/responsibility-guard";
+import { projectSectionHref } from "@/config/project-sections";
 import type { ProjectLinkContext } from "@/features/projects/project-link-context";
 import {
   currencyOptions,
@@ -302,7 +311,7 @@ function ResponsibilityBadge({
   tone,
   children,
 }: {
-  tone: "muted" | "additional" | "warning";
+  tone: "muted" | "additional" | "warning" | "governed";
   children: React.ReactNode;
 }) {
   return (
@@ -311,7 +320,8 @@ function ResponsibilityBadge({
         "shrink-0 rounded-full border px-1.5 py-px text-[10px] font-medium leading-4",
         tone === "muted" && "text-muted-foreground",
         tone === "additional" && "border-chart-4/40 text-chart-4",
-        tone === "warning" && "border-warning/40 text-warning"
+        tone === "warning" && "border-warning/40 text-warning",
+        tone === "governed" && "border-primary/40 text-primary"
       )}
     >
       {children}
@@ -333,16 +343,26 @@ function ResponsibilityRow({
   onEdit,
   onDelete,
   busy,
+  locked,
+  teamHref,
 }: {
   entry: ResponsibilityEntry;
   contacts: Contact[];
   onEdit: () => void;
   onDelete?: () => void;
   busy: boolean;
+  /** Already holds a person — a raw setup save may not reassign it. */
+  locked: boolean;
+  /** Team & Responsibilities, where Replace Person actually lives. */
+  teamHref?: string;
 }) {
   const person = responsibilityPerson(entry, contacts);
   const unfilled = !entry.contactId;
   const accent = accentFor(entry);
+  const helpText =
+    entry.kind === "additional"
+      ? REPLACE_PERSON_POSITION_HELP_TEXT
+      : REPLACE_PERSON_HELP_TEXT;
 
   return (
     <div className="relative flex min-w-0 flex-col overflow-hidden rounded-xl border bg-background p-3 pl-4 shadow-sm">
@@ -381,6 +401,9 @@ function ResponsibilityRow({
             {entry.required && unfilled && (
               <ResponsibilityBadge tone="warning">Required</ResponsibilityBadge>
             )}
+            {locked && (
+              <ResponsibilityBadge tone="governed">Governed</ResponsibilityBadge>
+            )}
           </div>
 
           <p
@@ -402,8 +425,13 @@ function ResponsibilityRow({
             variant="outline"
             size="icon"
             className="size-7"
-            disabled={busy}
-            aria-label={`Edit ${entry.roleLabel}`}
+            disabled={busy || locked}
+            aria-label={
+              locked
+                ? `${entry.roleLabel} is already assigned — reassign it from Replace Person`
+                : `Edit ${entry.roleLabel}`
+            }
+            title={locked ? helpText : undefined}
             onClick={onEdit}
           >
             <PenLine className="size-3.5" aria-hidden="true" />
@@ -416,8 +444,13 @@ function ResponsibilityRow({
               variant="outline"
               size="icon"
               className="size-7"
-              disabled={busy}
-              aria-label={`Remove ${entry.roleLabel}`}
+              disabled={busy || locked}
+              aria-label={
+                locked
+                  ? `${entry.roleLabel} cannot be removed while assigned`
+                  : `Remove ${entry.roleLabel}`
+              }
+              title={locked ? helpText : undefined}
               onClick={onDelete}
             >
               <Trash2 className="size-3.5" aria-hidden="true" />
@@ -436,6 +469,30 @@ function ResponsibilityRow({
       {entry.notes && (
         <p className="mt-1 truncate text-xs text-muted-foreground">
           {entry.notes}
+        </p>
+      )}
+
+      {/* Explains the disabled controls above in place, so a locked card reads
+          as governed rather than broken. */}
+      {locked && (
+        <p className="mt-2 flex items-start gap-1.5 text-pretty text-xs text-muted-foreground">
+          <Lock className="mt-px size-3 shrink-0" aria-hidden="true" />
+          <span>
+            {teamHref ? (
+              <>
+                Already assigned —{" "}
+                <Link
+                  href={teamHref}
+                  className="underline underline-offset-2"
+                >
+                  use Replace Person in Team &amp; Responsibilities
+                </Link>{" "}
+                to change it.
+              </>
+            ) : (
+              helpText
+            )}
+          </span>
         </p>
       )}
     </div>
@@ -464,6 +521,8 @@ function ResponsibilityList({
   saving,
   onMutated,
   onClientRepresentativeChange,
+  savedProject,
+  teamHref,
 }: {
   entries: ResponsibilityEntry[];
   control: Control<ProjectFormValues>;
@@ -477,6 +536,14 @@ function ResponsibilityList({
   saving: boolean;
   onMutated: () => void;
   onClientRepresentativeChange: (value: string, previous: string) => void;
+  /**
+   * The project as last saved — never the live draft — so a person picked in
+   * this same editing session, before Save, does not immediately lock itself
+   * back up. `undefined`/`null` (creating a new project) locks nothing.
+   */
+  savedProject: Project | null | undefined;
+  /** Team & Responsibilities, where Replace Person actually lives. */
+  teamHref?: string;
 }) {
   return (
     <div className="space-y-3">
@@ -494,13 +561,20 @@ function ResponsibilityList({
           const blockedByOtherEditor = editingRow !== null && !editing;
 
           if (entry.kind === "fixed") {
-            if (!editing) {
+            const locked = Boolean(
+              savedProject &&
+                entry.fixedField &&
+                isFixedResponsibilityOccupied(savedProject, entry.fixedField)
+            );
+            if (!editing || locked) {
               return (
                 <ResponsibilityRow
                   key={entry.key}
                   entry={entry}
                   contacts={contacts}
                   busy={saving || blockedByOtherEditor}
+                  locked={locked}
+                  teamHref={teamHref}
                   onEdit={() => onEditRow(entry.key)}
                 />
               );
@@ -546,15 +620,18 @@ function ResponsibilityList({
           }
 
           const index = entry.positionIndex ?? 0;
-          if (!editing) {
+          const locked = isProjectPositionOccupied(entry.positionId);
+          if (!editing || locked) {
             return (
               <ResponsibilityRow
                 key={entry.key}
                 entry={entry}
                 contacts={contacts}
                 busy={saving || blockedByOtherEditor}
+                locked={locked}
+                teamHref={teamHref}
                 onEdit={() => onEditRow(entry.key)}
-                onDelete={() => onDeleteRow(index)}
+                onDelete={locked ? undefined : () => onDeleteRow(index)}
               />
             );
           }
@@ -634,7 +711,7 @@ function ResponsibilityList({
         <Info className="mt-px size-3.5 shrink-0" aria-hidden="true" />
         <span>
           {canEditPositions
-            ? "The five fixed roles cannot be removed. Additional positions can be edited or removed at any time."
+            ? "The five fixed roles cannot be removed. You can add a new position freely, but an existing position that already has a holder is governed — use Replace Person in Team & Responsibilities to change who holds it."
             : "Save the project first — additional positions attach to a saved project."}
         </span>
       </p>
@@ -1301,6 +1378,8 @@ export function ProjectForm({
           saving={savingPositions}
           onMutated={markMasterTouched}
           onClientRepresentativeChange={fillClientContactFromRepresentative}
+          savedProject={project}
+          teamHref={projectId ? projectSectionHref(projectId, "team") : undefined}
         />
       </ProjectFormSection>
 

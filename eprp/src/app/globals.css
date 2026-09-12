@@ -209,32 +209,7 @@
   background: transparent;
 }
 
-/* -------------------------------- App chrome ------------------------------ */
-
-.monthly-app-bar {
-  min-height: 52px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 7px 16px;
-  background: #0a3974;
-  color: white;
-  font-size: 0.78rem;
-}
-.monthly-app-bar img { width: 111px; height: 30px; object-fit: contain; background: white; border-radius: 3px; padding: 2px 4px; }
-.monthly-app-bar strong { font-weight: 700; letter-spacing: .01em; }
-.monthly-app-divider { width: 1px; height: 26px; background: rgb(255 255 255 / 25%); }
-.monthly-project-selector { border: 1px solid rgb(255 255 255 / 38%); border-radius: 5px; padding: 7px 11px; font-weight: 700; }
-.monthly-app-bar > a:first-of-type { margin-left: auto; }
-.monthly-chrome-button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgb(255 255 255 / 50%); border-radius: 5px; padding: 7px 11px; color: white; font-weight: 700; white-space: nowrap; }
-.monthly-chrome-button:hover { background: rgb(255 255 255 / 12%); }
-.monthly-chrome-button svg { width: 13px; height: 13px; }
-
-.monthly-month-tabs { display: flex; align-items: center; gap: 0; min-height: 36px; padding: 0 16px; background: #f1f5f9; border-bottom: 1px solid #cad7e5; color: #0a3974; font-size: .7rem; font-weight: 700; }
-.monthly-month-tabs > span { margin-right: 20px; color: #75869a; letter-spacing: .08em; font-size: .64rem; text-transform: uppercase; }
-.monthly-month-tabs a { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 18px; border-right: 1px solid #d7e1ec; }
-.monthly-month-tabs a.active { background: white; box-shadow: inset 0 -3px 0 #1761ae; }
-.monthly-month-tabs svg { width: 15px; }
+/* ------------------------------- Report stage ----------------------------- */
 
 .monthly-sync-strip { display: flex; align-items: center; gap: 12px; width: min(100% - 32px, 1000px); margin: 14px auto 0; padding: 10px 13px; background: white; border: 1px solid #c5d6e8; border-radius: 6px; color: #0b3f7c; font-size: .74rem; }
 .monthly-sync-strip > div:first-child { display: grid; gap: 2px; margin-right: auto; }
@@ -468,23 +443,6 @@
 
 /* -------------------------------- Workspace ------------------------------- */
 
-.monthly-ws-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; padding-top: 2px; }
-.monthly-ws-header h1 { margin: 0; color: #0d4384; font-size: 1.35rem; font-weight: 800; }
-.monthly-ws-header > div:first-child > span { display: flex; align-items: center; gap: 7px; margin-top: 5px; color: #71859d; font-size: .74rem; }
-.monthly-ws-header-actions { display: flex; gap: 8px; }
-
-.monthly-ws-nav { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 16px; padding: 4px; background: white; border: 1px solid #c9d8e7; border-radius: 8px; }
-.monthly-ws-nav button { padding: 8px 13px; border: 0; border-radius: 5px; background: transparent; color: #5b7290; font: inherit; font-size: .74rem; font-weight: 700; cursor: pointer; }
-.monthly-ws-nav button:hover { background: #eef4fa; }
-.monthly-ws-nav button.active { background: #0d59a8; color: white; }
-.monthly-ws-hint { margin: 9px 2px 0; color: #7b8da2; font-size: .72rem; }
-
-.monthly-ws-panel { margin-top: 12px; padding: 16px 18px; background: white; border: 1px solid #c9d8e7; border-radius: 8px; }
-.monthly-ws-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #e2eaf2; }
-.monthly-ws-panel-head > div:first-child { display: grid; gap: 3px; }
-.monthly-ws-panel-head b { color: #0d4384; font-size: .95rem; }
-.monthly-ws-panel-head span { color: #7b8da2; font-size: .72rem; }
-
 .monthly-ws-readout { display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 14px; padding: 10px 12px; border: 1px solid #dbe5ee; border-radius: 6px; background: #f7fafc; color: #7b8da2; font-size: .7rem; }
 .monthly-ws-readout span { display: flex; align-items: center; gap: 6px; }
 .monthly-ws-readout b { color: #17477d; font-size: .76rem; }
@@ -495,7 +453,6 @@
 .monthly-ws-grid input, .monthly-ws-grid select { height: 36px; min-width: 0; padding: 0 9px; border: 1px solid #c6d6e5; border-radius: 5px; background: white; color: #173b68; font: inherit; font-size: .75rem; }
 .monthly-ws-plan-grid { margin-bottom: 12px; }
 .monthly-ws-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.monthly-ws-panel > .monthly-ws-actions { margin-top: 13px; }
 .monthly-ws-note { margin: 12px 0 0; color: #8494a7; font-size: .69rem; line-height: 1.5; }
 .monthly-ws-subhead { display: flex; align-items: center; gap: 8px; margin: 20px 0 9px; color: #0d4384; font-size: .74rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
 .monthly-ws-subhead svg { width: 15px; height: 15px; color: #5e79a0; }
@@ -544,10 +501,6 @@
 }
 
 @media (max-width: 800px) {
-  .monthly-app-bar { flex-wrap: wrap; gap: 8px; }
-  .monthly-app-bar > a:first-of-type { margin-left: 0; }
-  .monthly-chrome-button { font-size: .68rem; }
-  .monthly-project-selector { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .monthly-report-body { padding: 14px 14px 0; }
   .monthly-brand-row { flex-wrap: wrap; padding: 12px 14px; }
   .monthly-brand-row > img { width: 155px; height: 42px; }
@@ -567,8 +520,7 @@
   .monthly-section-title-row { flex-wrap: wrap; align-items: flex-start; }
   .monthly-section-title-row p { white-space: normal; }
   .monthly-sync-strip { flex-wrap: wrap; }
-  .monthly-list-header, .monthly-ws-header { flex-direction: column; align-items: flex-start; }
-  .monthly-ws-panel-head { flex-direction: column; }
+  .monthly-list-header { flex-direction: column; align-items: flex-start; }
 }
 
 @media (min-width: 640px) {
@@ -717,17 +669,15 @@
   }
 
   /* Application furniture is not part of the document. */
-  .monthly-app-chrome,
   .monthly-sync-strip,
   .monthly-preview-tools,
   .monthly-stage-actions,
   .monthly-report-actions,
-  .monthly-ws-nav,
-  .monthly-ws-header-actions,
   .monthly-ws-filters,
   .monthly-row-actions,
   .monthly-comment-editor,
-  .monthly-ws-panel-head button,
+  .monthly-workspace [data-slot="card-action"] button,
+  .monthly-workspace [data-slot="card-action"] a,
   .monthly-register-actions {
     display: none !important;
   }
@@ -2762,6 +2712,139 @@
 /* Same scoping reason: `.monthly-link` also appears inside the document. */
 .dark .monthly-list-card .monthly-link { color: var(--dash-blue); }
 
+/* ==========================================================================
+   The EPROM report section band
+   --------------------------------------------------------------------------
+   The printed Weekly and Monthly reports open each section with a solid navy
+   band carrying a number and a reversed title — "1 · REPORT INFORMATION". That
+   band is the strongest thing in the original design and the reason a reader
+   can find their way around a dense report at a glance.
+
+   Reproduced literally on a screen full of stacked authoring panels it would
+   be the giant printable form again, so what carries over here is the
+   HIERARCHY rather than the band: a faint navy wash, a navy rule, a navy
+   title, and the section number. The band itself stays in Preview/Print.
+
+   Applied from a WRAPPER, not from each card, for two reasons. Most of
+   Weekly's sections are rendered by components this work may not modify
+   (distribution, departments, insights, sign-off) and they call `SectionCard`
+   directly — a wrapper reaches them without touching a line. And one rule set
+   for both tiers cannot drift the way a component's classes plus a stylesheet
+   would.
+
+   Selectors are pinned to SectionCard's own structure (Card > CardHeader >
+   CardTitle as direct children), so a card nested INSIDE a section's content
+   is neither restyled nor numbered.
+   ========================================================================== */
+
+.eprp-report-sections {
+  counter-reset: eprp-section;
+}
+
+.eprp-report-sections > * > [data-slot="section-card"] > [data-slot="card-header"],
+.eprp-report-sections > [data-slot="section-card"] > [data-slot="card-header"] {
+  background: color-mix(in oklab, var(--primary) 4.5%, transparent);
+  border-bottom-color: color-mix(in oklab, var(--primary) 20%, transparent);
+}
+
+.eprp-report-sections > * > [data-slot="section-card"] > [data-slot="card-header"] > [data-slot="card-title"],
+.eprp-report-sections > [data-slot="section-card"] > [data-slot="card-header"] > [data-slot="card-title"] {
+  color: var(--primary);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* Numbering is opt-in: a tier that renders one section per department, say,
+   has no sequence to number. */
+.eprp-report-sections[data-numbered] > * > [data-slot="section-card"],
+.eprp-report-sections[data-numbered] > [data-slot="section-card"] {
+  counter-increment: eprp-section;
+}
+
+.eprp-report-sections[data-numbered] > * > [data-slot="section-card"] > [data-slot="card-header"] > [data-slot="card-title"]::before,
+.eprp-report-sections[data-numbered] > [data-slot="section-card"] > [data-slot="card-header"] > [data-slot="card-title"]::before {
+  content: counter(eprp-section) " · ";
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  /* One step quieter than the title, so the number orders the sections
+     without competing with what they are called. */
+  color: color-mix(in oklab, var(--primary) 62%, transparent);
+}
+
+/*
+ * The report panel strip scrolls rather than wraps (see `ReportPanelNav`), so
+ * on platforms that reserve space for a scrollbar it would otherwise gain a
+ * permanent grey bar under nine tabs that usually fit. Thin, themed, and only
+ * on this strip.
+ */
+[data-slot="report-panel-nav"] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+[data-slot="report-panel-nav"]::-webkit-scrollbar { height: 6px; }
+[data-slot="report-panel-nav"]::-webkit-scrollbar-track { background: transparent; }
+[data-slot="report-panel-nav"]::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--border);
+}
+
+/*
+ * Monthly WORKSPACE panel interiors, dark theme.
+ *
+ * The workspace panel used to be `.monthly-ws-panel { background: white }` with
+ * no dark rule at all, so its whole interior was painted for a white card in
+ * both themes. It is now the shared `SectionCard`, which follows the theme —
+ * so the fields, readouts and sub-headings inside it need to follow too, or a
+ * white input lands on a dark card.
+ *
+ * Scoped to `.monthly-workspace` for the same reason the register block above
+ * is scoped to `.monthly-list-card`: these class names are shared with the
+ * printed document, and an unscoped rule would repaint the sheet. Light theme
+ * is deliberately untouched — the interiors there are already correct.
+ */
+.dark .monthly-workspace .monthly-ws-readout {
+  background: var(--dash-surface-2);
+  border-color: var(--dash-edge);
+  color: var(--dash-ink-soft);
+}
+.dark .monthly-workspace .monthly-ws-readout b { color: var(--dash-ink); }
+.dark .monthly-workspace .monthly-ws-grid label { color: var(--dash-ink-soft); }
+.dark .monthly-workspace .monthly-ws-grid input,
+.dark .monthly-workspace .monthly-ws-grid select,
+.dark .monthly-workspace .monthly-ws-textarea {
+  background: var(--dash-surface-2);
+  border-color: var(--dash-edge);
+  color: var(--dash-ink);
+}
+.dark .monthly-workspace .monthly-ws-textarea::placeholder { color: var(--dash-muted); }
+.dark .monthly-workspace .monthly-ws-note,
+.dark .monthly-workspace .monthly-item-facts,
+.dark .monthly-workspace .monthly-comment-check em { color: var(--dash-muted); }
+.dark .monthly-workspace .monthly-item-facts b { color: var(--dash-ink); }
+.dark .monthly-workspace .monthly-ws-subhead { color: var(--dash-navy); }
+.dark .monthly-workspace .monthly-ws-subhead svg { color: var(--dash-ink-soft); }
+.dark .monthly-workspace .monthly-ws-count {
+  background: var(--dash-surface-2);
+  color: var(--dash-blue);
+}
+.dark .monthly-workspace .monthly-ws-add,
+.dark .monthly-workspace .monthly-ws-filters button {
+  background: var(--dash-surface-2);
+  border-color: var(--dash-edge);
+  color: var(--dash-ink-soft);
+}
+.dark .monthly-workspace .monthly-ws-add:hover,
+.dark .monthly-workspace .monthly-ws-filters button:hover { background: var(--dash-surface); }
+.dark .monthly-workspace .monthly-table th {
+  color: var(--dash-ink-soft);
+  border-bottom-color: var(--dash-edge);
+}
+.dark .monthly-workspace .monthly-table td {
+  color: var(--dash-ink);
+  border-bottom-color: var(--dash-edge);
+}
+.dark .monthly-workspace .monthly-link { color: var(--dash-blue); }
+
 /* Register table */
 .dark .exec-register-table th {
   background: var(--dash-surface-2);
@@ -3168,6 +3251,9 @@ html:has(.dash-stage) { --epr-rail: var(--dash-canvas); }
 }
 .dash-link { margin-left: auto; color: var(--dash-blue); font-size: .665rem; font-weight: 700; white-space: nowrap; }
 .dash-link:hover { text-decoration: underline; }
+/* Some "View All" controls open an in-page drawer instead of navigating —
+   same look, a <button> instead of an <a>. */
+button.dash-link { background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; line-height: inherit; }
 
 .dash-panel-body {
   display: flex;
@@ -3310,7 +3396,26 @@ span.dash-plotkey { cursor: default; }
   padding: 4px 0 2px;
   list-style: none;
 }
-.dash-bars li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 5px 10px; }
+.dash-bars > li,
+.dash-bar-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 5px 10px; }
+/* Milestone rows open the Milestone Modal rather than navigate, so they are
+   <button>s nested one level inside <li> — reset the native chrome so a row
+   reads identically to the non-interactive rows elsewhere in this component
+   (e.g. Progress by Project, which stays a plain <li>). */
+.dash-bar-row {
+  width: 100%;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .14s ease;
+}
+.dash-bar-row:hover { background: var(--dash-surface-2); }
+.dash-bar-row:focus-visible { outline: 2px solid var(--dash-blue); outline-offset: 1px; }
 .dash-bar-name {
   overflow: hidden;
   color: var(--dash-ink);
@@ -3319,12 +3424,38 @@ span.dash-plotkey { cursor: default; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dash-bars > li > b { font-size: .625rem; font-weight: 700; white-space: nowrap; }
-.dash-bars > li > b.is-success { color: var(--dash-teal); }
-.dash-bars > li > b.is-warning { color: var(--dash-amber); }
-.dash-bars > li > b.is-danger { color: var(--dash-red); }
-.dash-bars > li > b.is-default { color: var(--dash-muted); }
-.dash-bars > li > small { grid-column: 1 / -1; overflow: hidden; color: var(--dash-muted); font-size: .585rem; text-overflow: ellipsis; white-space: nowrap; }
+.dash-bars b { font-size: .625rem; font-weight: 700; white-space: nowrap; }
+.dash-bars b.is-success { color: var(--dash-teal); }
+.dash-bars b.is-warning { color: var(--dash-amber); }
+.dash-bars b.is-danger { color: var(--dash-red); }
+.dash-bars b.is-default { color: var(--dash-muted); }
+.dash-bars small { grid-column: 1 / -1; overflow: hidden; color: var(--dash-muted); font-size: .585rem; text-overflow: ellipsis; white-space: nowrap; }
+
+/* All Projects mode stacks the stage label with a "+N" count in the same
+   top-right slot a lone stage label otherwise occupies. */
+.dash-bar-badges { display: grid; justify-items: end; gap: 2px; }
+.dash-bar-more { font-size: .58rem; font-weight: 700; color: var(--dash-muted); }
+
+/* The panel-level "N more" overflow line — Milestone Progress and
+   Milestones Upcoming both use it to open the Milestone Modal on whatever
+   this card could not fit. */
+.dash-more-footer {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 4px 0;
+  border: 0;
+  border-top: 1px dashed var(--dash-hairline);
+  background: none;
+  color: var(--dash-blue);
+  font: inherit;
+  font-size: .625rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.dash-more-footer:hover { text-decoration: underline; }
+.dash-more-footer:focus-visible { outline: 2px solid var(--dash-blue); outline-offset: 1px; }
 
 /* Three discrete segments, one per lifecycle stage. Deliberately NOT a
    percentage fill: the platform records a stage, not a completion figure. */
@@ -3357,7 +3488,8 @@ span.dash-plotkey { cursor: default; }
 
 .dash-items { display: grid; margin: 0; padding: 0; list-style: none; }
 .dash-items li + li { border-top: 1px solid var(--dash-hairline); }
-.dash-items a {
+.dash-items a,
+.dash-items button {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) auto;
   align-items: center;
@@ -3366,14 +3498,27 @@ span.dash-plotkey { cursor: default; }
   border-radius: 8px;
   transition: background .14s ease;
 }
-.dash-items a:hover { background: var(--dash-surface-2); }
+.dash-items a:hover,
+.dash-items button:hover { background: var(--dash-surface-2); }
+/* Milestone rows open a drawer rather than navigate, so they are <button>s —
+   reset the native chrome so a row reads identically either way. */
+.dash-items button {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
 .dash-item-icon { width: 15px; height: 15px; color: var(--dash-muted); }
 .dash-item-icon.is-info { color: var(--dash-blue); }
 .dash-item-icon.is-success { color: var(--dash-teal); }
 .dash-item-icon.is-warning { color: var(--dash-amber); }
 .dash-item-icon.is-danger { color: var(--dash-red); }
 .dash-item-icon.is-default { color: var(--dash-muted); }
-.dash-items a > span { display: grid; gap: 2px; min-width: 0; }
+.dash-items a > span,
+.dash-items button > span { display: grid; gap: 2px; min-width: 0; }
 .dash-items b {
   overflow: hidden;
   color: var(--dash-ink);
@@ -3512,7 +3657,8 @@ span.dash-plotkey { cursor: default; }
 .dash-cal-bar button:focus-visible,
 .dash-cal-cell:focus-visible,
 .dash-cal-agenda button:focus-visible,
-.dash-items a:focus-visible {
+.dash-items a:focus-visible,
+.dash-items button:focus-visible {
   outline: 2px solid var(--dash-blue);
   outline-offset: 2px;
 }

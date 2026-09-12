@@ -10,7 +10,8 @@
 
 import { format, parseISO } from "date-fns";
 
-import { ENTRY_STATUS_META, KPI_RATING_META, PROGRESS_STATUS_META, SUBMISSION_HEALTH_META } from "@/lib/constants";
+import { ENTRY_STATUS_META, KPI_RATING_META, PROGRESS_STATUS_META, REPORT_STATUS_META, SUBMISSION_HEALTH_META } from "@/lib/constants";
+import { monthlyWorkflow, type WorkflowStatus } from "@/config/workflows";
 import type { StatusTone } from "@/components/shared/status-badge";
 import type {
   Contact,
@@ -41,6 +42,60 @@ export function compilationMessage(result: MonthlyCompilationResult): string {
 
 /** Text used everywhere a real value is genuinely absent. */
 export const NOT_RECORDED = "Not recorded";
+
+/* ----------------------------- Monthly lifecycle --------------------------- */
+
+/**
+ * The two stages a Monthly passes through that the shared `ReportStatus` union
+ * does not name.
+ *
+ * `monthlyWorkflow` and the database have always allowed `auto_compiled` and
+ * `department_review` — they are seeded into `report_transition_allowed` and
+ * `monthly_reports.status` is free text — but `ReportStatus` lists neither, so
+ * `REPORT_STATUS_META[status]` resolved to `undefined` for both and every
+ * `.label` read on it threw. Nothing had hit it because no Monthly had yet
+ * entered the department round.
+ *
+ * Declared HERE rather than by widening `ReportStatus`: that union is shared
+ * with Weekly and Executive, neither of which has these stages, and widening it
+ * would put two impossible values into every status map in the product.
+ *
+ * `department_review` is deliberately labelled "Department Collection" — the
+ * stored name is the lifecycle's, the label is the reader's.
+ */
+const MONTHLY_STAGE_META: Record<string, { label: string; tone: StatusTone }> = {
+  auto_compiled: { label: "Auto-Compiled", tone: "info" },
+  department_review: { label: "Department Collection", tone: "info" },
+};
+
+/** Label and tone for any Monthly status, including the two Monthly stages. */
+export function monthlyStatusMeta(status: string): {
+  label: string;
+  tone: StatusTone;
+} {
+  return (
+    MONTHLY_STAGE_META[status] ??
+    REPORT_STATUS_META[status as keyof typeof REPORT_STATUS_META] ?? {
+      label: status,
+      tone: "neutral",
+    }
+  );
+}
+
+/**
+ * The statuses a Monthly can actually hold, in lifecycle order.
+ *
+ * Read from `monthlyWorkflow` so the Report Status control offers the Monthly
+ * lifecycle rather than the generic one. The generic list both omitted the two
+ * Monthly stages — so Project Control could not select the department round at
+ * all — and offered `collecting` and `submitted`, which a Monthly never has.
+ */
+export const MONTHLY_STATUS_OPTIONS: WorkflowStatus[] = [
+  ...monthlyWorkflow.mainPath,
+  "returned",
+  "rejected",
+  "archived",
+];
 
 export interface NamedRecord {
   id: string;

@@ -27,6 +27,7 @@ import type {
   Contact,
   MonthlyComment,
   MonthlyDepartmentSummary,
+  MonthlySubmission,
   MonthlyPlanItem,
   MonthlyReport,
   Project,
@@ -60,6 +61,12 @@ export interface MonthlyReportBundle {
   comments: MonthlyComment[];
   weeklies: WeeklyReport[];
   submissions: WeeklySubmissionInMonth[];
+  /**
+   * The Monthly department round — one row per department asked for input.
+   * Distinct from `submissions`, which are the WEEKLY submissions the month was
+   * compiled from; these two are different tiers and are never merged.
+   */
+  monthlySubmissions: MonthlySubmission[];
   summaries: MonthlyDepartmentSummary[];
   plans: MonthlyPlanItem[];
   /** Governed Master Milestone current state, read-only — see `milestone-state.ts`. */

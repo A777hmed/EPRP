@@ -92,6 +92,13 @@ export interface ResponsibilityEntry {
   fixedField?: FixedResponsibilityField;
   /** Set on additional rows only — index into the source `positions` array. */
   positionIndex?: number;
+  /**
+   * Set on additional rows only — the underlying `project_positions.id`, once
+   * persisted. Undefined for a row that has never been saved, which is the
+   * one case a raw setup editor may still assign a holder to directly (see
+   * `src/features/projects/responsibility-guard.ts`).
+   */
+  positionId?: string;
   /** Set on additional rows only — the managed Job Title behind `roleLabel`. */
   jobTitleId?: string;
   /** "" when the role is unfilled, which only optional fixed roles may be. */
@@ -136,6 +143,7 @@ export function projectResponsibilities(
         (position.jobTitleId ? jobTitleName(position.jobTitleId) : undefined) ??
         "Position not set",
       positionIndex: index,
+      positionId: position.id,
       jobTitleId: position.jobTitleId,
       contactId: position.contactId ?? "",
       notes: position.notes?.trim() || undefined,

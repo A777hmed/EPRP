@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Trash2, UserCog } from "lucide-react";
+import { Lock, Trash2, UserCog } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,11 @@ import {
   setAssignment,
   validateDepartmentAssignments,
 } from "../../assignment-rules";
+import {
+  canPromoteToDepartmentManager,
+  isDepartmentManagerHolderLocked,
+  REPLACE_PERSON_MANAGER_HELP_TEXT,
+} from "../../responsibility-guard";
 import { ScopedAssignments } from "./scoped-assignments";
 
 const ASSIGNMENT_ROLES = Object.keys(ASSIGNMENT_ROLE_META) as AssignmentRole[];
@@ -58,6 +63,12 @@ const NONE = "__none__";
 
 export interface DepartmentTeamAssignmentsProps {
   project: Project;
+  /**
+   * The project as last saved — never the live draft — so a promotion made
+   * earlier in this same editing session, before Save, does not immediately
+   * lock its own controls. See `../../responsibility-guard`.
+   */
+  savedProject: Project;
   departmentId: string;
   departmentName: string;
   contactName: (id: string) => string;
@@ -74,6 +85,7 @@ export interface DepartmentTeamAssignmentsProps {
  */
 export function DepartmentTeamAssignments({
   project,
+  savedProject,
   departmentId,
   departmentName,
   contactName,
@@ -84,6 +96,11 @@ export function DepartmentTeamAssignments({
     (left, right) => compareTeamDisplayOrder(left, right, contactName)
   );
   const manager = departmentManager(project, departmentId);
+  // Governed once occupied — see ../../responsibility-guard.
+  const managerPromotionLocked = !canPromoteToDepartmentManager(
+    savedProject,
+    departmentId
+  );
   const issues = validateDepartmentAssignments(project, departmentId);
   const departmentIssues = issues.filter((issue) => !issue.contactId);
   const delegations = (project.delegations ?? []).filter(
@@ -167,6 +184,12 @@ export function DepartmentTeamAssignments({
         title={`${departmentName} — team roles`}
         description="Project-specific roles. A functional title is a label only; it grants no permissions."
       >
+        {managerPromotionLocked && (
+          <p className="mb-3 flex items-start gap-1.5 rounded-lg border bg-muted/30 p-2.5 text-xs text-muted-foreground">
+            <Lock className="mt-px size-3 shrink-0" aria-hidden="true" />
+            <span>{REPLACE_PERSON_MANAGER_HELP_TEXT}</span>
+          </p>
+        )}
         {departmentIssues.length > 0 && (
           <ul
             role="alert"
@@ -189,6 +212,14 @@ export function DepartmentTeamAssignments({
               entry.contactId
             );
             const isManager = entry.assignmentRole === "department_manager";
+            // The saved Department Manager — only Replace Person may move the
+            // role off them or remove them from here. See
+            // ../../responsibility-guard.
+            const rowLocked = isDepartmentManagerHolderLocked(
+              savedProject,
+              departmentId,
+              entry.contactId
+            );
             const entryIssues = issues.filter(
               (issue) => issue.contactId === entry.contactId
             );
@@ -213,8 +244,17 @@ export function DepartmentTeamAssignments({
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label={`Remove ${contactName(entry.contactId)} from ${departmentName}`}
-                      title="Remove from this department (the person record is kept)"
+                      disabled={rowLocked}
+                      aria-label={
+                        rowLocked
+                          ? `${contactName(entry.contactId)} is the Department Manager — use Replace Person to reassign`
+                          : `Remove ${contactName(entry.contactId)} from ${departmentName}`
+                      }
+                      title={
+                        rowLocked
+                          ? REPLACE_PERSON_MANAGER_HELP_TEXT
+                          : "Remove from this department (the person record is kept)"
+                      }
                       onClick={() =>
                         onDraftChange({
                           team: removeAssignment(
@@ -230,8 +270,16 @@ export function DepartmentTeamAssignments({
                   </div>
                 </div>
 
+                {rowLocked && (
+                  <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                    <Lock className="mt-px size-3 shrink-0" aria-hidden="true" />
+                    <span>{REPLACE_PERSON_MANAGER_HELP_TEXT}</span>
+                  </p>
+                )}
+
                 <ScopedAssignments
                   project={project}
+                  savedProject={savedProject}
                   departmentId={departmentId}
                   contactId={entry.contactId}
                   contactLabel={contactName(entry.contactId)}
@@ -253,6 +301,7 @@ export function DepartmentTeamAssignments({
                     </Label>
                     <Select
                       value={entry.assignmentRole}
+                      disabled={rowLocked}
                       onValueChange={(value) =>
                         update(entry.contactId, {
                           assignmentRole: value as AssignmentRole,
@@ -262,12 +311,21 @@ export function DepartmentTeamAssignments({
                       <SelectTrigger
                         id={`role-${entry.contactId}`}
                         className="w-full"
+                        title={rowLocked ? REPLACE_PERSON_MANAGER_HELP_TEXT : undefined}
                       >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {ASSIGNMENT_ROLES.map((role) => (
-                          <SelectItem key={role} value={role}>
+                          <SelectItem
+                            key={role}
+                            value={role}
+                            disabled={
+                              role === "department_manager" &&
+                              !rowLocked &&
+                              managerPromotionLocked
+                            }
+                          >
                             {ASSIGNMENT_ROLE_META[role].label}
                           </SelectItem>
                         ))}
