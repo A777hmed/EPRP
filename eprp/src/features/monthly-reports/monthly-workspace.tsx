@@ -22,6 +22,10 @@ import { MILESTONE_STATUS_META, PRIORITY_META } from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
 import { getMonthLabel } from "@/lib/reporting";
 import { monthlyReportService } from "@/services/monthly-report-service";
+import {
+  isPreparationTransition,
+  type WorkflowStatus,
+} from "@/config/workflows";
 import type { Contact, MonthlyComment, MonthlyPlanItem, MonthlyReport } from "@/types";
 import {
   ProjectReportingShell,
@@ -818,12 +822,37 @@ function SummaryPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload:
   );
 }
 
-function ApprovalPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload: () => Promise<void> }) {
+function ApprovalPanel({
+  bundle,
+  reload,
+  canControlReportLifecycle,
+}: {
+  bundle: MonthlyReportBundle;
+  reload: () => Promise<void>;
+  /**
+   * Project Control / Planning or admin — NOT a Report Coordinator (Phase
+   * A2). Restricts the Report Status options offered to the same allowlist
+   * `set_monthly_report_status()` admits a Coordinator for
+   * (`isPreparationTransition`); everyone else keeps the full set.
+   */
+  canControlReportLifecycle: boolean;
+}) {
   const { report, project, contacts } = bundle;
   const [reviewedBy, setReviewedBy] = React.useState(report.reviewedByContactId ?? project?.projectControlManagerId ?? "");
   const [approvedBy, setApprovedBy] = React.useState(report.approvedByContactId ?? project?.projectManagerId ?? "");
   const [status, setStatus] = React.useState<MonthlyReport["status"]>(report.status);
   const [saving, setSaving] = React.useState(false);
+
+  const statusOptions = MONTHLY_STATUS_OPTIONS.filter(
+    (value) =>
+      value === report.status ||
+      canControlReportLifecycle ||
+      isPreparationTransition(
+        "monthly",
+        report.status as WorkflowStatus,
+        value as WorkflowStatus
+      )
+  );
 
   const save = async () => {
     setSaving(true);
@@ -899,7 +928,7 @@ function ApprovalPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
         <label>
           Report Status
           <select value={status} onChange={(event) => setStatus(event.target.value as MonthlyReport["status"])}>
-            {MONTHLY_STATUS_OPTIONS.map((value) => (
+            {statusOptions.map((value) => (
               <option key={value} value={value}>
                 {monthlyStatusMeta(value).label}
               </option>
@@ -928,6 +957,8 @@ export interface MonthlyWorkspaceViewer {
   scope: {
     contactId: string;
     canConsolidate: boolean;
+    /** Project Control / Planning or admin — NOT a Report Coordinator (Phase A2). */
+    canControlReportLifecycle: boolean;
     departmentIds: string[];
     managedDepartmentIds: string[];
   } | null;
@@ -1205,7 +1236,17 @@ export function MonthlyWorkspaceView({
         {panel === "management" && <MonthlyManagementPanel bundle={bundle} reload={reload} />}
         {panel === "plan" && <PlanPanel bundle={bundle} reload={reload} />}
         {panel === "summary" && <SummaryPanel bundle={bundle} reload={reload} />}
-        {panel === "approval" && <ApprovalPanel bundle={bundle} reload={reload} />}
+        {panel === "approval" && (
+          <ApprovalPanel
+            bundle={bundle}
+            reload={reload}
+            /* No viewer resolved means the pre-existing behaviour: this
+               workspace was only ever reachable by Project Control. */
+            canControlReportLifecycle={
+              viewer?.scope ? viewer.scope.canControlReportLifecycle : true
+            }
+          />
+        )}
       </ReportSectionGroup>
     </div>
     </ProjectReportingShell>

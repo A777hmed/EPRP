@@ -21,6 +21,7 @@ export default async function MonthlyReportWorkspacePage({ params }: { params: P
           ? {
               contactId: scope.contactId,
               canConsolidate: scope.canConsolidate,
+              canControlReportLifecycle: scope.canControlReportLifecycle,
               departmentIds: scope.departmentIds,
               managedDepartmentIds: scope.managedDepartmentIds,
             }

@@ -79,28 +79,30 @@ import { ScopedPersonSelect } from "./scoped-person-select";
  *   lifecycle guard does not read.
  *
  *   WHO. `managedDepartmentIds` are the departments this viewer actually
- *   manages, so a manager rules on their own department and no other.
- *   `canConsolidate` (Project Control / Report Coordinator / admin) is kept
- *   alongside it so an administrator is not locked out of a stuck report — it
- *   is the exception, not the normal business path.
+ *   manages, so a manager rules on their own department and no other. There
+ *   is no override: since Phase A2's department-verdict correction, normal
+ *   workflow admits NOBODY else — not Report Coordinator, not Project
+ *   Control / Planning, not a global authority — so this authority is a
+ *   single fact, not a pair. An administrative override, if the product ever
+ *   needs one, is a separate, explicitly audited mechanism, never a quiet
+ *   bypass here.
  *
  * Carried on context rather than drilled: the Status control sits four
  * components below the panel and every one of them would otherwise gain props
  * it does not use. The default grants nothing, so a tree rendered without the
  * provider offers department input only.
  *
- * This decides what to OFFER. `weekly_submissions_update` remains the boundary
- * and enforces the same two narrowings independently.
+ * This decides what to OFFER. `weekly_submissions_update` remains the
+ * boundary and enforces the identical rule independently — a verdict value
+ * (approved/returned) has exactly one path there too,
+ * is_weekly_department_manager() for this exact department.
  */
 export interface SubmissionVerdictAuthority {
-  /** Project Control / Report Coordinator / platform administrator. */
-  canConsolidate: boolean;
   /** Departments this viewer is the assigned Department Manager of. */
   managedDepartmentIds: string[];
 }
 
 const NO_VERDICT_AUTHORITY: SubmissionVerdictAuthority = {
-  canConsolidate: false,
   managedDepartmentIds: [],
 };
 
@@ -457,8 +459,7 @@ function UpdateEditor({
    */
   const mayRecordVerdict =
     level === "department" &&
-    (verdictAuthority.canConsolidate ||
-      verdictAuthority.managedDepartmentIds.includes(departmentId));
+    verdictAuthority.managedDepartmentIds.includes(departmentId);
 
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -1465,10 +1466,10 @@ interface DepartmentWorkflowBarProps {
  *
  * WHAT IT DOES NOT CHANGE.
  *
- *   Authority. `mayRecordVerdict` is the same pair as before —
- *   `canConsolidate` (Project Control / Report Coordinator / admin) or an
- *   assigned Department Manager of THIS department, read from the same context.
- *   Platform role is never consulted, here or anywhere below it.
+ *   Authority. `mayRecordVerdict` is the assigned Department Manager of THIS
+ *   department, and nothing else — no Project Control / Planning or global
+ *   override, per Phase A2's department-verdict correction. Platform role is
+ *   never consulted, here or anywhere below it.
  *
  *   The boundary. `weekly_submissions_update` still decides. A Team Member
  *   reaches the contributor statuses only; the verdict pair belongs to the
@@ -1498,7 +1499,6 @@ function DepartmentWorkflowBar({
   const status: SubmissionStatus = existing?.status ?? "pending";
 
   const mayRecordVerdict =
-    verdictAuthority.canConsolidate ||
     verdictAuthority.managedDepartmentIds.includes(section.departmentId);
 
   // Submitting is the department reporting on itself, so it follows department
@@ -1514,15 +1514,17 @@ function DepartmentWorkflowBar({
    * skip the Lead" (`05` §1.2). `approved` and `returned` both imply a prior
    * submission, so they count as answerable too.
    *
-   * `canConsolidate` keeps its override: Project Control / an administrator
-   * unblocking a stuck report is the documented exception, and taking it away
-   * here would be a new restriction, not a fix. A Department Manager gets the
-   * buttons either way — DISABLED with the reason stated, never absent, because
-   * `03` §5 transition rule 6 requires the next required action to be visible.
+   * No override here, per Phase A2's department-verdict correction: this
+   * component is only reached by the department's own assigned Manager
+   * (`mayRecordVerdict` above already refuses everyone else), so
+   * answerability applies to them exactly as it would to anyone. A
+   * Department Manager gets the buttons either way — DISABLED with the
+   * reason stated, never absent, because `03` §5 transition rule 6 requires
+   * the next required action to be visible.
    */
   const answerable =
     status === "submitted" || status === "approved" || status === "returned";
-  const verdictBlocked = !answerable && !verdictAuthority.canConsolidate;
+  const verdictBlocked = !answerable;
 
   if (!canEdit) return null;
   if (!maySubmit && !mayRecordVerdict) return null;

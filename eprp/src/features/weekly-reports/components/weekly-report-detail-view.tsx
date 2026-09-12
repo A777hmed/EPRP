@@ -24,7 +24,11 @@ import {
 import { REPORT_STATUS_META } from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import { weeklyWorkflow, type WorkflowStatus } from "@/config/workflows";
+import {
+  isPreparationTransition,
+  weeklyWorkflow,
+  type WorkflowStatus,
+} from "@/config/workflows";
 import { getProjectTypeById, useMasterData } from "@/features/master-data";
 import {
   ProjectReportingShell,
@@ -685,8 +689,13 @@ export function WeeklyReportDetailView({
                 Duplicate
               </Button>
             )}
+            {/*
+              Archive requires can_manage_project_operations() as of Phase A2
+              — a Report Coordinator prepares/consolidates but never archives.
+              scope.canControlReportLifecycle is that predicate's mirror.
+            */}
             {mode === "detail" &&
-              scope?.canConsolidate &&
+              scope?.canControlReportLifecycle &&
               report.status !== "archived" && (
                 <Button variant="destructive" onClick={() => setArchiveOpen(true)}>
                   <Archive data-icon="inline-start" aria-hidden="true" />
@@ -727,19 +736,39 @@ export function WeeklyReportDetailView({
               {workspace.markedForMonthly === 1 ? "" : "s"} marked for Monthly
             </span>
           )}
-          {scope?.canConsolidate && allowedTransitions.map((to) => (
-            <Button
-              key={to}
-              size="sm"
-              variant={
-                to === "rejected" || to === "returned" ? "outline" : "default"
-              }
-              disabled={pendingStatus !== null}
-              onClick={() => changeStatus(to)}
-            >
-              Move to {REPORT_STATUS_META[to as ReportStatus].label}
-            </Button>
-          ))}
+          {/*
+            Per-target gating, not one blanket scope.canConsolidate: a
+            preparation transition (e.g. collecting -> under_review) stays
+            open to the Report Coordinator, while a whole-report ruling
+            (approve / return / reject / finalize / lock) requires
+            scope.canControlReportLifecycle — Project Control / Planning, or
+            a global authority. isPreparationTransition() mirrors
+            public.report_preparation_transition() exactly; the two must be
+            changed together.
+          */}
+          {allowedTransitions
+            .filter((to) =>
+              isPreparationTransition(
+                "weekly",
+                report.status as WorkflowStatus,
+                to as WorkflowStatus
+              )
+                ? scope?.canConsolidate
+                : scope?.canControlReportLifecycle
+            )
+            .map((to) => (
+              <Button
+                key={to}
+                size="sm"
+                variant={
+                  to === "rejected" || to === "returned" ? "outline" : "default"
+                }
+                disabled={pendingStatus !== null}
+                onClick={() => changeStatus(to)}
+              >
+                Move to {REPORT_STATUS_META[to as ReportStatus].label}
+              </Button>
+            ))}
         </div>
       </div>
 
@@ -810,14 +839,14 @@ export function WeeklyReportDetailView({
           workspace={workspace}
           canEdit={mode === "workspace" && editability.canEdit}
           /*
-             Who may accept a department's work. The Department Manager is the
-             business owner of that decision (`05` §1.2); `canConsolidate` rides
-             alongside so an administrator can still unblock a stuck report, and
-             is not the normal path. Both halves come straight off the scope
+             Who may accept a department's work: the assigned Department
+             Manager of THAT department, and nobody else — no Project
+             Control / Planning or global override, per Phase A2's
+             department-verdict correction and the matching
+             weekly_submissions_update policy. Read straight off the scope
              already resolved on the server — no second lookup, no new rule.
           */
           verdictAuthority={{
-            canConsolidate: Boolean(scope?.canConsolidate),
             managedDepartmentIds: scope?.managedDepartmentIds ?? [],
           }}
           viewerContactId={scope?.contactId}

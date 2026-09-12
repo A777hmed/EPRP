@@ -35,6 +35,7 @@ export default async function ProjectMonthlyReportWorkspacePage({
           ? {
               contactId: scope.contactId,
               canConsolidate: scope.canConsolidate,
+              canControlReportLifecycle: scope.canControlReportLifecycle,
               departmentIds: scope.departmentIds,
               managedDepartmentIds: scope.managedDepartmentIds,
             }

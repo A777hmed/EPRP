@@ -6,6 +6,7 @@ import {
   assignedScopeItems,
   departmentAssignments,
   isProjectConsolidator,
+  isProjectControlPlanning,
 } from "@/features/projects/assignment-rules";
 
 /**
@@ -70,6 +71,20 @@ export interface WeeklyScope {
   terms: HierarchyTerms;
   /** May roll the departments up into the project Weekly. */
   canConsolidate: boolean;
+  /**
+   * May rule on the WHOLE report: approve, return, reject, finalize, lock or
+   * archive it, and override a department's own verdict.
+   *
+   * Deliberately narrower than `canConsolidate`. A Report Coordinator
+   * consolidates (`canConsolidate: true`) but does not rule — only a global
+   * authority or the project's assigned Project Control / Planning holder
+   * does. Mirrors `can_manage_project_operations()`, the same predicate
+   * `set_weekly_report_status()` / `set_monthly_report_status()` require for
+   * every transition outside `isPreparationTransition()`'s allowlist, and
+   * the same predicate `weekly_submissions_update` / `monthly_submissions_
+   * update` now require for a verdict value (approved/returned).
+   */
+  canControlReportLifecycle: boolean;
 }
 
 export interface ResolveOptions {
@@ -145,7 +160,10 @@ export function resolveWeeklyScope(
     terms,
   };
 
-  const everything = (capability: WeeklyCapability): WeeklyScope => ({
+  const everything = (
+    capability: WeeklyCapability,
+    canControlReportLifecycle: boolean
+  ): WeeklyScope => ({
     ...base,
     capability,
     departmentIds: departments,
@@ -156,10 +174,18 @@ export function resolveWeeklyScope(
       departments.map((id) => [id, ALL_ITEMS as ScopeItemAccess])
     ),
     canConsolidate: true,
+    canControlReportLifecycle,
   });
 
-  if (options.isAdmin) return everything("all_projects");
-  if (isProjectController(project, contactId)) return everything("project");
+  if (options.isAdmin) return everything("all_projects", true);
+  if (isProjectController(project, contactId)) {
+    // Consolidation (Report Coordinator OR Project Control / Planning) is one
+    // reach; ruling on the report is narrower and admits Planning only.
+    return everything(
+      "project",
+      isProjectControlPlanning(project, contactId)
+    );
+  }
 
   // Department Manager: whole departments, but only the ones they manage.
   const managed = departments.filter((departmentId) =>
@@ -188,6 +214,7 @@ export function resolveWeeklyScope(
       managedDepartmentIds: [],
       itemsByDepartment: {},
       canConsolidate: false,
+      canControlReportLifecycle: false,
     };
   }
 
@@ -203,6 +230,9 @@ export function resolveWeeklyScope(
       ...owned,
     },
     canConsolidate: false,
+    // A Department Manager rules on their OWN department's submission
+    // (managedDepartmentIds), never on the whole report.
+    canControlReportLifecycle: false,
   };
 }
 

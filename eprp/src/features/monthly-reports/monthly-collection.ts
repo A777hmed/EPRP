@@ -321,6 +321,13 @@ const INPUT_STATUSES: SubmissionStatus[] = ["pending", "in_progress", "returned"
  * `managedDepartmentIds` and `canConsolidate` are the SAME pair the Weekly
  * workspace resolves — project-scoped assignment, never a platform role — so a
  * Department Manager is a Department Manager in both tiers and nowhere else.
+ *
+ * `canConsolidate` (Report Coordinator, Project Control / Planning, or admin)
+ * grants non-verdict content edit — legitimate preparation work. The verdict
+ * itself has no such authority: per Phase A2's department-verdict
+ * correction, only this department's own assigned Manager may record it —
+ * not Coordinator, not Planning, not a global authority.
+ * `monthly_submissions_update` enforces the identical rule at the database.
  */
 export function monthlyDepartmentActions(options: {
   submission: MonthlySubmission | undefined;
@@ -342,14 +349,16 @@ export function monthlyDepartmentActions(options: {
   } = options;
 
   const status: SubmissionStatus = submission?.status ?? "pending";
-  const canRecordVerdict =
-    canConsolidate || managedDepartmentIds.includes(departmentId);
-  const canEdit = roundOpen && (canContribute || canRecordVerdict);
+  const isOwnDepartmentManager = managedDepartmentIds.includes(departmentId);
+  const canRecordVerdict = isOwnDepartmentManager;
+  const canEdit =
+    roundOpen && (canContribute || canConsolidate || isOwnDepartmentManager);
   const roundStarted = Boolean(submission);
 
   // A verdict answers a submission: approving something the department never
-  // handed over would skip the step the round exists for. Project Control keeps
-  // its override so a stuck report is never unrecoverable.
+  // handed over would skip the step the round exists for. No override here —
+  // this is only reached by the department's own Manager, so answerability
+  // applies to them exactly as it would to anyone (Phase A2).
   const answered =
     status === "submitted" || status === "approved" || status === "returned";
 
@@ -358,6 +367,6 @@ export function monthlyDepartmentActions(options: {
     roundStarted,
     canSubmit: canEdit && roundStarted && INPUT_STATUSES.includes(status),
     canRecordVerdict: roundOpen && roundStarted && canRecordVerdict,
-    verdictBlocked: !answered && !canConsolidate,
+    verdictBlocked: !answered,
   };
 }
