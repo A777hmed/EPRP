@@ -266,6 +266,7 @@ export function rowToProject(
     plannedProgress: row.planned_progress,
     actualProgress: row.actual_progress,
     currentPhaseId: row.current_phase_id ?? undefined,
+    portfolioGroupId: row.portfolio_group_id ?? undefined,
     priority: row.priority as Priority,
     reporting: {
       weeklyEnabled: row.weekly_enabled,

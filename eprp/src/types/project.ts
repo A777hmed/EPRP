@@ -38,6 +38,14 @@ export interface Client extends MasterRecordBase {
 /** Project classification, e.g. Turnaround, EPC. */
 export type ProjectType = MasterRecordBase;
 
+/**
+ * Admin-managed Portfolio/Reporting Group (e.g. PSM, PSAIM, Construction),
+ * for future grouped portfolio S-curves. Never a hardcoded list — a project
+ * assigns one via `Project.portfolioGroupId`; the group is never duplicated
+ * into the project.
+ */
+export type PortfolioGroup = MasterRecordBase;
+
 /** Project phase, e.g. Engineering, Commissioning. */
 export interface ProjectPhase extends MasterRecordBase {
   displayOrder: number;
@@ -549,6 +557,117 @@ export interface DeliverableUpdate {
 /** How milestone updates become official on a project. */
 export type MilestoneApprovalMode = "manual" | "auto_on_report_finalized";
 
+/* ---------------------- Planning & Control (Slice 1) ---------------------- */
+
+/**
+ * How a project enters Planning. The three onboarding paths the product
+ * model requires:
+ *   new_project             — no schedule exists yet; plan from zero.
+ *   existing_active_project — already running; must publish an Opening
+ *                             Position as Snapshot V1, never a fabricated
+ *                             from-zero history — see {@link PlanningOpeningPosition}.
+ *   no_formal_schedule      — tracked without a formal schedule at all;
+ *                             Planning stays available but nothing is implied.
+ */
+export type PlanningOnboardingMode =
+  | "new_project"
+  | "existing_active_project"
+  | "no_formal_schedule";
+
+/** The formats Planning Slice 1 recognises. Native XER/MPP is out of scope. */
+export type PlanningImportSourceType = "eprp_excel" | "p6" | "msproject";
+
+/** A project's Planning configuration. One row per project. */
+export interface ProjectPlanningSettings {
+  projectId: string;
+  onboardingMode: PlanningOnboardingMode;
+  defaultImportSource?: PlanningImportSourceType | "manual";
+  planningEnabled: boolean;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+/** Whether an Opening Position is still editable or has produced Snapshot V1. */
+export type PlanningOpeningPositionStatus = "draft" | "promoted";
+
+/**
+ * A declared starting position for a project onboarded mid-execution
+ * (`onboardingMode: "existing_active_project"`), as of a data date.
+ *
+ * "Do not create fake history": an already-running project has no from-zero
+ * activity history to import, so this is the honest alternative — one
+ * declared position, promoted into Snapshot V1 with no fabricated work items
+ * or activities beneath it. Absence is not zero: planned/actual progress and
+ * forecast finish are all independently nullable.
+ */
+export interface PlanningOpeningPosition {
+  id: string;
+  projectId: string;
+  dataDate: IsoDate;
+  plannedProgressPercent?: number;
+  actualProgressPercent?: number;
+  forecastFinishDate?: IsoDate;
+  /** Free text provenance (e.g. "Prior contractor S-curve"), not a lookup. */
+  source: string;
+  status: PlanningOpeningPositionStatus;
+  promotedAt?: IsoDateTime;
+  promotedToSnapshotId?: string;
+  createdByContactId?: string;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+/**
+ * The Published Planning Snapshot — the planning source of truth.
+ *
+ * Written exactly once, by `publish_planning_snapshot()`, and never edited or
+ * regenerated. Weekly and Monthly link to an exact snapshot id, never to
+ * "current planning" — the same reference-while-drafting / snapshot-at-
+ * approval discipline reports already apply to their own compiled content.
+ */
+export interface PlanningSnapshot {
+  id: string;
+  projectId: string;
+  /** Sequential per project. The current snapshot is the highest version. */
+  version: number;
+  sourceImportBatchId?: string;
+  /** Set when this snapshot was promoted from an Opening Position. */
+  sourceOpeningPositionId?: string;
+  baselineId?: string;
+  isOpeningSnapshot: boolean;
+  label?: string;
+  /** Captured work items, activities and milestone links at publish time. */
+  snapshotData: unknown;
+  publishedByContactId?: string;
+  publishedAt: IsoDateTime;
+}
+
+/**
+ * Normalized, immutable per-activity record owned by one {@link PlanningSnapshot}.
+ *
+ * This is the queryable drill-down/provenance path for a snapshot's activity
+ * data — `PlanningSnapshot.snapshotData`'s JSON is a convenience archive, not
+ * the only record. A later edit to the live `planning_activities` register
+ * can never alter a row here.
+ */
+export interface PlanningSnapshotActivity {
+  id: string;
+  snapshotId: string;
+  /** Traceability only: the working row may since have moved or archived. */
+  sourceActivityId?: string;
+  sourceWorkItemId?: string;
+  code?: string;
+  name: string;
+  isMilestone: boolean;
+  plannedStartDate?: IsoDate;
+  plannedFinishDate?: IsoDate;
+  baselineStartDate?: IsoDate;
+  baselineFinishDate?: IsoDate;
+  percentCompletePlanned?: number;
+  weightPercent?: number;
+  createdAt: IsoDateTime;
+}
+
 /** A named physical site belonging to one Project. */
 export interface ProjectSite {
   /** Present for persisted rows; omitted while a new form row is unsaved. */
@@ -673,6 +792,8 @@ export interface Project {
   actualProgress: number; // 0-100
   /** Managed master-data reference (ProjectPhase). */
   currentPhaseId?: string;
+  /** Managed master-data reference (PortfolioGroup) — Planning Slice 1. */
+  portfolioGroupId?: string;
   priority: Priority;
 
   reporting: ProjectReportingConfig;

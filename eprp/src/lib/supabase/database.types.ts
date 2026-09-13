@@ -114,6 +114,8 @@ export interface ProjectRow extends Timestamps {
   planned_progress: number;
   actual_progress: number;
   current_phase_id: string | null;
+  /** Planning Slice 1 — optional Tier 1 Portfolio/Reporting Group assignment. */
+  portfolio_group_id: string | null;
   priority: string;
   weekly_enabled: boolean;
   monthly_enabled: boolean;
@@ -158,6 +160,87 @@ export interface ProjectPositionRow extends Timestamps {
   contact_id: string;
   notes: string | null;
   sort_order: number;
+}
+
+/**
+ * Planning Slice 1 — see 20260913000001_planning_foundation.sql.
+ * onboarding_mode: new_project | existing_active_project | no_formal_schedule.
+ */
+export interface ProjectPlanningSettingsRow {
+  project_id: string;
+  onboarding_mode: string;
+  default_import_source: string | null;
+  planning_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Planning Slice 1 — a declared starting position for a project onboarded
+ * mid-execution (onboarding_mode=existing_active_project). Promoted into
+ * Snapshot V1 by publish_planning_snapshot(); never used to fabricate
+ * planning_work_items/planning_activities history that never existed.
+ */
+export interface PlanningOpeningPositionRow {
+  id: string;
+  project_id: string;
+  data_date: string;
+  planned_progress_percent: number | null;
+  actual_progress_percent: number | null;
+  forecast_finish_date: string | null;
+  source: string;
+  status: string;
+  promoted_at: string | null;
+  promoted_to_snapshot_id: string | null;
+  created_by_contact_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Planning Slice 1 — the published planning source of truth. Immutable. */
+export interface PlanningSnapshotRow {
+  id: string;
+  project_id: string;
+  version: number;
+  source_import_batch_id: string | null;
+  source_opening_position_id: string | null;
+  baseline_id: string | null;
+  is_opening_snapshot: boolean;
+  label: string | null;
+  snapshot_data: unknown;
+  published_by_contact_id: string | null;
+  published_at: string;
+}
+
+/**
+ * Planning Slice 1 — normalized, immutable per-activity record owned by one
+ * planning_snapshots row. The queryable drill-down/provenance path for a
+ * snapshot's activity data; snapshot_data's JSON is a convenience archive,
+ * not the only record.
+ */
+export interface PlanningSnapshotActivityRow {
+  id: string;
+  snapshot_id: string;
+  source_activity_id: string | null;
+  source_work_item_id: string | null;
+  code: string | null;
+  name: string;
+  is_milestone: boolean;
+  planned_start_date: string | null;
+  planned_finish_date: string | null;
+  baseline_start_date: string | null;
+  baseline_finish_date: string | null;
+  percent_complete_planned: number | null;
+  weight_percent: number | null;
+  created_at: string;
+}
+
+/** Planning Slice 1 — admin-managed Portfolio/Reporting Group master data. */
+export interface PortfolioGroupRow extends Timestamps {
+  id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
 }
 
 /** Phase 13.2 — see 20260819000003_master_milestones.sql. */
@@ -771,6 +854,31 @@ export interface Database {
       monthly_submissions: TableDef<MonthlySubmissionRow, Omit<MonthlySubmissionRow, "id" | "created_at" | "updated_at" | "submitted_by_contact_id" | "submitted_at" | "reviewed_by_contact_id" | "reviewed_at">, Partial<MonthlySubmissionRow>>;
       monthly_department_summaries: TableDef<MonthlyDepartmentSummaryRow, Omit<MonthlyDepartmentSummaryRow, "id" | "created_at" | "updated_at" | "created_by_contact_id" | "updated_by_contact_id">, Partial<MonthlyDepartmentSummaryRow>>;
       monthly_plan_items: TableDef<MonthlyPlanItemRow, Omit<MonthlyPlanItemRow, "id" | "created_at" | "updated_at">, Partial<MonthlyPlanItemRow>>;
+      project_planning_settings: TableDef<
+        ProjectPlanningSettingsRow,
+        Omit<ProjectPlanningSettingsRow, "created_at" | "updated_at"> & { project_id: string },
+        Partial<ProjectPlanningSettingsRow>
+      >;
+      planning_opening_positions: TableDef<
+        PlanningOpeningPositionRow,
+        Omit<PlanningOpeningPositionRow, "id" | "created_at" | "updated_at" | "status" | "promoted_at" | "promoted_to_snapshot_id">,
+        never
+      >;
+      planning_snapshots: TableDef<
+        PlanningSnapshotRow,
+        Omit<PlanningSnapshotRow, "id" | "published_at">,
+        never
+      >;
+      planning_snapshot_activities: TableDef<
+        PlanningSnapshotActivityRow,
+        never,
+        never
+      >;
+      portfolio_groups: TableDef<
+        PortfolioGroupRow,
+        Writable<PortfolioGroupRow> & { name: string },
+        Writable<PortfolioGroupRow>
+      >;
     };
   };
 }

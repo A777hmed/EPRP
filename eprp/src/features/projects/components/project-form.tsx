@@ -40,6 +40,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/shared";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import {
   OVERALL_STATUS_META,
   PRIORITY_META,
@@ -49,10 +50,12 @@ import type {
   Client,
   Contact,
   OverallStatus,
+  PlanningOnboardingMode,
   Priority,
   Project,
   ProjectLifecycleStatus,
 } from "@/types";
+import { planningService } from "@/services/planning-service";
 import {
   createProjectDraftSchema,
   createProjectFinalSchema,
@@ -239,6 +242,54 @@ function ManagedSelectField({
         />
       )}
     </RhfField>
+  );
+}
+
+const ONBOARDING_MODE_OPTIONS: { value: PlanningOnboardingMode; label: string }[] = [
+  { value: "new_project", label: "New Project — plan from zero" },
+  { value: "existing_active_project", label: "Existing Active Project — publish an Opening Position as Snapshot V1" },
+  { value: "no_formal_schedule", label: "No Formal Schedule — tracked without a formal schedule" },
+];
+
+/**
+ * Planning Onboarding Mode — deliberately NOT a react-hook-form field.
+ *
+ * It lives in `project_planning_settings`, a separate table saved through
+ * `planningService.upsertSettings()` after the project itself saves (see
+ * `onValid` below), not through `toProjectInput`. Built by hand from the same
+ * `Field`/`FieldLabel`/`FieldDescription` primitives `RhfField` uses, so it
+ * reads identically to every other field on this form.
+ */
+function PlanningOnboardingModeField({
+  value,
+  onChange,
+}: {
+  value: PlanningOnboardingMode;
+  onChange: (value: PlanningOnboardingMode) => void;
+}) {
+  const id = React.useId();
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>
+        Planning Onboarding Mode
+        <span className="text-xs font-normal text-muted-foreground">Optional</span>
+      </FieldLabel>
+      <Select value={value} onValueChange={(v) => onChange(v as PlanningOnboardingMode)}>
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {ONBOARDING_MODE_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <FieldDescription>
+        How this project enters Planning & Control. Saved once the project itself is saved.
+      </FieldDescription>
+    </Field>
   );
 }
 
@@ -1065,6 +1116,23 @@ export function ProjectForm({
     mode: "onBlur",
   });
   const { control, getValues, handleSubmit, formState, setValue } = form;
+
+  // Planning Onboarding Mode lives in project_planning_settings, a separate
+  // table this form does not otherwise touch — see PlanningOnboardingModeField
+  // and the save call in onValid below.
+  const [onboardingMode, setOnboardingMode] =
+    React.useState<PlanningOnboardingMode>("new_project");
+  React.useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    void planningService.getSettings(projectId).then((settings) => {
+      if (!cancelled && settings) setOnboardingMode(settings.onboardingMode);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
   const additionalSites = useFieldArray({ control, name: "additionalSites" });
   const additionalPositions = useFieldArray({
     control,
@@ -1255,6 +1323,20 @@ export function ProjectForm({
   const onValid = async (values: ProjectFormValues) => {
     setSummary(null);
     await onSubmit(values);
+    // Best-effort: Planning configuration is supplementary to the project
+    // save that just succeeded, and only meaningful once the project exists.
+    // A brand-new project (no projectId yet) picks this up on its next edit.
+    if (projectId) {
+      try {
+        await planningService.upsertSettings({ projectId, onboardingMode });
+      } catch (error) {
+        toast.warning(
+          error instanceof Error
+            ? error.message
+            : "Planning Onboarding Mode could not be saved."
+        );
+      }
+    }
   };
 
   const onInvalid: SubmitErrorHandler<ProjectFormValues> = (rhfErrors) => {
@@ -1393,7 +1475,9 @@ export function ProjectForm({
         <NumberField control={control} name="plannedProgress" label="Planned Progress (%)" min={0} max={100} description="Required once the project has started." />
         <NumberField control={control} name="actualProgress" label="Actual Progress (%)" min={0} max={100} description="Required once the project has started." />
         <ManagedSelectField control={control} name="currentPhaseId" label="Current Phase" required kind="projectPhase" placeholder="Search or select phase…" onMutated={markMasterTouched} />
+        <ManagedSelectField control={control} name="portfolioGroupId" label="Portfolio / Reporting Group" optional kind="portfolioGroup" placeholder="Search or select group…" allowClear onMutated={markMasterTouched} />
         <SelectField control={control} name="priority" label="Priority" required options={priorityOptions} />
+        <PlanningOnboardingModeField value={onboardingMode} onChange={setOnboardingMode} />
         <p className="text-xs text-muted-foreground sm:col-span-2">
           Schedule variance and SPI are calculated automatically from planned
           and actual progress.
