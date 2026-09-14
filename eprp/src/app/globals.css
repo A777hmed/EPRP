@@ -2492,7 +2492,43 @@
 .cal-monthcell.is-outside > b { color: var(--dash-muted); }
 .cal-monthcell.is-today > b { display: inline-flex; align-items: center; justify-content: center; width: 21px; height: 21px; border-radius: 999px; background: var(--dash-blue); color: var(--dash-on-blue); }
 .cal-monthcell-events { display: grid; gap: 3px; min-width: 0; }
-.cal-more { color: var(--dash-ink-soft); font-size: .6rem; }
+.cal-more { color: var(--dash-blue); font-size: .7rem; font-weight: 600; text-align: left; padding: 5px 3px; border-radius: 4px; }
+.cal-more:hover { text-decoration: underline; background: var(--dash-surface-2); }
+
+/* Calendar notes share category colors without adding event state. */
+.cal-note { display: grid; align-content: start; gap: 3px; width: 100%; min-width: 0; padding: 7px 8px; border-left: 3px solid currentColor; border-radius: 3px 7px 7px 3px; background: color-mix(in srgb, currentColor 7%, var(--dash-surface)); text-align: left; }
+.cal-note:hover { background: color-mix(in srgb, currentColor 13%, var(--dash-surface)); }
+.cal-note strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; color: var(--dash-ink); font-size: .73rem; line-height: 1.35; font-weight: 650; }
+.cal-note-project, .cal-note-meta, .cal-note-source { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dash-ink-soft); font-size: .62rem; line-height: 1.4; }
+.cal-note-source { font-size: .6rem; }
+.cal-date-button { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 30px; padding: 2px; border-radius: 5px; text-align: left; }
+.cal-date-button b { display: inline-grid; place-items: center; width: 26px; height: 26px; color: var(--dash-ink); font-size: .75rem; }
+.cal-date-button span { color: var(--dash-ink-soft); font-size: .62rem; }
+.cal-date-button:hover { background: var(--dash-surface-2); }
+.cal-monthcell.is-today .cal-date-button b { border-radius: 50%; background: var(--dash-blue); color: var(--dash-on-blue); }
+.cal-monthcell.is-outside .cal-date-button b { color: var(--dash-muted); }
+.cal-note:focus-visible, .cal-date-button:focus-visible, .cal-more:focus-visible, .cal-preview-date:focus-visible { outline: 2px solid var(--dash-blue); outline-offset: 2px; }
+.cal-monthgrid { overflow-x: auto; }
+.cal-monthgrid .cal-monthhead, .cal-monthgrid .cal-monthbody { min-width: 700px; }
+.cal-monthgrid .cal-monthbody { grid-auto-rows: minmax(124px, auto); }
+.cal-monthgrid .cal-monthcell { padding: 5px; }
+.cal-date-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); padding: 4px; }
+.cal-date-list .cal-note strong { display: block; overflow: visible; }
+.cal-date-list .cal-note-meta, .cal-date-list .cal-note-project, .cal-date-list .cal-note-source { white-space: normal; overflow-wrap: anywhere; }
+.cal-modal-detail .cal-drawer { max-height: none; border: 0; box-shadow: none; }
+.cal-modal-detail .cal-drawer-head { display: none; }
+.cal-modal-detail .cal-drawer-body { overflow: visible; }
+.cal-preview-notes { display: grid; gap: 6px; margin: 8px 0; padding: 0; list-style: none; }
+.cal-preview-date { margin-top: 10px; color: var(--dash-ink-soft); font-size: .7rem; text-align: left; }
+.cal-preview-error { color: var(--dash-red); font-size: .75rem; }
+.cal-filters { align-items: flex-end; min-width: 0; }
+@media (max-width: 600px) {
+  .cal-filters { width: 100%; }
+  .cal-filters label { flex: 1; min-width: 0; }
+  .cal-filters select { min-width: 0; max-width: 100%; width: 100%; }
+  .cal-nav { flex-wrap: wrap; }
+  .cal-modal-detail .cal-form-pair, .cal-modal-detail .cal-form-triple { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* Agenda */
 .cal-agenda { display: grid; gap: 10px; margin: 0; padding: 14px; list-style: none; }

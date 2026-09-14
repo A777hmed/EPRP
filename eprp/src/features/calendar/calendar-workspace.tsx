@@ -15,13 +15,17 @@
  */
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState } from "@/components/shared";
+import { DetailModal } from "@/components/shared/detail-modal";
+import { SearchInput } from "@/components/shared/search-input";
 import { CalendarDays } from "lucide-react";
 import {
   EVENT_TYPE_META,
+  EVENT_STATUS_LABEL,
   EVENT_TYPE_ORDER,
   timeRangeLabel,
   type CalendarEvent,
@@ -36,6 +40,7 @@ import {
   useCalendar,
   windowFor,
   type CalendarFilters,
+  type UseCalendarResult,
 } from "./use-calendar";
 
 type View = "day" | "week" | "month" | "agenda";
@@ -59,15 +64,41 @@ export interface CalendarWorkspaceProps {
 }
 
 export function CalendarWorkspace({ canManage }: CalendarWorkspaceProps) {
-  const [view, setView] = React.useState<View>("week");
-  const [anchor, setAnchor] = React.useState<Date>(() => new Date());
-  const [filters, setFilters] = React.useState<CalendarFilters>(EMPTY_CALENDAR_FILTERS);
+  return <React.Suspense fallback={<LoadingState label="Loading calendar…" />}>
+    <CalendarQueryWorkspace canManage={canManage} />
+  </React.Suspense>;
+}
+
+function CalendarQueryWorkspace({ canManage }: CalendarWorkspaceProps) {
+  const params = useSearchParams();
+  const value = params.get("date") ?? "";
+  const parsed = new Date(`${value}T00:00:00`);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(parsed.getTime()) && isoDate(parsed) === value ? value : undefined;
+  return <CalendarWorkspaceContent key={params.toString()} canManage={canManage} initialDate={date}
+    initialProject={params.get("projectId") ?? ""} initialDepartment={params.get("departmentId") ?? ""} />;
+}
+
+function CalendarWorkspaceContent({ canManage, initialDate, initialProject, initialDepartment }: CalendarWorkspaceProps & {
+  initialDate?: string; initialProject: string; initialDepartment: string;
+}) {
+  const [view, setView] = React.useState<View>("month");
+  const [anchor, setAnchor] = React.useState<Date>(() => initialDate ? new Date(`${initialDate}T00:00:00`) : new Date());
+  const [filters, setFilters] = React.useState<CalendarFilters>({ ...EMPTY_CALENDAR_FILTERS, projectId: initialProject, departmentId: initialDepartment });
+  const [query, setQuery] = React.useState("");
+  const [detailDate, setDetailDate] = React.useState<string | null>(initialDate ?? null);
   const [selected, setSelected] = React.useState<CalendarEvent | null>(null);
   const [creatingOn, setCreatingOn] = React.useState<string | undefined>();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
 
   const window = React.useMemo(() => windowFor(view, anchor), [view, anchor]);
   const calendar = useCalendar(window, filters);
+  const events = React.useMemo(() => {
+    const text = query.trim().toLocaleLowerCase();
+    return calendar.events.filter((event) => !text || [event.title, event.description, event.projectName,
+      event.departmentName, event.location, event.organizerName, event.sourceLabel,
+      EVENT_TYPE_META[event.type].label, EVENT_STATUS_LABEL[event.status],
+      ...event.attendees.map((person) => person.displayName)].filter(Boolean).join(" ").toLocaleLowerCase().includes(text));
+  }, [calendar.events, query]);
 
   const step = (direction: 1 | -1) => {
     const days = view === "day" ? 1 : view === "week" ? 7 : view === "agenda" ? 30 : 0;
@@ -80,12 +111,20 @@ export function CalendarWorkspace({ canManage }: CalendarWorkspaceProps) {
 
   const openEvent = (event: CalendarEvent) => {
     setSelected(event);
+    setDetailDate(null);
     setCreatingOn(undefined);
-    setDrawerOpen(true);
+    setDrawerOpen(false);
+  };
+
+  const openDate = (date: string) => {
+    setSelected(null);
+    setDrawerOpen(false);
+    setDetailDate(date);
   };
 
   const openCreate = (date?: string) => {
     setSelected(null);
+    setDetailDate(null);
     setCreatingOn(date ?? isoDate(anchor));
     setDrawerOpen(true);
   };
@@ -145,6 +184,7 @@ export function CalendarWorkspace({ canManage }: CalendarWorkspaceProps) {
         </div>
 
         <div className="cal-filters">
+          <SearchInput value={query} onValueChange={setQuery} placeholder="Search this period…" />
           <label>
             <span>Project</span>
             <select
@@ -208,16 +248,16 @@ export function CalendarWorkspace({ canManage }: CalendarWorkspaceProps) {
             <MonthGrid
               anchor={anchor}
               from={window.from}
-              events={calendar.events}
+              events={events}
               onOpen={openEvent}
-              onCreate={canManage ? openCreate : undefined}
+              onDate={openDate}
             />
           ) : view === "agenda" ? (
-            <AgendaList events={calendar.events} onOpen={openEvent} />
+            <AgendaList events={events} onOpen={openEvent} />
           ) : (
             <TimeGrid
               days={view === "day" ? [anchor] : weekDays(anchor)}
-              events={calendar.events}
+              events={events}
               onOpen={openEvent}
               onCreate={canManage ? openCreate : undefined}
             />
@@ -237,6 +277,9 @@ export function CalendarWorkspace({ canManage }: CalendarWorkspaceProps) {
           />
         )}
       </div>
+      <CalendarDetailModal date={detailDate} event={selected} events={events} calendar={calendar} canManage={canManage}
+        onSelect={setSelected} onClose={() => { setDetailDate(null); setSelected(null); }}
+        onCreate={canManage ? openCreate : undefined} />
     </div>
   );
 }
@@ -356,13 +399,13 @@ function MonthGrid({
   from,
   events,
   onOpen,
-  onCreate,
+  onDate,
 }: {
   anchor: Date;
   from: string;
   events: CalendarEvent[];
   onOpen: (event: CalendarEvent) => void;
-  onCreate?: (date: string) => void;
+  onDate: (date: string) => void;
 }) {
   const today = isoDate(new Date());
   const start = new Date(`${from}T00:00:00`);
@@ -385,16 +428,17 @@ function MonthGrid({
             <div
               key={iso}
               className={`cal-monthcell${outside ? " is-outside" : ""}${iso === today ? " is-today" : ""}`}
-              onDoubleClick={onCreate ? () => onCreate(iso) : undefined}
             >
-              <b>{day.getDate()}</b>
+              <button type="button" className="cal-date-button" onClick={() => onDate(iso)}
+                aria-label={`${dateLabel(iso)} — ${items.length} events`} aria-current={iso === today ? "date" : undefined}>
+                <b>{day.getDate()}</b><span>{items.length > 0 ? items.length : ""}</span>
+              </button>
               <div className="cal-monthcell-events">
-                {/* Three fit before the cell scrolls; the rest are counted so
-                    nothing is silently hidden. */}
                 {items.slice(0, 3).map((event) => (
-                  <EventPill key={event.id} event={event} onOpen={onOpen} compact />
+                  <StickyEventCard key={event.id} event={event} onOpen={onOpen} />
                 ))}
-                {items.length > 3 && <span className="cal-more">+{items.length - 3} more</span>}
+                {items.length > 3 && <button type="button" className="cal-more" onClick={() => onDate(iso)}
+                  aria-label={`Show all ${items.length} events on ${dateLabel(iso)}`}>+{items.length - 3} more</button>}
               </div>
             </div>
           );
@@ -455,6 +499,53 @@ function AgendaList({
 }
 
 /* ---------------------------------- Pill ----------------------------------- */
+
+export function dateLabel(date: string): string {
+  return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  });
+}
+
+/** Presentation only: every source supplies the existing CalendarEvent contract. */
+export function StickyEventCard({ event, onOpen }: { event: CalendarEvent; onOpen: (event: CalendarEvent) => void }) {
+  const meta = EVENT_TYPE_META[event.type];
+  const title = event.title?.trim() || "Untitled event";
+  const project = event.projectName?.trim() || "Project";
+  const status = EVENT_STATUS_LABEL[event.status];
+  const summary = [meta.label, timeRangeLabel(event), status].filter(Boolean).join(" · ");
+  return <button type="button" className={`cal-note cal-chip-${meta.tone}`} onClick={() => onOpen(event)}
+    title={`${title} · ${project} · ${summary}`}>
+    <strong>{title}</strong>
+    <span className="cal-note-project">{project}</span>
+    <span className="cal-note-meta">{summary}</span>
+    {event.origin === "derived" && <span className="cal-note-source">{event.sourceLabel || "Linked event"} · Read only</span>}
+  </button>;
+}
+
+/** Shared date/list/detail navigation; editing is still owned by EventDrawer. */
+export function CalendarDetailModal({ date, event, events, calendar, canManage, onSelect, onClose, onCreate }: {
+  date: string | null; event: CalendarEvent | null; events: CalendarEvent[];
+  calendar: UseCalendarResult; canManage: boolean;
+  onSelect: (event: CalendarEvent | null) => void; onClose: () => void; onCreate?: (date: string) => void;
+}) {
+  const items = events.filter((item) => item.date === date);
+  // Resolve against refreshed data after edits; preserve selection while a reload is pending.
+  const current = event ? calendar.all.find((item) => item.id === event.id) ?? event : null;
+  return <DetailModal open={Boolean(date || event)} onOpenChange={(open) => { if (!open) onClose(); }}
+    title={current?.title || (date ? dateLabel(date) : "Event details")}
+    description={current ? "Event details" : `${items.length} events in the current filters`}
+    onBack={date && current ? () => onSelect(null) : undefined} backLabel="Back to date"
+    toolbar={!current && date && onCreate ? <Button size="sm" onClick={() => onCreate(date)}><Plus aria-hidden /> Add Event</Button> : undefined}>
+    {calendar.loading ? <LoadingState label="Loading events…" /> : calendar.error ?
+      <EmptyState title="Calendar unavailable" description={calendar.error} icon={CalendarDays} /> : current ?
+      <div className="cal-modal-detail"><EventDrawer key={current.id} event={current} projects={calendar.projects}
+        departments={calendar.departments} contacts={calendar.contacts} canManage={canManage}
+        onChanged={calendar.reload} onClose={date ? () => onSelect(null) : onClose} /></div> :
+      items.length ? <div className="cal-date-list">{items.map((item) =>
+        <StickyEventCard key={item.id} event={item} onOpen={onSelect} />)}</div> :
+        <EmptyState title="Nothing scheduled" description="No events for this date match the current filters." icon={CalendarDays} />}
+  </DetailModal>;
+}
 
 export function EventPill({
   event,
