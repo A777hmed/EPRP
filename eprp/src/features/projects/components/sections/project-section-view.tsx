@@ -10,7 +10,6 @@ import {
   PenLine,
   Repeat,
   Users,
-  Workflow,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -29,14 +28,8 @@ import { WeeklyStatusBadge } from "@/features/weekly-reports/components/weekly-s
 import { mockProjectActivity } from "@/data/mock/project-activity.mock";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
-import { planningService } from "@/services/planning-service";
-import type {
-  JobTitle,
-  PlanningSnapshot,
-  Project,
-  ProjectPlanningSettings,
-  WeeklyReport,
-} from "@/types";
+import type { JobTitle, Project, WeeklyReport } from "@/types";
+import { PlanningWorkspace } from "../planning/planning-workspace";
 import {
   getProjectSection,
   localizeProjectSection,
@@ -243,7 +236,7 @@ function SectionBody({
         />
       );
     case "planning":
-      return <PlanningSection project={project} />;
+      return <PlanningSection project={project} authority={authority} />;
     case "kpis":
       return <KpiSection project={project} authority={authority} />;
     case "milestones":
@@ -521,75 +514,24 @@ function TeamSection({
   );
 }
 
-function PlanningSection({ project }: { project: Project }) {
-  const [settings, setSettings] = React.useState<
-    ProjectPlanningSettings | null | undefined
-  >();
-  const [snapshot, setSnapshot] = React.useState<
-    PlanningSnapshot | null | undefined
-  >();
-
-  React.useEffect(() => {
-    let cancelled = false;
-    void planningService.getSettings(project.id).then((value) => {
-      if (!cancelled) setSettings(value);
-    });
-    void planningService.getLatestSnapshot(project.id).then((value) => {
-      if (!cancelled) setSnapshot(value);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [project.id]);
-
-  const loading = settings === undefined || snapshot === undefined;
-  const onboardingMode = settings?.onboardingMode ?? "new_project";
-  const onboardingLabel: Record<typeof onboardingMode, string> = {
-    new_project: "New Project",
-    existing_active_project: "Existing Active Project",
-    no_formal_schedule: "No Formal Schedule",
-  };
-
-  const stats: StatCardProps[] = [
-    {
-      label: "Onboarding",
-      value: onboardingLabel[onboardingMode],
-      icon: Workflow,
-    },
-    {
-      label: "Published snapshot",
-      value: snapshot ? `v${snapshot.version}` : "None yet",
-    },
-  ];
-
+function PlanningSection({
+  project,
+  authority,
+}: {
+  project: Project;
+  authority: ProjectAuthority;
+}) {
+  const terms = useHierarchyTerms(project);
   return (
     <ProjectSectionLayout
-      stats={loading ? undefined : stats}
       title="Planning & Control"
-      description="The project's planning register and the Published Planning Snapshot Weekly and Monthly report against."
+      description="Master Plan, imports, review and the Published Planning Snapshot Weekly and Monthly report against."
     >
-      {loading ? (
-        <LoadingState variant="spinner" label="Loading planning data…" />
-      ) : snapshot ? (
-        <div className="space-y-1.5 text-sm">
-          <p>
-            Current published snapshot:{" "}
-            <span className="font-medium tabular-nums">v{snapshot.version}</span>
-            {snapshot.isOpeningSnapshot && " · Opening Planning Snapshot"}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Published {formatDate(snapshot.publishedAt)}
-            {snapshot.label ? ` · ${snapshot.label}` : ""}.
-          </p>
-        </div>
-      ) : (
-        <EmptyState
-          icon={Workflow}
-          title="Planning not yet initialized"
-          description="No Planning Snapshot has been published for this project yet. Import from EPRP Excel, P6, or MS Project, or enter the plan manually, then publish a snapshot — Weekly and Monthly will report against it once one exists. Until then, this project's own planned/actual progress fields remain the fallback."
-          className="py-8"
-        />
-      )}
+      <PlanningWorkspace
+        project={project}
+        canManage={authority.canManageOperations}
+        hierarchyTerm={terms.singular}
+      />
     </ProjectSectionLayout>
   );
 }

@@ -656,6 +656,8 @@ export interface PlanningSnapshotActivity {
   /** Traceability only: the working row may since have moved or archived. */
   sourceActivityId?: string;
   sourceWorkItemId?: string;
+  /** The stable source-system id — what Planning Review matches across snapshots. */
+  externalId?: string;
   code?: string;
   name: string;
   isMilestone: boolean;
@@ -663,8 +665,208 @@ export interface PlanningSnapshotActivity {
   plannedFinishDate?: IsoDate;
   baselineStartDate?: IsoDate;
   baselineFinishDate?: IsoDate;
+  actualStartDate?: IsoDate;
+  actualFinishDate?: IsoDate;
+  remainingDurationDays?: number;
   percentCompletePlanned?: number;
+  percentCompleteActual?: number;
+  percentCompletePhysical?: number;
   weightPercent?: number;
+  status?: string;
+  plannedValue?: number;
+  earnedValue?: number;
+  createdAt: IsoDateTime;
+}
+
+/* ------------------------- Master Plan (Slice 2) --------------------------- */
+
+/**
+ * Master Plan classification — a behaviour-neutral taxonomy for display,
+ * grouping and filtering. Not project-hierarchy scope (department/system/
+ * discipline stay separate columns); not a substitute for the governed
+ * Master Milestone / Master Deliverable registers, which a "milestone" or
+ * "deliverable" item should link to rather than duplicate.
+ */
+export type PlanningWorkItemType =
+  | "study"
+  | "deliverable"
+  | "report"
+  | "activity"
+  | "engineering"
+  | "procurement"
+  | "construction"
+  | "inspection"
+  | "commissioning"
+  | "milestone"
+  | "other";
+
+/** Whether a row originated from an import or was entered directly. */
+export type PlanningItemSource = "import" | "manual";
+
+/**
+ * A node in the project's governed WBS register (Master Plan).
+ *
+ * Identity and state are not split here the way Master Milestones splits
+ * them — a work item is structural (what the plan IS), and its planned/
+ * baseline figures are themselves the confirmable content; adjustments are
+ * logged in {@link PlanningConfirmation}, not held in a separate state stream.
+ */
+export interface PlanningWorkItem {
+  id: string;
+  projectId: string;
+  parentWorkItemId?: string;
+  originImportRowId?: string;
+  departmentId?: string;
+  systemId?: string;
+  disciplineId?: string;
+  /** Reference only — set when item_type is "deliverable" and one exists. */
+  masterDeliverableId?: string;
+  code: string;
+  name: string;
+  itemType: PlanningWorkItemType;
+  level: number;
+  sortOrder: number;
+  isMilestone: boolean;
+  weightPercent?: number;
+  plannedStartDate?: IsoDate;
+  plannedFinishDate?: IsoDate;
+  baselineStartDate?: IsoDate;
+  baselineFinishDate?: IsoDate;
+  plannedDurationDays?: number;
+  source: PlanningItemSource;
+  active: boolean;
+  archivedAt?: IsoDateTime;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+/**
+ * A schedule-level activity (P6 activity / MS Project task) under a
+ * {@link PlanningWorkItem}, or standing alone when no WBS match was found on
+ * import. The full import/review column model lives here.
+ */
+export interface PlanningActivity {
+  id: string;
+  projectId: string;
+  workItemId?: string;
+  originImportRowId?: string;
+  /** The source system's own stable id (e.g. P6 Activity ID). */
+  externalId?: string;
+  code?: string;
+  name: string;
+  isMilestone: boolean;
+  plannedStartDate?: IsoDate;
+  plannedFinishDate?: IsoDate;
+  baselineStartDate?: IsoDate;
+  baselineFinishDate?: IsoDate;
+  actualStartDate?: IsoDate;
+  actualFinishDate?: IsoDate;
+  /** "Original Duration" in most schedule tools. */
+  plannedDurationDays?: number;
+  remainingDurationDays?: number;
+  percentCompletePlanned?: number;
+  percentCompleteActual?: number;
+  percentCompletePhysical?: number;
+  weightPercent?: number;
+  /** Raw, as reported by the source — never normalized to a platform enum. */
+  status?: string;
+  plannedValue?: number;
+  earnedValue?: number;
+  source: PlanningItemSource;
+  active: boolean;
+  archivedAt?: IsoDateTime;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+/** The formats Planning Slice 2 recognises. Native XER/MPP is out of scope. */
+export type PlanningImportSourceFormat = "eprp_excel" | "p6" | "msproject";
+
+export type PlanningImportBatchStatus =
+  | "uploaded"
+  | "validated"
+  | "rejected"
+  | "published";
+
+/** One uploaded planning source file. Never auto-published. */
+export interface PlanningImportBatch {
+  id: string;
+  projectId: string;
+  sourceType: PlanningImportSourceFormat;
+  fileName?: string;
+  sourceDocumentId?: string;
+  status: PlanningImportBatchStatus;
+  rowCount: number;
+  uploadedByContactId?: string;
+  uploadedAt: IsoDateTime;
+  validatedAt?: IsoDateTime;
+  validatedByContactId?: string;
+  rejectionReason?: string;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export type PlanningImportRowParseStatus = "ok" | "warning" | "error";
+
+/**
+ * One raw row from a planning source file, exactly as parsed. Insert-only —
+ * `rawData` is the full mapped column set (see the column model) and is
+ * never edited. This is what an imported value can always be checked
+ * against; {@link PlanningActivity}/{@link PlanningWorkItem} hold the
+ * confirmed, adjustable working copy.
+ */
+export interface PlanningImportRow {
+  id: string;
+  batchId: string;
+  externalId?: string;
+  wbsPath?: string;
+  name?: string;
+  rawData: Record<string, unknown>;
+  parseStatus: PlanningImportRowParseStatus;
+  parseNotes?: string;
+  createdAt: IsoDateTime;
+}
+
+export type PlanningConfirmationAction = "confirm" | "adjust";
+
+/**
+ * One confirm/adjust decision against a work item or activity value, with a
+ * required reason. Append-only — never edited or removed. Exactly one of
+ * `workItemId`/`activityId` is set.
+ */
+export interface PlanningConfirmation {
+  id: string;
+  workItemId?: string;
+  activityId?: string;
+  importRowId?: string;
+  action: PlanningConfirmationAction;
+  fieldName: string;
+  previousValue?: string;
+  newValue?: string;
+  reason: string;
+  confirmedByContactId?: string;
+  confirmedAt: IsoDateTime;
+}
+
+/** A named, immutable capture of the plan at a point in time. */
+export interface PlanningBaseline {
+  id: string;
+  projectId: string;
+  name: string;
+  baselineDate: IsoDate;
+  capturedItems: unknown;
+  notes?: string;
+  createdByContactId?: string;
+  createdAt: IsoDateTime;
+}
+
+/** Links a work item or activity to its governed Master Milestone identity. */
+export interface PlanningMilestoneLink {
+  id: string;
+  masterMilestoneId: string;
+  workItemId?: string;
+  activityId?: string;
+  createdByContactId?: string;
   createdAt: IsoDateTime;
 }
 

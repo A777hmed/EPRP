@@ -223,6 +223,8 @@ export interface PlanningSnapshotActivityRow {
   snapshot_id: string;
   source_activity_id: string | null;
   source_work_item_id: string | null;
+  /** Slice 2 — see 20260914000001_planning_slice2_schema.sql. */
+  external_id: string | null;
   code: string | null;
   name: string;
   is_milestone: boolean;
@@ -230,8 +232,16 @@ export interface PlanningSnapshotActivityRow {
   planned_finish_date: string | null;
   baseline_start_date: string | null;
   baseline_finish_date: string | null;
+  actual_start_date: string | null;
+  actual_finish_date: string | null;
+  remaining_duration_days: number | null;
   percent_complete_planned: number | null;
+  percent_complete_actual: number | null;
+  percent_complete_physical: number | null;
   weight_percent: number | null;
+  status: string | null;
+  planned_value: number | null;
+  earned_value: number | null;
   created_at: string;
 }
 
@@ -241,6 +251,124 @@ export interface PortfolioGroupRow extends Timestamps {
   name: string;
   code: string | null;
   description: string | null;
+}
+
+/** Planning Slice 2 — see 20260914000001_planning_slice2_schema.sql. */
+export interface PlanningWorkItemRow extends Timestamps {
+  id: string;
+  project_id: string;
+  parent_work_item_id: string | null;
+  origin_import_row_id: string | null;
+  department_id: string | null;
+  system_id: string | null;
+  discipline_id: string | null;
+  master_deliverable_id: string | null;
+  code: string;
+  name: string;
+  item_type: string;
+  level: number;
+  sort_order: number;
+  is_milestone: boolean;
+  weight_percent: number | null;
+  planned_start_date: string | null;
+  planned_finish_date: string | null;
+  baseline_start_date: string | null;
+  baseline_finish_date: string | null;
+  planned_duration_days: number | null;
+  source: string;
+}
+
+/** Planning Slice 2 — the full import/review column model. */
+export interface PlanningActivityRow extends Timestamps {
+  id: string;
+  project_id: string;
+  work_item_id: string | null;
+  origin_import_row_id: string | null;
+  external_id: string | null;
+  code: string | null;
+  name: string;
+  is_milestone: boolean;
+  planned_start_date: string | null;
+  planned_finish_date: string | null;
+  baseline_start_date: string | null;
+  baseline_finish_date: string | null;
+  actual_start_date: string | null;
+  actual_finish_date: string | null;
+  planned_duration_days: number | null;
+  remaining_duration_days: number | null;
+  percent_complete_planned: number | null;
+  percent_complete_actual: number | null;
+  percent_complete_physical: number | null;
+  weight_percent: number | null;
+  status: string | null;
+  planned_value: number | null;
+  earned_value: number | null;
+  source: string;
+}
+
+export interface PlanningImportBatchRow {
+  id: string;
+  project_id: string;
+  source_type: string;
+  file_name: string | null;
+  source_document_id: string | null;
+  status: string;
+  row_count: number;
+  uploaded_by_contact_id: string | null;
+  uploaded_at: string;
+  validated_at: string | null;
+  validated_by_contact_id: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlanningImportRowRow {
+  id: string;
+  batch_id: string;
+  row_number: number;
+  external_id: string | null;
+  wbs_path: string | null;
+  name: string | null;
+  raw_data: Record<string, unknown>;
+  parse_status: string;
+  parse_notes: string | null;
+  created_at: string;
+}
+
+/** Planning Slice 2 — work_item_id/activity_id: exactly one is set. */
+export interface PlanningConfirmationRow {
+  id: string;
+  work_item_id: string | null;
+  activity_id: string | null;
+  import_row_id: string | null;
+  action: string;
+  field_name: string;
+  previous_value: string | null;
+  new_value: string | null;
+  reason: string;
+  confirmed_by_contact_id: string | null;
+  confirmed_at: string;
+}
+
+export interface PlanningBaselineRow {
+  id: string;
+  project_id: string;
+  name: string;
+  baseline_date: string;
+  captured_items: unknown;
+  notes: string | null;
+  created_by_contact_id: string | null;
+  created_at: string;
+}
+
+export interface PlanningMilestoneLinkRow {
+  id: string;
+  master_milestone_id: string;
+  work_item_id: string | null;
+  activity_id: string | null;
+  created_by_contact_id: string | null;
+  created_at: string;
 }
 
 /** Phase 13.2 — see 20260819000003_master_milestones.sql. */
@@ -878,6 +1006,45 @@ export interface Database {
         PortfolioGroupRow,
         Writable<PortfolioGroupRow> & { name: string },
         Writable<PortfolioGroupRow>
+      >;
+      planning_work_items: TableDef<
+        PlanningWorkItemRow,
+        Writable<PlanningWorkItemRow> & { project_id: string; code: string; name: string },
+        Writable<PlanningWorkItemRow>
+      >;
+      planning_activities: TableDef<
+        PlanningActivityRow,
+        Writable<PlanningActivityRow> & { project_id: string; name: string },
+        Writable<PlanningActivityRow>
+      >;
+      planning_import_batches: TableDef<
+        PlanningImportBatchRow,
+        Omit<PlanningImportBatchRow, "id" | "created_at" | "updated_at" | "row_count"> & {
+          project_id: string;
+          source_type: string;
+          row_count?: number;
+        },
+        Partial<PlanningImportBatchRow>
+      >;
+      planning_import_rows: TableDef<
+        PlanningImportRowRow,
+        Omit<PlanningImportRowRow, "id" | "created_at"> & { batch_id: string; row_number: number },
+        never
+      >;
+      planning_confirmations: TableDef<
+        PlanningConfirmationRow,
+        Omit<PlanningConfirmationRow, "id" | "confirmed_at">,
+        never
+      >;
+      planning_baselines: TableDef<
+        PlanningBaselineRow,
+        Omit<PlanningBaselineRow, "id" | "created_at"> & { project_id: string; name: string; baseline_date: string },
+        never
+      >;
+      planning_milestone_links: TableDef<
+        PlanningMilestoneLinkRow,
+        Omit<PlanningMilestoneLinkRow, "id" | "created_at"> & { master_milestone_id: string },
+        never
       >;
     };
   };
