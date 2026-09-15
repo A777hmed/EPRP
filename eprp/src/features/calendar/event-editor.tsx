@@ -198,7 +198,6 @@ function DetailBody({ event }: { event: CalendarEvent }) {
 
       <div className="cal-detail-section">
         <Row icon={<Users aria-hidden />} label="Project" value={event.projectName || "Project not recorded"} />
-        <Row icon={<Tag aria-hidden />} label="Event type" value={meta.label} />
         <Row icon={<Tag aria-hidden />} label="Status" value={EVENT_STATUS_LABEL[event.status]} />
         <Row icon={<FileText aria-hidden />} label="Origin" value={event.origin === "derived" ?
           event.sourceLabel || "Linked platform record" : "Calendar event"} />

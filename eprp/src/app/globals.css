@@ -3817,21 +3817,57 @@ span.dash-plotkey { cursor: default; }
   white-space: nowrap;
 }
 .cal-note-source { display: none; color: #53647a; }
-.cal-monthbody { grid-auto-rows: 140px; }
+.cal-monthbody { grid-auto-rows: 176px; }
 .cal-monthcell { gap: 1px; padding: 2px 4px; overflow: hidden; }
 .cal-date-button { min-height: 20px; padding: 0 2px; }
 .cal-date-button b { width: 20px; height: 20px; }
 .cal-monthcell-events { gap: 1px; }
-.cal-monthcell .cal-note { min-height: 34px; padding-block: 3px; }
-.cal-monthcell .cal-note strong { font-size: .64rem; }
-.cal-monthcell .cal-note-meta { font-size: .54rem; }
+.cal-monthcell .cal-note,
+.cal-date-list .cal-note {
+  border-color: color-mix(in srgb, var(--note-accent) 10%, transparent);
+  border-left-color: var(--note-accent);
+  border-radius: 4px;
+  background:
+    linear-gradient(108deg, rgb(255 255 255 / 18%), transparent 42%),
+    repeating-linear-gradient(0deg, transparent 0 5px, rgb(18 38 63 / 1.2%) 6px),
+    var(--note-paper);
+  box-shadow: 0 2px 3px rgb(18 38 63 / 10%), 0 5px 9px rgb(18 38 63 / 6%);
+}
+.cal-monthcell .cal-note { min-height: 46px; padding: 5px 21px 5px 8px; }
+.cal-monthcell .cal-note strong { font-size: .67rem; }
+.cal-monthcell .cal-note-meta { font-size: .57rem; }
 .cal-monthcell .cal-more { padding: 0 3px; font-size: .58rem; line-height: 1; }
 
+.cal-monthcell .cal-note::after,
+.cal-date-list .cal-note::after {
+  width: 11px;
+  height: 11px;
+  background: linear-gradient(225deg, var(--dash-surface) 0 47%, color-mix(in srgb, var(--note-accent) 20%, var(--note-paper)) 50%);
+  box-shadow: -1px 1px 1px rgb(18 38 63 / 8%);
+}
+.cal-monthcell .cal-note::before,
+.cal-date-list .cal-note::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: 4px;
+  right: 14px;
+  width: 9px;
+  height: 12px;
+  background:
+    radial-gradient(circle at 38% 22%, rgb(255 255 255 / 92%) 0 7%, color-mix(in srgb, var(--note-accent) 38%, white) 10% 25%, var(--note-accent) 29% 53%, transparent 57%),
+    linear-gradient(90deg, transparent 43%, color-mix(in srgb, var(--note-accent) 65%, #4b5563) 45% 55%, transparent 57%) 50% 7px / 100% 5px no-repeat;
+  filter: drop-shadow(0 1px 1px rgb(18 38 63 / 28%));
+  transform: rotate(7deg);
+  transform-origin: 50% 25%;
+}
+
 .cal-date-list { gap: 8px; padding: 2px; }
-.cal-date-list .cal-note { min-height: 44px; padding: 6px 22px 6px 9px; }
-.cal-date-list .cal-note strong { display: -webkit-box; font-size: .75rem; -webkit-line-clamp: 2; }
+.cal-date-list .cal-note { min-height: 48px; padding: 6px 26px 6px 9px; }
+.cal-date-list .cal-note strong { display: -webkit-box; font-size: .75rem; -webkit-line-clamp: 1; }
 .cal-date-list .cal-note-meta,
-.cal-date-list .cal-note-source { display: block; font-size: .61rem; white-space: normal; }
+.cal-date-list .cal-note-source { font-size: .61rem; white-space: normal; }
+.cal-date-list .cal-note-source { display: none; }
 .cal-preview-notes .cal-note { min-height: 40px; }
 
 [data-slot="dialog-content"]:has(.cal-date-modal-body) {
@@ -3929,25 +3965,38 @@ span.dash-plotkey { cursor: default; }
 .cal-drawer-actions > :last-child { margin-left: auto; }
 
 /* The preview uses miniature note tabs rather than an unrelated dot system. */
-.dash-cal-marks { gap: 2px; }
+.dash-cal-marks { gap: 4px; }
 .dash-cal-marks i {
-  width: 18px;
-  height: 8px;
+  position: relative;
+  width: 28px;
+  height: 17px;
   border: 1px solid color-mix(in srgb, var(--note-accent) 15%, transparent);
   border-left: 3px solid var(--note-accent);
-  border-radius: 1px 3px 3px 1px;
+  border-radius: 2px 3px 3px 2px;
   background:
-    linear-gradient(225deg, var(--dash-surface) 0 2px, transparent 2.5px),
+    linear-gradient(108deg, rgb(255 255 255 / 16%), transparent 48%),
     var(--note-paper);
-  box-shadow: 0 1px 2px rgb(18 38 63 / 12%);
+  box-shadow: 0 1px 2px rgb(18 38 63 / 11%), 0 2px 4px rgb(18 38 63 / 5%);
 }
-.dash-cal-marks small { color: var(--dash-ink-soft); font-size: .48rem; font-weight: 750; line-height: 1; }
+.dash-cal-marks i::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 5px;
+  height: 5px;
+  border-radius: 0 3px 0 1px;
+  background: linear-gradient(225deg, var(--dash-surface) 0 47%, color-mix(in srgb, var(--note-accent) 18%, var(--note-paper)) 50%);
+  box-shadow: -1px 1px 1px rgb(18 38 63 / 6%);
+}
+.dash-cal-marks small { margin-left: -1px; color: var(--dash-ink-soft); font-size: .48rem; font-weight: 750; line-height: 1; }
 .dash-cal-key .cal-note-type { color: var(--note-accent); }
 
 @media (max-width: 700px) {
   .cal-detail-drawer-host .cal-drawer { width: min(100%, 470px); border-radius: 0; }
   [data-slot="dialog-content"]:has(.cal-date-modal-body) { width: calc(100vw - 16px); max-height: 86dvh; }
-  .dash-cal-marks i { width: 16px; }
+  .dash-cal-marks { gap: 3px; }
+  .dash-cal-marks i { width: 24px; height: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cal-note { transition: none; }
