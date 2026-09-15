@@ -317,6 +317,7 @@ function PublishSnapshotDialog({
   const [batchId, setBatchId] = React.useState<string>(NONE);
   const [baselineId, setBaselineId] = React.useState<string>(NONE);
   const [label, setLabel] = React.useState("");
+  const [manualDataDate, setManualDataDate] = React.useState("");
   const [publishing, setPublishing] = React.useState(false);
   const [published, setPublished] = React.useState<PlanningSnapshotSummary | null>(null);
   useMasterData("contact");
@@ -329,14 +330,17 @@ function PublishSnapshotDialog({
     void planningService.listActivities(project.id).then((items) => setActivityCount(items.length));
   }, [project.id]);
 
+  const isManual = batchId === NONE;
+
   const publish = async () => {
     setPublishing(true);
     try {
       const id = await planningService.publishSnapshot({
         projectId: project.id,
-        importBatchId: batchId === NONE ? undefined : batchId,
+        importBatchId: isManual ? undefined : batchId,
         baselineId: baselineId === NONE ? undefined : baselineId,
         label: label.trim() || undefined,
+        dataDate: isManual ? manualDataDate : undefined,
       });
       const created = await planningService.listSnapshots(project.id);
       setPublished(created.find((s) => s.id === id) ?? null);
@@ -394,6 +398,25 @@ function PublishSnapshotDialog({
                   </SelectContent>
                 </Select>
               </div>
+              {isManual && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="pub-data-date">
+                    Data Date <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="pub-data-date"
+                    type="date"
+                    value={manualDataDate}
+                    onChange={(e) => setManualDataDate(e.target.value)}
+                    className="max-w-48"
+                  />
+                  <p className="text-xs text-muted-foreground text-pretty">
+                    The schedule position this snapshot reports as of —
+                    required when publishing manually. An import batch
+                    already carries its own Data Date.
+                  </p>
+                </div>
+              )}
               <div className="grid gap-1.5">
                 <Label htmlFor="pub-baseline">Baseline (optional)</Label>
                 <Select value={baselineId} onValueChange={setBaselineId}>
@@ -420,6 +443,12 @@ function PublishSnapshotDialog({
               <p className="font-medium">Before you publish</p>
               <p>Source: {selectedBatch ? selectedBatch.sourceType : "Manual / current Master Plan"}</p>
               {selectedBatch?.fileName && <p>File: {selectedBatch.fileName}</p>}
+              <p>
+                Data Date:{" "}
+                {selectedBatch
+                  ? (selectedBatch.dataDate ?? "missing — this batch cannot be published")
+                  : (manualDataDate || "required — enter one above")}
+              </p>
               <p>Work items: {workItemCount ?? "…"} · Activities: {activityCount ?? "…"}</p>
               <p>
                 Project summary (as recorded): Planned {project.plannedProgress}% · Actual{" "}
@@ -441,7 +470,20 @@ function PublishSnapshotDialog({
               <Button variant="outline" onClick={onClose} disabled={publishing}>
                 Cancel
               </Button>
-              <Button onClick={() => void publish()} disabled={publishing}>
+              <Button
+                onClick={() => void publish()}
+                disabled={
+                  publishing ||
+                  (isManual ? !manualDataDate : !selectedBatch?.dataDate)
+                }
+                title={
+                  isManual && !manualDataDate
+                    ? "Enter a Data Date first"
+                    : !isManual && !selectedBatch?.dataDate
+                      ? "This import batch has no Data Date — re-import or contact Project Control"
+                      : undefined
+                }
+              >
                 {publishing ? "Publishing…" : "Publish Snapshot"}
               </Button>
             </>

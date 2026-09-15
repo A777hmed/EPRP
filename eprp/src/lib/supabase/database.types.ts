@@ -207,6 +207,8 @@ export interface PlanningSnapshotRow {
   baseline_id: string | null;
   is_opening_snapshot: boolean;
   label: string | null;
+  /** Planning Integration 3A. The schedule position this snapshot reports as of — never published_at. Null only for a pre-3A snapshot with no recoverable date. */
+  data_date: string | null;
   snapshot_data: unknown;
   published_by_contact_id: string | null;
   published_at: string;
@@ -312,6 +314,8 @@ export interface PlanningImportBatchRow {
   source_type: string;
   file_name: string | null;
   source_document_id: string | null;
+  /** Planning Integration 3A. The schedule's own Data Date — required before this batch can be published. */
+  data_date: string | null;
   status: string;
   row_count: number;
   uploaded_by_contact_id: string | null;
@@ -617,6 +621,14 @@ export interface WeeklyReportRow {
   hse_status: string | null;
   quality_status: string | null;
   overall_progress_status: string | null;
+  /**
+   * Planning Slice 1 column, exposed here in Planning Integration 3A. The
+   * exact Published Planning Snapshot this report was raised against, if
+   * any — nullable, since a project without one falls back to this
+   * report's own planned_progress/actual_progress. Not yet set by any
+   * write path; that wiring is a later integration slice.
+   */
+  planning_snapshot_id: string | null;
   /** Report-level Executive Summary (spec section 5). */
   summary: string | null;
   /**
@@ -743,6 +755,14 @@ export interface MonthlyReportRow {
   approved_by_contact_id: string | null;
   planned_progress: number;
   actual_progress: number;
+  /**
+   * Planning Slice 1 column, exposed here in Planning Integration 3A. The
+   * exact Published Planning Snapshot this report was raised against, if
+   * any — nullable, since a project without one falls back to this
+   * report's own planned_progress/actual_progress. Not yet set by any
+   * write path; that wiring is a later integration slice.
+   */
+  planning_snapshot_id: string | null;
   hse_status: string | null;
   quality_status: string | null;
   overall_progress_status: string | null;

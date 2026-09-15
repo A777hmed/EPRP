@@ -98,6 +98,7 @@ function mapSnapshot(row: PlanningSnapshotRow): PlanningSnapshot {
     baselineId: row.baseline_id ?? undefined,
     isOpeningSnapshot: row.is_opening_snapshot,
     label: row.label ?? undefined,
+    dataDate: row.data_date ?? undefined,
     snapshotData: row.snapshot_data,
     publishedByContactId: row.published_by_contact_id ?? undefined,
     publishedAt: row.published_at,
@@ -220,6 +221,7 @@ function mapImportBatch(row: PlanningImportBatchRow): PlanningImportBatch {
     sourceType: row.source_type as PlanningImportSourceFormat,
     fileName: row.file_name ?? undefined,
     sourceDocumentId: row.source_document_id ?? undefined,
+    dataDate: row.data_date ?? undefined,
     status: row.status as PlanningImportBatchStatus,
     rowCount: row.row_count,
     uploadedByContactId: row.uploaded_by_contact_id ?? undefined,
@@ -586,6 +588,13 @@ export const planningService = {
     projectId: string;
     sourceType: PlanningImportSourceFormat;
     fileName?: string;
+    /**
+     * The schedule's own Data Date (Planning Integration 3A) — detected
+     * from the file or entered by the user in the import wizard. Not
+     * optional in practice: the wizard requires it before this is called,
+     * and `publish_planning_snapshot()` refuses a batch without one.
+     */
+    dataDate?: string;
   }): Promise<PlanningImportBatch> {
     const { data, error } = await client()
       .from("planning_import_batches")
@@ -593,6 +602,7 @@ export const planningService = {
         project_id: input.projectId,
         source_type: input.sourceType,
         file_name: clean(input.fileName),
+        data_date: clean(input.dataDate),
       })
       .select("*")
       .single();
@@ -748,6 +758,17 @@ export const planningService = {
     return ((data ?? []) as PlanningSnapshotRow[]).map(mapSnapshot);
   },
 
+  /** One snapshot by id, or `null` if it does not exist (or is not visible under RLS). */
+  async getSnapshotById(id: string): Promise<PlanningSnapshot | null> {
+    const { data, error } = await client()
+      .from("planning_snapshots")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw await readFailure("read the planning snapshot", error);
+    return data ? mapSnapshot(data as PlanningSnapshotRow) : null;
+  },
+
   /** The current (highest-version) published snapshot, or `null` if none. */
   async getLatestSnapshot(projectId: string): Promise<PlanningSnapshot | null> {
     const { data, error } = await client()
@@ -758,6 +779,37 @@ export const planningService = {
       .limit(1)
       .maybeSingle();
     if (error) throw await readFailure("read the latest planning snapshot", error);
+    return data ? mapSnapshot(data as PlanningSnapshotRow) : null;
+  },
+
+  /**
+   * The snapshot a report dated `periodEnd` should resolve to (Planning
+   * Integration 3A): among published snapshots whose `dataDate` is not
+   * after `periodEnd`, the one with the LATEST dataDate — version only
+   * breaks a tie between snapshots sharing that same dataDate. A snapshot
+   * published later but reporting an EARLIER data date must still lose to
+   * one reporting a later (but still eligible) data date, however much
+   * higher its version — ordering by version first would let a later,
+   * lower-position publish incorrectly outrank an earlier, more current
+   * one. A `dataDate` after `periodEnd`, or null (a pre-3A snapshot with
+   * no recoverable date), is never eligible.
+   */
+  async getSnapshotForPeriod(
+    projectId: string,
+    periodEnd: string
+  ): Promise<PlanningSnapshot | null> {
+    const { data, error } = await client()
+      .from("planning_snapshots")
+      .select("*")
+      .eq("project_id", projectId)
+      .lte("data_date", periodEnd)
+      .order("data_date", { ascending: false })
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      throw await readFailure("resolve the planning snapshot for this period", error);
+    }
     return data ? mapSnapshot(data as PlanningSnapshotRow) : null;
   },
 
@@ -857,6 +909,14 @@ export const planningService = {
     isOpeningSnapshot?: boolean;
     label?: string;
     openingPositionId?: string;
+    /**
+     * Required (Planning Integration 3A) ONLY when publishing manually —
+     * neither an import batch nor an Opening Position. The database
+     * refuses to publish without one in that case; an import batch or
+     * Opening Position already carries its own Data Date and this must be
+     * left unset when either is provided.
+     */
+    dataDate?: string;
   }): Promise<string> {
     const { data, error } = await client().rpc("publish_planning_snapshot", {
       p_project_id: input.projectId,
@@ -865,6 +925,7 @@ export const planningService = {
       p_is_opening_snapshot: input.isOpeningSnapshot ?? false,
       p_label: input.label ?? null,
       p_opening_position_id: input.openingPositionId ?? null,
+      p_data_date: input.dataDate ?? null,
     });
     if (error) throw await writeFailure("publish the planning snapshot", error);
     return data as string;

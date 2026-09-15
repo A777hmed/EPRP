@@ -42,7 +42,10 @@ import { StatusBadge } from "@/components/shared";
 import { cn } from "@/lib/utils";
 import { planningService } from "@/services/planning-service";
 import type { PlanningImportSourceFormat } from "@/types";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
+  detectDataDate,
   EPRP_TEMPLATE_HEADERS,
   EPRP_TEMPLATE_SAMPLE,
   guessColumnMapping,
@@ -106,6 +109,8 @@ export function PlanningImportWizard({
   const [readError, setReadError] = React.useState<string | null>(null);
   const [dragging, setDragging] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  const [dataDate, setDataDate] = React.useState("");
+  const [dataDateDetected, setDataDateDetected] = React.useState(false);
 
   const reset = React.useCallback(() => {
     setStep("source");
@@ -117,6 +122,8 @@ export function PlanningImportWizard({
     setMappingConfirmed(false);
     setReadError(null);
     setDragging(false);
+    setDataDate("");
+    setDataDateDetected(false);
   }, []);
 
   const existingCodes = React.useMemo(
@@ -178,6 +185,11 @@ export function PlanningImportWizard({
       setRawRows(rows);
       setMapping(guessColumnMapping(columns, sourceType));
       setMappingConfirmed(false);
+
+      const detected = detectDataDate(columns, rows);
+      setDataDate(detected ?? "");
+      setDataDateDetected(Boolean(detected));
+
       setStep("mapping");
     } catch {
       setReadError("Could not read that file. Export it as .xlsx or .csv and try again.");
@@ -210,6 +222,7 @@ export function PlanningImportWizard({
         projectId,
         sourceType,
         fileName: fileName ?? undefined,
+        dataDate,
       });
       await planningService.saveImportRows(
         batch.id,
@@ -491,6 +504,28 @@ export function PlanningImportWizard({
                 added to the Master Plan yet — Planning Review confirms each
                 row from here.
               </p>
+
+              <div className="grid gap-1.5 rounded-lg border p-3">
+                <Label htmlFor="import-data-date">
+                  Data Date <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="import-data-date"
+                  type="date"
+                  value={dataDate}
+                  onChange={(event) => {
+                    setDataDate(event.target.value);
+                    setDataDateDetected(false);
+                  }}
+                  className="max-w-48"
+                />
+                <p className="text-xs text-muted-foreground text-pretty">
+                  {dataDateDetected
+                    ? "Detected from a Data Date / Status Date column in the file — confirm or change it."
+                    : "The schedule's own Data Date / Status Date, not today's date. Required before this batch can be published — it was not found in the file, so enter it from your schedule."}
+                </p>
+              </div>
+
               <div className="max-h-72 overflow-auto rounded-lg border">
                 <Table>
                   <TableHeader>
@@ -566,7 +601,11 @@ export function PlanningImportWizard({
             )}
 
             {step === "preview" && (
-              <Button onClick={() => void handleSaveDraft()} disabled={saving || !result.canImport}>
+              <Button
+                onClick={() => void handleSaveDraft()}
+                disabled={saving || !result.canImport || !dataDate}
+                title={!dataDate ? "Enter the schedule's Data Date first" : undefined}
+              >
                 {saving && (
                   <Loader2 data-icon="inline-start" className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
                 )}

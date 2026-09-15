@@ -175,6 +175,44 @@ export function guessColumnMapping(
   return mapping;
 }
 
+/* ------------------------------- data date --------------------------------- */
+
+/**
+ * Header synonyms for the schedule's own Data Date / Status Date — a
+ * schedule-level property, not a per-activity field, so it lives outside
+ * {@link PLANNING_IMPORT_FIELDS}/{@link FIELD_SYNONYMS} entirely. P6 and MS
+ * Project exports that carry it typically repeat the same value on every
+ * row, since the underlying file has one data date for the whole schedule.
+ */
+const DATA_DATE_SYNONYMS = ["data date", "status date", "as of date", "current data date"];
+
+/**
+ * Best-effort detection of a Data Date already present in the source file
+ * (Planning Integration 3A, blocker 1: "if the import source contains a
+ * recognizable P6/MS Project status/data date, use it").
+ *
+ * Deliberately conservative: a matching column must exist, and every row
+ * that states a value for it must agree — a file with a genuine schedule-
+ * wide Data Date will always satisfy this; one where the column means
+ * something else (or was mismatched) will not, and this returns
+ * `undefined` rather than guessing. The caller must then ask the user,
+ * never fall back to today's date.
+ */
+export function detectDataDate(
+  headers: string[],
+  rawRows: Record<string, unknown>[]
+): string | undefined {
+  const match = headers.find((header) => DATA_DATE_SYNONYMS.includes(normaliseHeader(header)));
+  if (!match) return undefined;
+
+  const values = new Set<string>();
+  for (const row of rawRows) {
+    const value = cellDate(row[match]);
+    if (value) values.add(value);
+  }
+  return values.size === 1 ? [...values][0] : undefined;
+}
+
 /* -------------------------------- parsing --------------------------------- */
 
 export interface ParsedImportRow {

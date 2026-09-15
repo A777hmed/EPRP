@@ -216,7 +216,7 @@ begin
          earned_value = 31000
    where id = v_activity;
 
-  select public.publish_planning_snapshot(p_project_id := P_A) into v_snap;
+  select public.publish_planning_snapshot(p_project_id := P_A, p_data_date := date '2026-09-10') into v_snap;
   perform pg_temp.chk(4, '4 SNAPSHOT COPY', 'publish succeeded', v_snap is not null);
 
   select external_id, status, actual_start_date, percent_complete_physical, planned_value, earned_value

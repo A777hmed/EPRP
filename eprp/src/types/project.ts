@@ -636,6 +636,15 @@ export interface PlanningSnapshot {
   baselineId?: string;
   isOpeningSnapshot: boolean;
   label?: string;
+  /**
+   * The schedule position this snapshot reports as of (Planning
+   * Integration 3A) — the real Data Date from the Opening Position or the
+   * import batch, never publishedAt. Optional only because a snapshot
+   * published before this existed may have no recoverable one; every
+   * snapshot published going forward is guaranteed one by
+   * `publish_planning_snapshot()`, which refuses to publish without it.
+   */
+  dataDate?: IsoDate;
   /** Captured work items, activities and milestone links at publish time. */
   snapshotData: unknown;
   publishedByContactId?: string;
@@ -795,6 +804,13 @@ export interface PlanningImportBatch {
   sourceType: PlanningImportSourceFormat;
   fileName?: string;
   sourceDocumentId?: string;
+  /**
+   * The schedule's own Data Date / Status Date (Planning Integration 3A)
+   * — detected from a recognizable column in the source file, or entered
+   * by the user in the import wizard. Required before this batch can be
+   * published; `publish_planning_snapshot()` refuses one with none.
+   */
+  dataDate?: IsoDate;
   status: PlanningImportBatchStatus;
   rowCount: number;
   uploadedByContactId?: string;

@@ -259,7 +259,9 @@ begin
   values (P_A, 'Abandoned Draft Baseline', date '2026-08-01')
   returning id into v_baseline_unreferenced;
 
-  select public.publish_planning_snapshot(p_project_id := P_A, p_baseline_id := v_baseline_referenced) into v_snap2;
+  select public.publish_planning_snapshot(
+    p_project_id := P_A, p_baseline_id := v_baseline_referenced, p_data_date := date '2026-10-05'
+  ) into v_snap2;
   select version into v_version from public.planning_snapshots where id = v_snap2;
   perform pg_temp.chk(3, '3 SECOND SNAPSHOT', 'second publish is version 2', v_version = 2, 'got ' || v_version);
 
@@ -289,7 +291,7 @@ begin
 
   -- Re-publishing again produces v3 with the RENAMED content; v2 must still
   -- read the original name, proving snapshots never regenerate retroactively.
-  perform public.publish_planning_snapshot(p_project_id := P_A);
+  perform public.publish_planning_snapshot(p_project_id := P_A, p_data_date := date '2026-10-12');
   select name into v_name from public.planning_snapshot_activities
    where snapshot_id = v_snap2 and source_activity_id = v_activity;
   perform pg_temp.chk(4, '4 IMMUTABILITY', 'v2''s activity history is unaffected by a v3 publish',
