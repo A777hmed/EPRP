@@ -34,6 +34,8 @@ import {
   checkWeeklyTransition,
   contentFrozenReason,
 } from "@/features/weekly-reports/lifecycle-guards";
+import { deriveWeeklyPlanningFigures } from "@/features/weekly-reports/planning-integration";
+import { planningRollupService } from "./planning-rollup-service";
 import { projectService } from "./project-service";
 import type {
   WeeklyReportCreateInput,
@@ -78,6 +80,44 @@ async function assertContentEditable(
     (data as { status: string }).status as ReportStatus
   );
   if (frozen) throw new Error(frozen);
+}
+
+/**
+ * Refuse to change planned/actual progress on a Planning-backed report
+ * (3B, rule 3: "no silent override path").
+ *
+ * Read from the database, not from the caller's own copy, for the same
+ * reason `assertContentEditable` does: a client holding a stale report
+ * object must not be able to bypass this by never re-fetching it.
+ *
+ * `create()` only ever pins `planning_snapshot_id` when the rollup was
+ * usable, so a pinned snapshot found here should always be
+ * `planningBacked`. Recomputed and re-checked anyway rather than trusted
+ * by the mere presence of the id, so this guard cannot be defeated by a
+ * future change to the pinning rule without also changing this file.
+ */
+async function assertProgressEditable(
+  sb: SupabaseClient,
+  reportId: string
+): Promise<void> {
+  const { data, error } = await sb
+    .from("weekly_reports")
+    .select("planning_snapshot_id")
+    .eq("id", reportId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error(`Weekly report ${reportId} not found`);
+
+  const snapshotId = (data as { planning_snapshot_id: string | null })
+    .planning_snapshot_id;
+  if (!snapshotId) return;
+
+  const rollup = await planningRollupService.computeSnapshotRollup(snapshotId);
+  if (deriveWeeklyPlanningFigures(rollup).planningBacked) {
+    throw new Error(
+      "Planned and Actual Progress are governed by the Published Planning Snapshot on this report and cannot be edited manually."
+    );
+  }
 }
 
 function rowToSubmission(row: WeeklySubmissionRow): WeeklySubmission {
@@ -205,6 +245,7 @@ function rowToReport(
     periodEnd: row.period_end,
     plannedProgress: row.planned_progress,
     actualProgress: row.actual_progress,
+    planningSnapshotId: row.planning_snapshot_id ?? undefined,
     preparedByContactId: row.prepared_by_contact_id ?? undefined,
     reviewedByContactId: row.reviewed_by_contact_id ?? undefined,
     approvedByContactId: row.approved_by_contact_id ?? undefined,
@@ -309,6 +350,33 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
     // Week numbering uses the Monday anchor — see getReportingWeekRange.
     const weekNumber = getWeekNumber(anchor);
     const year = getReportingYear(anchor);
+    const periodEnd = toIsoDate(end);
+
+    /*
+     * Planning Integration 3B — resolved ONCE, here, and never again for
+     * this report. The pin is permanent: `getSnapshotForPeriod` is never
+     * called again for an existing report, so a later, newer snapshot
+     * publish cannot retroactively change what this week reports against.
+     *
+     * The report is pinned to the snapshot ONLY when its rollup actually
+     * has both a Planned and an Actual figure. A snapshot that resolves
+     * but has no usable weighted schedule data yet is NOT pinned at all —
+     * planning_snapshot_id stays null and this report is never labeled or
+     * locked as Planning-backed, exactly as if no snapshot had resolved.
+     * Pinning "for provenance" alone, with the report still falling back
+     * to manual entry, was rejected: a report either has a governed basis
+     * or it doesn't, never a snapshot reference with nothing governed
+     * behind it.
+     */
+    const snapshot = await planningRollupService.getSnapshotForPeriod(
+      project.id,
+      periodEnd
+    );
+    const figures = snapshot
+      ? deriveWeeklyPlanningFigures(
+          await planningRollupService.computeSnapshotRollup(snapshot.id)
+        )
+      : deriveWeeklyPlanningFigures(null);
 
     const { data, error } = await client()
       .from("weekly_reports")
@@ -324,9 +392,14 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
         source: "platform",
         week_number: weekNumber,
         period_start: toIsoDate(start),
-        period_end: toIsoDate(end),
-        planned_progress: input.plannedProgress ?? project.plannedProgress,
-        actual_progress: input.actualProgress ?? project.actualProgress,
+        period_end: periodEnd,
+        planning_snapshot_id: figures.planningBacked ? snapshot!.id : null,
+        planned_progress: figures.planningBacked
+          ? Math.round(figures.plannedProgress!)
+          : (input.plannedProgress ?? project.plannedProgress),
+        actual_progress: figures.planningBacked
+          ? Math.round(figures.actualProgress!)
+          : (input.actualProgress ?? project.actualProgress),
         prepared_by_contact_id:
           input.preparedByContactId ?? project.reportingCoordinatorId ?? null,
         discipline_ids: input.disciplineIds,
@@ -368,6 +441,10 @@ export const supabaseWeeklyReportService: WeeklyReportService = {
   },
 
   async update(id, input: WeeklyReportUpdateInput) {
+    if (input.plannedProgress !== undefined || input.actualProgress !== undefined) {
+      await assertProgressEditable(client(), id);
+    }
+
     const patch: Record<string, unknown> = {};
     if (input.periodStart) {
       const { start, end, anchor } = getReportingWeekRange(input.periodStart);

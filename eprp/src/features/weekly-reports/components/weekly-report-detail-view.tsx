@@ -36,6 +36,10 @@ import {
   ReportTypeTabs,
 } from "@/features/projects/components/sections/project-reporting-shell";
 import { projectService } from "@/services/project-service";
+import {
+  planningRollupService,
+  type PlanningSnapshotRollup,
+} from "@/services/planning-rollup-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
 import type {
   Contact,
@@ -210,6 +214,15 @@ export function WeeklyReportDetailView({
   const [activities, setActivities] = React.useState<WeeklyActivity[]>([]);
   const [entries, setEntries] = React.useState<WeeklyEntry[]>([]);
   const [planItems, setPlanItems] = React.useState<WeeklyPlanItem[]>([]);
+  /**
+   * The rollup for `report.planningSnapshotId` (Planning Integration 3B).
+   * `null` means "no pinned snapshot" (the fallback path) — distinct from
+   * `undefined`, which means "not resolved yet", so the summary never
+   * flashes fallback figures while this is still loading.
+   */
+  const [planningRollup, setPlanningRollup] = React.useState<
+    PlanningSnapshotRollup | null | undefined
+  >(undefined);
   const [previousRaw, setPreviousRaw] = React.useState<{
     report: WeeklyReport;
     submissions: WeeklySubmission[];
@@ -283,6 +296,7 @@ export function WeeklyReportDetailView({
       setActivities([]);
       setEntries([]);
       setPlanItems([]);
+      setPlanningRollup(undefined);
       setPreviousRaw(null);
 
       try {
@@ -299,8 +313,12 @@ export function WeeklyReportDetailView({
          * scope are critical; optional planning/history data must never keep
          * them in a permanent loading state if one additive table is missing
          * or temporarily unavailable.
+         *
+         * The rollup is fetched by the report's PINNED snapshot id, never
+         * re-resolved by project/period — an existing report must always
+         * read what it was pinned to, not "the latest" (3B).
          */
-        const [subs, proj, acts, rows, plans, reports] =
+        const [subs, proj, acts, rows, plans, reports, rollup] =
           await Promise.allSettled([
             weeklyReportService.listSubmissions(r.id),
             projectService.getProjectById(r.projectId),
@@ -308,6 +326,9 @@ export function WeeklyReportDetailView({
             weeklyReportService.listEntries(r.id),
             weeklyReportService.listPlanItems(r.id),
             weeklyReportService.list(),
+            r.planningSnapshotId
+              ? planningRollupService.computeSnapshotRollup(r.planningSnapshotId)
+              : Promise.resolve(null),
           ]);
         if (cancelled) return;
 
@@ -315,6 +336,7 @@ export function WeeklyReportDetailView({
         setActivities(acts.status === "fulfilled" ? acts.value : []);
         setEntries(rows.status === "fulfilled" ? rows.value : []);
         setPlanItems(plans.status === "fulfilled" ? plans.value : []);
+        setPlanningRollup(rollup.status === "fulfilled" ? rollup.value : null);
 
         if (proj.status === "fulfilled") {
           setProject(proj.value);
@@ -418,8 +440,15 @@ export function WeeklyReportDetailView({
   const workspace = React.useMemo(() => {
     if (!report || !project || !scope) return null;
     if (!belongsToScopeProject(scope, project.id)) return null;
-    return buildWeeklyWorkspace(project, report, submissions, scope, entries);
-  }, [report, project, scope, submissions, entries]);
+    return buildWeeklyWorkspace(
+      project,
+      report,
+      submissions,
+      scope,
+      entries,
+      planningRollup
+    );
+  }, [report, project, scope, submissions, entries, planningRollup]);
 
   const previous = React.useMemo<PreviousWeeklyData | null>(() => {
     if (!previousRaw || !project || !scope) return null;

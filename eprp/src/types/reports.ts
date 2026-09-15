@@ -217,6 +217,17 @@ export interface WeeklyReport extends ReportBase {
   weekNumber: number; // ISO week of periodStart
   plannedProgress: number; // cumulative planned %
   actualProgress: number; // cumulative actual %
+  /**
+   * The Published Planning Snapshot this report is pinned to (Planning
+   * Integration 3B) — resolved once at creation (the latest snapshot whose
+   * data_date <= this report's periodEnd) and never re-resolved afterward.
+   * Nullable, and set ONLY when that snapshot's rollup actually has both a
+   * Planned and an Actual figure: an eligible snapshot with no usable
+   * weighted data yet is never pinned "for provenance" alone. Null means
+   * plannedProgress/actualProgress are direct manual entry, exactly as if
+   * no snapshot had ever resolved.
+   */
+  planningSnapshotId?: string;
   /** Disciplines in scope for this reporting week (master-data ids). */
   disciplineIds: string[];
   /** Cumulative man-hours expended to the end of this reporting week. */

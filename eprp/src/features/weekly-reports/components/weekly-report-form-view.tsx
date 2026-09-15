@@ -9,8 +9,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState, PageHeader } from "@/components/shared";
 import { projectService } from "@/services/project-service";
+import {
+  planningRollupService,
+  type PlanningSnapshotRollup,
+} from "@/services/planning-rollup-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
 import type { Project, WeeklyActivity, WeeklyReport } from "@/types";
+import { deriveWeeklyPlanningFigures } from "../planning-integration";
 import {
   emptyWeeklyReportHeaderValues,
   weeklyReportToHeaderValues,
@@ -53,6 +58,16 @@ export function WeeklyReportFormView({
     report: WeeklyReport | null;
     activities: WeeklyActivity[];
   } | null>(isEdit ? null : { report: null, activities: [] });
+  /**
+   * The rollup for the report's pinned snapshot (Planning Integration 3B),
+   * loaded by id — never re-resolved by project/period. `null` once
+   * resolved means "no pinned snapshot"; `undefined` means "not resolved
+   * yet", so the form does not briefly render editable fields for a report
+   * that turns out to be Planning-backed.
+   */
+  const [planningProvenance, setPlanningProvenance] = React.useState<
+    PlanningSnapshotRollup | null | undefined
+  >(isEdit ? undefined : null);
 
   React.useEffect(() => {
     projectService.getProjects().then(setProjects);
@@ -60,16 +75,31 @@ export function WeeklyReportFormView({
     weeklyReportService.getById(reportId).then(async (found) => {
       if (!found) {
         setLoaded({ report: null, activities: [] });
+        setPlanningProvenance(null);
         return;
       }
       // Neither submissions nor management items are loaded here: this form
       // edits neither. Both belong to the workspace.
       const activities = await weeklyReportService.listActivities(found.id);
       setLoaded({ report: found, activities });
+      if (found.planningSnapshotId) {
+        planningRollupService
+          .computeSnapshotRollup(found.planningSnapshotId)
+          .then(setPlanningProvenance);
+      } else {
+        setPlanningProvenance(null);
+      }
     });
   }, [reportId]);
 
-  if (projects === null || loaded === null) {
+  if (
+    projects === null ||
+    loaded === null ||
+    // Wait for the pinned snapshot's rollup before rendering, so a
+    // Planning-backed report never briefly shows its progress fields as
+    // editable while that resolution is still in flight.
+    planningProvenance === undefined
+  ) {
     return <LoadingState variant="page" label="Loading weekly report header…" />;
   }
 
@@ -114,14 +144,26 @@ export function WeeklyReportFormView({
       ? `/projects/${fixedProjectId}/reports/weekly/${createdId}`
       : `/weekly-reports/${createdId}`;
 
+  // Planning Integration 3B: a Planning-backed report's Planned/Actual
+  // Progress are rendered read-only (see WeeklyReportHeaderForm) and are
+  // never part of a save from here either — omitted entirely rather than
+  // resent unchanged, so there is no path, silent or otherwise, by which
+  // this form could touch them. The service independently refuses the
+  // same edit if it is ever attempted another way.
+  const planningBacked = deriveWeeklyPlanningFigures(planningProvenance).planningBacked;
+
   const handleSaveDraft = async (values: WeeklyReportHeaderValues) => {
     // Man-hours is optional: NaN maps to null so clearing a saved value persists.
     const manHoursToDate = Number.isNaN(values.manHoursToDate)
       ? null
       : values.manHoursToDate;
     const kpis = {
-      plannedProgress: values.plannedProgress,
-      actualProgress: values.actualProgress,
+      ...(planningBacked
+        ? {}
+        : {
+            plannedProgress: values.plannedProgress,
+            actualProgress: values.actualProgress,
+          }),
       manHoursToDate,
       hseStatus: values.hseStatus,
       qualityStatus: values.qualityStatus,
@@ -202,6 +244,7 @@ export function WeeklyReportFormView({
         // Locked on edit (as before) and on a project-scoped create, where the
         // project is the context the user is already standing in.
         projectLocked={isEdit || projectScoped}
+        planningProvenance={planningProvenance}
         onSaveDraft={handleSaveDraft}
         onCancel={() =>
           router.push(

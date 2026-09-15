@@ -133,8 +133,27 @@ export function WeeklyProgressSummary({
           value={`${summary.variance > 0 ? "+" : ""}${summary.variance}%`}
           tone={tone}
         />
-        <Figure label="SPI" value={summary.spi.toFixed(2)} tone={tone} />
+        <Figure
+          label="SPI"
+          value={summary.spi === null ? "N/A" : summary.spi.toFixed(2)}
+          tone={tone}
+        />
       </div>
+
+      {summary.planningBacked && (
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+          <StatusBadge tone="info">Planning-backed</StatusBadge>
+          <span>
+            Snapshot v{summary.snapshotVersion}
+            {summary.dataDate ? ` · Data Date ${summary.dataDate}` : ""}
+            {typeof summary.coveragePercent === "number"
+              ? ` · Coverage ${summary.coveragePercent.toFixed(0)}%`
+              : ""}
+            . Planned/Actual Progress are governed by this snapshot and
+            cannot be edited manually.
+          </span>
+        </p>
+      )}
 
       {/* Said only when the recorded verdict and the arithmetic disagree. */}
       {!summary.statusAgrees && stated && (
