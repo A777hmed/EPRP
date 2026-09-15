@@ -22,7 +22,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { EVENT_TYPE_META, type CalendarEvent } from "./calendar-types";
-import { CalendarDetailModal, StickyEventCard, dateLabel } from "./calendar-workspace";
+import { CalendarDetailModal, StickyEventCard, dateLabel, eventNoteTypeClass } from "./calendar-workspace";
 import {
   addDays,
   isoDate,
@@ -76,12 +76,12 @@ export function CalendarPreview({
   /* The key lists the types actually present in the visible month — a fixed
      legend would advertise categories the scope contains nothing of. */
   const legend = React.useMemo(() => {
-    const seen = new Map<string, string>();
+    const seen = new Map<CalendarEvent["type"], string>();
     for (const event of calendar.events) {
       const meta = EVENT_TYPE_META[event.type];
-      if (!seen.has(meta.tone)) seen.set(meta.tone, meta.label);
+      if (!seen.has(event.type)) seen.set(event.type, meta.label);
     }
-    return [...seen.entries()].map(([tone, label]) => ({ tone, label }));
+    return [...seen.entries()].map(([type, label]) => ({ type, label }));
   }, [calendar.events]);
 
   const selected = byDate.get(selectedDate) ?? [];
@@ -171,9 +171,10 @@ export function CalendarPreview({
                   >
                     <span className="dash-cal-date">{day.getDate()}</span>
                     <span className="dash-cal-marks" aria-hidden>
-                      {events.slice(0, 3).map((event) => (
-                        <i key={event.id} className={`cal-chip-${EVENT_TYPE_META[event.type].tone}`} />
+                      {events.slice(0, 2).map((event) => (
+                        <i key={event.id} className={eventNoteTypeClass(event.type)} />
                       ))}
+                      {events.length > 2 && <small>+{events.length - 2}</small>}
                     </span>
                   </button>
                 );
@@ -187,7 +188,7 @@ export function CalendarPreview({
               <ul className="cal-preview-notes">
                 {selected.slice(0, 2).map((event) => (
                   <li key={event.id}>
-                    <StickyEventCard event={event} onOpen={(item) => { setDetailDate(selectedDate); setSelectedEvent(item); }} />
+                    <StickyEventCard compact event={event} onOpen={(item) => { setDetailDate(selectedDate); setSelectedEvent(item); }} />
                   </li>
                 ))}
                 {selected.length > 2 && (
@@ -201,7 +202,7 @@ export function CalendarPreview({
             <div className="dash-cal-key">
               {legend.length ? (
                 legend.map((entry) => (
-                  <span key={entry.tone} className={`cal-chip-${entry.tone}`}>
+                  <span key={entry.type} className={eventNoteTypeClass(entry.type)}>
                     <i aria-hidden />
                     {entry.label}
                   </span>

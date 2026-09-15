@@ -113,7 +113,7 @@ function CalendarWorkspaceContent({ canManage, initialDate, initialProject, init
     setSelected(event);
     setDetailDate(null);
     setCreatingOn(undefined);
-    setDrawerOpen(false);
+    setDrawerOpen(true);
   };
 
   const openDate = (date: string) => {
@@ -238,7 +238,7 @@ function CalendarWorkspaceContent({ canManage, initialDate, initialProject, init
         ))}
       </div>
 
-      <div className={drawerOpen ? "cal-body has-drawer" : "cal-body"}>
+      <div className="cal-body">
         <div className="cal-surface">
           {calendar.loading ? (
             <LoadingState label="Loading calendar…" />
@@ -265,19 +265,23 @@ function CalendarWorkspaceContent({ canManage, initialDate, initialProject, init
         </div>
 
         {drawerOpen && (
-          <EventDrawer
-            event={selected}
-            createOn={creatingOn}
-            projects={calendar.projects}
-            departments={calendar.departments}
-            contacts={calendar.contacts}
-            canManage={canManage}
-            onClose={() => setDrawerOpen(false)}
-            onChanged={calendar.reload}
-          />
+          <div className="cal-detail-drawer-host" onMouseDown={(event) => {
+            if (event.target === event.currentTarget) { setDrawerOpen(false); setSelected(null); }
+          }}>
+            <EventDrawer
+              event={selected ? calendar.all.find((event) => event.id === selected.id) ?? selected : null}
+              createOn={creatingOn}
+              projects={calendar.projects}
+              departments={calendar.departments}
+              contacts={calendar.contacts}
+              canManage={canManage}
+              onClose={() => { setDrawerOpen(false); setSelected(null); }}
+              onChanged={calendar.reload}
+            />
+          </div>
         )}
       </div>
-      <CalendarDetailModal date={detailDate} event={selected} events={events} calendar={calendar} canManage={canManage}
+      <CalendarDetailModal date={detailDate} event={drawerOpen ? null : selected} events={events} calendar={calendar} canManage={canManage}
         onSelect={setSelected} onClose={() => { setDetailDate(null); setSelected(null); }}
         onCreate={canManage ? openCreate : undefined} />
     </div>
@@ -506,19 +510,29 @@ export function dateLabel(date: string): string {
   });
 }
 
+export function eventNoteTypeClass(type: CalendarEventType): string {
+  return `cal-note-type cal-note-type-${type.replace("_", "-")}`;
+}
+
 /** Presentation only: every source supplies the existing CalendarEvent contract. */
-export function StickyEventCard({ event, onOpen }: { event: CalendarEvent; onOpen: (event: CalendarEvent) => void }) {
+export function StickyEventCard({ event, onOpen, compact = false }: {
+  event: CalendarEvent;
+  onOpen: (event: CalendarEvent) => void;
+  compact?: boolean;
+}) {
   const meta = EVENT_TYPE_META[event.type];
   const title = event.title?.trim() || "Untitled event";
-  const project = event.projectName?.trim() || "Project";
+  const project = event.projectName?.trim() || "Project not recorded";
   const status = EVENT_STATUS_LABEL[event.status];
-  const summary = [meta.label, timeRangeLabel(event), status].filter(Boolean).join(" · ");
-  return <button type="button" className={`cal-note cal-chip-${meta.tone}`} onClick={() => onOpen(event)}
-    title={`${title} · ${project} · ${summary}`}>
+  const timing = timeRangeLabel(event);
+  const metadata = compact ? [timing, meta.short] : [timing, project];
+  return <button type="button" className={`cal-note ${eventNoteTypeClass(event.type)}${compact ? " is-compact" : ""}`}
+    onClick={() => onOpen(event)} aria-label={`Open ${title}, ${meta.label}, ${timing}, ${project}`}
+    title={`${title} · ${project} · ${meta.label} · ${timing} · ${status}`}>
     <strong>{title}</strong>
-    <span className="cal-note-project">{project}</span>
-    <span className="cal-note-meta">{summary}</span>
-    {event.origin === "derived" && <span className="cal-note-source">{event.sourceLabel || "Linked event"} · Read only</span>}
+    <span className="cal-note-meta">{metadata.join(" · ")}</span>
+    {!compact && <span className="cal-note-source">{event.origin === "derived" ?
+      `${event.sourceLabel || "Linked source"} · Read only` : `${meta.label} · ${status}`}</span>}
   </button>;
 }
 
@@ -531,19 +545,28 @@ export function CalendarDetailModal({ date, event, events, calendar, canManage, 
   const items = events.filter((item) => item.date === date);
   // Resolve against refreshed data after edits; preserve selection while a reload is pending.
   const current = event ? calendar.all.find((item) => item.id === event.id) ?? event : null;
-  return <DetailModal open={Boolean(date || event)} onOpenChange={(open) => { if (!open) onClose(); }}
-    title={current?.title || (date ? dateLabel(date) : "Event details")}
-    description={current ? "Event details" : `${items.length} events in the current filters`}
-    onBack={date && current ? () => onSelect(null) : undefined} backLabel="Back to date"
-    toolbar={!current && date && onCreate ? <Button size="sm" onClick={() => onCreate(date)}><Plus aria-hidden /> Add Event</Button> : undefined}>
-    {calendar.loading ? <LoadingState label="Loading events…" /> : calendar.error ?
-      <EmptyState title="Calendar unavailable" description={calendar.error} icon={CalendarDays} /> : current ?
-      <div className="cal-modal-detail"><EventDrawer key={current.id} event={current} projects={calendar.projects}
+  const closeDetail = date ? () => onSelect(null) : onClose;
+  if (current) {
+    return <div className="cal-detail-drawer-host" onMouseDown={(click) => {
+      if (click.target === click.currentTarget) closeDetail();
+    }}>
+      <EventDrawer key={current.id} event={current} projects={calendar.projects}
         departments={calendar.departments} contacts={calendar.contacts} canManage={canManage}
-        onChanged={calendar.reload} onClose={date ? () => onSelect(null) : onClose} /></div> :
-      items.length ? <div className="cal-date-list">{items.map((item) =>
-        <StickyEventCard key={item.id} event={item} onOpen={onSelect} />)}</div> :
-        <EmptyState title="Nothing scheduled" description="No events for this date match the current filters." icon={CalendarDays} />}
+        onChanged={calendar.reload} onClose={closeDetail} />
+    </div>;
+  }
+
+  return <DetailModal open={Boolean(date)} onOpenChange={(open) => { if (!open) onClose(); }}
+    title={date ? dateLabel(date) : "Events"}
+    description={`${items.length} events in the current filters`}
+    toolbar={date && onCreate ? <Button size="sm" onClick={() => onCreate(date)}><Plus aria-hidden /> Add Event</Button> : undefined}>
+    <div className="cal-date-modal-body">
+      {calendar.loading ? <LoadingState label="Loading events…" /> : calendar.error ?
+        <EmptyState title="Calendar unavailable" description={calendar.error} icon={CalendarDays} /> :
+        items.length ? <div className="cal-date-list">{items.map((item) =>
+          <StickyEventCard key={item.id} event={item} onOpen={onSelect} />)}</div> :
+          <EmptyState title="Nothing scheduled" description="No events for this date match the current filters." icon={CalendarDays} />}
+    </div>
   </DetailModal>;
 }
 

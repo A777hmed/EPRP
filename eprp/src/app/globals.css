@@ -3744,7 +3744,218 @@ span.dash-plotkey { cursor: default; }
   .dash-bar-track i { animation: none !important; transition: none !important; opacity: 1 !important; transform: none !important; }
 }
 
-/* ==========================================================================
+/* ---------------------- Calendar approved note refinement ----------------- */
+
+/* The paper note is the Calendar's one tactile element. Its type mapping is
+   shared by the full grid, date list and Dashboard preview. */
+.cal-note-type-mom,
+.cal-note-type-kom { --note-paper: #eee8fb; --note-accent: #7558bd; }
+.cal-note-type-meeting { --note-paper: #ddf4e9; --note-accent: #197f61; }
+.cal-note-type-milestone { --note-paper: #ddecfa; --note-accent: #2b72b8; }
+.cal-note-type-workshop { --note-paper: #fbe4d8; --note-accent: #ad5b3f; }
+.cal-note-type-client-meeting { --note-paper: #f8dfe5; --note-accent: #a94f68; }
+.cal-note-type-reminder,
+.cal-note-type-report-due { --note-paper: #faedba; --note-accent: #98700d; }
+
+.cal-note {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  align-content: center;
+  gap: 1px;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 5px 19px 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--note-accent) 14%, transparent);
+  border-left: 3px solid var(--note-accent);
+  border-radius: 3px 6px 6px 3px;
+  background:
+    linear-gradient(108deg, rgb(255 255 255 / 24%), transparent 42%),
+    var(--note-paper);
+  box-shadow: 0 1px 2px rgb(18 38 63 / 10%), 0 3px 6px rgb(18 38 63 / 6%);
+  color: var(--note-accent);
+  cursor: pointer;
+  text-align: left;
+  transition: box-shadow .16s ease, filter .16s ease, transform .16s ease;
+}
+.cal-note:hover {
+  filter: saturate(1.02);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 3px rgb(18 38 63 / 11%), 0 5px 8px rgb(18 38 63 / 8%);
+}
+.cal-note:active { transform: translateY(0); }
+.cal-note::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 0 5px 0 1px;
+  background: linear-gradient(225deg, var(--dash-surface) 48%, color-mix(in srgb, var(--note-accent) 20%, var(--note-paper)) 50%);
+}
+.cal-note strong {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #14263e;
+  font-size: .67rem;
+  font-weight: 750;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+.cal-note-meta,
+.cal-note-source {
+  min-width: 0;
+  overflow: hidden;
+  color: #41536b;
+  font-size: .575rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-note-source { display: none; color: #53647a; }
+.cal-monthbody { grid-auto-rows: 140px; }
+.cal-monthcell { gap: 1px; padding: 2px 4px; overflow: hidden; }
+.cal-date-button { min-height: 20px; padding: 0 2px; }
+.cal-date-button b { width: 20px; height: 20px; }
+.cal-monthcell-events { gap: 1px; }
+.cal-monthcell .cal-note { min-height: 34px; padding-block: 3px; }
+.cal-monthcell .cal-note strong { font-size: .64rem; }
+.cal-monthcell .cal-note-meta { font-size: .54rem; }
+.cal-monthcell .cal-more { padding: 0 3px; font-size: .58rem; line-height: 1; }
+
+.cal-date-list { gap: 8px; padding: 2px; }
+.cal-date-list .cal-note { min-height: 44px; padding: 6px 22px 6px 9px; }
+.cal-date-list .cal-note strong { display: -webkit-box; font-size: .75rem; -webkit-line-clamp: 2; }
+.cal-date-list .cal-note-meta,
+.cal-date-list .cal-note-source { display: block; font-size: .61rem; white-space: normal; }
+.cal-preview-notes .cal-note { min-height: 40px; }
+
+[data-slot="dialog-content"]:has(.cal-date-modal-body) {
+  width: min(1080px, calc(100vw - 32px));
+  height: auto;
+  max-height: min(78dvh, 720px);
+  max-width: 1080px;
+}
+[data-slot="dialog-content"]:has(.cal-date-modal-body) > div:nth-child(2) { flex: 0 1 auto; }
+.cal-date-modal-body { min-height: 0; }
+
+.dark .cal-note-type {
+  --note-paper: color-mix(in srgb, var(--note-accent) 20%, var(--dash-surface));
+}
+.dark .cal-note {
+  border-color: color-mix(in srgb, var(--note-accent) 36%, transparent);
+  border-left-color: var(--note-accent);
+  background:
+    linear-gradient(108deg, rgb(255 255 255 / 5%), transparent 42%),
+    var(--note-paper);
+}
+.dark .cal-note strong { color: var(--dash-ink); }
+.dark .cal-note-meta,
+.dark .cal-note-source { color: var(--dash-ink-soft); }
+
+.cal-detail-drawer-host {
+  position: fixed;
+  z-index: 70;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  background: rgb(12 36 66 / 18%);
+}
+.cal-detail-drawer-host .cal-drawer {
+  width: min(470px, calc(100vw - 16px));
+  height: 100dvh;
+  max-height: 100dvh;
+  border-radius: 12px 0 0 12px;
+  box-shadow: -12px 0 34px rgb(18 38 63 / 18%);
+}
+.cal-drawer {
+  max-height: calc(100dvh - 9rem);
+  border-radius: 12px;
+  box-shadow: 0 14px 38px rgb(18 38 63 / 14%);
+}
+.cal-drawer-head {
+  align-items: flex-start;
+  padding: 20px 21px 16px;
+  background: linear-gradient(180deg, var(--dash-surface) 0%, var(--dash-surface-2) 100%);
+}
+.cal-drawer-head > div { display: grid; gap: 4px; min-width: 0; }
+.cal-drawer-head h2 { margin: 3px 0 0; color: var(--dash-ink); font-size: 1.16rem; line-height: 1.25; }
+.cal-drawer-head p { margin: 0; color: var(--dash-ink-soft); font-size: .76rem; line-height: 1.4; }
+.cal-drawer-head button {
+  display: grid;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border-radius: 8px;
+}
+.cal-drawer-body { padding: 17px 21px 21px; }
+.cal-detail-chips { margin-bottom: 14px; }
+.cal-detail-summary {
+  display: grid;
+  gap: 1px;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--dash-blue) 10%, var(--dash-edge));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--dash-blue) 5%, var(--dash-surface));
+}
+.cal-detail-section { display: grid; gap: 1px; margin-top: 14px; padding: 10px 0; border-block: 1px solid var(--dash-edge); }
+.cal-detail-row { grid-template-columns: 19px 92px minmax(0, 1fr); gap: 9px; padding: 6px 0; }
+.cal-detail-icon { color: var(--dash-ink-soft); }
+.cal-detail-icon svg { width: 16px; height: 16px; stroke-width: 1.8; }
+.cal-detail-label { padding-top: 1px; font-size: .61rem; }
+.cal-detail-value { color: var(--dash-ink); font-size: .75rem; line-height: 1.45; }
+.cal-detail-block { margin-top: 17px; padding-top: 15px; border-top-color: var(--dash-edge); }
+.cal-attendee-list { gap: 7px; }
+.cal-attendee-list li { align-items: center; }
+.cal-attendee-avatar {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--dash-tint-blue);
+  color: var(--dash-blue);
+  font-size: .58rem;
+  font-style: normal;
+  font-weight: 800;
+}
+.cal-drawer-actions { padding-top: 4px; }
+.cal-drawer-actions > :last-child { margin-left: auto; }
+
+/* The preview uses miniature note tabs rather than an unrelated dot system. */
+.dash-cal-marks { gap: 2px; }
+.dash-cal-marks i {
+  width: 18px;
+  height: 8px;
+  border: 1px solid color-mix(in srgb, var(--note-accent) 15%, transparent);
+  border-left: 3px solid var(--note-accent);
+  border-radius: 1px 3px 3px 1px;
+  background:
+    linear-gradient(225deg, var(--dash-surface) 0 2px, transparent 2.5px),
+    var(--note-paper);
+  box-shadow: 0 1px 2px rgb(18 38 63 / 12%);
+}
+.dash-cal-marks small { color: var(--dash-ink-soft); font-size: .48rem; font-weight: 750; line-height: 1; }
+.dash-cal-key .cal-note-type { color: var(--note-accent); }
+
+@media (max-width: 700px) {
+  .cal-detail-drawer-host .cal-drawer { width: min(100%, 470px); border-radius: 0; }
+  [data-slot="dialog-content"]:has(.cal-date-modal-body) { width: calc(100vw - 16px); max-height: 86dvh; }
+  .dash-cal-marks i { width: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cal-note { transition: none; }
+  .cal-note:hover,
+  .cal-note:active { transform: none; }
+}
+
+/* ===========================================================================
    Weekly — Distribution & Follow-up.
 
    An operational control table, not a dashboard: dense rows, one department

@@ -14,7 +14,19 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { CalendarDays, Clock, MapPin, Trash2, UserPlus, Users, X } from "lucide-react";
+import {
+  Building2,
+  CalendarDays,
+  Clock,
+  FileText,
+  MapPin,
+  Tag,
+  Trash2,
+  UserPlus,
+  UserRound,
+  Users,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -87,26 +99,37 @@ function draftFrom(event: CalendarEvent | null, createOn: string | undefined, pr
 }
 
 export function EventDrawer(props: EventEditorProps) {
-  const { event, canManage } = props;
+  const { event, canManage, onClose } = props;
   const creating = !event;
   const derived = event?.origin === "derived";
   const [editing, setEditing] = React.useState(creating);
+
+  React.useEffect(() => {
+    const closeOnEscape = (keyEvent: KeyboardEvent) => {
+      if (keyEvent.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
 
   if (derived) return <DerivedDetail {...props} event={event} />;
   if (editing) return <EventForm {...props} onDoneEditing={() => setEditing(false)} />;
   if (!event) return null;
 
   return (
-    <DrawerShell title={event.title} onClose={props.onClose}>
+    <DrawerShell title={event.title} subtitle={event.projectName} onClose={props.onClose}>
       <DetailBody event={event} />
-      {canManage && (
-        <div className="cal-drawer-actions">
-          <Button size="sm" onClick={() => setEditing(true)}>
-            Edit Event
-          </Button>
-          <DeleteButton event={event} onChanged={props.onChanged} onClose={props.onClose} />
-        </div>
-      )}
+      <div className="cal-drawer-actions">
+        {canManage && (
+          <>
+            <Button size="sm" onClick={() => setEditing(true)}>
+              Edit Event
+            </Button>
+            <DeleteButton event={event} onChanged={props.onChanged} onClose={props.onClose} />
+          </>
+        )}
+        <Button size="sm" variant="outline" onClick={props.onClose}>Close</Button>
+      </div>
     </DrawerShell>
   );
 }
@@ -115,17 +138,22 @@ export function EventDrawer(props: EventEditorProps) {
 
 function DrawerShell({
   title,
+  subtitle,
   onClose,
   children,
 }: {
   title: string;
+  subtitle?: string;
   onClose: () => void;
   children: React.ReactNode;
 }) {
   return (
-    <aside className="cal-drawer" aria-label="Event details">
+    <aside className="cal-drawer" role="dialog" aria-modal="true" aria-label="Event details">
       <header className="cal-drawer-head">
-        <h2>{title}</h2>
+        <div>
+          <h2>{title || "Untitled event"}</h2>
+          {subtitle && <p>{subtitle}</p>}
+        </div>
         <button type="button" onClick={onClose} aria-label="Close event details">
           <X aria-hidden />
         </button>
@@ -147,6 +175,9 @@ function Row({ icon, label, value }: { icon: React.ReactNode; label: string; val
 
 function DetailBody({ event }: { event: CalendarEvent }) {
   const meta = EVENT_TYPE_META[event.type];
+  const eventDate = new Date(`${event.date}T00:00:00`).toLocaleDateString(undefined, {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  });
   return (
     <>
       <div className="cal-detail-chips">
@@ -154,18 +185,24 @@ function DetailBody({ event }: { event: CalendarEvent }) {
         <StatusBadge tone={event.status === "cancelled" ? "danger" : event.status === "completed" ? "success" : "info"}>
           {EVENT_STATUS_LABEL[event.status]}
         </StatusBadge>
+        {event.origin === "derived" && <span className="cal-chip cal-chip-derived">Read only</span>}
       </div>
 
-      <Row icon={<CalendarDays aria-hidden />} label="Date" value={event.date} />
-      <Row icon={<Clock aria-hidden />} label="Time" value={timeRangeLabel(event)} />
-      <Row icon={<MapPin aria-hidden />} label="Location" value={event.location || "Not recorded"} />
-      <Row icon={<Users aria-hidden />} label="Project" value={event.projectName} />
-      {event.departmentName && (
-        <Row icon={<Users aria-hidden />} label="Department" value={event.departmentName} />
-      )}
-      {event.organizerName && (
-        <Row icon={<Users aria-hidden />} label="Organizer" value={event.organizerName} />
-      )}
+      <div className="cal-detail-summary">
+        <Row icon={<CalendarDays aria-hidden />} label="Date" value={eventDate} />
+        <Row icon={<Clock aria-hidden />} label="Time" value={timeRangeLabel(event)} />
+        <Row icon={<MapPin aria-hidden />} label="Location" value={event.location || "Location not recorded"} />
+        <Row icon={<Building2 aria-hidden />} label="Department" value={event.departmentName || "Not department-specific"} />
+        <Row icon={<UserRound aria-hidden />} label="Organizer" value={event.organizerName || "Organizer not recorded"} />
+      </div>
+
+      <div className="cal-detail-section">
+        <Row icon={<Users aria-hidden />} label="Project" value={event.projectName || "Project not recorded"} />
+        <Row icon={<Tag aria-hidden />} label="Event type" value={meta.label} />
+        <Row icon={<Tag aria-hidden />} label="Status" value={EVENT_STATUS_LABEL[event.status]} />
+        <Row icon={<FileText aria-hidden />} label="Origin" value={event.origin === "derived" ?
+          event.sourceLabel || "Linked platform record" : "Calendar event"} />
+      </div>
 
       <div className="cal-detail-block">
         <b>Attendees</b>
@@ -173,6 +210,7 @@ function DetailBody({ event }: { event: CalendarEvent }) {
           <ul className="cal-attendee-list">
             {event.attendees.map((person) => (
               <li key={person.id}>
+                <span className="cal-attendee-avatar" aria-hidden>{initials(person.displayName)}</span>
                 <span>{person.displayName}</span>
                 {person.organization && <em>{person.organization}</em>}
                 {!person.contactId && <i>External</i>}
@@ -185,13 +223,19 @@ function DetailBody({ event }: { event: CalendarEvent }) {
       </div>
 
       <div className="cal-detail-block">
-        <b>Agenda / Description</b>
+        <b>Description / Notes</b>
         <p className={event.description ? "cal-detail-text" : "cal-muted"}>
-          {event.description || "No agenda recorded."}
+          {event.description || "No description or notes recorded."}
         </p>
       </div>
     </>
   );
+}
+
+function initials(name: string): string {
+  const value = name.trim();
+  if (!value) return "?";
+  return value.split(/\s+/).slice(0, 2).map((part) => part[0]?.toLocaleUpperCase()).join("");
 }
 
 /**
@@ -201,28 +245,22 @@ function DetailBody({ event }: { event: CalendarEvent }) {
  * Monthly report that owns it — that is where a correction belongs.
  */
 function DerivedDetail({ event, onClose }: EventEditorProps & { event: CalendarEvent }) {
-  const meta = EVENT_TYPE_META[event.type];
   return (
-    <DrawerShell title={event.title} onClose={onClose}>
-      <div className="cal-detail-chips">
-        <span className={`cal-chip cal-chip-${meta.tone}`}>{meta.label}</span>
-        <span className="cal-chip cal-chip-derived">Derived · read only</span>
-      </div>
-      <Row icon={<CalendarDays aria-hidden />} label="Date" value={event.date} />
-      <Row icon={<Users aria-hidden />} label="Project" value={event.projectName} />
-      {event.departmentName && (
-        <Row icon={<Users aria-hidden />} label="Department" value={event.departmentName} />
-      )}
+    <DrawerShell title={event.title} subtitle={event.projectName} onClose={onClose}>
+      <DetailBody event={event} />
       <div className="cal-detail-block">
         <p className="cal-muted">
           This entry comes from {event.sourceLabel ?? "another record"} and is not edited on the
           calendar. Open the source to change it.
         </p>
-        {event.sourceHref && (
-          <Button asChild size="sm" variant="outline">
-            <Link href={event.sourceHref}>Open {event.sourceLabel ?? "source record"}</Link>
-          </Button>
-        )}
+        <div className="cal-drawer-actions">
+          {event.sourceHref && (
+            <Button asChild size="sm" variant="outline">
+              <Link href={event.sourceHref}>Open {event.sourceLabel ?? "source record"}</Link>
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={onClose}>Close</Button>
+        </div>
       </div>
     </DrawerShell>
   );
