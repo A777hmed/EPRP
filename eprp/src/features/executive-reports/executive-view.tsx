@@ -471,6 +471,7 @@ export function ExecutivePortfolioView(props: ExecutiveViewerProps) {
             autoDraft={model.narrative}
             contacts={portfolio.contacts}
             derivedPreparedBy={preparedBy}
+            canManagePortfolio={props.canManagePortfolio}
             notes={model.notes}
             notesAvailability={portfolio.notesAvailability}
             canManageNotes={props.allowed}

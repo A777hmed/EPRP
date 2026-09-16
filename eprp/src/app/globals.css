@@ -1022,7 +1022,7 @@
 /* ------------------------------- Register ---------------------------------- */
 
 /*
- * No min-width: the seven widths sum to 100%, so the table fits its container
+ * No min-width: the eight widths sum to 100%, so the table fits its container
  * and cannot force a scrollbar at ordinary desktop widths.
  */
 .exec-register-table { min-width: 0; width: 100%; table-layout: fixed; }
@@ -1053,20 +1053,27 @@
   border-bottom: 1px solid #e8eef5;
 }
 
-/* Period reads as a label; everything else is a figure, a state or a control. */
-.exec-register-table th:nth-child(1), .exec-register-table td:nth-child(1) { width: 18%; text-align: left; }
-.exec-register-table th:nth-child(2), .exec-register-table td:nth-child(2) { width: 13%; text-align: center; }
-.exec-register-table th:nth-child(3), .exec-register-table td:nth-child(3) { width: 11%; text-align: center; }
-.exec-register-table th:nth-child(4), .exec-register-table td:nth-child(4) { width: 17%; text-align: center; }
-.exec-register-table th:nth-child(5), .exec-register-table td:nth-child(5) { width: 15%; text-align: center; }
+/*
+ * Period reads as a label; everything else is a figure, a state or a
+ * control. Planning Integration 4B added Portfolio Health as its own column
+ * (distinct from Approved Monthly Basis) and a Planning provenance column.
+ */
+.exec-register-table th:nth-child(1), .exec-register-table td:nth-child(1) { width: 16%; text-align: left; }
+.exec-register-table th:nth-child(2), .exec-register-table td:nth-child(2) { width: 9%; text-align: center; }
+.exec-register-table th:nth-child(3), .exec-register-table td:nth-child(3) { width: 10%; text-align: center; }
+.exec-register-table th:nth-child(4), .exec-register-table td:nth-child(4) { width: 14%; text-align: center; }
+.exec-register-table th:nth-child(5), .exec-register-table td:nth-child(5) { width: 13%; text-align: center; }
 .exec-register-table th:nth-child(6), .exec-register-table td:nth-child(6) { width: 13%; text-align: center; }
-.exec-register-table th:nth-child(7), .exec-register-table td:nth-child(7) { width: 13%; text-align: center; }
+.exec-register-table th:nth-child(7), .exec-register-table td:nth-child(7) { width: 11%; text-align: center; }
+.exec-register-table th:nth-child(8), .exec-register-table td:nth-child(8) { width: 14%; text-align: center; }
 
-/* Counts, coverage and dates share one numeric treatment. */
+/* Counts and dates share one numeric treatment. Planning (6) and Portfolio
+   Health (5) carry a badge or a summary sentence, not a bare figure, so they
+   keep normal wrapping instead. */
 .exec-register-table td:nth-child(2),
 .exec-register-table td:nth-child(3),
 .exec-register-table td:nth-child(4),
-.exec-register-table td:nth-child(6) {
+.exec-register-table td:nth-child(7) {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   color: #33506f;
@@ -1075,6 +1082,25 @@
 
 /* A centred cell centres its badge, not just its text. */
 .exec-register-table td:nth-child(5) [data-slot="status-badge"] { margin: 0 auto; }
+
+/* The small subtitle under Reporting Period, Projects in View and Portfolio
+   Health — a second, subordinate fact, never the primary reading. */
+.exec-register-table td small {
+  display: block;
+  margin-top: 2px;
+  color: #8494a7;
+  font-size: .62rem;
+  font-weight: 500;
+  white-space: normal;
+}
+
+.exec-register-table td.exec-planning-cell {
+  font-size: .68rem;
+  font-weight: 500;
+  color: #33506f;
+  white-space: normal;
+  line-height: 1.35;
+}
 
 /*
  * Primary action and overflow menu read as one control group.
