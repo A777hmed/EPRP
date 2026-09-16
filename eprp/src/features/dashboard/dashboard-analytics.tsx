@@ -38,6 +38,7 @@ import {
 } from "recharts";
 import { CircleCheck, TriangleAlert } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import {
   HEALTH_META,
   compareMilestonesByAttention,
@@ -48,6 +49,7 @@ import {
   type ProjectPosition,
   type TrendPoint,
 } from "./dashboard-data";
+import type { ProgressCurvePoint } from "./planning-integration";
 
 /* --------------------------------- Chrome ---------------------------------- */
 
@@ -74,11 +76,15 @@ export function KpiStrip({
   trend,
   overdueWeekly,
   overdueMonthly,
+  portfolioBasisNote,
 }: {
   totals: PortfolioTotals;
   trend: TrendPoint[];
   overdueWeekly: number;
   overdueMonthly: number;
+  /** Portfolio-view only (3D audit) — states the aggregation basis explicitly
+      rather than letting an unweighted mean read as a governed rollup. */
+  portfolioBasisNote?: string;
 }) {
   const coverage = totals.totalProjects
     ? Math.round((totals.reportedProjects / totals.totalProjects) * 100)
@@ -95,6 +101,7 @@ export function KpiStrip({
           <b>{totals.actual === undefined ? "—" : `${round(totals.actual)}%`}</b>
           <small>Planned {totals.planned === undefined ? "—" : `${round(totals.planned)}%`}</small>
           <Delta series={trend} field="actual" enabled={totals.actual !== undefined} />
+          {portfolioBasisNote && <p className="dash-kpi-note">{portfolioBasisNote}</p>}
         </div>
         <Ring value={totals.actual} tone="primary" label="Portfolio actual progress" />
       </article>
@@ -208,15 +215,29 @@ export function KpiStrip({
 export function TrendPanel({
   positions,
   trend,
+  planningPosition,
+  planningCurve,
 }: {
   positions: ProjectPosition[];
   trend: TrendPoint[];
+  /** The scoped project's CURRENT position, present only when the Dashboard
+      is scoped to exactly one project AND it is Planning-backed (3D). */
+  planningPosition?: ProjectPosition;
+  /** Published Planning Snapshot history for that same project — see
+      `usePlanningProgressCurve`. `undefined` while loading. */
+  planningCurve?: ProgressCurvePoint[];
 }) {
   const reduced = useReducedMotion();
   const [visible, setVisible] = React.useState({ planned: true, actual: true });
   const reported = positions.filter(
     (position) => position.planned !== undefined && position.actual !== undefined
   );
+
+  if (planningPosition) {
+    return (
+      <PlanningProgressCurvePanel position={planningPosition} curve={planningCurve} reduced={reduced} />
+    );
+  }
 
   if (trend.length < 2) {
     if (reported.length === 0) {
@@ -230,20 +251,27 @@ export function TrendPanel({
     }
 
     /* The basis is DERIVED, never asserted. This branch also fires when there
-       is no weekly at all — a monthly-only portfolio — so hardcoding "single
-       reporting week" would state a week that does not exist. */
+       is no weekly at all — a monthly-only or Planning-only portfolio — so
+       hardcoding "single reporting week" would state a week that does not
+       exist. */
     const bases = new Set(reported.map((position) => position.basis));
     const basis =
       bases.size > 1
-        ? "mixed Weekly and Monthly basis"
-        : bases.has("monthly")
-          ? "latest Monthly per project"
-          : trend.length === 1
-            ? "single reporting week"
-            : "latest Weekly per project";
+        ? "mixed basis"
+        : bases.has("planning")
+          ? "latest Planning Snapshot per project"
+          : bases.has("monthly")
+            ? "latest Monthly per project"
+            : trend.length === 1
+              ? "single reporting week"
+              : "latest Weekly per project";
 
+    const BASIS_SUFFIX: Partial<Record<ProjectPosition["basis"], string>> = {
+      monthly: " (M)",
+      planning: " (P)",
+    };
     const rows = reported.slice(0, 7).map((position) => ({
-      name: position.basis === "monthly" ? `${shortName(position)} (M)` : shortName(position),
+      name: `${shortName(position)}${BASIS_SUFFIX[position.basis] ?? ""}`,
       Planned: round(position.planned as number),
       Actual: round(position.actual as number),
     }));
@@ -321,6 +349,120 @@ export function TrendPanel({
         onToggle={(key) => setVisible((state) => ({ ...state, [key]: !state[key] }))}
       />
     </Panel>
+  );
+}
+
+/**
+ * "Planned vs Actual Progress Curve" (Planning Integration 3D) — ONE
+ * Planning-backed project's published Planning Snapshot history, plotted
+ * by Data Date. Named deliberately NOT "baseline S-curve": the platform
+ * does not compute a time-phased baseline held fixed from day one, and a
+ * re-plan can move the Planned line between snapshots — a true baseline
+ * never does.
+ *
+ * The info strip states every figure the 3D brief requires shown clearly
+ * for a Planning-backed position: Planned %, Actual %, Variance, SPI (or
+ * N/A), Coverage %, Snapshot vN, Data Date — all from the SAME rollup as
+ * the chart, never a mix of Planning and manual figures.
+ */
+function PlanningProgressCurvePanel({
+  position,
+  curve,
+  reduced,
+}: {
+  position: ProjectPosition;
+  curve: ProgressCurvePoint[] | undefined;
+  reduced: boolean;
+}) {
+  const rows = (curve ?? []).map((point) => ({
+    label: formatShortDate(point.dataDate),
+    planned: point.planned ?? undefined,
+    actual: point.actual ?? undefined,
+  }));
+
+  return (
+    <Panel
+      title="Planned vs Actual Progress Curve"
+      hint={`Published Planning Snapshot history · Snapshot v${position.snapshotVersion}${position.dataDate ? ` · Data Date ${position.dataDate}` : ""}`}
+    >
+      <dl className="dash-planning-strip">
+        <PlanningFigure label="Planned" value={`${round(position.planned as number)}%`} />
+        <PlanningFigure label="Actual" value={`${round(position.actual as number)}%`} />
+        <PlanningFigure
+          label="Variance"
+          value={position.variance === undefined ? "N/A" : signed(position.variance)}
+          tone={`is-${varianceTone(position.variance)}`}
+        />
+        <PlanningFigure
+          label="SPI"
+          value={position.spi === null || position.spi === undefined ? "N/A" : position.spi.toFixed(2)}
+        />
+        <PlanningFigure
+          label="Coverage"
+          value={typeof position.coveragePercent === "number" ? `${Math.round(position.coveragePercent)}%` : "N/A"}
+        />
+      </dl>
+
+      {curve === undefined ? (
+        <PanelEmpty>Loading Planning Snapshot history…</PanelEmpty>
+      ) : rows.length < 2 ? (
+        <PanelEmpty>
+          Only {rows.length} published Planning Snapshot {plural(rows.length, "date")} recorded — the curve needs at
+          least two.
+        </PanelEmpty>
+      ) : (
+        <div className="dash-plot" role="img" aria-label="Planned and actual progress by Planning Snapshot Data Date">
+          <ResponsiveContainer width="100%" height={214}>
+            <AreaChart data={rows} margin={{ top: 10, right: 14, bottom: 0, left: -16 }}>
+              <defs>
+                <linearGradient id="dashPlanningActualFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={ACTUAL} stopOpacity={0.22} />
+                  <stop offset="100%" stopColor={ACTUAL} stopOpacity={0.01} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke={GRID} vertical={false} />
+              <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={false} dy={4} />
+              <YAxis unit="%" domain={[0, 100]} tick={AXIS} tickLine={false} axisLine={false} width={44} />
+              <Tooltip formatter={percent} cursor={{ stroke: GRID }} />
+              <Area
+                type="monotone"
+                dataKey="planned"
+                name="Planned"
+                stroke={PLANNED}
+                strokeWidth={1.75}
+                strokeDasharray="5 4"
+                fill="transparent"
+                dot={false}
+                isAnimationActive={!reduced}
+                animationDuration={600}
+              />
+              <Area
+                type="monotone"
+                dataKey="actual"
+                name="Actual"
+                stroke={ACTUAL}
+                strokeWidth={2.25}
+                fill="url(#dashPlanningActualFill)"
+                dot={{ r: 2.5, fill: ACTUAL, strokeWidth: 0 }}
+                activeDot={{ r: 4.5 }}
+                isAnimationActive={!reduced}
+                animationDuration={700}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+      <PlotKeys visible={{ planned: true, actual: true }} onToggle={() => {}} readOnly />
+    </Panel>
+  );
+}
+
+function PlanningFigure({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className={cn("dash-planning-figure", tone)}>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
   );
 }
 

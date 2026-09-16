@@ -3,13 +3,13 @@
 /**
  * Milestones stay on the Dashboard: "View All" (Milestone Progress and
  * Milestones Upcoming) and every milestone row open this one large modal
- * rather than navigating to a Weekly/Monthly report or the project's own
- * Milestones section. It is a plain list -> detail stack over data the
- * Dashboard already has in scope — nothing here is fetched separately, and
- * the search/status/project controls below only narrow what this modal
- * shows, never the Dashboard's own filters. The source report stays
- * reachable, but only as a secondary action in the footer, never the
- * primary way to read the milestone.
+ * rather than navigating straight to the project's Milestones section. It
+ * is a plain list -> detail stack over data the Dashboard already has in
+ * scope — nothing here is fetched separately, and the search/status/project
+ * controls below only narrow what this modal shows, never the Dashboard's
+ * own filters. The governed register stays reachable, but only as a
+ * secondary action in the footer, never the primary way to read the
+ * milestone.
  */
 
 import * as React from "react";
@@ -175,7 +175,7 @@ export function MilestoneModal({
       footer={
         selected && (
           <Button asChild variant="outline" size="sm">
-            <Link href={selected.source.href}>Open Source Report</Link>
+            <Link href={selected.source.href}>Open Master Milestones</Link>
           </Button>
         )
       }
@@ -459,7 +459,7 @@ function MilestoneTimeline({
                   <CalendarDays className="size-3" aria-hidden />
                   {formatDate(milestone.dueDate)}
                 </span>
-                <span className="capitalize">{milestone.source.kind} report</span>
+                <span>Master Milestone</span>
                 {milestone.percentComplete !== undefined && <span>{Math.round(milestone.percentComplete)}% complete</span>}
               </div>
             </button>
@@ -504,11 +504,7 @@ function MilestoneDetail({
 
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <DetailCard icon={CalendarDays} label="Due date" value={formatDate(milestone.dueDate)} />
-        <DetailCard
-          icon={FileText}
-          label="Source"
-          value={milestone.source.kind === "weekly" ? "Weekly Report" : "Monthly Report"}
-        />
+        <DetailCard icon={FileText} label="Source" value="Master Milestone Register" />
         {/* Populated only where the source plan item actually records a
             completion percentage — never invented for a row that has none. */}
         {milestone.percentComplete !== undefined && (

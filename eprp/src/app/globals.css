@@ -3279,6 +3279,23 @@ button.dash-link { background: none; border: 0; padding: 0; cursor: pointer; fon
 .dash-note.is-clear { background: var(--dash-tint-green); color: var(--dash-teal); font-weight: 600; }
 
 .dash-plot { min-width: 0; }
+
+/* Planning Integration 3D — the Planned vs Actual Progress Curve's info strip. */
+.dash-planning-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--dash-hairline);
+  border-radius: 8px;
+  background: var(--dash-surface-2);
+}
+.dash-planning-figure dt { margin: 0; color: var(--dash-muted); font-size: .62rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.dash-planning-figure dd { margin: 2px 0 0; color: var(--dash-navy); font-size: .95rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dash-planning-figure.is-success dd { color: var(--dash-teal); }
+.dash-planning-figure.is-warning dd { color: var(--dash-amber); }
+.dash-planning-figure.is-danger dd { color: var(--dash-red); }
 .recharts-default-tooltip {
   border: 1px solid var(--dash-hairline) !important;
   border-radius: 9px;

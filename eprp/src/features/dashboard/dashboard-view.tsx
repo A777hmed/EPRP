@@ -51,9 +51,12 @@ import {
   type HealthAxis,
 } from "./dashboard-analytics";
 import { MilestoneModal } from "./milestone-modal";
+import { usePlanningProgressCurve } from "./use-planning-progress-curve";
 import {
+  BASIS_LABEL,
   EMPTY_DASHBOARD_FILTERS,
   HEALTH_META,
+  PORTFOLIO_BASIS_NOTE,
   TIME_PERIOD_LABEL,
   periodWindow,
   positionsFor,
@@ -83,8 +86,8 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
   );
 
   const positions = React.useMemo(
-    () => positionsFor(scopedProjects, data.weeklies, data.monthlies, filters.period),
-    [scopedProjects, data.weeklies, data.monthlies, filters.period]
+    () => positionsFor(scopedProjects, data.weeklies, data.monthlies, filters.period, data.planningRollups),
+    [scopedProjects, data.weeklies, data.monthlies, filters.period, data.planningRollups]
   );
 
   const totals = React.useMemo(
@@ -95,6 +98,20 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
   const scopedIds = React.useMemo(
     () => new Set(scopedProjects.map((project) => project.id)),
     [scopedProjects]
+  );
+
+  /*
+   * Planning Integration 3D: the "Planned vs Actual Progress Curve" only
+   * has a project to plot against — it replaces the report-based trend
+   * ONLY when the Dashboard is scoped to exactly one project AND that
+   * project's current position is Planning-backed. Portfolio view (no
+   * project selected) and a fallback/manual single project both keep the
+   * existing trend untouched.
+   */
+  const singleProjectPosition =
+    filters.projectId && positions.length === 1 ? positions[0] : undefined;
+  const planningCurve = usePlanningProgressCurve(
+    singleProjectPosition?.basis === "planning" ? filters.projectId : ""
   );
 
   /*
@@ -317,10 +334,16 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
         trend={trend}
         overdueWeekly={overdue.weekly}
         overdueMonthly={overdue.monthly}
+        portfolioBasisNote={filters.projectId ? undefined : PORTFOLIO_BASIS_NOTE}
       />
 
       <section className="dash-row dash-row-main">
-        <TrendPanel positions={positions} trend={trend} />
+        <TrendPanel
+          positions={positions}
+          trend={trend}
+          planningPosition={singleProjectPosition?.basis === "planning" ? singleProjectPosition : undefined}
+          planningCurve={planningCurve}
+        />
         <StatusPanel totals={totals} />
         <HealthPanel axes={healthAxes} />
       </section>
@@ -509,7 +532,7 @@ function ManagementAttention({ positions }: { positions: ProjectPosition[] }) {
                     <small>
                       {position.basis === "none"
                         ? "No report in the selected period"
-                        : `${position.basis === "weekly" ? "Latest Weekly" : "Monthly"}${
+                        : `${BASIS_LABEL[position.basis]}${
                             position.reportedOn ? ` · ${position.reportedOn}` : ""
                           }`}
                     </small>
