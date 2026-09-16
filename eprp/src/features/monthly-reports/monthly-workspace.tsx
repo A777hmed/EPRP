@@ -39,6 +39,7 @@ import {
   ReportWorkspaceHeader,
 } from "@/features/projects/components/sections/project-reporting-shell";
 import { EmptyRow, type MonthlyReportBundle } from "./monthly-report-document";
+import { monthlyDisplayFigures } from "./planning-integration";
 import { MONTHLY_UPDATE_TYPE_OPTIONS, MonthlyCommentForm } from "./monthly-comment-form";
 import { MonthlyManagementPanel } from "./monthly-management";
 import {
@@ -241,7 +242,7 @@ function CommentRows({
 /* --------------------------------- Panels ---------------------------------- */
 
 function OverviewPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload: () => Promise<void> }) {
-  const { report, project, contacts } = bundle;
+  const { report, project, contacts, planningRollup } = bundle;
   const [reportNumber, setReportNumber] = React.useState(report.reportNumber);
   const [preparedBy, setPreparedBy] = React.useState(report.preparedByContactId ?? project?.reportingCoordinatorId ?? "");
   const [planned, setPlanned] = React.useState(String(report.plannedProgress));
@@ -252,24 +253,37 @@ function OverviewPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
   const [saving, setSaving] = React.useState(false);
   const status = monthEndStatus(report);
 
+  /*
+   * Planning Integration 3C, rule 5: a Planning-backed Monthly's Planned/
+   * Actual Progress are read-only here — no silent manual override path.
+   * Enforced in the UI (fields become AUTO readouts, never submitted) AND
+   * independently in the service layer (`assertMonthlyProgressEditable`),
+   * so defeating one still hits the other.
+   */
+  const figures = monthlyDisplayFigures(report, planningRollup);
+  const planningBacked = figures.planningBacked;
+
   const save = async () => {
-    const plannedValue = Number(planned);
-    const actualValue = Number(actual);
-    if (![plannedValue, actualValue].every((value) => Number.isFinite(value) && value >= 0 && value <= 100)) {
-      toast.error("Planned and Actual progress must be between 0 and 100.");
-      return;
+    const patch: Parameters<typeof monthlyReportService.update>[1] = {
+      reportNumber,
+      preparedByContactId: preparedBy,
+      hseStatus: (hse || undefined) as MonthlyReport["hseStatus"],
+      qualityStatus: (quality || undefined) as MonthlyReport["qualityStatus"],
+      overallProgressStatus: (overall || undefined) as MonthlyReport["overallProgressStatus"],
+    };
+    if (!planningBacked) {
+      const plannedValue = Number(planned);
+      const actualValue = Number(actual);
+      if (![plannedValue, actualValue].every((value) => Number.isFinite(value) && value >= 0 && value <= 100)) {
+        toast.error("Planned and Actual progress must be between 0 and 100.");
+        return;
+      }
+      patch.plannedProgress = plannedValue;
+      patch.actualProgress = actualValue;
     }
     setSaving(true);
     try {
-      await monthlyReportService.update(report.id, {
-        reportNumber,
-        preparedByContactId: preparedBy,
-        plannedProgress: plannedValue,
-        actualProgress: actualValue,
-        hseStatus: (hse || undefined) as MonthlyReport["hseStatus"],
-        qualityStatus: (quality || undefined) as MonthlyReport["qualityStatus"],
-        overallProgressStatus: (overall || undefined) as MonthlyReport["overallProgressStatus"],
-      });
+      await monthlyReportService.update(report.id, patch);
       await reload();
       toast.success("Monthly overview saved.");
     } catch (error) {
@@ -319,11 +333,19 @@ function OverviewPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
         </label>
         <label>
           Planned %
-          <input type="number" min="0" max="100" step="0.1" value={planned} onChange={(event) => setPlanned(event.target.value)} />
+          {planningBacked ? (
+            <input type="text" readOnly disabled value={`${figures.planned.toFixed(1)}%`} />
+          ) : (
+            <input type="number" min="0" max="100" step="0.1" value={planned} onChange={(event) => setPlanned(event.target.value)} />
+          )}
         </label>
         <label>
           Actual %
-          <input type="number" min="0" max="100" step="0.1" value={actual} onChange={(event) => setActual(event.target.value)} />
+          {planningBacked ? (
+            <input type="text" readOnly disabled value={`${figures.actual.toFixed(1)}%`} />
+          ) : (
+            <input type="number" min="0" max="100" step="0.1" value={actual} onChange={(event) => setActual(event.target.value)} />
+          )}
         </label>
         <label>
           HSE Rating
@@ -359,6 +381,15 @@ function OverviewPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
           </select>
         </label>
       </div>
+      {planningBacked && (
+        <p className="monthly-ws-note">
+          <StatusBadge tone="info">Planning-backed</StatusBadge>{" "}
+          Snapshot v{figures.snapshotVersion}
+          {figures.dataDate ? ` · Data Date ${figures.dataDate}` : ""}
+          {typeof figures.coveragePercent === "number" ? ` · Coverage ${figures.coveragePercent.toFixed(0)}%` : ""}
+          . Planned/Actual Progress are governed by this snapshot and cannot be edited manually.
+        </p>
+      )}
       <p className="monthly-ws-note">
         HSE event counts (LTI, recordable, first aid, near miss) have no field in the Monthly data model — only the rating above is stored.
       </p>

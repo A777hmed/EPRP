@@ -374,6 +374,23 @@ export interface MonthlyReport extends ReportBase {
   actualProgress: number;
   scheduleVariance: number; // percentage points, negative = behind
   spi: number;
+  /**
+   * The Published Planning Snapshot this report is pinned to (Planning
+   * Integration 3C) — resolved once at creation (the latest snapshot whose
+   * data_date <= this report's reporting-month end) and never re-resolved
+   * afterward, independently of any Weekly pin on the same project. Set
+   * ONLY when that snapshot's rollup actually has both a Planned and an
+   * Actual figure — an eligible snapshot with no usable weighted data yet
+   * is never pinned "for provenance" alone. Null means plannedProgress/
+   * actualProgress are direct manual entry, exactly as if no snapshot had
+   * ever resolved. Governed EV/PV SPI and variance for a pinned report are
+   * derived from the snapshot's rollup, not from this type's own `spi`/
+   * `scheduleVariance` fields (see `features/monthly-reports/planning-
+   * integration.ts`), which remain the plain Actual/Planned-ratio figures
+   * for the manual/fallback case and for portfolio-wide list/analytics
+   * reads that do not resolve a rollup.
+   */
+  planningSnapshotId?: string;
   hseStatus?: KpiRating;
   qualityStatus?: KpiRating;
   overallProgressStatus?: ProgressStatus;

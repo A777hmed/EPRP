@@ -12,6 +12,7 @@ import { monthlyReportService } from "@/services/monthly-report-service";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
 import { milestoneService } from "@/services/milestone-service";
+import { planningRollupService, type PlanningSnapshotRollup } from "@/services/planning-rollup-service";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type {
   Client,
@@ -59,6 +60,14 @@ export function useMonthlyBundle(reportId: string): MonthlyBundleState {
   const [submissions, setSubmissions] = React.useState<WeeklySubmissionInMonth[]>([]);
   const [siblings, setSiblings] = React.useState<MonthlyReport[]>([]);
   const [milestoneStates, setMilestoneStates] = React.useState<MilestoneState[]>([]);
+  /**
+   * The rollup for `report.planningSnapshotId` (Planning Integration 3C).
+   * `null` means "no pinned snapshot"; `undefined` means "not resolved
+   * yet" — mirrors `weekly-report-detail-view.tsx`'s identical distinction.
+   */
+  const [planningRollup, setPlanningRollup] = React.useState<
+    PlanningSnapshotRollup | null | undefined
+  >(undefined);
 
   const terms = useHierarchyTerms(project);
 
@@ -74,7 +83,18 @@ export function useMonthlyBundle(reportId: string): MonthlyBundleState {
       const milestoneRegisterPromise = isSupabaseConfigured()
         ? milestoneService.listRegister([next.projectId])
         : Promise.resolve({ milestones: [], updates: [] });
-      const [nextProject, nextComments, nextPlans, nextSummaries, nextMonthlySubmissions, projectReports, allWeeklies, milestoneRegister] =
+      /*
+       * The rollup is fetched by the report's PINNED snapshot id, never
+       * re-resolved by project/period — an existing report must always
+       * read what it was pinned to, not "the latest" (3C, historical
+       * integrity). Settled separately from the critical data below: a
+       * rollup fetch failure (e.g. a snapshot the caller can no longer
+       * read) must not blank the whole Monthly Report.
+       */
+      const rollupPromise = next.planningSnapshotId
+        ? planningRollupService.computeSnapshotRollup(next.planningSnapshotId).catch(() => null)
+        : Promise.resolve(null);
+      const [nextProject, nextComments, nextPlans, nextSummaries, nextMonthlySubmissions, projectReports, allWeeklies, milestoneRegister, nextRollup] =
         await Promise.all([
           projectService.getProjectById(next.projectId),
           monthlyReportService.listComments(next.id),
@@ -84,6 +104,7 @@ export function useMonthlyBundle(reportId: string): MonthlyBundleState {
           monthlyReportService.list(next.projectId),
           weeklyReportService.list(),
           milestoneRegisterPromise,
+          rollupPromise,
         ]);
 
       const inMonth = allWeeklies
@@ -110,6 +131,7 @@ export function useMonthlyBundle(reportId: string): MonthlyBundleState {
       setSubmissions(submissionRows);
       setMilestoneStates(deriveMilestoneStates(milestoneRegister.milestones, milestoneRegister.updates));
       setSiblings(projectReports.filter((item) => item.id !== next.id).sort((a, b) => b.reportingMonth.localeCompare(a.reportingMonth)));
+      setPlanningRollup(nextRollup);
       // Set last: `report` is what flips the bundle out of its loading state, so
       // publishing it only once its companions are in hand keeps the header from
       // flashing "Not recorded" for the project on every load.
@@ -131,6 +153,7 @@ export function useMonthlyBundle(reportId: string): MonthlyBundleState {
       report,
       project,
       client: (clients as Client[]).find((record) => record.id === project?.clientId),
+      planningRollup,
       comments,
       weeklies,
       submissions,
@@ -148,6 +171,7 @@ export function useMonthlyBundle(reportId: string): MonthlyBundleState {
     report,
     project,
     clients,
+    planningRollup,
     comments,
     weeklies,
     submissions,

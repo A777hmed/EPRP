@@ -271,7 +271,7 @@
 .monthly-status-value { display: block; }
 
 /* 2 · KPI row */
-.monthly-kpi-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.monthly-kpi-row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
 .monthly-kpi { min-height: 82px; display: grid; align-content: center; gap: 6px; padding: 11px 12px; border: 1px solid #c8d8e8; border-radius: 6px; background: linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%); }
 .monthly-kpi > span { color: #667a91; font-size: .63rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
 .monthly-kpi b { color: #0d4d99; font-size: 1.42rem; line-height: 1.05; overflow-wrap: anywhere; }
@@ -282,6 +282,7 @@
 .monthly-kpi.unavailable > span { color: #8fa0b3; }
 .monthly-kpi.actual b { color: #2e9c43; }
 .monthly-kpi.variance b { color: #bd6b00; }
+.monthly-kpi.spi b { color: #6d3fae; }
 .monthly-kpi.progress b, .monthly-kpi.hours b { color: #113e78; }
 .monthly-kpi.hours b { font-size: 1.15rem; }
 
@@ -451,6 +452,7 @@
 .monthly-ws-grid label { display: grid; gap: 5px; min-width: 0; color: #5b718c; font-size: .66rem; font-weight: 700; }
 .monthly-ws-grid label.wide { grid-column: 1 / -1; }
 .monthly-ws-grid input, .monthly-ws-grid select { height: 36px; min-width: 0; padding: 0 9px; border: 1px solid #c6d6e5; border-radius: 5px; background: white; color: #173b68; font: inherit; font-size: .75rem; }
+.monthly-ws-grid input:disabled { background: #f0f4f8; color: #6d84a0; border-style: dashed; cursor: not-allowed; }
 .monthly-ws-plan-grid { margin-bottom: 12px; }
 .monthly-ws-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .monthly-ws-note { margin: 12px 0 0; color: #8494a7; font-size: .69rem; line-height: 1.5; }
@@ -770,7 +772,7 @@
   .monthly-info-field > b { font-size: 8pt; line-height: 1.2; }
   .monthly-info-field > small { font-size: 6pt; }
 
-  .monthly-kpi-row { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2mm; }
+  .monthly-kpi-row { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2mm; }
   .monthly-kpi { min-height: 0; padding: 2mm; border-radius: 1.2mm; gap: 1mm; }
   .monthly-kpi > span { font-size: 5.6pt; }
   .monthly-kpi b { font-size: 12pt; }
