@@ -412,19 +412,19 @@
 .monthly-counter span { color: #70839a; font-size: .65rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
 .monthly-counter b { color: #0d4384; font-size: 1.3rem; }
 
-.monthly-list-toolbar { display: grid; grid-template-columns: minmax(0, 1.7fr) 1fr 152px 152px; gap: 8px; margin-top: 16px; }
+.monthly-list-toolbar { display: grid; grid-template-columns: minmax(0, 1.7fr) repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-top: 16px; }
 .monthly-list-toolbar select, .monthly-list-toolbar > input { min-width: 0; height: 38px; padding: 0 10px; border: 1px solid #c7d6e5; border-radius: 5px; background: white; color: #173b68; font: inherit; font-size: .74rem; }
 .monthly-search-field { position: relative; display: flex; align-items: center; min-width: 0; }
 .monthly-search-field svg { position: absolute; left: 11px; width: 15px; height: 15px; color: #8fa1b5; pointer-events: none; }
 .monthly-search-field input { width: 100%; height: 38px; padding: 0 10px 0 33px; border: 1px solid #c7d6e5; border-radius: 5px; background: white; color: #173b68; font: inherit; font-size: .74rem; }
 
 .monthly-list-card { margin-top: 16px; padding: 4px 14px; background: white; border: 1px solid #c9d8e7; border-radius: 8px; }
-.monthly-register-table { min-width: 980px; }
-.monthly-register-table th:nth-child(1), .monthly-register-table td:nth-child(1) { width: 15%; }
-.monthly-register-table th:nth-child(2), .monthly-register-table td:nth-child(2) { width: 17%; }
-.monthly-register-table th:nth-child(4), .monthly-register-table td:nth-child(4),
+.monthly-register-table { min-width: 1180px; }
+.monthly-register-table th:nth-child(1), .monthly-register-table td:nth-child(1) { width: 12%; }
+.monthly-register-table th:nth-child(2), .monthly-register-table td:nth-child(2) { width: 15%; }
 .monthly-register-table th:nth-child(5), .monthly-register-table td:nth-child(5),
-.monthly-register-table th:nth-child(6), .monthly-register-table td:nth-child(6) { width: 8%; text-align: right; }
+.monthly-register-table th:nth-child(6), .monthly-register-table td:nth-child(6),
+.monthly-register-table th:nth-child(7), .monthly-register-table td:nth-child(7) { width: 7%; text-align: right; }
 .monthly-row-action-cell { display: flex; align-items: center; gap: 6px; }
 .monthly-row-action-cell a { white-space: nowrap; }
 .monthly-register-table td { vertical-align: middle; }

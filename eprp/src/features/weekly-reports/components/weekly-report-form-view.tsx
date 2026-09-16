@@ -26,17 +26,20 @@ import { WeeklyReportHeaderForm } from "./weekly-report-header-form";
 export interface WeeklyReportFormViewProps {
   reportId?: string;
   /**
-   * Create this report against ONE fixed project, and stay inside that
-   * project afterwards.
+   * Create or edit this report against ONE fixed project, and stay inside
+   * that project afterwards (Top-Level Reporting 4A).
    *
-   * Set by `/projects/[projectId]/reports/weekly/new`. The project picker is
-   * locked (the same `projectLocked` the edit path already uses), so the
-   * project cannot be re-chosen, and every exit — save, cancel — returns to a
-   * project-scoped route rather than the global register.
+   * Set by `/projects/[projectId]/reports/weekly/new` (create) and by
+   * `/projects/[projectId]/reports/weekly/[reportId]/edit` (edit). The
+   * project picker is locked (`projectLocked`) in both cases, and every
+   * exit — save, cancel, "report not found" — returns to a project-scoped
+   * route rather than the global register a project-context user never
+   * came from.
    *
-   * Omitted on the global `/weekly-reports/new`, which keeps its picker and
-   * its global destinations. One form, two entry contexts; no duplicated
-   * create logic, validation or service call.
+   * Omitted on the global `/weekly-reports/new` and
+   * `/weekly-reports/[reportId]/edit`, which keep the picker (create) and
+   * the global register (both) as their destinations. One form, two entry
+   * contexts; no duplicated create/edit logic, validation or service call.
    */
   projectId?: string;
 }
@@ -113,7 +116,9 @@ export function WeeklyReportFormView({
         description={`No weekly report exists with id “${reportId}”.`}
         action={
           <Button variant="outline" asChild>
-            <Link href="/weekly-reports">Back to Weekly Reports</Link>
+            <Link href={fixedProjectId ? `/projects/${fixedProjectId}/reporting?tab=weekly` : "/weekly-reports"}>
+              {fixedProjectId ? "Back to Reporting" : "Back to Weekly Reports"}
+            </Link>
           </Button>
         }
       />
@@ -137,12 +142,23 @@ export function WeeklyReportFormView({
         projectId: fixedProjectId ?? "",
       };
 
-  /* Where this form came from decides where it goes back to. */
-  const projectScoped = !isEdit && Boolean(fixedProjectId);
+  /*
+   * Where this form came from decides where it goes back to — for BOTH
+   * create and edit. `fixedProjectId` is set by
+   * `/projects/[projectId]/reports/weekly/new` (create) and by
+   * `/projects/[projectId]/reports/weekly/[reportId]/edit` (edit); either
+   * way, every exit stays under that project's own routes rather than
+   * dropping the user into the global register they never came from.
+   */
+  const projectScoped = Boolean(fixedProjectId);
   const afterCreateHref = (createdId: string) =>
     projectScoped
       ? `/projects/${fixedProjectId}/reports/weekly/${createdId}`
       : `/weekly-reports/${createdId}`;
+  const afterSaveHref = (savedId: string) =>
+    projectScoped
+      ? `/projects/${fixedProjectId}/reports/weekly/${savedId}`
+      : `/weekly-reports/${savedId}`;
 
   // Planning Integration 3B: a Planning-backed report's Planned/Actual
   // Progress are rendered read-only (see WeeklyReportHeaderForm) and are
@@ -209,7 +225,7 @@ export function WeeklyReportFormView({
       });
       await weeklyReportService.saveActivities(updated.id, activityRows);
       toast.success(`Draft ${updated.reportNumber} saved`);
-      router.push(`/weekly-reports/${updated.id}`);
+      router.push(afterSaveHref(updated.id));
       return;
     }
 
@@ -249,7 +265,7 @@ export function WeeklyReportFormView({
         onCancel={() =>
           router.push(
             isEdit && report
-              ? `/weekly-reports/${report.id}`
+              ? afterSaveHref(report.id)
               : projectScoped
                 ? `/projects/${fixedProjectId}/reporting?tab=weekly`
                 : "/weekly-reports"

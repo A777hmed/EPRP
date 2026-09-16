@@ -178,9 +178,13 @@ const GLOBAL_WEEKLY_LINKS: WeeklyReportLinks = {
 };
 
 /**
- * Preview and Edit have no project-scoped alias yet, so they intentionally
- * still fall back to the global routes rather than link to a page that
- * doesn't exist.
+ * Preview has no project-scoped alias yet, so it intentionally still falls
+ * back to the global route rather than link to a page that doesn't exist.
+ * Edit gained one in Top-Level Reporting 4A
+ * (`/projects/[projectId]/reports/weekly/[reportId]/edit`), added
+ * specifically so the global `/weekly-reports` register could be
+ * consolidated into a read-only view without leaving project-context users
+ * with no path to header-field editing.
  */
 function buildProjectWeeklyLinks(projectId: string): WeeklyReportLinks {
   return {
@@ -188,7 +192,7 @@ function buildProjectWeeklyLinks(projectId: string): WeeklyReportLinks {
     workspace: (reportId) =>
       `/projects/${projectId}/reports/weekly/${reportId}/workspace`,
     preview: (reportId) => `/weekly-reports/${reportId}/preview`,
-    edit: (reportId) => `/weekly-reports/${reportId}/edit`,
+    edit: (reportId) => `/projects/${projectId}/reports/weekly/${reportId}/edit`,
     list: `/projects/${projectId}/reporting?tab=weekly`,
   };
 }
