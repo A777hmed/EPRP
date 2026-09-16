@@ -13,6 +13,7 @@ import { milestoneService } from "@/services/milestone-service";
 import { monthlyReportService } from "@/services/monthly-report-service";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
+import { planningRollupService, type PlanningSnapshotRollup } from "@/services/planning-rollup-service";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type {
   Client,
@@ -40,6 +41,7 @@ import {
   openItems,
   readHealth,
   selectOfficialMonthly,
+  executiveFiguresFor,
   bySeverity,
   type MilestoneRow,
   type NamedRecord,
@@ -128,6 +130,18 @@ export function useExecutivePortfolio(
   const [monthlyPlans, setMonthlyPlans] = React.useState<Map<string, MonthlyPlanItem[]>>(new Map());
   const [weeklyEntries, setWeeklyEntries] = React.useState<Map<string, WeeklyEntry[]>>(new Map());
   const [weeklyPlans, setWeeklyPlans] = React.useState<Map<string, WeeklyPlanItem[]>>(new Map());
+  /**
+   * Rollups for the selected Monthlies' OWN pinned `planning_snapshot_id`,
+   * keyed by snapshot id (3E). Read by immutable id
+   * (`planningRollupService.computeSnapshotRollup`) — never
+   * `getLatestSnapshot()`/`getSnapshotForPeriod()`. Executive never chooses
+   * a snapshot; it only ever reads the one a Monthly already pinned at its
+   * own creation time, so a later Planning publish cannot move what an
+   * already-selected Monthly (and therefore this Executive period) shows.
+   */
+  const [planningRollupsBySnapshot, setPlanningRollupsBySnapshot] = React.useState<
+    Map<string, PlanningSnapshotRollup | null>
+  >(new Map());
 
   const contacts = contactRecords as Contact[];
   const clients = clientRecords as Client[];
@@ -330,6 +344,47 @@ export function useExecutivePortfolio(
     [laterWeeklies]
   );
 
+  /** Distinct pinned Planning Snapshot ids among this period's selected
+      Monthlies — never a resolved "latest", only what each Monthly already
+      carries. */
+  const selectedSnapshotIds = React.useMemo(
+    () =>
+      [
+        ...new Set(
+          selections
+            .map(({ selection }) => selection.report?.planningSnapshotId)
+            .filter((id): id is string => Boolean(id))
+        ),
+      ]
+        .sort()
+        .join(","),
+    [selections]
+  );
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const snapshotIds = selectedSnapshotIds ? selectedSnapshotIds.split(",") : [];
+
+    const load = async () => {
+      const pairs = await Promise.all(
+        snapshotIds.map(async (id) => {
+          try {
+            return [id, await planningRollupService.computeSnapshotRollup(id)] as const;
+          } catch {
+            return [id, null] as const;
+          }
+        })
+      );
+      if (cancelled) return;
+      setPlanningRollupsBySnapshot(new Map(pairs));
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSnapshotIds]);
+
   React.useEffect(() => {
     let cancelled = false;
     const monthlyIds = selectedReportIds ? selectedReportIds.split(",") : [];
@@ -378,6 +433,10 @@ export function useExecutivePortfolio(
       const projectName = project.name || project.code;
       const monthly = selection.report;
       const projectComments = monthly ? comments.get(monthly.id) ?? [] : [];
+      const figures = executiveFiguresFor(
+        monthly,
+        monthly?.planningSnapshotId ? planningRollupsBySnapshot.get(monthly.planningSnapshotId) : null
+      );
 
       const attention = buildAttention({
         comments: projectComments,
@@ -454,9 +513,14 @@ export function useExecutivePortfolio(
         basis: selection.basis,
         monthly,
         monthlyStatusLabel: monthly ? monthlyStatusLabel(monthly) : undefined,
-        planned: monthly?.plannedProgress,
-        actual: monthly?.actualProgress,
-        variance: monthly?.scheduleVariance,
+        planned: figures?.planned,
+        actual: figures?.actual,
+        variance: figures?.variance ?? undefined,
+        planningBacked: figures?.planningBacked ?? false,
+        spi: figures?.spi,
+        coveragePercent: figures?.coveragePercent,
+        snapshotVersion: figures?.snapshotVersion,
+        dataDate: figures?.dataDate,
         reading,
         attention,
         risks,
@@ -484,6 +548,7 @@ export function useExecutivePortfolio(
     clients,
     today,
     milestoneStatesByProject,
+    planningRollupsBySnapshot,
   ]);
 
   const milestones = React.useMemo(() => rows.flatMap((row) => row.milestones), [rows]);

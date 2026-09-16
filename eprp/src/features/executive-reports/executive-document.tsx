@@ -438,6 +438,14 @@ function ProjectStatusTable({ model }: { model: ExecutiveDocumentModel }) {
                       <span className="exec-basis-chip">
                         <StatusBadge tone={basis.tone} className={BASIS_BADGE_CLASS}>{basis.label}</StatusBadge>
                       </span>
+                      {/* Planning Integration 3E: additive provenance only —
+                          shown only when governed, never a second badge
+                          repeating "Manual"/"fallback" beside every row. */}
+                      {row.planningBacked && (
+                        <small className="exec-planning-tag" title={row.dataDate ? `Data Date ${row.dataDate}` : undefined}>
+                          Planning v{row.snapshotVersion}
+                        </small>
+                      )}
                     </td>
                     <td>{row.clientName}</td>
                     {/*
@@ -816,6 +824,18 @@ function SnapshotCard({ row, month }: { row: ProjectExecutiveRow; month: string 
         <StatusBadge tone={basis.tone} className={BASIS_BADGE_CLASS}>{basis.label}</StatusBadge>
         {row.monthlyStatusLabel && <small>{row.monthlyStatusLabel}</small>}
       </div>
+
+      {/* Planning Integration 3E: which basis governs the figures below —
+          additive, distinct from the approval-status chip above. */}
+      {row.planningBacked ? (
+        <p className="exec-planning-note">
+          Planning-backed · Snapshot v{row.snapshotVersion}
+          {row.dataDate ? ` · Data Date ${row.dataDate}` : ""}
+          {typeof row.coveragePercent === "number" ? ` · Coverage ${row.coveragePercent.toFixed(0)}%` : ""}
+        </p>
+      ) : (
+        row.basis !== "none" && <p className="exec-planning-note">Manual / Monthly fallback basis</p>
+      )}
 
       <div className="exec-snapshot-figures">
         <div>

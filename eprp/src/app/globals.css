@@ -1301,6 +1301,10 @@
 .exec-snapshot > header small { display: block; margin-top: 2px; color: #7d8fa4; font-size: .64rem; }
 .exec-snapshot-basis { display: flex; align-items: center; gap: 7px; }
 .exec-snapshot-basis small { color: #8494a7; font-size: .62rem; }
+/* Planning Integration 3E — additive basis provenance, distinct from the
+   approval-status chip above (exec-snapshot-basis). */
+.exec-planning-note { margin: 0; color: #6d84a0; font-size: .6rem; line-height: 1.4; }
+.exec-planning-tag { display: inline-block; margin-left: 6px; color: #6d3fae; font-size: .6rem; font-weight: 700; }
 .exec-snapshot-figures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px 0; border-top: 1px solid #e5ecf3; border-bottom: 1px solid #e5ecf3; }
 .exec-snapshot-figures > div { display: grid; gap: 2px; }
 .exec-snapshot-figures span { color: #667a91; font-size: .57rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }

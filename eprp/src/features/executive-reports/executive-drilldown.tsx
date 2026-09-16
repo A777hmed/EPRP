@@ -38,6 +38,7 @@ import { monthlyReportService } from "@/services/monthly-report-service";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
 import { milestoneService } from "@/services/milestone-service";
+import { planningRollupService, type PlanningSnapshotRollup } from "@/services/planning-rollup-service";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type {
   Client,
@@ -66,6 +67,7 @@ import {
   openItems,
   readHealth,
   selectOfficialMonthly,
+  executiveFiguresFor,
   type MilestoneRow,
   type MonthlySelection,
   type MovementItem,
@@ -109,6 +111,12 @@ interface ProjectDetail {
   month: string;
   /** Governed Master Milestone current state, read-only — see `milestone-state.ts`. */
   milestoneStates: MilestoneState[];
+  /**
+   * The rollup for `selection.report`'s OWN pinned `planningSnapshotId`
+   * (3E) — read by immutable id, never re-resolved. `undefined` when the
+   * selected Monthly has no pin (or none exists).
+   */
+  planningRollup?: PlanningSnapshotRollup | null;
 }
 
 function useProjectDetail(projectId: string, scope: ExecutiveScopeInput, requestedMonth?: string) {
@@ -183,11 +191,14 @@ function useProjectDetail(projectId: string, scope: ExecutiveScopeInput, request
           ? weeklies.filter((weekly) => weekly.periodStart.slice(0, 7) > month).slice(0, MOVEMENT_WEEK_LIMIT)
           : [];
 
-        const [comments, monthlyPlans, entryPairs, planPairs] = await Promise.all([
+        const [comments, monthlyPlans, entryPairs, planPairs, planningRollup] = await Promise.all([
           selection.report ? monthlyReportService.listComments(selection.report.id) : Promise.resolve([]),
           selection.report ? monthlyReportService.listPlanItems(selection.report.id) : Promise.resolve([]),
           Promise.all(laterWeeklies.map(async (w) => [w.id, await weeklyReportService.listEntries(w.id)] as const)),
           Promise.all(laterWeeklies.map(async (w) => [w.id, await weeklyReportService.listPlanItems(w.id)] as const)),
+          selection.report?.planningSnapshotId
+            ? planningRollupService.computeSnapshotRollup(selection.report.planningSnapshotId).catch(() => null)
+            : Promise.resolve(null),
         ]);
         if (cancelled) return;
 
@@ -204,6 +215,7 @@ function useProjectDetail(projectId: string, scope: ExecutiveScopeInput, request
           plansByWeekly: new Map(planPairs),
           month,
           milestoneStates,
+          planningRollup,
         });
       } catch (error) {
         if (cancelled) return;
@@ -688,6 +700,7 @@ export function ExecutiveProjectDrilldown({
       projectName,
       clientName: nameOf(detail.project.clientId, clients as NamedRecord[], NOT_RECORDED),
       reading: readHealth(detail.selection.report),
+      figures: executiveFiguresFor(detail.selection.report, detail.planningRollup),
       attention,
       risks: openItems(attention, "risk").sort(bySeverity),
       decisions: openItems(attention, "decision").sort(bySeverity),
@@ -773,15 +786,53 @@ export function ExecutiveProjectDrilldown({
         {tab === "overview" && (
           <>
             <div className="exec-figure-row">
-              <Figure label="Planned" value={monthly ? `${monthly.plannedProgress.toFixed(1)}%` : NOT_RECORDED} className="planned-value" />
-              <Figure label="Actual" value={monthly ? `${monthly.actualProgress.toFixed(1)}%` : NOT_RECORDED} className="actual-value" />
+              <Figure label="Planned" value={model.figures ? `${model.figures.planned.toFixed(1)}%` : NOT_RECORDED} className="planned-value" />
+              <Figure label="Actual" value={model.figures ? `${model.figures.actual.toFixed(1)}%` : NOT_RECORDED} className="actual-value" />
               <Figure
                 label="Variance"
-                value={monthly ? `${monthly.scheduleVariance > 0 ? "+" : ""}${monthly.scheduleVariance.toFixed(1)}%` : NOT_RECORDED}
+                value={
+                  model.figures && model.figures.variance !== null
+                    ? `${model.figures.variance > 0 ? "+" : ""}${model.figures.variance.toFixed(1)}%`
+                    : NOT_RECORDED
+                }
                 className="variance-value"
               />
-              <Figure label="SPI" value={monthly ? monthly.spi.toFixed(2) : NOT_RECORDED} />
+              {/*
+                Planning Integration 3E: SPI is EV/PV from the Monthly's OWN
+                pinned snapshot when Planning-backed — never the Actual%/
+                Planned% ratio `monthly.spi` (the Monthly's stored fallback
+                column) would give. Unavailable EV/PV or PV <= 0 reads N/A,
+                never a fabricated ratio.
+              */}
+              <Figure
+                label="SPI"
+                value={
+                  model.figures
+                    ? model.figures.spi === null
+                      ? "N/A"
+                      : model.figures.spi.toFixed(2)
+                    : NOT_RECORDED
+                }
+              />
             </div>
+
+            {model.figures?.planningBacked && (
+              <p className="exec-tab-note exec-planning-note">
+                <StatusBadge tone="info">Planning-backed</StatusBadge>{" "}
+                Snapshot v{model.figures.snapshotVersion}
+                {model.figures.dataDate ? ` · Data Date ${model.figures.dataDate}` : ""}
+                {typeof model.figures.coveragePercent === "number"
+                  ? ` · Coverage ${model.figures.coveragePercent.toFixed(0)}%`
+                  : ""}
+                . Figures above are governed by that snapshot, frozen to this Monthly&rsquo;s approved basis.
+              </p>
+            )}
+            {monthly && !model.figures?.planningBacked && (
+              <p className="exec-tab-note exec-planning-note">
+                <StatusBadge tone="neutral">Manual / Monthly fallback</StatusBadge> Figures above are this Monthly
+                Report&rsquo;s own entered position — no Planning Snapshot governs this month.
+              </p>
+            )}
 
             <p className="exec-tab-note">{model.reading.basis} {basis.note}</p>
 

@@ -31,6 +31,11 @@ import {
 import { scheduleVariance } from "@/lib/reporting";
 import type { StatusTone } from "@/components/shared/status-badge";
 import type { MilestoneState } from "@/features/projects/milestone-state";
+import {
+  monthlyDisplayFigures,
+  type MonthlyDisplayFigures,
+  type PlanningRollupLike,
+} from "@/features/monthly-reports/planning-integration";
 import type {
   Contact,
   MonthlyComment,
@@ -130,6 +135,35 @@ export function selectOfficialMonthly(reports: MonthlyReport[], month: string): 
 
   const latest = [...inMonth].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return { basis: "draft", report: latest[0] };
+}
+
+/**
+ * Planning Integration 3E — the SAME figures the selected Monthly Report
+ * itself shows, never re-derived.
+ *
+ * Delegates to `monthlyDisplayFigures` (Monthly's own 3C module): when the
+ * Monthly is Planning-backed, Planned/Actual/Variance/SPI all come from its
+ * ONE pinned snapshot's rollup; otherwise they are the Monthly's own stored
+ * columns, exactly as `selectOfficialMonthly` returned them. Executive
+ * supplies that rollup itself, read by the Monthly's own immutable
+ * `planningSnapshotId` (`planningRollupService.computeSnapshotRollup`) — a
+ * plain lookup by an already-fixed id, never `getLatestSnapshot()` or
+ * `getSnapshotForPeriod()`. Executive therefore never independently chooses
+ * a Planning snapshot and never disagrees with the Monthly Report it
+ * compiles: publishing a NEWER Planning Snapshot cannot change what an
+ * already-approved Monthly — and therefore this Executive period — shows,
+ * because the pin this reads is the one the Monthly was created with, not
+ * "whatever is current now".
+ *
+ * `undefined` only when there is no Monthly at all (`basis: "none"`) — the
+ * existing "absence is never zero" contract, unaffected.
+ */
+export function executiveFiguresFor(
+  monthly: MonthlyReport | undefined,
+  planningRollup: PlanningRollupLike | null | undefined
+): MonthlyDisplayFigures | undefined {
+  if (!monthly) return undefined;
+  return monthlyDisplayFigures(monthly, planningRollup);
 }
 
 /* -------------------------------- Health ---------------------------------- */
@@ -679,9 +713,26 @@ export interface ProjectExecutiveRow {
   basis: MonthlyBasis;
   monthly?: MonthlyReport;
   monthlyStatusLabel?: string;
+  /**
+   * Planned/Actual/Variance/SPI below all come from `executiveFiguresFor()`
+   * — the SAME governed-or-fallback figures the selected Monthly itself
+   * shows, never re-derived and never mixed: when `planningBacked`, all
+   * four come from that Monthly's ONE pinned snapshot rollup; otherwise all
+   * four are the Monthly's own stored columns.
+   */
   planned?: number;
   actual?: number;
   variance?: number;
+  /** True only when the selected Monthly is Planning-backed (3E). Absent
+      figures above are `undefined`, per "absence is never zero" — never 0. */
+  planningBacked: boolean;
+  /** EV/PV. `null` when Planning-backed but value data is unavailable (or
+      Planned Value <= 0) — never the Actual%/Planned% ratio. Absent
+      entirely when `planningBacked` is false. */
+  spi?: number | null;
+  coveragePercent?: number;
+  snapshotVersion?: number;
+  dataDate?: string;
   reading: HealthReading;
   attention: AttentionItem[];
   risks: AttentionItem[];
