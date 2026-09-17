@@ -2,14 +2,22 @@
 
 /**
  * Milestones stay on the Dashboard: "View All" (Milestone Progress and
- * Milestones Upcoming) and every milestone row open this one large modal
+ * Milestones Upcoming) and every milestone row open this one wide drawer
  * rather than navigating straight to the project's Milestones section. It
  * is a plain list -> detail stack over data the Dashboard already has in
  * scope — nothing here is fetched separately, and the search/status/project
- * controls below only narrow what this modal shows, never the Dashboard's
+ * controls below only narrow what this drawer shows, never the Dashboard's
  * own filters. The governed register stays reachable, but only as a
  * secondary action in the footer, never the primary way to read the
  * milestone.
+ *
+ * Top-Level 5A1: this is a presentation-shell migration only, from the
+ * centered `DetailModal` onto the wide right-side `DetailDrawer` — the same
+ * shell the new KPI/Project Health drawers use (`kpi-detail-drawer.tsx`), so
+ * Milestones, KPIs and Project Health now read as one detail system. Every
+ * prop here, and everything below `DetailDrawer`'s open/close/back/toolbar/
+ * footer chrome, is unchanged: same data, same filters, same list/detail
+ * logic, same governed Master Milestone Register as the only source.
  */
 
 import * as React from "react";
@@ -32,7 +40,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DetailModal, StatusBadge, type StatusTone } from "@/components/shared";
+import { DetailDrawer, StatusBadge, type StatusTone } from "@/components/shared";
 import { milestoneStageOf, type Tone } from "./dashboard-analytics";
 import type { DashboardMilestone } from "./dashboard-data";
 import type { Department } from "@/types";
@@ -151,7 +159,7 @@ export function MilestoneModal({
   }, [selected, milestones, groupByProject]);
 
   return (
-    <DetailModal
+    <DetailDrawer
       open={open}
       onOpenChange={onOpenChange}
       title={selected ? selected.title : "Milestones"}
@@ -190,7 +198,7 @@ export function MilestoneModal({
           onSelect={setSelectedId}
         />
       )}
-    </DetailModal>
+    </DetailDrawer>
   );
 }
 
@@ -415,8 +423,11 @@ function groupMilestonesByProject(
 
 /** A numbered vertical rail, one project's (or the whole scope's) milestones
     in date order — the order they already arrive in. The number is a UI-only
-    position marker; status is carried separately by the icon + badge. */
-function MilestoneTimeline({
+    position marker; status is carried separately by the icon + badge.
+    Exported for reuse by the Project Workspace's own Milestones tab (§C2 of
+    the 5A1 correction) — the identical status derivation and row treatment,
+    never a second implementation of either. */
+export function MilestoneTimeline({
   milestones,
   onSelect,
 }: {
@@ -472,7 +483,10 @@ function MilestoneTimeline({
 
 /* --------------------------------- Detail ------------------------------------ */
 
-function MilestoneDetail({
+/** Exported for reuse by the Project Workspace's Milestones tab, so a
+    milestone opened from inside the workspace shows the identical detail a
+    standalone Milestone entry shows — never a second, drifting rendering. */
+export function MilestoneDetail({
   milestone,
   sequence,
   departments,

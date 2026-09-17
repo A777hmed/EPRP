@@ -55,6 +55,8 @@ function rollup(overrides: Partial<PlanningRollupLike> = {}): PlanningRollupLike
     actualProgress: 55,
     variance: -13,
     spi: 0.55,
+    plannedValue: 6800,
+    earnedValue: 3740,
     coveragePercent: 90,
     ...overrides,
   };
@@ -89,6 +91,8 @@ function rollup(overrides: Partial<PlanningRollupLike> = {}): PlanningRollupLike
   assertEqual(figures.actualProgress, 55, "usable latest snapshot: actualProgress from the SAME rollup");
   assertEqual(figures.variance, -13, "usable latest snapshot: variance from the SAME rollup");
   assertEqual(figures.spi, 0.55, "usable latest snapshot: spi (EV/PV) from the SAME rollup");
+  assertEqual(figures.plannedValue, 6800, "usable latest snapshot: plannedValue (PV) carried through for KPI detail");
+  assertEqual(figures.earnedValue, 3740, "usable latest snapshot: earnedValue (EV) carried through for KPI detail");
   assertEqual(figures.snapshotVersion, 3, "usable latest snapshot: snapshot version provenance");
   assertEqual(figures.dataDate, "2026-09-01", "usable latest snapshot: Data Date provenance");
   assertEqual(figures.coveragePercent, 90, "usable latest snapshot: coverage provenance");

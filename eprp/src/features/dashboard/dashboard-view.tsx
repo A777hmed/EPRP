@@ -13,7 +13,7 @@
  *
  *   header    title and scope controls, on the canvas rather than in a card
  *   KPI row   five blocks, each carrying a different mark
- *   main      44 / 28 / 28  — trend, distribution, polar comparison
+ *   main      44 / 28 / 28  — progress comparison, distribution, polar comparison
  *   lower     25 / 42 / 33  — milestone bars + variance, schedule, queues
  *
  * The lower row is top-aligned on purpose: the calendar takes its natural
@@ -41,16 +41,22 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarPreview } from "@/features/calendar";
 import { todayIso } from "@/features/calendar/calendar-types";
+import { useMasterData } from "@/features/master-data";
+import type { ProjectPhase } from "@/types";
 import {
   HealthPanel,
   KpiStrip,
   MilestonePanel,
   ProgressByProjectPanel,
   StatusPanel,
-  TrendPanel,
+  useReducedMotion,
   type HealthAxis,
 } from "./dashboard-analytics";
 import { MilestoneModal } from "./milestone-modal";
+import { ProjectProgressComparisonPanel } from "./components/progress-comparison-panel";
+import { ExpandedProgressCurveModal } from "./components/progress-curve-modal";
+import { SummaryDetailModal, type SummaryModalKind } from "./components/summary-modals";
+import { ProjectWorkspace, type ProjectWorkspaceSelection, type WorkspaceTab } from "./components/project-workspace";
 import { usePlanningProgressCurve } from "./use-planning-progress-curve";
 import {
   BASIS_LABEL,
@@ -58,12 +64,10 @@ import {
   HEALTH_META,
   PORTFOLIO_BASIS_NOTE,
   TIME_PERIOD_LABEL,
-  periodWindow,
   positionsFor,
   round,
   totalsFor,
   useDashboardData,
-  varianceTrend,
   type DashboardFilters,
   type DashboardMilestone,
   type ProjectPosition,
@@ -75,6 +79,8 @@ const PERIODS: TimePeriod[] = ["this_week", "this_month", "quarter", "all"];
 export function DashboardView({ canManage }: { canManage: boolean }) {
   const data = useDashboardData();
   const [filters, setFilters] = React.useState<DashboardFilters>(EMPTY_DASHBOARD_FILTERS);
+  const { records: projectPhaseRecords } = useMasterData("projectPhase");
+  const projectPhases = projectPhaseRecords as ProjectPhase[];
 
   /* Scope first, then derive. Every panel below reads from these. */
   const scopedProjects = React.useMemo(
@@ -100,36 +106,27 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
     [scopedProjects]
   );
 
-  /*
-   * Planning Integration 3D: the "Planned vs Actual Progress Curve" only
-   * has a project to plot against — it replaces the report-based trend
-   * ONLY when the Dashboard is scoped to exactly one project AND that
-   * project's current position is Planning-backed. Portfolio view (no
-   * project selected) and a fallback/manual single project both keep the
-   * existing trend untouched.
-   */
-  const singleProjectPosition =
-    filters.projectId && positions.length === 1 ? positions[0] : undefined;
-  const planningCurve = usePlanningProgressCurve(
-    singleProjectPosition?.basis === "planning" ? filters.projectId : ""
-  );
+  const reduced = useReducedMotion();
 
   /*
-   * The trend obeys the PERIOD control, like every other reading.
-   *
-   * `varianceTrend` takes no period argument, so the window is applied to its
-   * input here using the same `periodWindow` that `positionsFor` uses
-   * internally. Without this the KPI headlines were period-scoped while the
-   * chart and sparkline beneath them plotted every week ever filed — so
-   * "This Week" could render an em-dash above a live eight-week series.
+   * Dashboard UX Part 1 (item 5/6): the Expanded Progress Analysis modal
+   * shares ONE selection with the Comparison panel's "Expand" action, over
+   * EVERY visible project — not only the Planning-backed ones. The default
+   * selection still prefers a Planning-backed project (a real curve beats
+   * an honest-but-empty one on first open); `planningCandidates` exists
+   * only to pick that default.
    */
-  const trend = React.useMemo(() => {
-    const { from, to } = periodWindow(filters.period);
-    const windowed = data.weeklies.filter(
-      (report) => (!from || report.periodEnd >= from) && (!to || report.periodEnd <= to)
-    );
-    return varianceTrend(windowed, scopedIds);
-  }, [data.weeklies, scopedIds, filters.period]);
+  const planningCandidates = React.useMemo(
+    () => positions.filter((position) => position.basis === "planning"),
+    [positions]
+  );
+  const [manualCurveProjectId, setManualCurveProjectId] = React.useState<string | null>(null);
+  const curveProjectId =
+    manualCurveProjectId && positions.some((p) => p.project.id === manualCurveProjectId)
+      ? manualCurveProjectId
+      : (planningCandidates[0]?.project.id ?? positions[0]?.project.id ?? "");
+  const planningCurve = usePlanningProgressCurve(curveProjectId);
+  const [expandCurveOpen, setExpandCurveOpen] = React.useState(false);
 
   /* `milestones` (capped) still feeds the Milestones health axis below;
      `scopedMilestones` (uncapped) feeds the Milestone panels and modal, each
@@ -245,6 +242,24 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
     setMilestoneModalOpen(true);
   };
 
+  /*
+   * Top summary-card quick detail (§A) — a compact CENTER modal, selection-
+   * driven exactly like the Milestone modal above. Never the wide Project
+   * Workspace: these five answer "what is behind this one portfolio
+   * number", not "let me explore this project".
+   */
+  const [summaryModalKind, setSummaryModalKind] = React.useState<SummaryModalKind | null>(null);
+
+  /*
+   * The Project Workspace (§C/§D) — one selection drives one wide right-side
+   * drawer with its own internal tabs. `open`/`close` never re-fetch
+   * anything: the workspace reads the SAME `positions`/`scopedMilestones`/
+   * `weeklies`/`monthlies` already computed for the rest of the page.
+   */
+  const [workspaceSelection, setWorkspaceSelection] = React.useState<ProjectWorkspaceSelection | null>(null);
+  const openWorkspace = (projectId: string, tab?: WorkspaceTab) => setWorkspaceSelection({ projectId, tab });
+  const openManagementWorkspace = (projectId: string) => openWorkspace(projectId, "management");
+
   if (data.loading) return <DashboardSkeleton />;
   if (data.error) {
     return <EmptyState title="Dashboard unavailable" description={data.error} icon={AlertTriangle} />;
@@ -329,21 +344,10 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
         <Shortcut href="/executive-reports" icon={<ArrowUpRight aria-hidden />} label="Executive" />
       </nav>
 
-      <KpiStrip
-        totals={totals}
-        trend={trend}
-        overdueWeekly={overdue.weekly}
-        overdueMonthly={overdue.monthly}
-        portfolioBasisNote={filters.projectId ? undefined : PORTFOLIO_BASIS_NOTE}
-      />
+      <KpiStrip totals={totals} onSelectCard={setSummaryModalKind} />
 
       <section className="dash-row dash-row-main">
-        <TrendPanel
-          positions={positions}
-          trend={trend}
-          planningPosition={singleProjectPosition?.basis === "planning" ? singleProjectPosition : undefined}
-          planningCurve={planningCurve}
-        />
+        <ProjectProgressComparisonPanel positions={positions} onExpand={() => setExpandCurveOpen(true)} />
         <StatusPanel totals={totals} />
         <HealthPanel axes={healthAxes} />
       </section>
@@ -356,7 +360,7 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
             onViewAll={openMilestoneList}
             onSelectMilestone={openMilestoneDetail}
           />
-          <ProgressByProjectPanel positions={positions} />
+          <ProgressByProjectPanel positions={positions} onSelectProject={(projectId) => openWorkspace(projectId)} />
         </div>
 
         <CalendarPreview
@@ -376,7 +380,7 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
             onViewAll={openMilestoneList}
             onSelectMilestone={openMilestoneDetail}
           />
-          <ManagementAttention positions={positions} />
+          <ManagementAttention positions={positions} onSelectProject={openManagementWorkspace} />
         </div>
       </section>
 
@@ -388,6 +392,43 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
         scopeLabel={filters.projectId ? (scopedProjects[0]?.name ?? "Project") : "All Projects"}
         initialMilestoneId={milestoneModalSelection}
         departments={data.departments}
+      />
+
+      <SummaryDetailModal
+        selection={summaryModalKind}
+        onOpenChange={(open) => {
+          if (!open) setSummaryModalKind(null);
+        }}
+        totals={totals}
+        positions={positions}
+        weeklies={data.weeklies}
+        monthlies={data.monthlies}
+        contacts={data.contacts}
+        portfolioBasisNote={PORTFOLIO_BASIS_NOTE}
+      />
+
+      <ExpandedProgressCurveModal
+        open={expandCurveOpen}
+        onOpenChange={setExpandCurveOpen}
+        candidates={positions}
+        selectedProjectId={curveProjectId}
+        onSelectProject={setManualCurveProjectId}
+        curve={planningCurve}
+        reduced={reduced}
+      />
+
+      <ProjectWorkspace
+        selection={workspaceSelection}
+        onOpenChange={(open) => {
+          if (!open) setWorkspaceSelection(null);
+        }}
+        positions={positions}
+        milestones={scopedMilestones}
+        projectPhases={projectPhases}
+        weeklies={data.weeklies}
+        monthlies={data.monthlies}
+        departments={data.departments}
+        contacts={data.contacts}
       />
     </div>
   );
@@ -511,7 +552,17 @@ function MilestonesUpcoming({
   );
 }
 
-function ManagementAttention({ positions }: { positions: ProjectPosition[] }) {
+function ManagementAttention({
+  positions,
+  onSelectProject,
+}: {
+  positions: ProjectPosition[];
+  /** Opens the Project Workspace straight to its Management tab (Top-Level
+      5A1 correction, §D) — replaces the previous full-page navigation to
+      `/projects/[id]`, so checking a flagged project no longer leaves the
+      Dashboard. */
+  onSelectProject: (projectId: string) => void;
+}) {
   const flagged = positions
     .filter((position) => position.health !== "on_track")
     .sort((a, b) => (a.variance ?? 0) - (b.variance ?? 0))
@@ -525,7 +576,11 @@ function ManagementAttention({ positions }: { positions: ProjectPosition[] }) {
             const tone = HEALTH_META[position.health].tone;
             return (
               <li key={position.project.id}>
-                <Link href={`/projects/${position.project.id}`}>
+                <button
+                  type="button"
+                  onClick={() => onSelectProject(position.project.id)}
+                  aria-label={`Open ${position.project.name} in the Project Workspace`}
+                >
                   <AlertTriangle className={`dash-item-icon is-${tone}`} aria-hidden />
                   <span>
                     <b>{position.project.name}</b>
@@ -542,7 +597,7 @@ function ManagementAttention({ positions }: { positions: ProjectPosition[] }) {
                       ? HEALTH_META[position.health].label
                       : `${position.variance > 0 ? "+" : ""}${round(position.variance)}%`}
                   </em>
-                </Link>
+                </button>
               </li>
             );
           })}

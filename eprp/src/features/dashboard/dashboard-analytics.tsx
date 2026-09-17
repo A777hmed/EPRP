@@ -18,11 +18,6 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
   Cell,
   Pie,
   PieChart,
@@ -33,12 +28,9 @@ import {
   RadarChart,
   ResponsiveContainer,
   Tooltip,
-  XAxis,
-  YAxis,
 } from "recharts";
-import { CircleCheck, TriangleAlert } from "lucide-react";
+import { CircleCheck, TrendingDown, TrendingUp, TriangleAlert } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import {
   HEALTH_META,
   compareMilestonesByAttention,
@@ -47,15 +39,13 @@ import {
   type DashboardMilestone,
   type PortfolioTotals,
   type ProjectPosition,
-  type TrendPoint,
 } from "./dashboard-data";
-import type { ProgressCurvePoint } from "./planning-integration";
+import type { SummaryModalKind } from "./components/summary-modals";
 
 /* --------------------------------- Chrome ---------------------------------- */
 
 /* Chart chrome reads the workspace tokens, so axes follow the theme with no JS
    theme detection — a hardcoded light hex would glow on the dark ground. */
-const AXIS = { fontSize: 10, fill: "var(--dash-muted)" } as const;
 const GRID = "var(--dash-hairline)";
 const PLANNED = "var(--dash-chart-planned)";
 const ACTUAL = "var(--dash-chart-actual)";
@@ -70,44 +60,56 @@ export type Tone = "success" | "warning" | "behind" | "danger" | "default";
  * icon. Two rings on purpose: they read as a matched pair of rate metrics, and
  * the three that follow deliberately break the rhythm so the strip cannot be
  * skimmed as one repeated card.
+ *
+ * Dashboard UX Part 1: each card is now title + large value + ONE short
+ * supporting line + its visual mark — methodology, week-over-week delta and
+ * every other explanation moved into the card's own quick-detail modal
+ * (`summary-modals.tsx`), reached by clicking it. A card states a fact; the
+ * modal explains it.
  */
 export function KpiStrip({
   totals,
-  trend,
-  overdueWeekly,
-  overdueMonthly,
-  portfolioBasisNote,
+  onSelectCard,
 }: {
   totals: PortfolioTotals;
-  trend: TrendPoint[];
-  overdueWeekly: number;
-  overdueMonthly: number;
-  /** Portfolio-view only (3D audit) — states the aggregation basis explicitly
-      rather than letting an unweighted mean read as a governed rollup. */
-  portfolioBasisNote?: string;
+  /** Opens a compact centered quick-detail modal for one card (§A) — a
+      management quick-look, never the wide Project Workspace. */
+  onSelectCard: (kind: SummaryModalKind) => void;
 }) {
   const coverage = totals.totalProjects
     ? Math.round((totals.reportedProjects / totals.totalProjects) * 100)
     : undefined;
   const bands = healthRows(totals);
-  const spark = trend.filter((point) => point.variance !== undefined);
+
+  /* Final Micro-Polish: keyed on the figures the five cards actually
+     render — not `totals` identity, which is stable across an unrelated
+     re-render — so the strip cleanly re-mounts and its short fade/
+     translate stagger replays once per relevant filter/scope change,
+     never on an incidental re-render, never looping. */
+  const stripKey = [
+    totals.totalProjects,
+    totals.reportedProjects,
+    totals.onTrack,
+    totals.actual,
+    totals.planned,
+    totals.variance,
+    totals.overdueReports,
+  ].join(":");
 
   return (
-    <section className="dash-kpis" aria-label="Portfolio summary">
+    <section key={stripKey} className="dash-kpis" aria-label="Portfolio summary">
       {/* 1 — ring */}
-      <article className="dash-kpi">
+      <button type="button" className="dash-kpi" onClick={() => onSelectCard("portfolio")} aria-label="Open Portfolio Progress detail">
         <div className="dash-kpi-text">
           <span>Portfolio Progress</span>
           <b>{totals.actual === undefined ? "—" : `${round(totals.actual)}%`}</b>
           <small>Planned {totals.planned === undefined ? "—" : `${round(totals.planned)}%`}</small>
-          <Delta series={trend} field="actual" enabled={totals.actual !== undefined} />
-          {portfolioBasisNote && <p className="dash-kpi-note">{portfolioBasisNote}</p>}
         </div>
         <Ring value={totals.actual} tone="primary" label="Portfolio actual progress" />
-      </article>
+      </button>
 
       {/* 2 — ring, paired with the first */}
-      <article className="dash-kpi">
+      <button type="button" className="dash-kpi" onClick={() => onSelectCard("coverage")} aria-label="Open Reporting Coverage detail">
         <div className="dash-kpi-text">
           <span>Reporting Coverage</span>
           <b>{coverage === undefined ? "—" : `${coverage}%`}</b>
@@ -116,22 +118,16 @@ export function KpiStrip({
               ? `${totals.reportedProjects} of ${totals.totalProjects} projects`
               : "No projects in view"}
           </small>
-          <p className="dash-kpi-note">
-            {totals.notReported ? `${totals.notReported} without a basis` : "Every project reporting"}
-          </p>
         </div>
         <Ring value={coverage} tone="success" label="Reporting coverage" />
-      </article>
+      </button>
 
       {/* 3 — mini vertical bars */}
-      <article className="dash-kpi">
+      <button type="button" className="dash-kpi" onClick={() => onSelectCard("onTrack")} aria-label="Open Projects On Track detail">
         <div className="dash-kpi-text">
           <span>Projects On Track</span>
           <b>{totals.onTrack}</b>
           <small>of {totals.totalProjects} in view</small>
-          <p className="dash-kpi-note">
-            {bands.length ? `${bands.length} status ${plural(bands.length, "band")} present` : "Nothing to rank"}
-          </p>
         </div>
         <div className="dash-kpi-columns" role="img" aria-label={healthSummary(bands)}>
           {bands.length ? (
@@ -147,324 +143,45 @@ export function KpiStrip({
             <i className="is-default" style={{ "--h": "14%" } as React.CSSProperties} />
           )}
         </div>
-      </article>
+      </button>
 
       {/* 4 — sparkline */}
-      <article className="dash-kpi">
+      <button type="button" className="dash-kpi" onClick={() => onSelectCard("variance")} aria-label="Open Schedule Variance detail">
         <div className="dash-kpi-text">
           <span>Schedule Variance</span>
           <b className={`is-${varianceTone(totals.variance)}`}>{signed(totals.variance)}</b>
           <small>Actual less planned</small>
-          <Delta series={trend} field="variance" unit="pts" enabled={totals.variance !== undefined} />
         </div>
-        <div className="dash-kpi-spark" role="img" aria-label="Schedule variance across recent reporting weeks">
-          {spark.length >= 2 ? (
-            <ResponsiveContainer width="100%" height={42}>
-              <AreaChart data={spark} margin={{ top: 4, right: 0, bottom: 2, left: 0 }}>
-                <defs>
-                  <linearGradient id="dashSparkFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={ACTUAL} stopOpacity={0.34} />
-                    <stop offset="100%" stopColor={ACTUAL} stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <Area
-                  type="monotone"
-                  dataKey="variance"
-                  stroke={ACTUAL}
-                  strokeWidth={1.75}
-                  fill="url(#dashSparkFill)"
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+        <div className="dash-kpi-status" aria-hidden>
+          {(totals.variance ?? 0) >= 0 ? (
+            <TrendingUp className={`is-${varianceTone(totals.variance)}`} />
           ) : (
-            <span className="dash-kpi-flat" aria-hidden />
+            <TrendingDown className={`is-${varianceTone(totals.variance)}`} />
           )}
         </div>
-      </article>
+      </button>
 
       {/* 5 — a STATE, so a status icon rather than a chart */}
-      <article className={`dash-kpi ${totals.overdueReports ? "is-danger" : "is-clear"}`}>
+      <button
+        type="button"
+        className={`dash-kpi ${totals.overdueReports ? "is-danger" : "is-clear"}`}
+        onClick={() => onSelectCard("overdue")}
+        aria-label="Open Overdue Reports detail"
+      >
         <div className="dash-kpi-text">
           <span>Overdue Reports</span>
           <b className={totals.overdueReports ? "is-danger" : "is-success"}>{totals.overdueReports}</b>
           <small>Past period end, not approved</small>
-          <p className={`dash-kpi-note ${totals.overdueReports ? "is-danger" : ""}`}>
-            {totals.overdueReports
-              ? `${overdueWeekly} Weekly · ${overdueMonthly} Monthly`
-              : "Reporting is current"}
-          </p>
         </div>
         <div className="dash-kpi-status" aria-hidden>
           {totals.overdueReports ? <TriangleAlert /> : <CircleCheck />}
         </div>
-      </article>
+      </button>
     </section>
   );
 }
 
 /* =============================== Main row ================================== */
-
-/**
- * Left panel. A trend is the preferred reading, but it needs at least two
- * reporting weeks — one week is a POSITION, not a trend. Below that the panel
- * swaps to a per-project planned-against-actual comparison: the same fact,
- * compared across projects instead of across weeks, at the same visual weight.
- */
-export function TrendPanel({
-  positions,
-  trend,
-  planningPosition,
-  planningCurve,
-}: {
-  positions: ProjectPosition[];
-  trend: TrendPoint[];
-  /** The scoped project's CURRENT position, present only when the Dashboard
-      is scoped to exactly one project AND it is Planning-backed (3D). */
-  planningPosition?: ProjectPosition;
-  /** Published Planning Snapshot history for that same project — see
-      `usePlanningProgressCurve`. `undefined` while loading. */
-  planningCurve?: ProgressCurvePoint[];
-}) {
-  const reduced = useReducedMotion();
-  const [visible, setVisible] = React.useState({ planned: true, actual: true });
-  const reported = positions.filter(
-    (position) => position.planned !== undefined && position.actual !== undefined
-  );
-
-  if (planningPosition) {
-    return (
-      <PlanningProgressCurvePanel position={planningPosition} curve={planningCurve} reduced={reduced} />
-    );
-  }
-
-  if (trend.length < 2) {
-    if (reported.length === 0) {
-      return (
-        <Panel title="Project Performance" hint="Planned against actual">
-          <PanelEmpty>
-            No project in view has reported planned and actual progress for this period.
-          </PanelEmpty>
-        </Panel>
-      );
-    }
-
-    /* The basis is DERIVED, never asserted. This branch also fires when there
-       is no weekly at all — a monthly-only or Planning-only portfolio — so
-       hardcoding "single reporting week" would state a week that does not
-       exist. */
-    const bases = new Set(reported.map((position) => position.basis));
-    const basis =
-      bases.size > 1
-        ? "mixed basis"
-        : bases.has("planning")
-          ? "latest Planning Snapshot per project"
-          : bases.has("monthly")
-            ? "latest Monthly per project"
-            : trend.length === 1
-              ? "single reporting week"
-              : "latest Weekly per project";
-
-    const BASIS_SUFFIX: Partial<Record<ProjectPosition["basis"], string>> = {
-      monthly: " (M)",
-      planning: " (P)",
-    };
-    const rows = reported.slice(0, 7).map((position) => ({
-      name: `${shortName(position)}${BASIS_SUFFIX[position.basis] ?? ""}`,
-      Planned: round(position.planned as number),
-      Actual: round(position.actual as number),
-    }));
-
-    return (
-      <Panel
-        title="Planned vs Actual"
-        hint={`${reported.length} reporting ${plural(reported.length, "project")} · ${basis}`}
-      >
-        <div className="dash-plot" role="img" aria-label="Planned against actual progress by project">
-          <ResponsiveContainer width="100%" height={214}>
-            <BarChart layout="vertical" data={rows} margin={{ top: 4, right: 24, bottom: 0, left: 4 }} barGap={3}>
-              <CartesianGrid stroke={GRID} horizontal={false} />
-              <XAxis type="number" unit="%" domain={[0, 100]} tick={AXIS} tickLine={false} axisLine={false} />
-              <YAxis type="category" dataKey="name" width={96} tick={AXIS} tickLine={false} axisLine={false} />
-              <Tooltip formatter={percent} cursor={{ fill: "var(--dash-surface-2)" }} />
-              <Bar dataKey="Planned" fill={PLANNED} radius={[0, 3, 3, 0]} maxBarSize={10} isAnimationActive={!reduced} />
-              <Bar dataKey="Actual" fill={ACTUAL} radius={[0, 3, 3, 0]} maxBarSize={10} isAnimationActive={!reduced} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        <PlotKeys visible={{ planned: true, actual: true }} onToggle={() => {}} readOnly />
-      </Panel>
-    );
-  }
-
-  return (
-    <Panel title="Project Progress Trend" hint="Planned against actual, by reporting week">
-      <div className="dash-plot" role="img" aria-label="Planned and actual progress by reporting week">
-        <ResponsiveContainer width="100%" height={214}>
-          <AreaChart data={trend} margin={{ top: 10, right: 14, bottom: 0, left: -16 }}>
-            <defs>
-              <linearGradient id="dashActualFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={ACTUAL} stopOpacity={0.22} />
-                <stop offset="100%" stopColor={ACTUAL} stopOpacity={0.01} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke={GRID} vertical={false} />
-            <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={false} dy={4} />
-            <YAxis unit="%" domain={[0, 100]} tick={AXIS} tickLine={false} axisLine={false} width={44} />
-            <Tooltip formatter={percent} cursor={{ stroke: GRID }} />
-            {visible.planned && (
-              <Area
-                type="monotone"
-                dataKey="planned"
-                name="Planned"
-                stroke={PLANNED}
-                strokeWidth={1.75}
-                strokeDasharray="5 4"
-                fill="transparent"
-                dot={false}
-                isAnimationActive={!reduced}
-                animationDuration={600}
-              />
-            )}
-            {visible.actual && (
-              <Area
-                type="monotone"
-                dataKey="actual"
-                name="Actual"
-                stroke={ACTUAL}
-                strokeWidth={2.25}
-                fill="url(#dashActualFill)"
-                dot={{ r: 2.5, fill: ACTUAL, strokeWidth: 0 }}
-                activeDot={{ r: 4.5 }}
-                isAnimationActive={!reduced}
-                animationDuration={700}
-              />
-            )}
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-      <PlotKeys
-        visible={visible}
-        onToggle={(key) => setVisible((state) => ({ ...state, [key]: !state[key] }))}
-      />
-    </Panel>
-  );
-}
-
-/**
- * "Planned vs Actual Progress Curve" (Planning Integration 3D) — ONE
- * Planning-backed project's published Planning Snapshot history, plotted
- * by Data Date. Named deliberately NOT "baseline S-curve": the platform
- * does not compute a time-phased baseline held fixed from day one, and a
- * re-plan can move the Planned line between snapshots — a true baseline
- * never does.
- *
- * The info strip states every figure the 3D brief requires shown clearly
- * for a Planning-backed position: Planned %, Actual %, Variance, SPI (or
- * N/A), Coverage %, Snapshot vN, Data Date — all from the SAME rollup as
- * the chart, never a mix of Planning and manual figures.
- */
-function PlanningProgressCurvePanel({
-  position,
-  curve,
-  reduced,
-}: {
-  position: ProjectPosition;
-  curve: ProgressCurvePoint[] | undefined;
-  reduced: boolean;
-}) {
-  const rows = (curve ?? []).map((point) => ({
-    label: formatShortDate(point.dataDate),
-    planned: point.planned ?? undefined,
-    actual: point.actual ?? undefined,
-  }));
-
-  return (
-    <Panel
-      title="Planned vs Actual Progress Curve"
-      hint={`Published Planning Snapshot history · Snapshot v${position.snapshotVersion}${position.dataDate ? ` · Data Date ${position.dataDate}` : ""}`}
-    >
-      <dl className="dash-planning-strip">
-        <PlanningFigure label="Planned" value={`${round(position.planned as number)}%`} />
-        <PlanningFigure label="Actual" value={`${round(position.actual as number)}%`} />
-        <PlanningFigure
-          label="Variance"
-          value={position.variance === undefined ? "N/A" : signed(position.variance)}
-          tone={`is-${varianceTone(position.variance)}`}
-        />
-        <PlanningFigure
-          label="SPI"
-          value={position.spi === null || position.spi === undefined ? "N/A" : position.spi.toFixed(2)}
-        />
-        <PlanningFigure
-          label="Coverage"
-          value={typeof position.coveragePercent === "number" ? `${Math.round(position.coveragePercent)}%` : "N/A"}
-        />
-      </dl>
-
-      {curve === undefined ? (
-        <PanelEmpty>Loading Planning Snapshot history…</PanelEmpty>
-      ) : rows.length < 2 ? (
-        <PanelEmpty>
-          Only {rows.length} published Planning Snapshot {plural(rows.length, "date")} recorded — the curve needs at
-          least two.
-        </PanelEmpty>
-      ) : (
-        <div className="dash-plot" role="img" aria-label="Planned and actual progress by Planning Snapshot Data Date">
-          <ResponsiveContainer width="100%" height={214}>
-            <AreaChart data={rows} margin={{ top: 10, right: 14, bottom: 0, left: -16 }}>
-              <defs>
-                <linearGradient id="dashPlanningActualFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={ACTUAL} stopOpacity={0.22} />
-                  <stop offset="100%" stopColor={ACTUAL} stopOpacity={0.01} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke={GRID} vertical={false} />
-              <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={false} dy={4} />
-              <YAxis unit="%" domain={[0, 100]} tick={AXIS} tickLine={false} axisLine={false} width={44} />
-              <Tooltip formatter={percent} cursor={{ stroke: GRID }} />
-              <Area
-                type="monotone"
-                dataKey="planned"
-                name="Planned"
-                stroke={PLANNED}
-                strokeWidth={1.75}
-                strokeDasharray="5 4"
-                fill="transparent"
-                dot={false}
-                isAnimationActive={!reduced}
-                animationDuration={600}
-              />
-              <Area
-                type="monotone"
-                dataKey="actual"
-                name="Actual"
-                stroke={ACTUAL}
-                strokeWidth={2.25}
-                fill="url(#dashPlanningActualFill)"
-                dot={{ r: 2.5, fill: ACTUAL, strokeWidth: 0 }}
-                activeDot={{ r: 4.5 }}
-                isAnimationActive={!reduced}
-                animationDuration={700}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-      <PlotKeys visible={{ planned: true, actual: true }} onToggle={() => {}} readOnly />
-    </Panel>
-  );
-}
-
-function PlanningFigure({ label, value, tone }: { label: string; value: string; tone?: string }) {
-  return (
-    <div className={cn("dash-planning-figure", tone)}>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
-  );
-}
 
 /** Centre panel — the distribution, with the scope total in the hole. */
 export function StatusPanel({ totals }: { totals: PortfolioTotals }) {
@@ -483,6 +200,12 @@ export function StatusPanel({ totals }: { totals: PortfolioTotals }) {
             <ResponsiveContainer width="100%" height={186}>
               <PieChart>
                 <Pie
+                  /* Dashboard UX Part 1: keyed on the distribution itself
+                     (not on `totals` identity, which is stable across a
+                     hover) — the ring cleanly re-mounts and replays its one
+                     700ms reveal exactly when the scope/filter change moves
+                     a project between bands, never on hover, never looping. */
+                  key={bands.map((row) => `${row.key}:${row.value}`).join("|")}
                   data={bands}
                   dataKey="value"
                   nameKey="label"
@@ -597,7 +320,17 @@ export function HealthPanel({ axes }: { axes: HealthAxis[] }) {
     <Panel title="Project Health" hint={`${axes.length} derived dimensions`}>
       <div className="dash-radar" role="img" aria-label={axes.map((a) => `${a.axis} ${a.current}%`).join(", ")}>
         <ResponsiveContainer width="100%" height={222}>
-          <RadarChart data={axes} outerRadius="78%" margin={{ top: 10, right: 20, bottom: 6, left: 20 }}>
+          <RadarChart
+            /* Final Micro-Polish: keyed on the axes' own values (not
+               `axes` identity, which is stable across an unrelated
+               re-render) — the radar cleanly re-mounts and replays its
+               one grow-from-center reveal exactly when a relevant filter/
+               scope change actually moves it, never looping. */
+            key={axes.map((a) => `${a.axis}:${a.current}:${a.target}`).join("|")}
+            data={axes}
+            outerRadius="78%"
+            margin={{ top: 10, right: 20, bottom: 6, left: 20 }}
+          >
             <PolarGrid stroke={GRID} />
             <PolarAngleAxis
               dataKey="axis"
@@ -649,7 +382,14 @@ export function HealthPanel({ axes }: { axes: HealthAxis[] }) {
  * The ring this replaces was misleading: a full-circumference arc at 65% still
  * looked like a completed circle.
  */
-export function ProgressByProjectPanel({ positions }: { positions: ProjectPosition[] }) {
+export function ProgressByProjectPanel({
+  positions,
+  onSelectProject,
+}: {
+  positions: ProjectPosition[];
+  /** Opens the Project Workspace for one row (Top-Level 5A1 correction, §C). */
+  onSelectProject?: (projectId: string) => void;
+}) {
   const rows = positions
     .filter((position) => position.actual !== undefined)
     .sort((a, b) => (b.actual as number) - (a.actual as number))
@@ -667,8 +407,8 @@ export function ProgressByProjectPanel({ positions }: { positions: ProjectPositi
         <ul className="dash-bars is-progress">
           {rows.map((position) => {
             const value = round(position.actual as number);
-            return (
-              <li key={position.project.id}>
+            const row = (
+              <>
                 <span className="dash-bar-name" title={position.project.name}>
                   {position.project.name}
                 </span>
@@ -686,6 +426,22 @@ export function ProgressByProjectPanel({ positions }: { positions: ProjectPositi
                     style={{ "--p": `${clamp(value)}%` } as React.CSSProperties}
                   />
                 </span>
+              </>
+            );
+            return (
+              <li key={position.project.id}>
+                {onSelectProject ? (
+                  <button
+                    type="button"
+                    className="dash-bar-row"
+                    onClick={() => onSelectProject(position.project.id)}
+                    aria-label={`Open ${position.project.name} in the Project Workspace`}
+                  >
+                    {row}
+                  </button>
+                ) : (
+                  row
+                )}
               </li>
             );
           })}
@@ -1027,82 +783,12 @@ function Ring({
   );
 }
 
-function PlotKeys({
-  visible,
-  onToggle,
-  readOnly,
-}: {
-  visible: { planned: boolean; actual: boolean };
-  onToggle: (key: "planned" | "actual") => void;
-  readOnly?: boolean;
-}) {
-  const entries = [
-    { key: "planned" as const, label: "Planned Progress" },
-    { key: "actual" as const, label: "Actual Progress" },
-  ];
-  return (
-    <div className="dash-plotkeys">
-      {entries.map((entry) =>
-        readOnly ? (
-          <span key={entry.key} className={`dash-plotkey is-${entry.key}`}>
-            <i aria-hidden />
-            {entry.label}
-          </span>
-        ) : (
-          <button
-            key={entry.key}
-            type="button"
-            className={`dash-plotkey is-${entry.key}`}
-            aria-pressed={visible[entry.key]}
-            onClick={() => onToggle(entry.key)}
-          >
-            <i aria-hidden />
-            {entry.label}
-          </button>
-        )
-      )}
-    </div>
-  );
-}
-
-/**
- * Week-on-week movement, from the SAME series the chart plots.
- *
- * `enabled` gates it on the figure it sits under. The weekly series and the
- * headline are not always drawn from the same population — `positionsFor`
- * falls back to Monthly reports, which the weekly series knows nothing about —
- * so an ungated delta could annotate an em-dash with "↑ 2.4% vs last week".
- * A delta must never describe a value it did not derive.
- */
-function Delta({
-  series,
-  field,
-  unit = "%",
-  enabled = true,
-}: {
-  series: TrendPoint[];
-  field: "actual" | "variance";
-  unit?: string;
-  enabled?: boolean;
-}) {
-  const points = series.filter((point) => point[field] !== undefined);
-  if (!enabled) return <p className="dash-kpi-note">No comparable prior week</p>;
-  if (points.length < 2) return <p className="dash-kpi-note">No prior reporting week</p>;
-
-  const change = round((points[points.length - 1][field] as number) - (points[points.length - 2][field] as number));
-  if (change === 0) return <p className="dash-kpi-note">Unchanged vs last week</p>;
-
-  return (
-    <p className={`dash-kpi-delta ${change > 0 ? "is-up" : "is-down"}`}>
-      <span aria-hidden>{change > 0 ? "↑" : "↓"}</span>
-      {`${Math.abs(change)}${unit} vs last week`}
-    </p>
-  );
-}
-
 /* --------------------------------- Helpers --------------------------------- */
 
-function useReducedMotion(): boolean {
+/** Exported so `dashboard-view.tsx` can gate the Expanded Progress Analysis
+    curve chart the same way every in-panel chart already is — one shared
+    media-query listener rather than a second, silently-hardcoded copy. */
+export function useReducedMotion(): boolean {
   const [reduced, setReduced] = React.useState(false);
   React.useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -1112,10 +798,6 @@ function useReducedMotion(): boolean {
     return () => media.removeEventListener("change", update);
   }, []);
   return reduced;
-}
-
-function shortName(position: ProjectPosition): string {
-  return position.project.shortName || position.project.code || position.project.name;
 }
 
 function toneOf(position: ProjectPosition): Tone {

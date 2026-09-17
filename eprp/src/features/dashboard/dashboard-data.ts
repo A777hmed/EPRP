@@ -392,12 +392,22 @@ export interface ProjectPosition {
       (or Planned Value <= 0) — never a fabricated ratio. Absent (not even
       `null`) when `basis !== "planning"`. */
   spi?: number | null;
+  /** Sum of reported planned_value / earned_value behind `spi` — carried
+      through so a KPI detail surface can show EV/PV, or explain why SPI
+      reads N/A, without recomputing anything. Same availability rule as
+      `spi`: absent when `basis !== "planning"`. */
+  plannedValue?: number | null;
+  earnedValue?: number | null;
   /** Share of the schedule's weight the rollup actually speaks for. */
   coveragePercent?: number;
   /** The latest published snapshot's version, when `basis === "planning"`. */
   snapshotVersion?: number;
   /** The latest published snapshot's Data Date, when `basis === "planning"`. */
   dataDate?: string;
+  /** The latest published snapshot's id, when `basis === "planning"` — lets a
+      drill-down (Activity Depth, Coverage Detail) read that EXACT snapshot's
+      activities rather than re-resolving "latest" a second time. */
+  snapshotId?: string;
 }
 
 /** Matches `recommendScheduleStatus`: −3 points is the platform's own band. */
@@ -466,9 +476,12 @@ export function positionsFor(
         reportedOn: figures.dataDate,
         health: healthOf(figures.variance ?? undefined),
         spi: figures.spi,
+        plannedValue: figures.plannedValue,
+        earnedValue: figures.earnedValue,
         coveragePercent: figures.coveragePercent,
         snapshotVersion: figures.snapshotVersion,
         dataDate: figures.dataDate,
+        snapshotId: figures.snapshotId,
       };
     }
 
@@ -594,6 +607,72 @@ export function totalsFor(
     notReported: positions.filter((p) => p.health === "not_reported").length,
     overdueReports: overdueWeekly + overdueMonthly,
   };
+}
+
+/**
+ * The individual overdue Weekly/Monthly reports behind `PortfolioTotals.
+ * overdueReports` — same `DELIVERED`/period-end predicate, kept in this one
+ * place so the Overdue Reports summary modal can never disagree with the KPI
+ * count it expands on. `daysOverdue` is real date arithmetic against a
+ * stored period-end date, never an invented or assumed due date.
+ */
+export interface OverdueReport {
+  projectId: string;
+  reportType: "weekly" | "monthly";
+  reportNumber: string;
+  /** The report's own period-end (Weekly) or reporting month (Monthly), as stored. */
+  period: string;
+  status: string;
+  preparedByContactId?: string;
+  daysOverdue: number;
+}
+
+export function overdueReports(
+  positions: ProjectPosition[],
+  weeklies: WeeklyReport[],
+  monthlies: MonthlyReport[],
+  today = todayIso()
+): OverdueReport[] {
+  const visible = new Set(positions.map((p) => p.project.id));
+  const daysBetween = (isoStart: string) =>
+    Math.max(0, Math.round((Date.parse(today) - Date.parse(isoStart)) / 86_400_000));
+
+  const weeklyRows: OverdueReport[] = weeklies
+    .filter((r) => visible.has(r.projectId) && !DELIVERED.has(r.status) && r.periodEnd < today)
+    .map((r) => ({
+      projectId: r.projectId,
+      reportType: "weekly",
+      reportNumber: r.reportNumber,
+      period: r.periodEnd,
+      status: r.status,
+      preparedByContactId: r.preparedByContactId,
+      daysOverdue: daysBetween(r.periodEnd),
+    }));
+
+  const monthlyRows: OverdueReport[] = monthlies
+    .filter((r) => {
+      if (!visible.has(r.projectId) || DELIVERED.has(r.status)) return false;
+      const month = r.reportingMonth ?? "";
+      if (!month) return false;
+      const [y, m] = month.split("-").map(Number);
+      const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+      return end < today;
+    })
+    .map((r) => {
+      const [y, m] = r.reportingMonth.split("-").map(Number);
+      const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+      return {
+        projectId: r.projectId,
+        reportType: "monthly" as const,
+        reportNumber: r.reportNumber,
+        period: r.reportingMonth,
+        status: r.status,
+        preparedByContactId: r.preparedByContactId,
+        daysOverdue: daysBetween(end),
+      };
+    });
+
+  return [...weeklyRows, ...monthlyRows].sort((a, b) => b.daysOverdue - a.daysOverdue);
 }
 
 /* ---------------------------------- Series --------------------------------- */

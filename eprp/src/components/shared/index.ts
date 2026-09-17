@@ -24,6 +24,17 @@ export { FilterBar, type FilterBarProps } from "./filter-bar";
 export { ConfirmDialog, type ConfirmDialogProps } from "./confirm-dialog";
 export { DetailModal, type DetailModalProps } from "./detail-modal";
 export {
+  DetailDrawer,
+  type DetailDrawerProps,
+  DrawerSection,
+  DrawerSummary,
+  DrawerContextRow,
+  DrawerFactGrid,
+  DrawerFact,
+  DrawerEmptyNote,
+  type DrawerTone,
+} from "./detail-drawer";
+export {
   PlaceholderPage,
   type PlaceholderPageProps,
 } from "./placeholder-page";

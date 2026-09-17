@@ -3168,20 +3168,45 @@ html:has(.dash-stage) { --epr-rail: var(--dash-canvas); }
 
 .dash-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 13px; }
 
+/* Top-Level 5A1 correction: each card is now a real <button> opening a
+   quick-detail modal — width/alignment/cursor/focus are the only additions
+   over the original card styling below; the layout is unchanged. */
 .dash-kpi {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  width: 100%;
   min-height: 112px;
   padding: 15px 16px;
   border: 1px solid var(--dash-hairline);
   border-radius: var(--dash-round);
   background: var(--dash-surface);
   box-shadow: var(--dash-lift);
+  text-align: left;
+  cursor: pointer;
   transition: box-shadow .16s ease, transform .16s ease;
+  animation: dash-kpi-in .32s ease-out both;
+  animation-delay: var(--stagger, 0ms);
 }
+/* Final Micro-Polish — a short fade/translate stagger across the five
+   cards on entrance. `.dash-kpis` is keyed to the same signature the
+   figures themselves are computed from, so this replays once per relevant
+   filter/scope change and never loops. */
+.dash-kpi:nth-child(1) { --stagger: 0ms; }
+.dash-kpi:nth-child(2) { --stagger: 50ms; }
+.dash-kpi:nth-child(3) { --stagger: 100ms; }
+.dash-kpi:nth-child(4) { --stagger: 150ms; }
+.dash-kpi:nth-child(5) { --stagger: 200ms; }
 .dash-kpi:hover { box-shadow: var(--dash-lift-hover); transform: translateY(-1px); }
+.dash-kpi:focus-visible { outline: 2px solid var(--dash-blue); outline-offset: 2px; }
+/* Dashboard UX Part 1 — a restrained press feedback, not a hover effect:
+   a brief ~160ms scale on the click itself, capped low enough (1.015) that
+   it reads as acknowledgement, not a bounce. */
+.dash-kpi:active { transform: scale(1.015); transition: transform 160ms ease; }
+@media (prefers-reduced-motion: reduce) {
+  .dash-kpi, .dash-kpi:hover, .dash-kpi:active { transition: none; transform: none; }
+}
 
 .dash-kpi-text { display: grid; align-content: center; gap: 0; min-width: 0; }
 .dash-kpi-text > span { color: var(--dash-ink-soft); font-size: .72rem; font-weight: 600; }
@@ -3239,10 +3264,15 @@ html:has(.dash-stage) { --epr-rail: var(--dash-canvas); }
 .dash-kpi-flat { display: block; height: 2px; border-radius: 99px; background: var(--dash-surface-3); }
 
 /* Mark 5 — a STATE, so a status icon rather than a chart */
-.dash-kpi-status { display: grid; width: 54px; height: 54px; flex: none; place-items: center; border-radius: 50%; }
+.dash-kpi-status { display: grid; width: 54px; height: 54px; flex: none; place-items: center; border-radius: 50%; background: var(--dash-surface-2); }
 .dash-kpi-status svg { width: 23px; height: 23px; }
 .dash-kpi.is-danger .dash-kpi-status { background: var(--dash-tint-red); color: var(--dash-red); }
 .dash-kpi.is-clear .dash-kpi-status { background: var(--dash-tint-green); color: var(--dash-teal); }
+/* Dashboard UX Part 1 — Schedule Variance's mark simplified from a sparkline
+   to one semantic icon, reusing this same circle treatment. */
+.dash-kpi-status svg.is-success { color: var(--dash-teal); }
+.dash-kpi-status svg.is-warning { color: var(--dash-amber); }
+.dash-kpi-status svg.is-danger { color: var(--dash-red); }
 
 /* ------------------------------- Panel shell -------------------------------- */
 
@@ -3353,6 +3383,85 @@ span.dash-plotkey { cursor: default; }
 .dash-plotkey.is-planned i { height: 0; border-top: 2px dashed var(--dash-chart-planned); background: none; }
 .dash-plotkey[aria-pressed="false"] { opacity: .36; }
 
+/* ------------------------ Project Progress Comparison ----------------------- */
+/* Dashboard UX Part 1, item 5 — every visible project's Planned vs Actual
+   position, one dumbbell per row on a shared 0-100 scale. Never blended
+   into a single portfolio curve. */
+/* Final Micro-Polish: this panel's row count is data-driven (as few as one
+   project) and must never stretch to match its taller siblings' fixed
+   content (the donut, the radar) — `align-self` overrides the row's own
+   `align-items: stretch` for this one grid item, so it sizes to its own
+   rows instead of inheriting a tall sibling's height as blank space. The
+   shared `min-height: 286px` floor still applies, so a one-row panel still
+   reads as a real card, not a stub. */
+.dash-row-main > .dash-compare-panel { align-self: start; min-height: 0; }
+.dash-compare-panel .dash-panel-body { justify-content: flex-start; }
+/* A sensible ceiling once a portfolio has many rows — the row count itself
+   is already capped with a "+N more — Expand" footer, so this scroll is a
+   safety net for taller row content rather than the primary limit. */
+.dash-compare { display: grid; gap: 13px; margin: 0; padding: 2px 0; max-height: 320px; overflow-y: auto; list-style: none; }
+.dash-compare-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.dash-compare-name {
+  overflow: hidden;
+  color: var(--dash-ink);
+  font-size: .69rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-compare-variance { flex: none; font-size: .625rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dash-compare-variance.is-success { color: var(--dash-teal); }
+.dash-compare-variance.is-warning { color: var(--dash-amber); }
+.dash-compare-variance.is-danger { color: var(--dash-red); }
+.dash-compare-variance.is-default { color: var(--dash-muted); font-weight: 600; }
+.dash-compare-track { position: relative; height: 14px; margin-top: 6px; }
+.dash-compare-track::before {
+  content: "";
+  position: absolute;
+  inset: 50% 0 auto;
+  height: 3px;
+  border-radius: 99px;
+  background: var(--dash-surface-3);
+  transform: translateY(-50%);
+}
+.dash-compare-fill {
+  position: absolute;
+  top: 50%;
+  height: 3px;
+  border-radius: 99px;
+  opacity: .5;
+  transform: translateY(-50%);
+  animation: dash-compare-fill-in .5s ease-out both;
+  animation-delay: var(--row-stagger, 0ms);
+}
+.dash-compare-dot {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dash-chart-planned);
+  box-shadow: 0 0 0 2px var(--dash-surface);
+  transform: translate(-50%, -50%);
+  animation: dash-compare-in .5s ease-out both;
+  animation-delay: var(--row-stagger, 0ms);
+}
+.dash-compare-dot.is-planned { z-index: 1; }
+.dash-compare-dot.is-actual { z-index: 2; }
+.dash-compare-nodata { margin: 6px 0 0; color: var(--dash-muted); font-size: .625rem; font-style: italic; }
+.dash-compare-legend {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 4px;
+  padding-top: 9px;
+  border-top: 1px solid var(--dash-hairline);
+}
+.dash-compare-legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--dash-ink-soft); font-size: .625rem; font-weight: 600; }
+.dash-compare-legend i { width: 8px; height: 8px; border-radius: 50%; background: var(--dash-chart-actual); }
+.dash-compare-legend .is-planned i { background: var(--dash-chart-planned); }
+.dash-compare-more { margin: 8px 0 0; color: var(--dash-muted); font-size: .625rem; font-weight: 600; text-align: center; }
+
 /* --------------------------------- Donut ------------------------------------ */
 
 .dash-donut { display: grid; gap: 2px; }
@@ -3447,10 +3556,11 @@ span.dash-plotkey { cursor: default; }
 }
 .dash-bars > li,
 .dash-bar-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 5px 10px; }
-/* Milestone rows open the Milestone Modal rather than navigate, so they are
-   <button>s nested one level inside <li> — reset the native chrome so a row
-   reads identically to the non-interactive rows elsewhere in this component
-   (e.g. Progress by Project, which stays a plain <li>). */
+/* A row that opens a drawer rather than navigate is a <button> nested one
+   level inside <li> — reset the native chrome so it reads identically to a
+   non-interactive row. Milestone rows always use this; Progress by Project
+   rows do too once a Project Health drawer is available to open (5A1) — a
+   row with nothing to open stays a plain <li>. */
 .dash-bar-row {
   width: 100%;
   padding: 3px 4px;
@@ -3715,6 +3825,14 @@ span.dash-plotkey { cursor: default; }
 @keyframes dash-grow { from { width: 0; } }
 @keyframes dash-rise { from { height: 0; } }
 @keyframes dash-fade { from { opacity: 0; transform: scaleX(.4); } }
+/* Final Micro-Polish — entrance motion, single-shot (no loop, no bounce).
+   The compare dot/fill keyframes restate their element's own static
+   `transform` (centering/vertical-centering) in the `from` state alongside
+   the scale, so the reveal never overrides that positioning — only `from`
+   is declared, so the implicit "to" is each element's own base transform. */
+@keyframes dash-kpi-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes dash-compare-in { from { opacity: 0; transform: translate(-50%, -50%) scale(.35); } }
+@keyframes dash-compare-fill-in { from { opacity: 0; transform: translateY(-50%) scaleX(.3); } }
 
 /* -------------------------------- Responsive -------------------------------- */
 
@@ -3755,6 +3873,13 @@ span.dash-plotkey { cursor: default; }
   .dash-ring-fill,
   .dash-kpi-columns i,
   .dash-bar-track i { animation: none !important; transition: none !important; opacity: 1 !important; transform: none !important; }
+  /* These two keep their own static positioning transform (dot centering,
+     fill vertical-centering) — `none` would misplace them, so each keeps
+     its real base transform while the reveal animation itself is cut. */
+  .dash-compare-dot,
+  .dash-compare-fill { animation: none !important; opacity: 1 !important; }
+  .dash-compare-dot { transform: translate(-50%, -50%) !important; }
+  .dash-compare-fill { transform: translateY(-50%) !important; }
 }
 
 /* ==========================================================================

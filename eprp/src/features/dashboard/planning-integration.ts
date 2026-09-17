@@ -29,6 +29,10 @@ export interface PlanningRollupLike {
   actualProgress: number | null;
   variance: number | null;
   spi: number | null;
+  /** Sum of reported planned_value / earned_value — the EV/PV a KPI detail
+      surface needs to explain SPI, or to explain why it is N/A. */
+  plannedValue: number | null;
+  earnedValue: number | null;
   snapshotId: string;
   snapshotVersion: number;
   dataDate?: string;
@@ -43,6 +47,12 @@ export interface DashboardPlanningFigures {
   variance: number | null;
   /** EV/PV. Never the Actual%/Planned% ratio — see `planning-rollup.ts`. */
   spi: number | null;
+  plannedValue: number | null;
+  earnedValue: number | null;
+  /** Carried through so a caller can drill into this EXACT snapshot's
+      activities (Dashboard Data Depth) without re-resolving "latest" a
+      second time — never used to imply a different snapshot than the one
+      that produced the figures above. */
   snapshotId?: string;
   snapshotVersion?: number;
   dataDate?: string;
@@ -55,6 +65,8 @@ const UNBACKED: DashboardPlanningFigures = {
   actualProgress: null,
   variance: null,
   spi: null,
+  plannedValue: null,
+  earnedValue: null,
 };
 
 /**
@@ -78,6 +90,8 @@ export function deriveDashboardPlanningFigures(
     actualProgress: rollup.actualProgress,
     variance: rollup.variance,
     spi: rollup.spi,
+    plannedValue: rollup.plannedValue,
+    earnedValue: rollup.earnedValue,
     snapshotId: rollup.snapshotId,
     snapshotVersion: rollup.snapshotVersion,
     dataDate: rollup.dataDate,
