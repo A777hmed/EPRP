@@ -162,7 +162,17 @@ function useDocumentModel(
   return React.useMemo(() => {
     const filtered = applyFilters(portfolio.rows, filters).sort(byAttention);
     const aggregate = aggregatePortfolio(filtered);
-    const monthLabel = portfolio.month ? monthLabelOf(portfolio.month) : "No reporting period";
+    /*
+     * `portfolio.month` always holds SOME string — it defaults to the current
+     * calendar month when nothing has been selected (`useExecutivePortfolio`).
+     * That default is a query parameter, not a real reporting period: showing
+     * it as "Reporting Period: <this month>" when no Monthly Report exists for
+     * ANY month contradicted the period selector right beside it, which
+     * correctly says "No reporting periods". Label honestly from the same
+     * fact the selector uses.
+     */
+    const hasReportingPeriods = portfolio.availableMonths.length > 0;
+    const monthLabel = hasReportingPeriods ? monthLabelOf(portfolio.month) : "No reporting period";
     // From project responsibility, not from `viewer` — the signed-in account is
     // not the business preparer of the report.
     const preparedBy = resolvePreparedBy(filtered, portfolio.contacts);
@@ -170,6 +180,7 @@ function useDocumentModel(
     const model: ExecutiveDocumentModel = {
       month: portfolio.month,
       monthLabel,
+      hasReportingPeriods,
       rows: filtered,
       aggregate,
       narrative: draftExecutiveNarrative({
@@ -203,7 +214,10 @@ function useDocumentModel(
         (note) => !note.projectId || filtered.some((row) => row.project.id === note.projectId)
       ),
       notesAvailability: portfolio.notesAvailability,
-      canManageNotes: viewer.allowed,
+      // WRITE authority. `viewer.allowed` is VIEW authority only — a Viewer
+      // must never see "Add Executive Note" just because they can read the
+      // portfolio.
+      canManageNotes: viewer.canManagePortfolio,
       onNotesChanged: portfolio.reloadNotes,
       preparedBy,
       /*
@@ -222,7 +236,15 @@ function useDocumentModel(
        * the author wrote.
        */
       acceptedSummary: authoring?.acceptedSummary ?? portfolio.record?.executiveSummary,
-      onAcceptSummary: authoring?.onAcceptSummary,
+      /*
+       * WRITE authority. The AI drafting controls are an authoring aid —
+       * "Draft with AI" / "Improve Writing" / etc — and must not appear for a
+       * Viewer just because Executive Summary is now shown on the live
+       * screen (previously it was print-only, which hid this incidentally).
+       * `authoring` itself is always supplied by the caller regardless of
+       * edit mode, so the real gate has to live here.
+       */
+      onAcceptSummary: viewer.canManagePortfolio ? authoring?.onAcceptSummary : undefined,
     };
 
     return { model, filtered, preparedBy };
@@ -451,7 +473,18 @@ export function ExecutivePortfolioView(props: ExecutiveViewerProps) {
         setFilters={setFilters}
         showPrintLink
         editing={editing}
-        onEdit={props.allowed && !emptyReason ? () => setEditing(true) : undefined}
+        // WRITE authority. `props.allowed` only gates VIEW — a Viewer opening
+        // the portfolio must never see an "Edit Report" affordance. Also
+        // withheld when there is no real reporting period at all
+        // (`model.hasReportingPeriods` false — no Monthly Report exists for
+        // any project in view): there is nothing a period record could be
+        // created or edited against yet, so offering Edit Mode there would
+        // open onto an author-facing view with no period to author.
+        onEdit={
+          props.canManagePortfolio && !emptyReason && model.hasReportingPeriods
+            ? () => setEditing(true)
+            : undefined
+        }
       />
 
       {emptyReason ? (
@@ -474,7 +507,7 @@ export function ExecutivePortfolioView(props: ExecutiveViewerProps) {
             canManagePortfolio={props.canManagePortfolio}
             notes={model.notes}
             notesAvailability={portfolio.notesAvailability}
-            canManageNotes={props.allowed}
+            canManageNotes={props.canManagePortfolio}
             onNotesChanged={portfolio.reloadNotes}
             projectOptions={filtered.map((row) => ({ id: row.project.id, name: row.projectName }))}
             projectNameOf={(id) =>

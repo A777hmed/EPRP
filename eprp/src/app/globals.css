@@ -893,13 +893,131 @@
 .monthly-report-sheet.exec-document { width: min(100% - 32px, 1360px); }
 .exec-stage .monthly-preview-tools { width: min(100% - 32px, 1360px); }
 
+/*
+ * Executive UX — visual refinement pass. The live cockpit KEEPS the white
+ * formal report canvas (`.monthly-report-sheet`'s own white background,
+ * border and shadow, unchanged) rather than sitting transparent on the pale
+ * stage — that read as too flat and too empty. Strength comes from restoring
+ * that canvas plus the navy pill section headings (`.monthly-section-title-row`,
+ * reused by the new cockpit sections below), not from removing the sheet.
+ */
+
+/* ------------------------- Screen / print composition ---------------------- */
+
+/*
+ * The document is a HYBRID: screen renders the Executive Decision Cockpit,
+ * print renders the formal numbered report — same `model`, two compositions
+ * (`executive-cockpit.tsx` / `executive-document.tsx`). These two classes are
+ * the toggle. Plain, unlayered rules on purpose: Tailwind's `hidden`/`print:`
+ * utilities ship inside `@layer utilities`, and an unlayered custom rule
+ * ALWAYS outranks a layered one regardless of specificity or source order —
+ * so if any child of these wrappers also sets `display` via its own plain
+ * class (several already do: `.exec-kpi-row`, `.exec-attention-grid`,
+ * `.exec-kpi-card-grid`, …), a Tailwind utility on the wrapper would
+ * silently lose and both compositions would show at once. See the identical
+ * reasoning already documented for `.exec-project-card-grid`/`.exec-print-cards`.
+ */
+.exec-cockpit-only { display: block; }
+.exec-print-only { display: none; }
+
+/* --------------------------- Section number toggle -------------------------- */
+
+/*
+ * "N · " only means something beside the OTHER numbered sections, which are
+ * print-only. A shared section (Executive Summary, Project Executive Status,
+ * Full Project Data) would otherwise show a dangling "1 ·"/"4 ·"/"5 ·" on
+ * screen with no consistent numbering around it — some cockpit sections
+ * (Portfolio Position, What Changed, …) have no print counterpart to number
+ * against at all. Applies to every section, not just `.is-plain`, now that
+ * Executive Summary (accent, numbered "1" in print) is shared too.
+ */
+.monthly-section-title-row .exec-section-number { display: none; }
+
+/* ------------------------------ Cockpit summary ----------------------------- */
+
+.exec-cockpit-coverage { margin: 0 0 12px; color: #33506f; font-size: .8rem; font-weight: 600; }
+.exec-cockpit-note { margin: 8px 0 0; color: #6d84a0; font-size: .76rem; line-height: 1.5; }
+
+/*
+ * Dynamic Executive Cards — Portfolio Position. Modelled directly on
+ * `.monthly-kpi` (the print KPI tile), the OLD report's own bordered-card
+ * language, so the cockpit and the formal report read as one visual family.
+ * A tile with `onClick` renders as a real `<button>` (see `KpiCard` in
+ * `executive-cockpit.tsx`) and gets a hover/active treatment; an
+ * informational tile (no click) gets neither.
+ */
+.exec-kpi-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 10px; }
+.exec-kpi-card-grid + .exec-kpi-card-grid { margin-top: 10px; padding-top: 14px; border-top: 1px solid #d9e3ee; }
+.exec-kpi-card {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  min-height: 76px;
+  padding: 11px 13px;
+  border: 1px solid #c8d8e8;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+button.exec-kpi-card { cursor: pointer; transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease; }
+button.exec-kpi-card:hover { border-color: #9db8d4; box-shadow: 0 3px 10px rgb(19 47 79 / 8%); transform: translateY(-1px); }
+button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset: 2px; }
+.exec-kpi-card.is-active { border-color: #0d59a8; background: linear-gradient(180deg, #eaf2fb 0%, #dcebf9 100%); box-shadow: inset 0 0 0 1px #0d59a8; }
+.exec-kpi-card span { color: #667a91; font-size: .62rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.exec-kpi-card b { color: #0d4d99; font-size: 1.36rem; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.exec-kpi-card small { color: #8fa0b3; font-size: .62rem; line-height: 1.35; }
+.exec-kpi-card.tone-success b { color: #1f7a37; }
+.exec-kpi-card.tone-warning b { color: #b06a12; }
+.exec-kpi-card.tone-danger b { color: #a3333a; }
+
+/* ------------------------------ Attention lists ------------------------------ */
+
+.exec-cockpit-decision { margin-bottom: 14px; }
+.exec-cockpit-group-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px 26px; }
+.exec-cockpit-group { min-width: 0; }
+.exec-cockpit-group-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; color: #33506f; font-size: .72rem; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.exec-cockpit-group-head small { min-width: 18px; padding: 1px 6px; border-radius: 999px; background: #eef3f9; color: #33506f; font-size: .62rem; font-weight: 800; text-align: center; }
+.exec-cockpit-decision .exec-cockpit-group-head { color: #8f2a31; font-size: .8rem; }
+.exec-cockpit-decision .exec-cockpit-group-head small { background: #f6dcde; color: #8f2a31; }
+
+.exec-cockpit-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.exec-cockpit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color .12s ease;
+}
+.exec-cockpit-row:hover { background: #f0f5fa; }
+.exec-cockpit-row:focus-visible { outline: 2px solid #0d59a8; outline-offset: -2px; }
+.exec-cockpit-row-text { color: #2c4a72; font-size: .78rem; line-height: 1.4; flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+.exec-cockpit-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: #6d84a0; font-size: .68rem; }
+.exec-cockpit-row-meta b { color: #33506f; }
+.exec-cockpit-row-meta em { font-style: normal; color: #8494a7; }
+.exec-cockpit-more { margin: 4px 0 0 8px; color: #8494a7; font-size: .68rem; }
+
 /* -------------------------------- Control bar ----------------------------- */
 
 .exec-control-bar { width: min(100% - 32px, 1360px); margin: 16px auto 0; padding: 16px 20px; background: linear-gradient(135deg, #0a3974 0%, #0d59a8 100%); border-radius: 8px; color: white; box-shadow: 0 8px 22px rgb(22 51 84 / 18%); }
 .exec-control-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 18px; align-items: start; }
 .exec-control-title { min-width: 0; }
 .exec-control-title p { margin: 0 0 4px; color: #b9d2ed; font-size: .62rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
-.exec-control-title h1 { margin: 0; font-size: 1.42rem; font-weight: 800; letter-spacing: .015em; text-transform: uppercase; line-height: 1.15; }
+/* Sized to stay on one line at normal desktop widths (~1280px and up, where
+   the two-column control bar squeezes the title column against the period/
+   actions cluster) rather than wrapping to "PROJECT PORTFOLIO EXECUTIVE" /
+   "REPORT". Still stacks cleanly if a narrower window forces a wrap. */
+.exec-control-title h1 { margin: 0; font-size: 1.22rem; font-weight: 800; letter-spacing: .008em; text-transform: uppercase; line-height: 1.18; }
 .exec-control-title span { display: block; margin-top: 5px; color: #c9dcf1; font-size: .74rem; }
 
 .exec-control-actions { display: flex; align-items: flex-end; gap: 10px; }
@@ -1164,6 +1282,40 @@
 .exec-count-link { color: #0d59a8; font-weight: 700; font-variant-numeric: tabular-nums; }
 .exec-count-link:hover { text-decoration: underline; }
 
+/* A Health badge inside a table cell opens the Executive Project Brief.
+   Button reset so it reads as the StatusBadge it wraps, not as a button. */
+.exec-health-trigger { display: inline-flex; padding: 0; border: 0; background: none; cursor: pointer; }
+.exec-health-trigger:hover [data-slot="status-badge"] { filter: brightness(0.96); }
+.exec-health-trigger:focus-visible { outline: 2px solid #0d59a8; outline-offset: 2px; border-radius: 999px; }
+
+/* -------------------------- Full Project Data ------------------------------ */
+
+/*
+ * The original dense table, now secondary and collapsed by default on
+ * screen — Project Executive Status (the cards) is the primary view. Print
+ * always shows the full table regardless of the on-screen toggle state; see
+ * the print block below.
+ */
+.exec-fulldata-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  padding: 7px 12px;
+  border: 1px solid #c5d5e5;
+  border-radius: 6px;
+  background: white;
+  color: #17477d;
+  font-size: .74rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.exec-fulldata-toggle:hover { background: #f3f8fc; }
+.exec-fulldata-toggle svg { width: 14px; height: 14px; transition: transform .12s ease; }
+.exec-fulldata-toggle svg.is-open { transform: rotate(180deg); }
+.exec-fulldata-count { margin-left: 2px; padding: 1px 7px; border-radius: 999px; background: #eef3f9; color: #5b718c; font-size: .62rem; font-weight: 700; }
+.exec-fulldata-body.is-collapsed { display: none; }
+
 /*
  * Headers WRAP at spaces; they never run on and they never break mid-word.
  *
@@ -1290,10 +1442,25 @@
    one-line empty state instead of stretching to match its busiest neighbour. */
 .exec-attention-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: start; }
 .exec-attention-panel { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 11px 13px; border: 1px solid #cbd9e7; border-radius: 6px; background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%); }
+/* Decision-first: the Decisions Required panel leads the grid and carries a
+   stronger accent than its neighbours, so it reads first without shouting. */
+.exec-attention-panel.is-decision {
+  grid-column: 1 / -1;
+  border-color: #0d59a8;
+  border-left-width: 4px;
+  background: linear-gradient(180deg, #ffffff 0%, #f3f8fd 100%);
+}
+.exec-attention-panel.is-decision .monthly-mini-heading span { color: #0d4384; font-size: .82rem; }
 .exec-attention-panel .monthly-mini-heading small { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: #0d59a8; color: white; font-size: .58rem; font-weight: 800; text-align: center; }
 .exec-attention-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
-.exec-attention-list li { display: grid; gap: 3px; padding-bottom: 7px; border-bottom: 1px solid #e5ecf3; }
-.exec-attention-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.exec-attention-list li { display: grid; border-bottom: 1px solid #e5ecf3; }
+.exec-attention-list li:last-child { border-bottom: 0; }
+/* Each item opens that project's Executive Brief. Button reset so the row
+   still reads as plain text, not as a form control. */
+.exec-attention-trigger { display: grid; gap: 3px; width: 100%; padding: 0 0 7px; border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.exec-attention-list li:last-child .exec-attention-trigger { padding-bottom: 0; }
+.exec-attention-trigger:hover .exec-attention-text { color: #0d59a8; }
+.exec-attention-trigger:focus-visible { outline: 2px solid #0d59a8; outline-offset: 2px; border-radius: 3px; }
 .exec-attention-text { color: #2c4a72; font-size: .72rem; line-height: 1.4; overflow-wrap: anywhere; }
 .exec-attention-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: #6d7f94; font-size: .62rem; }
 .exec-attention-meta b { color: #17477d; }
@@ -1346,6 +1513,126 @@
 .exec-snapshot-move { display: grid; gap: 2px; margin-bottom: 4px; }
 .exec-snapshot-move small { color: #6d7f94; font-size: .62rem; }
 .exec-snapshot-link { margin-top: auto; padding-top: 8px; color: #0d59a8; font-size: .72rem; font-weight: 700; }
+
+/* Printed equivalent of the cards below — screen-hidden, print-only. Its own
+   complete layout (not a shared class with the interactive grid) so its
+   visibility never depends on CSS source order. See the print block for the
+   `display: grid !important` override. */
+.exec-print-cards { display: none; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+
+/* --------------------- Project Executive Status (cards) --------------------- */
+
+/*
+ * The primary project-browsing surface — Executive UX Slice 2. Every card
+ * opens the Executive Project Brief; a button reset keeps it reading as a
+ * card, not as a form control, while remaining a real, keyboard-reachable
+ * control (§27 — no interaction may require hover alone).
+ */
+.exec-project-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; }
+.exec-project-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #dde7f1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(19 47 79 / 4%);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease;
+}
+.exec-project-card:hover { border-color: #9db8d4; box-shadow: 0 4px 14px rgb(19 47 79 / 10%); transform: translateY(-1px); }
+.exec-project-card:focus-visible { outline: 2px solid #0d59a8; outline-offset: 2px; }
+.exec-project-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.exec-project-card-head b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #0d4384; font-size: .86rem; line-height: 1.25; overflow-wrap: anywhere; }
+.exec-project-card-head small { display: block; margin-top: 2px; color: #7d8fa4; font-size: .64rem; }
+.exec-project-card-figures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px 0; border-top: 1px solid #e5ecf3; border-bottom: 1px solid #e5ecf3; }
+.exec-project-card-figures > div { display: grid; gap: 2px; }
+.exec-project-card-figures span { color: #667a91; font-size: .56rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.exec-project-card-figures b { font-size: 1.02rem; }
+.exec-project-card-line { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: baseline; gap: 8px; font-size: .7rem; color: #2c4a72; line-height: 1.4; }
+.exec-project-card-line > span:last-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.exec-project-card-label { color: #7386a0; font-size: .54rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.exec-project-card-decision {
+  display: grid;
+  gap: 4px;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px dashed #dfe7f0;
+  font-size: .7rem;
+  color: #2c4a72;
+  line-height: 1.4;
+}
+.exec-project-card-decision span { overflow-wrap: anywhere; }
+/* "View Executive Brief →" — a small, restrained affordance so a card's
+   clickability never depends on the reader noticing a hover effect alone. */
+.exec-project-card-cta { margin-top: auto; padding-top: 8px; color: #0d59a8; font-size: .68rem; font-weight: 700; opacity: .85; }
+.exec-project-card:hover .exec-project-card-cta,
+.exec-project-card:focus-visible .exec-project-card-cta { opacity: 1; text-decoration: underline; }
+
+/* A health tile in Portfolio Position narrowed this grid — screen only, a
+   Dynamic Executive Card filter, never a change to the printed record. */
+.exec-card-filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 7px 12px;
+  border: 1px solid #a9c7e6;
+  border-radius: 6px;
+  background: #eaf2fb;
+  color: #0d4384;
+  font-size: .74rem;
+  font-weight: 600;
+}
+.exec-card-filter-chip button { padding: 0; border: 0; background: none; color: #0d59a8; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.exec-project-card-filter-empty { margin: 0; padding: 16px; color: #8494a7; font-size: .78rem; text-align: center; }
+
+/* ---------------------------- Executive Project Brief ----------------------- */
+
+/*
+ * The Sheet/DetailDrawer shell (`components/shared/detail-drawer.tsx`) is
+ * reused for its mechanics only — open/close, focus trap, Escape, the wide
+ * responsive panel. Everything inside carries the Executive report's own
+ * navy/paper visual language (`.exec-tab-heading`, `StatusBadge`, the Slice 1
+ * funnel classes), deliberately distinct from a Dashboard drawer's generic
+ * muted styling.
+ */
+.exec-brief-title { color: #0d4384; font-weight: 800; }
+.exec-brief-section { padding: 14px 0; border-bottom: 1px solid #e3ecf4; }
+.exec-brief-section:first-of-type { padding-top: 0; }
+.exec-brief-section:last-of-type { border-bottom: 0; padding-bottom: 0; }
+.exec-brief-section .exec-tab-heading:first-child { margin-top: 0; }
+.exec-brief-summary { margin-top: 8px; }
+.exec-brief-decision-line { font-size: .82rem; }
+.exec-brief-basis-line { align-items: baseline; }
+.exec-brief-attention-row { display: grid; gap: 3px; font-size: .82rem; color: #163b68; margin-top: 8px; }
+.exec-brief-attention-row:first-child { margin-top: 0; }
+.exec-brief-subheading { margin: 12px 0 6px; color: #17477d; font-size: .64rem; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.exec-brief-milestone-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.exec-brief-milestone-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid #e5ecf3; font-size: .74rem; color: #2c4a72; }
+.exec-brief-milestone-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.exec-brief-milestone-list b { color: #0d4384; }
+
+/* The explicit "why this health" callout, shown only when a Health badge
+   itself was clicked. A card is appropriate here — it is a distinct,
+   self-contained explanation, not a repeated summary (§11). */
+.exec-brief-health-callout {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  margin-bottom: 4px;
+  border: 1px solid #cbd9e7;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f8fbfe 0%, #eef4fa 100%);
+}
+.exec-brief-health-callout p { margin: 0; color: #33506f; font-size: .74rem; line-height: 1.5; }
+.exec-brief-callout-concern b { color: #17477d; }
 .exec-snapshot-link:hover { text-decoration: underline; }
 
 /* ------------------------------ Approval block ----------------------------- */
@@ -1880,9 +2167,23 @@
 .exec-tab-panel .monthly-table-wrap, .exec-tab-panel table { max-width: 100%; }
 
 .exec-figure-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.exec-figure-row-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .exec-figure { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid #cbd9e7; border-radius: 6px; background: linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%); }
 .exec-figure span { color: #667a91; font-size: .6rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
 .exec-figure b { color: #0d4d99; font-size: 1.24rem; }
+
+/* Overview funnel — Health / Performance / Exception / Impact / Decision.
+   Restrained sections, no boxed cards: a heading and a line, separated by
+   whitespace and a hairline, matching the rest of the tab. */
+.exec-funnel-block { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid #e3ecf4; }
+.exec-funnel-block:last-of-type { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+.exec-funnel-block .exec-tab-heading:first-child { margin-top: 0; }
+.exec-funnel-health-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.exec-funnel-health-line .exec-tab-note { margin: 0; }
+.exec-funnel-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; font-size: .82rem; color: #163b68; line-height: 1.5; }
+.exec-funnel-impact-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.exec-funnel-impact-row > div { display: grid; gap: 3px; font-size: .82rem; color: #163b68; }
+.exec-funnel-impact-label { color: #667a91; font-size: .6rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
 
 .exec-drilldown-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; }
 .exec-drilldown-foot span { color: #8494a7; font-size: .7rem; }
@@ -1899,7 +2200,7 @@
   .exec-control-actions { align-items: stretch; flex-wrap: wrap; }
   .exec-filter-row select { max-width: none; flex-basis: 100%; }
   .exec-kpi-position, .exec-kpi-health, .exec-attention-grid, .exec-snapshot-grid,
-  .exec-figure-row, .exec-snapshot-figures { grid-template-columns: 1fr; }
+  .exec-figure-row, .exec-snapshot-figures, .exec-funnel-impact-row { grid-template-columns: 1fr; }
   .exec-header-meta { flex-wrap: wrap; }
   .exec-drilldown-head { grid-template-columns: 1fr; }
   .exec-drilldown-status { justify-content: flex-start; }
@@ -2359,11 +2660,53 @@
   .exec-drilldown-head { grid-template-columns: minmax(0, 1fr) auto !important; }
   .exec-tab-panel { padding: 0; border: 0; }
   .exec-figure-row { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 2mm; }
+  .exec-figure-row-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .exec-funnel-block { border-bottom: 0; padding-bottom: 0; margin-bottom: 2mm; }
   .exec-tab-table,
   .exec-risk-table,
   .exec-action-table,
   .exec-milestone-detail-table { min-width: 0 !important; font-size: 6.6pt; }
   .exec-tab-lead { margin-top: 3mm; }
+
+  /*
+   * Executive UX Slice 2 — Project Executive Status prints as the fuller
+   * Snapshot-style card (`.exec-print-cards`), not the interactive one, and
+   * Full Project Data always prints in full regardless of its on-screen
+   * collapsed state. `!important` because these classes also set `display`
+   * outside this media query — see `executive-project-brief.tsx`'s note on
+   * why Tailwind's `print:`/`hidden` utilities are not used here instead.
+   */
+  .exec-project-card-grid { display: none !important; }
+  .exec-print-cards { display: grid !important; }
+  .exec-fulldata-toggle { display: none !important; }
+  .exec-fulldata-body.is-collapsed { display: block !important; }
+
+  /*
+   * Executive UX final pass — the screen/print composition toggle. See the
+   * matching screen-side rules and the `!important` rationale beside
+   * `.exec-cockpit-only`/`.exec-print-only` (they also set `display` outside
+   * this media query, so a non-`!important` override here would lose).
+   */
+  .exec-cockpit-only { display: none !important; }
+  .exec-print-only { display: block !important; }
+  .exec-print-only.exec-footer { display: flex !important; }
+  .monthly-section-title-row .exec-section-number { display: inline !important; }
+
+  /* Screen-only filter affordance on Project Executive Status (Portfolio
+     Position's Dynamic Executive Cards) — print always shows every project. */
+  .exec-card-filter-chip,
+  .exec-project-card-filter-empty { display: none !important; }
+
+  /*
+   * Safety net: a Sheet/Dialog left open (the Executive Project Brief, or any
+   * other) must never appear on a printed page. Radix portals it to the end
+   * of <body>, outside `.exec-document`, so it is not reached by any rule
+   * above.
+   */
+  [data-slot="sheet-overlay"],
+  [data-slot="sheet-content"],
+  [data-slot="dialog-overlay"],
+  [data-slot="dialog-content"] { display: none !important; }
 }
 
 /* ==========================================================================

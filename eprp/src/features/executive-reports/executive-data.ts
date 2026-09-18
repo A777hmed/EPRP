@@ -762,6 +762,30 @@ export function byAttention(a: ProjectExecutiveRow, b: ProjectExecutiveRow): num
   return a.projectName.localeCompare(b.projectName);
 }
 
+export interface ManagementAttentionLists {
+  decisions: AttentionItem[];
+  risks: AttentionItem[];
+  clientActions: AttentionItem[];
+  overdue: AttentionItem[];
+  struggling: ProjectExecutiveRow[];
+}
+
+/**
+ * ONE definition of "what needs management attention," shared by the
+ * printed Management Attention section and the screen cockpit's compact
+ * version — extracted so the two presentations of the same lists can never
+ * silently diverge in what they count.
+ */
+export function buildManagementAttention(rows: ProjectExecutiveRow[]): ManagementAttentionLists {
+  return {
+    decisions: rows.flatMap((row) => row.decisions).sort(bySeverity),
+    risks: rows.flatMap((row) => row.risks).sort(bySeverity),
+    clientActions: rows.flatMap((row) => row.clientActions).sort(bySeverity),
+    overdue: rows.flatMap((row) => row.overdue).sort(bySeverity),
+    struggling: rows.filter((row) => row.reading.health === "delayed" || row.reading.health === "critical"),
+  };
+}
+
 /* ------------------------------- Aggregation ------------------------------- */
 
 export interface PortfolioAggregate {
@@ -1052,10 +1076,23 @@ export function draftExecutiveNarrative(input: {
   const sentences: string[] = [];
   const count = aggregate.totalProjects;
 
-  /* 1–2 · Period and coverage. */
+  /*
+   * 1–2 · Period and coverage.
+   *
+   * `monthLabel` is the literal sentinel "No reporting period" when no
+   * Monthly Report exists for any project in view (see `hasReportingPeriods`
+   * in `executive-view.tsx`) — never a real month label, which is always
+   * `monthLabelOf()`'s "<Month> <Year>". Folding the sentinel straight into
+   * the sentence read as "No reporting period Portfolio Summary:", which is
+   * not a sentence. State the absence first, as its own clause.
+   */
+  const hasPeriod = monthLabel !== "No reporting period";
   sentences.push(
-    `${monthLabel} Portfolio Summary: the portfolio currently includes ` +
-      `${count} project${count === 1 ? "" : "s"}.`
+    hasPeriod
+      ? `${monthLabel} Portfolio Summary: the portfolio currently includes ` +
+          `${count} project${count === 1 ? "" : "s"}.`
+      : `Portfolio Summary — No reporting period selected. The portfolio currently includes ` +
+          `${count} project${count === 1 ? "" : "s"}.`
   );
 
   /* 3–4 · Position and schedule health. */

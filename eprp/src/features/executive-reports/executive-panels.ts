@@ -706,7 +706,7 @@ function milestoneStatusDistribution(rows: ProjectExecutiveRow[]): ExecPanel {
     return {
       kind: "empty",
       id: "milestone-status",
-      title: "Governed Master Milestone Status",
+      title: "Current Master Milestone Position",
       text: "No active Master Milestones are recorded for the visible projects.",
     };
   }
@@ -736,7 +736,7 @@ function milestoneStatusDistribution(rows: ProjectExecutiveRow[]): ExecPanel {
   return {
     kind: "donut",
     id: "milestone-status",
-    title: "Governed Master Milestone Status",
+    title: "Current Master Milestone Position",
     subtitle: "Official position, as approved by Project Control",
     slices,
     total: states.length,

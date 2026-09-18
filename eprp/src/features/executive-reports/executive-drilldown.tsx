@@ -61,9 +61,12 @@ import {
   buildMilestones,
   bySeverity,
   changesSinceMonthly,
+  isOverdueMilestone,
   monthLabelOf,
   monthlyStatusLabel,
   nameOf,
+  nextDueMilestone,
+  openActionSummary,
   openItems,
   readHealth,
   selectOfficialMonthly,
@@ -473,7 +476,7 @@ function MasterMilestoneProgress({ states }: { states: MilestoneState[] }) {
   return (
     <>
       <div className="exec-tab-lead">
-        <h2 className="exec-tab-heading">Master Milestone Progress</h2>
+        <h2 className="exec-tab-heading">Current Master Milestone Position</h2>
         <span>Governed position, as approved by Project Control.</span>
       </div>
       {states.length ? (
@@ -695,6 +698,17 @@ export function ExecutiveProjectDrilldown({
       .filter(({ entry }) => entry.entryType === "action" || entry.entryType === "decision")
       .map((pair, index) => weeklyRow(pair, "AW", index));
 
+    const risks = openItems(attention, "risk").sort(bySeverity);
+    const decisions = openItems(attention, "decision").sort(bySeverity);
+    const clientActions = openItems(attention, "client_action").sort(bySeverity);
+    const nextMilestone = nextDueMilestone(milestones, today);
+    const openActions = openActionSummary({
+      comments: detail.comments,
+      laterWeeklies: detail.laterWeeklies,
+      entriesByWeekly: detail.entriesByWeekly,
+      today,
+    });
+
     return {
       project: detail.project,
       projectName,
@@ -702,9 +716,16 @@ export function ExecutiveProjectDrilldown({
       reading: readHealth(detail.selection.report),
       figures: executiveFiguresFor(detail.selection.report, detail.planningRollup),
       attention,
-      risks: openItems(attention, "risk").sort(bySeverity),
-      decisions: openItems(attention, "decision").sort(bySeverity),
-      clientActions: openItems(attention, "client_action").sort(bySeverity),
+      risks,
+      decisions,
+      clientActions,
+      // Main Concern is risks/issues only — the same disjoint mapping the
+      // portfolio's own Key Concern uses (`use-executive-portfolio.ts`), so
+      // one source item never surfaces as both Exception and Decision.
+      keyConcern: risks[0],
+      nextMilestone,
+      nextMilestoneOverdue: isOverdueMilestone(nextMilestone, today),
+      openActions,
       achievements: attention.filter((item) => item.kind === "achievement"),
       movement,
       milestones,
@@ -785,56 +806,117 @@ export function ExecutiveProjectDrilldown({
       <div className="exec-tab-panel">
         {tab === "overview" && (
           <>
-            <div className="exec-figure-row">
-              <Figure label="Planned" value={model.figures ? `${model.figures.planned.toFixed(1)}%` : NOT_RECORDED} className="planned-value" />
-              <Figure label="Actual" value={model.figures ? `${model.figures.actual.toFixed(1)}%` : NOT_RECORDED} className="actual-value" />
-              <Figure
-                label="Variance"
-                value={
-                  model.figures && model.figures.variance !== null
-                    ? `${model.figures.variance > 0 ? "+" : ""}${model.figures.variance.toFixed(1)}%`
-                    : NOT_RECORDED
-                }
-                className="variance-value"
-              />
+            {/*
+              Executive funnel: Health → Performance → Exception → Impact →
+              Decision. Each section reads one existing governed/computed
+              field — nothing here is a new calculation, and no Planning
+              snapshot is resolved beyond what `model.figures` already
+              carries (Executive Slice 1).
+            */}
+            <section className="exec-funnel-block">
+              <h2 className="exec-tab-heading">Health</h2>
+              <div className="exec-funnel-health-line">
+                <StatusBadge tone={model.reading.tone}>{model.reading.label}</StatusBadge>
+                <span className="exec-tab-note">{model.reading.basis} {basis.note}</span>
+              </div>
+            </section>
+
+            <section className="exec-funnel-block">
+              <h2 className="exec-tab-heading">Performance</h2>
+              <div className="exec-figure-row exec-figure-row-3">
+                <Figure label="Planned" value={model.figures ? `${model.figures.planned.toFixed(1)}%` : NOT_RECORDED} className="planned-value" />
+                <Figure label="Actual" value={model.figures ? `${model.figures.actual.toFixed(1)}%` : NOT_RECORDED} className="actual-value" />
+                <Figure
+                  label="Variance"
+                  value={
+                    model.figures && model.figures.variance !== null
+                      ? `${model.figures.variance > 0 ? "+" : ""}${model.figures.variance.toFixed(1)}%`
+                      : NOT_RECORDED
+                  }
+                  className="variance-value"
+                />
+              </div>
               {/*
-                Planning Integration 3E: SPI is EV/PV from the Monthly's OWN
-                pinned snapshot when Planning-backed — never the Actual%/
-                Planned% ratio `monthly.spi` (the Monthly's stored fallback
-                column) would give. Unavailable EV/PV or PV <= 0 reads N/A,
-                never a fabricated ratio.
+                Secondary provenance line — technical detail, deliberately
+                quieter than the headline figures above it. SPI is EV/PV from
+                the Monthly's OWN pinned snapshot when Planning-backed — never
+                the Actual%/Planned% ratio `monthly.spi` (the Monthly's stored
+                fallback column) would give. Unavailable EV/PV or PV <= 0
+                reads N/A, never a fabricated ratio.
               */}
-              <Figure
-                label="SPI"
-                value={
-                  model.figures
-                    ? model.figures.spi === null
-                      ? "N/A"
-                      : model.figures.spi.toFixed(2)
-                    : NOT_RECORDED
-                }
-              />
-            </div>
+              {monthly && (
+                <p className="exec-tab-note exec-planning-note">
+                  <StatusBadge tone={model.figures?.planningBacked ? "info" : "neutral"}>
+                    {model.figures?.planningBacked ? "Planning-backed" : "Manual / Monthly fallback"}
+                  </StatusBadge>{" "}
+                  SPI {model.figures ? (model.figures.spi === null ? "N/A" : model.figures.spi.toFixed(2)) : NOT_RECORDED}
+                  {model.figures?.planningBacked && (
+                    <>
+                      {" · "}Coverage{" "}
+                      {typeof model.figures.coveragePercent === "number"
+                        ? `${model.figures.coveragePercent.toFixed(0)}%`
+                        : "—"}
+                      {" · "}Snapshot v{model.figures.snapshotVersion}
+                      {model.figures.dataDate ? ` · Data Date ${model.figures.dataDate}` : ""}
+                    </>
+                  )}
+                </p>
+              )}
+            </section>
 
-            {model.figures?.planningBacked && (
-              <p className="exec-tab-note exec-planning-note">
-                <StatusBadge tone="info">Planning-backed</StatusBadge>{" "}
-                Snapshot v{model.figures.snapshotVersion}
-                {model.figures.dataDate ? ` · Data Date ${model.figures.dataDate}` : ""}
-                {typeof model.figures.coveragePercent === "number"
-                  ? ` · Coverage ${model.figures.coveragePercent.toFixed(0)}%`
-                  : ""}
-                . Figures above are governed by that snapshot, frozen to this Monthly&rsquo;s approved basis.
-              </p>
-            )}
-            {monthly && !model.figures?.planningBacked && (
-              <p className="exec-tab-note exec-planning-note">
-                <StatusBadge tone="neutral">Manual / Monthly fallback</StatusBadge> Figures above are this Monthly
-                Report&rsquo;s own entered position — no Planning Snapshot governs this month.
-              </p>
-            )}
+            <section className="exec-funnel-block">
+              <h2 className="exec-tab-heading">Exception</h2>
+              {model.keyConcern ? (
+                <div className="exec-funnel-line">
+                  <StatusBadge tone={model.keyConcern.priorityTone}>{model.keyConcern.priorityLabel}</StatusBadge>
+                  <span>{model.keyConcern.text}</span>
+                </div>
+              ) : (
+                <EmptyTabState text="No open risks or issues recorded." />
+              )}
+            </section>
 
-            <p className="exec-tab-note">{model.reading.basis} {basis.note}</p>
+            <section className="exec-funnel-block">
+              <h2 className="exec-tab-heading">Impact</h2>
+              <div className="exec-funnel-impact-row">
+                <div>
+                  <span className="exec-funnel-impact-label">Next Milestone</span>
+                  {model.nextMilestone ? (
+                    <span>
+                      {model.nextMilestone.title}
+                      {model.nextMilestone.date ? ` · ${format(parseISO(model.nextMilestone.date), "dd MMM yyyy")}` : ""}
+                      {model.nextMilestoneOverdue && <span className="exec-flag exec-flag-overdue">Overdue</span>}
+                    </span>
+                  ) : (
+                    <span className="muted">No upcoming milestone recorded.</span>
+                  )}
+                </div>
+                <div>
+                  <span className="exec-funnel-impact-label">Open Actions</span>
+                  <span>
+                    {model.openActions.total} open
+                    {model.openActions.overdue > 0 ? `, ${model.openActions.overdue} overdue` : ""}
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            <section className="exec-funnel-block">
+              <h2 className="exec-tab-heading">Decision</h2>
+              {model.decisions[0] ? (
+                <div className="exec-funnel-line">
+                  <StatusBadge tone={model.decisions[0].priorityTone}>Decision Required</StatusBadge>
+                  <span>{model.decisions[0].text}</span>
+                </div>
+              ) : model.clientActions[0] ? (
+                <div className="exec-funnel-line">
+                  <StatusBadge tone={model.clientActions[0].priorityTone}>Client Action</StatusBadge>
+                  <span>{model.clientActions[0].text}</span>
+                </div>
+              ) : (
+                <EmptyTabState text="No decision required at this time." />
+              )}
+            </section>
 
             <h2 className="exec-tab-heading">Monthly baseline</h2>
             {monthly ? (

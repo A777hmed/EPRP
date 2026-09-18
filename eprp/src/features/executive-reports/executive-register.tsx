@@ -541,8 +541,8 @@ export function ExecutiveRegisterView(props: ExecutiveViewerProps) {
           </div>
 
           <p className="exec-register-note">
-            Reporting periods are derived from the Monthly Reports that exist. Executive Reports are not yet stored as
-            numbered, revisioned records, so no report number or approval state is shown.
+            Reporting periods are derived from the Monthly Reports that exist. An Executive Report carries no report
+            number; its lifecycle status appears once a period has been opened and edited.
             {activeFilters > 0 ? " Figures reflect the current filters." : ""}
           </p>
         </div>
