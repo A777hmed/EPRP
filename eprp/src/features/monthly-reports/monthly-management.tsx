@@ -33,6 +33,7 @@ import { ENTRY_STATUS_META, PRIORITY_META } from "@/lib/constants";
 import { eligibleOwners, projectScopeItemIds, projectSystems } from "@/features/weekly-reports/project-scope";
 import { useHierarchyTerms } from "@/features/weekly-reports/use-hierarchy-terms";
 import { monthlyReportService } from "@/services/monthly-report-service";
+import { ReportSection } from "@/features/projects/components/sections/project-reporting-shell";
 import type { EntryStatus, MonthlyComment } from "@/types";
 import { EmptyRow, type MonthlyReportBundle } from "./monthly-report-document";
 import { NOT_RECORDED, commentStatusMeta, nameOf } from "./monthly-data";
@@ -388,13 +389,11 @@ export function MonthlyManagementPanel({ bundle, reload }: { bundle: MonthlyRepo
   };
 
   return (
-    <section className="monthly-ws-panel">
-      <div className="monthly-ws-panel-head">
-        <div>
-          <b>Management Items</b>
-          <span>Client actions, risks and issues, and decisions requiring management support.</span>
-        </div>
-        {!addingTypeKey && !editingId && (
+    <ReportSection
+      title="Management Items"
+      hint="Client actions, risks and issues, and decisions requiring management support."
+      action={
+        !addingTypeKey && !editingId ? (
           <Button
             onClick={() => {
               setEditingId(null);
@@ -404,8 +403,9 @@ export function MonthlyManagementPanel({ bundle, reload }: { bundle: MonthlyRepo
             <Plus />
             Add Item
           </Button>
-        )}
-      </div>
+        ) : undefined
+      }
+    >
 
       {addingTypeKey && (
         <div className="monthly-ws-inline-form">
@@ -502,6 +502,6 @@ export function MonthlyManagementPanel({ bundle, reload }: { bundle: MonthlyRepo
         the original Weekly entry, its week, its author and its creation date are preserved. “Critical Issue” is a Risk / Issue at Priority =
         Critical, and “Escalation” is the escalate flag above, because the Monthly schema fixes the available update types.
       </p>
-    </section>
+    </ReportSection>
   );
 }

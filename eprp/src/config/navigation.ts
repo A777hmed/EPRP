@@ -40,6 +40,14 @@ export interface NavItem {
    * lock. RLS remains the boundary.
    */
   requiresGlobalAuthority?: boolean;
+  /**
+   * Narrower than {@link requiresGlobalAuthority}: System Administrator only,
+   * excluding Project Control Admin. For a destination whose own page gate is
+   * itself System-Admin-only (e.g. `/administration/users`) — the nav item
+   * must match the page it leads to, or a Project Control Admin sees a link
+   * that refuses them on arrival.
+   */
+  requiresSystemAdmin?: boolean;
 }
 
 export interface NavSection {
@@ -168,10 +176,13 @@ export const mainNavigation: NavSection[] = [
     items: [
       {
         title: "Users & Roles",
-        href: "/administration",
+        href: "/administration/users",
         icon: ShieldCheck,
         description: "Users, roles, and permissions",
-        requiresGlobalAuthority: true,
+        // The page itself (/administration/users) is gated to System
+        // Administrator only, narrower than has_global_operational_authority()
+        // — a Project Control Admin must not see a link that refuses them.
+        requiresSystemAdmin: true,
       },
       {
         title: "Job Titles",

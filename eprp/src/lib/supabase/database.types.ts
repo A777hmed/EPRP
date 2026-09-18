@@ -114,6 +114,8 @@ export interface ProjectRow extends Timestamps {
   planned_progress: number;
   actual_progress: number;
   current_phase_id: string | null;
+  /** Planning Slice 1 — optional Tier 1 Portfolio/Reporting Group assignment. */
+  portfolio_group_id: string | null;
   priority: string;
   weekly_enabled: boolean;
   monthly_enabled: boolean;
@@ -158,6 +160,219 @@ export interface ProjectPositionRow extends Timestamps {
   contact_id: string;
   notes: string | null;
   sort_order: number;
+}
+
+/**
+ * Planning Slice 1 — see 20260913000001_planning_foundation.sql.
+ * onboarding_mode: new_project | existing_active_project | no_formal_schedule.
+ */
+export interface ProjectPlanningSettingsRow {
+  project_id: string;
+  onboarding_mode: string;
+  default_import_source: string | null;
+  planning_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Planning Slice 1 — a declared starting position for a project onboarded
+ * mid-execution (onboarding_mode=existing_active_project). Promoted into
+ * Snapshot V1 by publish_planning_snapshot(); never used to fabricate
+ * planning_work_items/planning_activities history that never existed.
+ */
+export interface PlanningOpeningPositionRow {
+  id: string;
+  project_id: string;
+  data_date: string;
+  planned_progress_percent: number | null;
+  actual_progress_percent: number | null;
+  forecast_finish_date: string | null;
+  source: string;
+  status: string;
+  promoted_at: string | null;
+  promoted_to_snapshot_id: string | null;
+  created_by_contact_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Planning Slice 1 — the published planning source of truth. Immutable. */
+export interface PlanningSnapshotRow {
+  id: string;
+  project_id: string;
+  version: number;
+  source_import_batch_id: string | null;
+  source_opening_position_id: string | null;
+  baseline_id: string | null;
+  is_opening_snapshot: boolean;
+  label: string | null;
+  /** Planning Integration 3A. The schedule position this snapshot reports as of — never published_at. Null only for a pre-3A snapshot with no recoverable date. */
+  data_date: string | null;
+  snapshot_data: unknown;
+  published_by_contact_id: string | null;
+  published_at: string;
+}
+
+/**
+ * Planning Slice 1 — normalized, immutable per-activity record owned by one
+ * planning_snapshots row. The queryable drill-down/provenance path for a
+ * snapshot's activity data; snapshot_data's JSON is a convenience archive,
+ * not the only record.
+ */
+export interface PlanningSnapshotActivityRow {
+  id: string;
+  snapshot_id: string;
+  source_activity_id: string | null;
+  source_work_item_id: string | null;
+  /** Slice 2 — see 20260914000001_planning_slice2_schema.sql. */
+  external_id: string | null;
+  code: string | null;
+  name: string;
+  is_milestone: boolean;
+  planned_start_date: string | null;
+  planned_finish_date: string | null;
+  baseline_start_date: string | null;
+  baseline_finish_date: string | null;
+  actual_start_date: string | null;
+  actual_finish_date: string | null;
+  remaining_duration_days: number | null;
+  percent_complete_planned: number | null;
+  percent_complete_actual: number | null;
+  percent_complete_physical: number | null;
+  weight_percent: number | null;
+  status: string | null;
+  planned_value: number | null;
+  earned_value: number | null;
+  created_at: string;
+}
+
+/** Planning Slice 1 — admin-managed Portfolio/Reporting Group master data. */
+export interface PortfolioGroupRow extends Timestamps {
+  id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+}
+
+/** Planning Slice 2 — see 20260914000001_planning_slice2_schema.sql. */
+export interface PlanningWorkItemRow extends Timestamps {
+  id: string;
+  project_id: string;
+  parent_work_item_id: string | null;
+  origin_import_row_id: string | null;
+  department_id: string | null;
+  system_id: string | null;
+  discipline_id: string | null;
+  master_deliverable_id: string | null;
+  code: string;
+  name: string;
+  item_type: string;
+  level: number;
+  sort_order: number;
+  is_milestone: boolean;
+  weight_percent: number | null;
+  planned_start_date: string | null;
+  planned_finish_date: string | null;
+  baseline_start_date: string | null;
+  baseline_finish_date: string | null;
+  planned_duration_days: number | null;
+  source: string;
+}
+
+/** Planning Slice 2 — the full import/review column model. */
+export interface PlanningActivityRow extends Timestamps {
+  id: string;
+  project_id: string;
+  work_item_id: string | null;
+  origin_import_row_id: string | null;
+  external_id: string | null;
+  code: string | null;
+  name: string;
+  is_milestone: boolean;
+  planned_start_date: string | null;
+  planned_finish_date: string | null;
+  baseline_start_date: string | null;
+  baseline_finish_date: string | null;
+  actual_start_date: string | null;
+  actual_finish_date: string | null;
+  planned_duration_days: number | null;
+  remaining_duration_days: number | null;
+  percent_complete_planned: number | null;
+  percent_complete_actual: number | null;
+  percent_complete_physical: number | null;
+  weight_percent: number | null;
+  status: string | null;
+  planned_value: number | null;
+  earned_value: number | null;
+  source: string;
+}
+
+export interface PlanningImportBatchRow {
+  id: string;
+  project_id: string;
+  source_type: string;
+  file_name: string | null;
+  source_document_id: string | null;
+  /** Planning Integration 3A. The schedule's own Data Date — required before this batch can be published. */
+  data_date: string | null;
+  status: string;
+  row_count: number;
+  uploaded_by_contact_id: string | null;
+  uploaded_at: string;
+  validated_at: string | null;
+  validated_by_contact_id: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlanningImportRowRow {
+  id: string;
+  batch_id: string;
+  row_number: number;
+  external_id: string | null;
+  wbs_path: string | null;
+  name: string | null;
+  raw_data: Record<string, unknown>;
+  parse_status: string;
+  parse_notes: string | null;
+  created_at: string;
+}
+
+/** Planning Slice 2 — work_item_id/activity_id: exactly one is set. */
+export interface PlanningConfirmationRow {
+  id: string;
+  work_item_id: string | null;
+  activity_id: string | null;
+  import_row_id: string | null;
+  action: string;
+  field_name: string;
+  previous_value: string | null;
+  new_value: string | null;
+  reason: string;
+  confirmed_by_contact_id: string | null;
+  confirmed_at: string;
+}
+
+export interface PlanningBaselineRow {
+  id: string;
+  project_id: string;
+  name: string;
+  baseline_date: string;
+  captured_items: unknown;
+  notes: string | null;
+  created_by_contact_id: string | null;
+  created_at: string;
+}
+
+export interface PlanningMilestoneLinkRow {
+  id: string;
+  master_milestone_id: string;
+  work_item_id: string | null;
+  activity_id: string | null;
+  created_by_contact_id: string | null;
+  created_at: string;
 }
 
 /** Phase 13.2 — see 20260819000003_master_milestones.sql. */
@@ -406,6 +621,14 @@ export interface WeeklyReportRow {
   hse_status: string | null;
   quality_status: string | null;
   overall_progress_status: string | null;
+  /**
+   * Planning Slice 1 column, exposed here in Planning Integration 3A. The
+   * exact Published Planning Snapshot this report was raised against, if
+   * any — nullable, since a project without one falls back to this
+   * report's own planned_progress/actual_progress. Not yet set by any
+   * write path; that wiring is a later integration slice.
+   */
+  planning_snapshot_id: string | null;
   /** Report-level Executive Summary (spec section 5). */
   summary: string | null;
   /**
@@ -532,6 +755,14 @@ export interface MonthlyReportRow {
   approved_by_contact_id: string | null;
   planned_progress: number;
   actual_progress: number;
+  /**
+   * Planning Slice 1 column, exposed here in Planning Integration 3A. The
+   * exact Published Planning Snapshot this report was raised against, if
+   * any — nullable, since a project without one falls back to this
+   * report's own planned_progress/actual_progress. Not yet set by any
+   * write path; that wiring is a later integration slice.
+   */
+  planning_snapshot_id: string | null;
   hse_status: string | null;
   quality_status: string | null;
   overall_progress_status: string | null;
@@ -565,6 +796,24 @@ export interface MonthlyCommentRow {
   created_by_contact_id: string | null;
   updated_by_contact_id: string | null;
   source_created_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** See migration 20260908000001_monthly_department_collection.sql. */
+export interface MonthlySubmissionRow {
+  id: string;
+  monthly_report_id: string;
+  department_id: string;
+  status: string;
+  no_additional_comments: boolean;
+  sent_at: string | null;
+  due_at: string | null;
+  submitted_by_contact_id: string | null;
+  submitted_at: string | null;
+  reviewed_by_contact_id: string | null;
+  reviewed_at: string | null;
+  return_reason: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -750,8 +999,73 @@ export interface Database {
       weekly_activities: TableDef<WeeklyActivityRow, Omit<WeeklyActivityRow, "id" | "created_at" | "updated_at">, Partial<WeeklyActivityRow>>;
       monthly_reports: TableDef<MonthlyReportRow, Omit<MonthlyReportRow, "id" | "created_at" | "updated_at" | "active" | "archived_at">, Partial<MonthlyReportRow>>;
       monthly_comments: TableDef<MonthlyCommentRow, Omit<MonthlyCommentRow, "id" | "created_at" | "updated_at" | "created_by_contact_id" | "updated_by_contact_id">, Partial<MonthlyCommentRow>>;
+      monthly_submissions: TableDef<MonthlySubmissionRow, Omit<MonthlySubmissionRow, "id" | "created_at" | "updated_at" | "submitted_by_contact_id" | "submitted_at" | "reviewed_by_contact_id" | "reviewed_at">, Partial<MonthlySubmissionRow>>;
       monthly_department_summaries: TableDef<MonthlyDepartmentSummaryRow, Omit<MonthlyDepartmentSummaryRow, "id" | "created_at" | "updated_at" | "created_by_contact_id" | "updated_by_contact_id">, Partial<MonthlyDepartmentSummaryRow>>;
       monthly_plan_items: TableDef<MonthlyPlanItemRow, Omit<MonthlyPlanItemRow, "id" | "created_at" | "updated_at">, Partial<MonthlyPlanItemRow>>;
+      project_planning_settings: TableDef<
+        ProjectPlanningSettingsRow,
+        Omit<ProjectPlanningSettingsRow, "created_at" | "updated_at"> & { project_id: string },
+        Partial<ProjectPlanningSettingsRow>
+      >;
+      planning_opening_positions: TableDef<
+        PlanningOpeningPositionRow,
+        Omit<PlanningOpeningPositionRow, "id" | "created_at" | "updated_at" | "status" | "promoted_at" | "promoted_to_snapshot_id">,
+        never
+      >;
+      planning_snapshots: TableDef<
+        PlanningSnapshotRow,
+        Omit<PlanningSnapshotRow, "id" | "published_at">,
+        never
+      >;
+      planning_snapshot_activities: TableDef<
+        PlanningSnapshotActivityRow,
+        never,
+        never
+      >;
+      portfolio_groups: TableDef<
+        PortfolioGroupRow,
+        Writable<PortfolioGroupRow> & { name: string },
+        Writable<PortfolioGroupRow>
+      >;
+      planning_work_items: TableDef<
+        PlanningWorkItemRow,
+        Writable<PlanningWorkItemRow> & { project_id: string; code: string; name: string },
+        Writable<PlanningWorkItemRow>
+      >;
+      planning_activities: TableDef<
+        PlanningActivityRow,
+        Writable<PlanningActivityRow> & { project_id: string; name: string },
+        Writable<PlanningActivityRow>
+      >;
+      planning_import_batches: TableDef<
+        PlanningImportBatchRow,
+        Omit<PlanningImportBatchRow, "id" | "created_at" | "updated_at" | "row_count"> & {
+          project_id: string;
+          source_type: string;
+          row_count?: number;
+        },
+        Partial<PlanningImportBatchRow>
+      >;
+      planning_import_rows: TableDef<
+        PlanningImportRowRow,
+        Omit<PlanningImportRowRow, "id" | "created_at"> & { batch_id: string; row_number: number },
+        never
+      >;
+      planning_confirmations: TableDef<
+        PlanningConfirmationRow,
+        Omit<PlanningConfirmationRow, "id" | "confirmed_at">,
+        never
+      >;
+      planning_baselines: TableDef<
+        PlanningBaselineRow,
+        Omit<PlanningBaselineRow, "id" | "created_at"> & { project_id: string; name: string; baseline_date: string },
+        never
+      >;
+      planning_milestone_links: TableDef<
+        PlanningMilestoneLinkRow,
+        Omit<PlanningMilestoneLinkRow, "id" | "created_at"> & { master_milestone_id: string },
+        never
+      >;
     };
   };
 }

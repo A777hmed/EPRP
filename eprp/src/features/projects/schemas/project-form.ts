@@ -122,6 +122,8 @@ function createBaseSchema() {
     plannedProgress: looseNumber,
     actualProgress: looseNumber,
     currentPhaseId: z.string().optional().or(z.literal("")),
+    /** Planning Slice 1 — optional; never required for final submission. */
+    portfolioGroupId: z.string().optional().or(z.literal("")),
     priority: z.enum(["low", "medium", "high", "critical"]),
 
     // 5 — Reporting configuration
@@ -492,6 +494,7 @@ export function emptyProjectFormValues(): ProjectFormValues {
     plannedProgress: Number.NaN,
     actualProgress: Number.NaN,
     currentPhaseId: "",
+    portfolioGroupId: "",
     priority: "medium",
     weeklyEnabled: true,
     monthlyEnabled: true,
@@ -572,6 +575,7 @@ export function projectToFormValues(project: Project): ProjectFormValues {
     plannedProgress: project.plannedProgress,
     actualProgress: project.actualProgress,
     currentPhaseId: project.currentPhaseId ?? "",
+    portfolioGroupId: project.portfolioGroupId ?? "",
     priority: project.priority,
     weeklyEnabled: project.reporting.weeklyEnabled,
     monthlyEnabled: project.reporting.monthlyEnabled,
@@ -685,6 +689,7 @@ export function formValuesToProjectInput(
     plannedProgress: numberOrZero(values.plannedProgress),
     actualProgress: numberOrZero(values.actualProgress),
     currentPhaseId: blankToUndefined(values.currentPhaseId),
+    portfolioGroupId: blankToUndefined(values.portfolioGroupId),
     priority: values.priority,
     reporting: {
       weeklyEnabled: values.weeklyEnabled,

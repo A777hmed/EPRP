@@ -24,12 +24,18 @@ import {
   scopedAssignments,
   setScopedAssignment,
 } from "../../assignment-rules";
+import { isDepartmentManagerHolderLocked } from "../../responsibility-guard";
 import { useHierarchyTerms } from "../../use-hierarchy-terms";
 
 const ASSIGNMENT_ROLES = Object.keys(ASSIGNMENT_ROLE_META) as AssignmentRole[];
 
 export interface ScopedAssignmentsProps {
   project: Project;
+  /**
+   * The project as last saved — never the live draft. See
+   * `../../responsibility-guard`.
+   */
+  savedProject: Project;
   departmentId: string;
   contactId: string;
   contactLabel: string;
@@ -51,6 +57,7 @@ export interface ScopedAssignmentsProps {
  */
 export function ScopedAssignments({
   project,
+  savedProject,
   departmentId,
   contactId,
   contactLabel,
@@ -62,6 +69,13 @@ export function ScopedAssignments({
   const [adding, setAdding] = React.useState(false);
   const [picked, setPicked] = React.useState<string[]>([]);
   const [bulkRole, setBulkRole] = React.useState<AssignmentRole>("team_member");
+  // The saved Department Manager's own scope items cannot be demoted or
+  // removed from here — only Replace Person may move the role off them.
+  const isLockedManager = isDepartmentManagerHolderLocked(
+    savedProject,
+    departmentId,
+    contactId
+  );
 
   /*
    * Exactly one Department Manager per department, per project.
@@ -83,7 +97,7 @@ export function ScopedAssignments({
         (record) => record.id === incumbent.contactId
       )?.name ?? "Unknown contact";
     toast.error(
-      `${incumbentName} is already the Department Manager. A department has exactly one — change it in Department Manager on the Contacts step.`
+      `${incumbentName} is already the Department Manager. A department has exactly one — use Replace Person in Team & Responsibilities to reassign it.`
     );
     return true;
   };
@@ -157,6 +171,10 @@ export function ScopedAssignments({
         <ul className="space-y-1.5">
           {held.map((assignment) => {
             const id = assignment.disciplineId!;
+            // This specific row is the saved Department Manager's own role —
+            // only Replace Person may demote or remove it from here.
+            const rowLocked =
+              isLockedManager && assignment.assignmentRole === "department_manager";
             return (
               <li
                 key={`${id}-${assignment.assignmentRole}`}
@@ -168,6 +186,7 @@ export function ScopedAssignments({
 
                 <Select
                   value={assignment.assignmentRole}
+                  disabled={rowLocked}
                   onValueChange={(value) => {
                     if (blockedByManager(value as AssignmentRole)) return;
                     onDraftChange({
@@ -184,6 +203,11 @@ export function ScopedAssignments({
                   <SelectTrigger
                     className="h-7 w-48 text-xs"
                     aria-label={`Assignment Role for ${nameOf(id)}`}
+                    title={
+                      rowLocked
+                        ? "Department Manager — use Replace Person in Team & Responsibilities to reassign"
+                        : undefined
+                    }
                   >
                     <SelectValue />
                   </SelectTrigger>
@@ -233,7 +257,17 @@ export function ScopedAssignments({
                   variant="ghost"
                   size="icon"
                   className="size-7"
-                  aria-label={`Remove ${nameOf(id)} from ${contactLabel}`}
+                  disabled={rowLocked}
+                  aria-label={
+                    rowLocked
+                      ? `${contactLabel} is the Department Manager — use Replace Person to reassign`
+                      : `Remove ${nameOf(id)} from ${contactLabel}`
+                  }
+                  title={
+                    rowLocked
+                      ? "Department Manager — use Replace Person in Team & Responsibilities to reassign"
+                      : undefined
+                  }
                   onClick={() =>
                     onDraftChange({
                       team: removeScopedAssignment(

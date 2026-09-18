@@ -60,8 +60,12 @@ const STATUSES: ExecutiveReportStatus[] = ["draft", "under_review", "approved", 
 export function ExecutiveWorkspaceView(props: ExecutiveViewerProps) {
   const month = props.requestedMonth;
   const scope = React.useMemo<ExecutiveScopeInput>(
-    () => ({ contactId: props.contactId, isAdmin: props.isAdmin }),
-    [props.contactId, props.isAdmin]
+    () => ({
+      contactId: props.contactId,
+      isAdmin: props.isAdmin,
+      portfolioReadTier: props.portfolioReadTier,
+    }),
+    [props.contactId, props.isAdmin, props.portfolioReadTier]
   );
   const portfolio = useExecutivePortfolio(scope, month);
   const { records: contactRecords } = useMasterData("contact");
@@ -160,10 +164,11 @@ export function ExecutiveWorkspaceView(props: ExecutiveViewerProps) {
       movementWeekLimit: portfolio.movementWeekLimit,
       notes: portfolio.notes,
       notesAvailability: portfolio.notesAvailability,
-      canManageNotes: props.allowed,
+      canManageNotes: props.canManagePortfolio,
       onNotesChanged: portfolio.reloadNotes,
       preparedBy: derivedPreparedBy,
       signatories: resolveSignatories(signatories, derivedPreparedBy),
+      hasReportingPeriods: portfolio.availableMonths.length > 0,
     }),
     [
       month,
@@ -172,7 +177,7 @@ export function ExecutiveWorkspaceView(props: ExecutiveViewerProps) {
       aggregate,
       autoDraft,
       portfolio,
-      props.allowed,
+      props.canManagePortfolio,
       derivedPreparedBy,
       signatories,
     ]
@@ -207,6 +212,18 @@ export function ExecutiveWorkspaceView(props: ExecutiveViewerProps) {
   };
 
   if (!props.allowed) return <ExecutiveDenied reason={props.deniedReason} />;
+  /*
+   * This workspace edits Executive-owned content — WRITE authority, not view.
+   * The page previously guarded only `allowed`, so a Viewer who typed the URL
+   * directly reached the full editing UI (summary textarea, signatories,
+   * status, Save). The Supabase RLS policy behind Save already refuses the
+   * write, but the UI must not offer a control it cannot honour.
+   */
+  if (!props.canManagePortfolio) {
+    return (
+      <ExecutiveDenied reason="Editing the Executive Report requires Project Control or Executive authoring access." />
+    );
+  }
   if (!month) {
     return <ExecutiveDenied reason="No reporting period was supplied. Open a period from the Executive register." />;
   }
@@ -310,7 +327,7 @@ export function ExecutiveWorkspaceView(props: ExecutiveViewerProps) {
         <ExecutiveNotesPanel
           notes={portfolio.notes}
           availability={portfolio.notesAvailability}
-          canManage={props.allowed}
+          canManage={props.canManagePortfolio}
           onChanged={portfolio.reloadNotes}
           showProjectColumn
           projectNameOf={(id) => rows.find((row) => row.project.id === id)?.projectName ?? "Project"}

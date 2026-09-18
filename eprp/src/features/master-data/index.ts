@@ -8,6 +8,7 @@ export {
   systemService,
   disciplineService,
   jobTitleService,
+  portfolioGroupService,
   getMasterService,
   getClientById,
   getProjectTypeById,
@@ -17,6 +18,7 @@ export {
   getSystemById,
   getDisciplineById,
   getJobTitleById,
+  getPortfolioGroupById,
   MASTER_KIND_CONFIG,
 } from "./services";
 export { useMasterData } from "./use-master-data";

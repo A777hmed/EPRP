@@ -8,13 +8,18 @@
  * platform's own data and derives nothing it cannot source.
  *
  * BASIS. The Dashboard is the OPERATIONAL control centre, so it reads the
- * latest Weekly report per project — Weekly is the only entry tier and the
- * operational source of truth (`03_REPORTING_ARCHITECTURE.md` Law 1). That is
- * deliberately a different question from the Executive Report, which compiles
- * APPROVED MONTHLY data only. The two are not in conflict and must not be
- * conflated: this view says "where things stand now", the Executive Report says
- * "what was formally reported". Every figure here carries that basis in its
- * caption so a reader cannot mistake one for the other.
+ * project's CURRENT position: Planning Integration 3D made a project's own
+ * latest published Planning Snapshot the PRIMARY source when its rollup is
+ * usable (both Planned and Actual present) — governed, and independent of
+ * any Weekly/Monthly report's own pinned snapshot. Absent a usable
+ * snapshot, this falls back to the latest Weekly report per project — Weekly
+ * is the operational entry tier (`03_REPORTING_ARCHITECTURE.md` Law 1) —
+ * then Monthly. That is deliberately a different question from the
+ * Executive Report, which compiles APPROVED MONTHLY data only. The two are
+ * not in conflict and must not be conflated: this view says "where things
+ * stand now", the Executive Report says "what was formally reported".
+ * Every figure here carries that basis in its caption so a reader cannot
+ * mistake one for the other.
  *
  * ABSENCE IS NEVER ZERO. A project with no report contributes to no average and
  * is counted as Not Reported, rather than being folded in as 0% and dragging
@@ -26,10 +31,13 @@ import * as React from "react";
 import { useCurrentIdentity } from "@/features/auth/use-current-identity";
 import { isoDate, todayIso } from "@/features/calendar/calendar-types";
 import { useMasterData } from "@/features/master-data";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
 import { monthlyReportService } from "@/services/monthly-report-service";
+import { milestoneService } from "@/services/milestone-service";
+import { planningRollupService, type PlanningSnapshotRollup } from "@/services/planning-rollup-service";
+import { milestoneStates as deriveMilestoneStates, type MilestoneState } from "@/features/projects/milestone-state";
+import { deriveDashboardPlanningFigures } from "./planning-integration";
 import type {
   Client,
   Contact,
@@ -72,14 +80,52 @@ export interface DashboardMilestone {
   status: string;
   /** Present only where the source records one; never invented. */
   percentComplete?: number;
-  href: string;
+  /**
+   * Planning Integration 3D: sourced from the governed `master_milestones`
+   * register (via `milestoneService.listRegister` + `milestoneStates`), the
+   * SAME derivation Master Planning, Weekly, Monthly and Executive read —
+   * never `weekly_plan_items`/`monthly_plan_items`. Those report-scoped plan
+   * tables are a department's own next-week/next-month notes, not the
+   * project's milestone register, and are deliberately not read here so the
+   * Dashboard cannot present a second, competing milestone source.
+   */
+  source: { kind: "master"; milestoneId: string; href: string };
 }
 
-interface PlanRow {
-  id: string;
-  title: string;
-  status: string | null;
-  department_id: string | null;
+/** The 4 statuses `MilestoneStatus` (the governed register) actually allows.
+    Kept separate from the Milestone Modal's own identical categorization —
+    duplicated intentionally so panel-preview work here can never change
+    modal behavior. */
+export type MilestoneStatusBucket = "not_started" | "in_progress" | "delayed" | "completed";
+
+export function milestoneStatusBucket(status: string): MilestoneStatusBucket {
+  if (status === "completed" || status === "done") return "completed";
+  if (status === "delayed" || status === "at_risk") return "delayed";
+  if (status === "in_progress") return "in_progress";
+  return "not_started";
+}
+
+const ATTENTION_ORDER: Record<MilestoneStatusBucket, number> = {
+  delayed: 0,
+  in_progress: 1,
+  not_started: 2,
+  completed: 3,
+};
+
+/**
+ * Worst-status-first, then nearest due date — how the Dashboard's compact,
+ * fixed-size milestone previews decide what to surface first when there is
+ * more in scope than the card can show. The Milestone Modal keeps its own
+ * separate plain date order; nothing here changes it.
+ */
+export function compareMilestonesByAttention(a: DashboardMilestone, b: DashboardMilestone): number {
+  const diff =
+    ATTENTION_ORDER[milestoneStatusBucket(a.status)] - ATTENTION_ORDER[milestoneStatusBucket(b.status)];
+  return diff !== 0 ? diff : a.dueDate.localeCompare(b.dueDate);
+}
+
+export function sortMilestonesByAttention(milestones: DashboardMilestone[]): DashboardMilestone[] {
+  return [...milestones].sort(compareMilestonesByAttention);
 }
 
 /* --------------------------------- Loading --------------------------------- */
@@ -94,6 +140,15 @@ export interface DashboardData {
   weeklies: WeeklyReport[];
   monthlies: MonthlyReport[];
   milestones: DashboardMilestone[];
+  /**
+   * Each visible project's LATEST published Planning Snapshot rollup — 3D's
+   * current-position source. `null` means the project has no published
+   * snapshot yet (or its rollup fetch failed); absent from the map only
+   * before the fetch has completed. Never a Weekly/Monthly report's pinned
+   * snapshot — the Dashboard always asks Planning for "latest", not a
+   * historical pin (see `features/dashboard/planning-integration.ts`).
+   */
+  planningRollups: Map<string, PlanningSnapshotRollup | null>;
   reload: () => Promise<void>;
 }
 
@@ -107,6 +162,9 @@ export function useDashboardData(): DashboardData {
   const [weeklies, setWeeklies] = React.useState<WeeklyReport[]>([]);
   const [monthlies, setMonthlies] = React.useState<MonthlyReport[]>([]);
   const [milestones, setMilestones] = React.useState<DashboardMilestone[]>([]);
+  const [planningRollups, setPlanningRollups] = React.useState<
+    Map<string, PlanningSnapshotRollup | null>
+  >(new Map());
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string>();
 
@@ -131,21 +189,11 @@ export function useDashboardData(): DashboardData {
       setLoading(true);
       setError(undefined);
       try {
-        /*
-         * `loadUpcomingMilestones` used to be awaited AFTER this block, as a
-         * second sequential stage. Its two queries do not depend on the
-         * project list at all — they read `weekly_plan_items` /
-         * `monthly_plan_items` directly, and the list is used only to put a
-         * NAME on each row afterwards. So it belongs in the same wave, and
-         * the naming pass moves below where the list is known.
-         */
-        const [allProjects, weeklyList, monthlyList, upcoming] =
-          await Promise.all([
-            projectService.getProjects(),
-            weeklyReportService.list(),
-            monthlyReportService.list(),
-            loadUpcomingMilestones(),
-          ]);
+        const [allProjects, weeklyList, monthlyList] = await Promise.all([
+          projectService.getProjects(),
+          weeklyReportService.list(),
+          monthlyReportService.list(),
+        ]);
         if (cancelled) return;
 
         /*
@@ -173,16 +221,34 @@ export function useDashboardData(): DashboardData {
         setWeeklies(weeklyList);
         setMonthlies(monthlyList);
 
-        // Names resolved now that the project list is known — the rows
-        // themselves were already fetched in the wave above.
-        const nameOf = (id: string) =>
-          projectList.find((project) => project.id === id)?.name ?? "Project";
-        setMilestones(
-          upcoming.map((milestone) => ({
-            ...milestone,
-            projectName: nameOf(milestone.projectId),
-          }))
-        );
+        /*
+         * Milestones and Planning rollups both need the project id list, so
+         * they run in a second wave rather than the first. Each project's
+         * own fetch is isolated (`.catch(() => null)` / per-project
+         * settlement) so one project's Planning read failing, or the
+         * milestone register being briefly unavailable, cannot blank the
+         * whole Dashboard.
+         */
+        const [milestoneList, rollupEntries] = await Promise.all([
+          loadGovernedMilestones(projectList),
+          Promise.all(
+            projectList.map(async (project) => {
+              try {
+                const latest = await planningRollupService.getLatestPublishedSnapshot(project.id);
+                const rollup = latest
+                  ? await planningRollupService.computeSnapshotRollup(latest.id)
+                  : null;
+                return [project.id, rollup] as const;
+              } catch {
+                return [project.id, null] as const;
+              }
+            })
+          ),
+        ]);
+        if (cancelled) return;
+
+        setMilestones(milestoneList);
+        setPlanningRollups(new Map(rollupEntries));
       } catch (cause) {
         if (!cancelled) {
           setError(cause instanceof Error ? cause.message : "Could not load dashboard data.");
@@ -208,73 +274,70 @@ export function useDashboardData(): DashboardData {
     weeklies,
     monthlies,
     milestones,
+    planningRollups,
     reload,
   };
 }
 
 /**
- * Upcoming milestones from the Weekly and Monthly plans.
+ * One governed milestone's row, or `null` when it has no determinable due
+ * date or that date is not upcoming — the pure decision `loadGovernedMilestones`
+ * applies per milestone, split out so it is directly unit-testable without a
+ * live `milestoneService` call.
  *
- * Queried directly rather than through the report services, which expose plan
- * items one report at a time — rendering the panel would otherwise cost a round
- * trip per report. RLS still applies, so a reader sees only their own projects.
+ * "Due date" prefers the milestone's current APPROVED forecast (the latest
+ * re-plan Project Control has accepted) and falls back to the milestone's
+ * own `plannedDate` (the agreed date) only when nothing has been forecast
+ * yet — never invented, and never a mix of the two for the same row.
  */
-async function loadUpcomingMilestones(): Promise<DashboardMilestone[]> {
-  const client = getSupabaseBrowserClient();
-  const today = todayIso();
-  /* `projectName` is filled in by the caller once the project list is known —
-     this function no longer waits for it, so both can be fetched at once.
-     The placeholder below is always replaced before the rows are rendered. */
-  const nameOf = () => "Project";
+export function governedMilestoneRow(
+  state: MilestoneState,
+  today: string,
+  projectName: string
+): DashboardMilestone | null {
+  const dueDate = state.forecastDate ?? state.milestone.plannedDate;
+  if (!dueDate || dueDate < today) return null;
+  return {
+    id: state.milestone.id,
+    projectId: state.milestone.projectId,
+    projectName,
+    departmentId: state.milestone.departmentId,
+    title: state.milestone.name,
+    dueDate,
+    status: state.status,
+    percentComplete: state.progressPercent,
+    source: {
+      kind: "master",
+      milestoneId: state.milestone.id,
+      href: `/projects/${state.milestone.projectId}/milestones`,
+    },
+  };
+}
 
-  const [weekly, monthly] = await Promise.all([
-    client
-      .from("weekly_plan_items")
-      .select("id, title, end_date, status, department_id, weekly_reports!inner(id, project_id)")
-      .eq("kind", "milestone")
-      .gte("end_date", today)
-      .order("end_date", { ascending: true })
-      .limit(40),
-    client
-      .from("monthly_plan_items")
-      .select("id, title, target_date, status, department_id, monthly_reports!inner(id, project_id)")
-      .not("target_date", "is", null)
-      .gte("target_date", today)
-      .order("target_date", { ascending: true })
-      .limit(40),
-  ]);
+/**
+ * Upcoming milestones from the governed `master_milestones` register
+ * (Planning Integration 3D).
+ *
+ * Reads `milestoneService.listRegister` + `milestoneStates` — the SAME
+ * register and derivation Master Planning, Weekly, Monthly and Executive
+ * read. Previously this read `weekly_plan_items`/`monthly_plan_items`
+ * directly: a department's own next-week/next-month notes, not the
+ * project's milestone register, so the Dashboard was presenting a second,
+ * uncoordinated milestone source that could name a date the governed
+ * register never agreed to. That source is retired outright, not kept as a
+ * fallback — a project's real milestones now come from exactly one place.
+ */
+async function loadGovernedMilestones(projects: Project[]): Promise<DashboardMilestone[]> {
+  const today = todayIso();
+  const nameOf = (id: string) => projects.find((project) => project.id === id)?.name ?? "Project";
+
+  const { milestones, updates } = await milestoneService.listRegister(projects.map((p) => p.id));
+  const states = deriveMilestoneStates(milestones, updates);
 
   const out: DashboardMilestone[] = [];
-
-  type WeeklyRow = PlanRow & { end_date: string; weekly_reports: { id: string; project_id: string } | null };
-  type MonthlyRow = PlanRow & { target_date: string; monthly_reports: { id: string; project_id: string } | null };
-
-  for (const row of (weekly.data ?? []) as unknown as WeeklyRow[]) {
-    if (!row.weekly_reports) continue;
-    out.push({
-      id: `w-${row.id}`,
-      projectId: row.weekly_reports.project_id,
-      projectName: nameOf(),
-      departmentId: row.department_id ?? undefined,
-      title: row.title,
-      dueDate: row.end_date,
-      status: row.status ?? "not_started",
-      href: `/weekly-reports/${row.weekly_reports.id}`,
-    });
-  }
-
-  for (const row of (monthly.data ?? []) as unknown as MonthlyRow[]) {
-    if (!row.monthly_reports || !row.target_date) continue;
-    out.push({
-      id: `m-${row.id}`,
-      projectId: row.monthly_reports.project_id,
-      projectName: nameOf(),
-      departmentId: row.department_id ?? undefined,
-      title: row.title,
-      dueDate: row.target_date,
-      status: row.status ?? "not_started",
-      href: `/monthly-reports/${row.monthly_reports.id}`,
-    });
+  for (const state of states) {
+    const row = governedMilestoneRow(state, today, nameOf(state.milestone.projectId));
+    if (row) out.push(row);
   }
 
   return out.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
@@ -314,10 +377,37 @@ export interface ProjectPosition {
   planned?: number;
   actual?: number;
   variance?: number;
-  /** Which record the figures came from, so a caption can state it. */
-  basis: "weekly" | "monthly" | "none";
+  /**
+   * Which record the figures came from, so a caption can state it.
+   * "planning" means every figure in this position (planned, actual,
+   * variance, spi) came from the SAME governed rollup — never a blend of a
+   * Planning planned figure with a manual actual figure, or vice versa.
+   */
+  basis: "planning" | "weekly" | "monthly" | "none";
   reportedOn?: string;
   health: "on_track" | "at_risk" | "behind" | "critical" | "not_reported";
+
+  /* ------------------------- Planning Integration 3D --------------------- */
+  /** EV/PV. `null` only when Planning-backed and value data is unavailable
+      (or Planned Value <= 0) — never a fabricated ratio. Absent (not even
+      `null`) when `basis !== "planning"`. */
+  spi?: number | null;
+  /** Sum of reported planned_value / earned_value behind `spi` — carried
+      through so a KPI detail surface can show EV/PV, or explain why SPI
+      reads N/A, without recomputing anything. Same availability rule as
+      `spi`: absent when `basis !== "planning"`. */
+  plannedValue?: number | null;
+  earnedValue?: number | null;
+  /** Share of the schedule's weight the rollup actually speaks for. */
+  coveragePercent?: number;
+  /** The latest published snapshot's version, when `basis === "planning"`. */
+  snapshotVersion?: number;
+  /** The latest published snapshot's Data Date, when `basis === "planning"`. */
+  dataDate?: string;
+  /** The latest published snapshot's id, when `basis === "planning"` — lets a
+      drill-down (Activity Depth, Coverage Detail) read that EXACT snapshot's
+      activities rather than re-resolving "latest" a second time. */
+  snapshotId?: string;
 }
 
 /** Matches `recommendScheduleStatus`: −3 points is the platform's own band. */
@@ -340,23 +430,61 @@ export const HEALTH_META: Record<
   not_reported: { label: "Not Reported", tone: "default", color: "#94a3b8" },
 };
 
+/** Short per-project caption for a position's basis — one place, so a new
+    basis (like Planning, 3D) cannot be silently mislabeled somewhere that
+    still only knew about "weekly"/"monthly". */
+export const BASIS_LABEL: Record<Exclude<ProjectPosition["basis"], "none">, string> = {
+  planning: "Planning Snapshot",
+  weekly: "Latest Weekly",
+  monthly: "Monthly",
+};
+
 /**
- * Each project's current position, from its latest report inside the window.
+ * Each project's CURRENT position.
  *
- * Weekly first (the operational tier), Monthly as fallback for a project that
- * reports only monthly. A project with neither is `not_reported` and is left
- * out of every average.
+ * Planning Integration 3D, "current position rule": when the project's
+ * LATEST published Planning Snapshot has a usable rollup (both a Planned
+ * and an Actual figure), that governs — Planned, Actual, Variance and SPI
+ * all come from that ONE rollup, never mixed with a manual figure, and this
+ * reading is NOT scoped by the period filter, because the Dashboard's
+ * Planning position is "where the project stands today", not "what was
+ * reported in this window". An unusable latest snapshot (or none at all)
+ * falls back to the existing Weekly/Monthly behaviour untouched: Weekly
+ * first (the operational tier, period-scoped), Monthly as fallback for a
+ * project that reports only monthly. A project with none of the three is
+ * `not_reported` and is left out of every average.
  */
 export function positionsFor(
   projects: Project[],
   weeklies: WeeklyReport[],
   monthlies: MonthlyReport[],
-  period: TimePeriod
+  period: TimePeriod,
+  planningRollups?: Map<string, PlanningSnapshotRollup | null>
 ): ProjectPosition[] {
   const { from, to } = periodWindow(period);
   const inWindow = (date: string) => (!from || date >= from) && (!to || date <= to);
 
   return projects.map((project) => {
+    const figures = deriveDashboardPlanningFigures(planningRollups?.get(project.id));
+    if (figures.planningBacked) {
+      return {
+        project,
+        planned: figures.plannedProgress!,
+        actual: figures.actualProgress!,
+        variance: figures.variance ?? undefined,
+        basis: "planning",
+        reportedOn: figures.dataDate,
+        health: healthOf(figures.variance ?? undefined),
+        spi: figures.spi,
+        plannedValue: figures.plannedValue,
+        earnedValue: figures.earnedValue,
+        coveragePercent: figures.coveragePercent,
+        snapshotVersion: figures.snapshotVersion,
+        dataDate: figures.dataDate,
+        snapshotId: figures.snapshotId,
+      };
+    }
+
     const weekly = weeklies
       .filter((report) => report.projectId === project.id && inWindow(report.periodEnd))
       .sort((a, b) => b.periodEnd.localeCompare(a.periodEnd))[0];
@@ -409,7 +537,38 @@ export interface PortfolioTotals {
   overdueReports: number;
 }
 
-/** Unweighted means over REPORTED projects only — absence is never zero. */
+/**
+ * Portfolio audit (Planning Integration 3D).
+ *
+ * "Portfolio Progress" is an UNWEIGHTED arithmetic mean of each reported
+ * project's own current-position Actual/Planned (`positionsFor` — Planning
+ * when usable, Weekly/Monthly fallback otherwise), over reported projects
+ * only ("absence is never zero" — a project with no basis is excluded from
+ * the mean rather than folded in as 0%). It is NOT a weighted portfolio
+ * rollup: a small pilot and a multi-year mega-project count identically.
+ *
+ * No governed project-weight model exists on this platform today (no
+ * contract value, budget, physical-scope-share, or man-hour-share field is
+ * recorded per project), so this function does not invent one — the
+ * unweighted mean is kept for continuity with the Dashboard's existing KPI
+ * strip, `PORTFOLIO_BASIS_NOTE` states its basis explicitly wherever it is
+ * shown, and `ProjectPosition[]` (via `ProgressByProjectPanel`) still
+ * surfaces every project's own accurate governed or fallback position
+ * regardless of how the portfolio figure is rolled up.
+ *
+ * A future GOVERNED weighted rollup would need, at minimum: (1) a per-
+ * project weight field the platform actually records and Project Control
+ * maintains (e.g. contract value or approved physical-scope share) —
+ * fabricating one from whatever happens to be on hand would be exactly the
+ * "invented weighting" this slice was told not to add; (2) a documented
+ * rule for a project with no weight recorded (excluded, or a defined
+ * default); (3) the same rule applied consistently to Planning-backed and
+ * fallback positions alike, so the portfolio figure cannot quietly change
+ * meaning project-by-project.
+ */
+export const PORTFOLIO_BASIS_NOTE =
+  "Unweighted mean across reported projects — no governed project-weight model exists yet.";
+
 export function totalsFor(
   positions: ProjectPosition[],
   weeklies: WeeklyReport[],
@@ -448,6 +607,72 @@ export function totalsFor(
     notReported: positions.filter((p) => p.health === "not_reported").length,
     overdueReports: overdueWeekly + overdueMonthly,
   };
+}
+
+/**
+ * The individual overdue Weekly/Monthly reports behind `PortfolioTotals.
+ * overdueReports` — same `DELIVERED`/period-end predicate, kept in this one
+ * place so the Overdue Reports summary modal can never disagree with the KPI
+ * count it expands on. `daysOverdue` is real date arithmetic against a
+ * stored period-end date, never an invented or assumed due date.
+ */
+export interface OverdueReport {
+  projectId: string;
+  reportType: "weekly" | "monthly";
+  reportNumber: string;
+  /** The report's own period-end (Weekly) or reporting month (Monthly), as stored. */
+  period: string;
+  status: string;
+  preparedByContactId?: string;
+  daysOverdue: number;
+}
+
+export function overdueReports(
+  positions: ProjectPosition[],
+  weeklies: WeeklyReport[],
+  monthlies: MonthlyReport[],
+  today = todayIso()
+): OverdueReport[] {
+  const visible = new Set(positions.map((p) => p.project.id));
+  const daysBetween = (isoStart: string) =>
+    Math.max(0, Math.round((Date.parse(today) - Date.parse(isoStart)) / 86_400_000));
+
+  const weeklyRows: OverdueReport[] = weeklies
+    .filter((r) => visible.has(r.projectId) && !DELIVERED.has(r.status) && r.periodEnd < today)
+    .map((r) => ({
+      projectId: r.projectId,
+      reportType: "weekly",
+      reportNumber: r.reportNumber,
+      period: r.periodEnd,
+      status: r.status,
+      preparedByContactId: r.preparedByContactId,
+      daysOverdue: daysBetween(r.periodEnd),
+    }));
+
+  const monthlyRows: OverdueReport[] = monthlies
+    .filter((r) => {
+      if (!visible.has(r.projectId) || DELIVERED.has(r.status)) return false;
+      const month = r.reportingMonth ?? "";
+      if (!month) return false;
+      const [y, m] = month.split("-").map(Number);
+      const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+      return end < today;
+    })
+    .map((r) => {
+      const [y, m] = r.reportingMonth.split("-").map(Number);
+      const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+      return {
+        projectId: r.projectId,
+        reportType: "monthly" as const,
+        reportNumber: r.reportNumber,
+        period: r.reportingMonth,
+        status: r.status,
+        preparedByContactId: r.preparedByContactId,
+        daysOverdue: daysBetween(end),
+      };
+    });
+
+  return [...weeklyRows, ...monthlyRows].sort((a, b) => b.daysOverdue - a.daysOverdue);
 }
 
 /* ---------------------------------- Series --------------------------------- */

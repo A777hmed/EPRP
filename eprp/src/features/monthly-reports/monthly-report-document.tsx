@@ -22,11 +22,14 @@ import { getMonthLabel } from "@/lib/reporting";
 import { siteConfig } from "@/config/site";
 import type { HierarchyTerms } from "@/config/project-terminology";
 import type { MilestoneState } from "@/features/projects/milestone-state";
+import type { PlanningSnapshotRollup } from "@/services/planning-rollup-service";
+import { monthlyDisplayFigures } from "./planning-integration";
 import type {
   Client,
   Contact,
   MonthlyComment,
   MonthlyDepartmentSummary,
+  MonthlySubmission,
   MonthlyPlanItem,
   MonthlyReport,
   Project,
@@ -57,9 +60,24 @@ export interface MonthlyReportBundle {
   report: MonthlyReport;
   project: Project | null;
   client?: Client;
+  /**
+   * The rollup for `report.planningSnapshotId` (Planning Integration 3C).
+   * `null` means "no pinned snapshot" (the fallback path) — distinct from
+   * `undefined`, which means "not resolved yet", so the KPI summary never
+   * flashes fallback figures while this is still loading. Fetched ONCE by
+   * the pinned snapshot id, never re-resolved by project/period — an
+   * existing report always reads what it was pinned to.
+   */
+  planningRollup?: PlanningSnapshotRollup | null;
   comments: MonthlyComment[];
   weeklies: WeeklyReport[];
   submissions: WeeklySubmissionInMonth[];
+  /**
+   * The Monthly department round — one row per department asked for input.
+   * Distinct from `submissions`, which are the WEEKLY submissions the month was
+   * compiled from; these two are different tiers and are never merged.
+   */
+  monthlySubmissions: MonthlySubmission[];
   summaries: MonthlyDepartmentSummary[];
   plans: MonthlyPlanItem[];
   /** Governed Master Milestone current state, read-only — see `milestone-state.ts`. */
@@ -207,7 +225,7 @@ function ReportInformation({ report, project, client, contacts }: MonthlyReportB
 /* ---------------------------------- 2 · KPI -------------------------------- */
 
 function KpiSummary({ bundle, scopeRows }: { bundle: MonthlyReportBundle; scopeRows: ScopeStatusRow[] }) {
-  const { report, weeklies, comments, departments, terms } = bundle;
+  const { report, weeklies, comments, departments, terms, planningRollup } = bundle;
   const panels = buildAnalyticsPanels({
     weeklies,
     comments,
@@ -223,14 +241,31 @@ function KpiSummary({ bundle, scopeRows }: { bundle: MonthlyReportBundle; scopeR
   const gained = weeklies.length >= 2 ? report.actualProgress - weeklies[0].actualProgress : undefined;
   const manHours = latestWeekly?.manHoursToDate;
 
+  /*
+   * Planning Integration 3C, rule 7: Planning-backed SPI is EV/PV, read from
+   * the pinned snapshot's rollup — never the Actual%/Planned% ratio this
+   * document used to show under the same label. Falls back to the report's
+   * own stored figures, unaffected, when no snapshot is pinned.
+   */
+  const figures = monthlyDisplayFigures(report, planningRollup);
+
   const kpis: { label: string; value: string; tone: string; recorded: boolean; note?: string }[] = [
-    { label: "Planned %", value: `${report.plannedProgress.toFixed(1)}%`, tone: "planned", recorded: true },
-    { label: "Actual %", value: `${report.actualProgress.toFixed(1)}%`, tone: "actual", recorded: true },
+    { label: "Planned %", value: `${figures.planned.toFixed(1)}%`, tone: "planned", recorded: true },
+    { label: "Actual %", value: `${figures.actual.toFixed(1)}%`, tone: "actual", recorded: true },
     {
       label: "Variance (SV)",
-      value: `${report.scheduleVariance > 0 ? "+" : ""}${report.scheduleVariance.toFixed(1)}%`,
+      value: figures.variance === null ? "N/A" : `${figures.variance > 0 ? "+" : ""}${figures.variance.toFixed(1)}%`,
       tone: "variance",
-      recorded: true,
+      recorded: figures.variance !== null,
+    },
+    {
+      label: "SPI",
+      value: figures.spi === null ? "N/A" : figures.spi.toFixed(2),
+      tone: "spi",
+      recorded: figures.spi !== null,
+      note: figures.planningBacked
+        ? `Snapshot v${figures.snapshotVersion}${figures.dataDate ? ` · Data Date ${figures.dataDate}` : ""}${typeof figures.coveragePercent === "number" ? ` · Coverage ${figures.coveragePercent.toFixed(0)}%` : ""}`
+        : undefined,
     },
     {
       label: "Progress This Month",

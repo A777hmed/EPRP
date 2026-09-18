@@ -57,6 +57,8 @@ import type {
   ProgressStatus,
   Project,
 } from "@/types";
+import type { PlanningSnapshotRollup } from "@/services/planning-rollup-service";
+import { deriveWeeklyPlanningFigures } from "../planning-integration";
 import { suggestProgressStatus, varianceTone } from "../utils";
 import { useHierarchyTerms } from "../use-hierarchy-terms";
 import {
@@ -75,6 +77,17 @@ interface WeeklyReportHeaderFormProps {
   /** Present when editing. Lets the form link to the report's workspace. */
   existingReportId?: string;
   projectLocked?: boolean;
+  /**
+   * The rollup for this report's pinned Planning Snapshot (Planning
+   * Integration 3B), when it has one — loaded by the container, never
+   * resolved here. `undefined`/omitted on a new report (nothing to pin
+   * yet) or a report with no snapshot. A report is only ever pinned when
+   * its rollup was usable at creation (`create()` refuses to pin
+   * otherwise), so `planningProvenance` here is expected to always be
+   * `planningBacked` when present — checked anyway rather than assumed,
+   * so this form never locks a field it cannot show a real value for.
+   */
+  planningProvenance?: PlanningSnapshotRollup | null;
   onSaveDraft: (values: WeeklyReportHeaderValues) => Promise<void>;
   onCancel: () => void;
 }
@@ -275,6 +288,7 @@ export function WeeklyReportHeaderForm({
   existingReportNumber,
   existingReportId,
   projectLocked = false,
+  planningProvenance,
   onSaveDraft,
   onCancel,
 }: WeeklyReportHeaderFormProps) {
@@ -325,14 +339,23 @@ export function WeeklyReportHeaderForm({
       : generatedReportNumber;
 
   // Schedule variance and SPI are always derived — never user input.
+  const planningFigures = deriveWeeklyPlanningFigures(planningProvenance);
+  const planningBacked = planningFigures.planningBacked;
   const progressEntered =
     Number.isFinite(plannedProgress) && Number.isFinite(actualProgress);
-  const variance = progressEntered
-    ? scheduleVariance(plannedProgress, actualProgress)
-    : null;
-  const spi = progressEntered && plannedProgress > 0
-    ? calculateSpi(plannedProgress, actualProgress)
-    : null;
+  const variance = planningBacked
+    ? planningFigures.variance
+    : progressEntered
+      ? scheduleVariance(plannedProgress, actualProgress)
+      : null;
+  // Planning-backed SPI is EV/PV (never Actual%/Planned%) and may itself be
+  // unavailable (no value data, or Planned Value <= 0) — shown as N/A, never
+  // substituted with the percent-ratio SPI.
+  const spi = planningBacked
+    ? planningFigures.spi
+    : progressEntered && plannedProgress > 0
+      ? calculateSpi(plannedProgress, actualProgress)
+      : null;
 
   const reportStatusMeta = REPORT_STATUS_META[reportStatus];
   const projectStatusMeta = selectedProject
@@ -654,43 +677,64 @@ export function WeeklyReportHeaderForm({
 
         <SectionCard
           title="Progress & KPIs"
-          description="Schedule variance and SPI are calculated automatically from planned and actual progress."
+          description={
+            planningBacked
+              ? `Planned and Actual Progress are governed by Planning Snapshot v${planningFigures.snapshotVersion}${planningFigures.dataDate ? ` (Data Date ${planningFigures.dataDate})` : ""} — read-only. Coverage ${planningFigures.coveragePercent?.toFixed(0) ?? "0"}% of the weighted schedule. Schedule variance and SPI are calculated automatically.`
+              : "Schedule variance and SPI are calculated automatically from planned and actual progress."
+          }
         >
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-            <RhfField
-              control={control}
-              name="plannedProgress"
-              label="Planned Progress %"
-              required
-              description="Cumulative planned completion."
-            >
-              {({ field, controlProps }) => (
-                <Input
-                  {...controlProps}
-                  type="number"
-                  min={0}
-                  max={100}
-                  inputMode="numeric"
-                  value={
-                    typeof field.value === "number" &&
-                    Number.isFinite(field.value)
-                      ? String(field.value)
-                      : ""
-                  }
-                  onChange={(event) =>
-                    field.onChange(
-                      event.target.value === ""
-                        ? Number.NaN
-                        : event.target.valueAsNumber
-                    )
-                  }
-                  onBlur={field.onBlur}
-                  name={field.name}
-                  ref={field.ref}
-                />
-              )}
-            </RhfField>
+            {planningBacked ? (
+              <AutoMetricField
+                label="Planned Progress %"
+                value={`${Math.round(planningFigures.plannedProgress!)}%`}
+                placeholder="—"
+                description={`Governed by Planning Snapshot v${planningFigures.snapshotVersion}.`}
+              />
+            ) : (
+              <RhfField
+                control={control}
+                name="plannedProgress"
+                label="Planned Progress %"
+                required
+                description="Cumulative planned completion."
+              >
+                {({ field, controlProps }) => (
+                  <Input
+                    {...controlProps}
+                    type="number"
+                    min={0}
+                    max={100}
+                    inputMode="numeric"
+                    value={
+                      typeof field.value === "number" &&
+                      Number.isFinite(field.value)
+                        ? String(field.value)
+                        : ""
+                    }
+                    onChange={(event) =>
+                      field.onChange(
+                        event.target.value === ""
+                          ? Number.NaN
+                          : event.target.valueAsNumber
+                      )
+                    }
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
+                  />
+                )}
+              </RhfField>
+            )}
 
+            {planningBacked ? (
+              <AutoMetricField
+                label="Actual Progress %"
+                value={`${Math.round(planningFigures.actualProgress!)}%`}
+                placeholder="—"
+                description={`Governed by Planning Snapshot v${planningFigures.snapshotVersion}.`}
+              />
+            ) : (
             <RhfField
               control={control}
               name="actualProgress"
@@ -724,6 +768,7 @@ export function WeeklyReportHeaderForm({
                 />
               )}
             </RhfField>
+            )}
 
             <AutoMetricField
               label="Schedule Variance"
@@ -744,11 +789,17 @@ export function WeeklyReportHeaderForm({
               // must never be painted different colours.
               tone={variance === null ? undefined : varianceTone(variance)}
               placeholder={
-                progressEntered && plannedProgress === 0
-                  ? "N/A when plan is 0%"
-                  : "Enter progress"
+                planningBacked
+                  ? "No Planned/Earned Value on this snapshot"
+                  : progressEntered && plannedProgress === 0
+                    ? "N/A when plan is 0%"
+                    : "Enter progress"
               }
-              description="Actual ÷ planned (1.00 = on plan)."
+              description={
+                planningBacked
+                  ? "Earned Value ÷ Planned Value from the governed snapshot."
+                  : "Actual ÷ planned (1.00 = on plan)."
+              }
             />
             {/*
               Derived and read-only. Spec §5 allows a manual override with a

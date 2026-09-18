@@ -31,6 +31,11 @@ import {
 import { scheduleVariance } from "@/lib/reporting";
 import type { StatusTone } from "@/components/shared/status-badge";
 import type { MilestoneState } from "@/features/projects/milestone-state";
+import {
+  monthlyDisplayFigures,
+  type MonthlyDisplayFigures,
+  type PlanningRollupLike,
+} from "@/features/monthly-reports/planning-integration";
 import type {
   Contact,
   MonthlyComment,
@@ -130,6 +135,35 @@ export function selectOfficialMonthly(reports: MonthlyReport[], month: string): 
 
   const latest = [...inMonth].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return { basis: "draft", report: latest[0] };
+}
+
+/**
+ * Planning Integration 3E — the SAME figures the selected Monthly Report
+ * itself shows, never re-derived.
+ *
+ * Delegates to `monthlyDisplayFigures` (Monthly's own 3C module): when the
+ * Monthly is Planning-backed, Planned/Actual/Variance/SPI all come from its
+ * ONE pinned snapshot's rollup; otherwise they are the Monthly's own stored
+ * columns, exactly as `selectOfficialMonthly` returned them. Executive
+ * supplies that rollup itself, read by the Monthly's own immutable
+ * `planningSnapshotId` (`planningRollupService.computeSnapshotRollup`) — a
+ * plain lookup by an already-fixed id, never `getLatestSnapshot()` or
+ * `getSnapshotForPeriod()`. Executive therefore never independently chooses
+ * a Planning snapshot and never disagrees with the Monthly Report it
+ * compiles: publishing a NEWER Planning Snapshot cannot change what an
+ * already-approved Monthly — and therefore this Executive period — shows,
+ * because the pin this reads is the one the Monthly was created with, not
+ * "whatever is current now".
+ *
+ * `undefined` only when there is no Monthly at all (`basis: "none"`) — the
+ * existing "absence is never zero" contract, unaffected.
+ */
+export function executiveFiguresFor(
+  monthly: MonthlyReport | undefined,
+  planningRollup: PlanningRollupLike | null | undefined
+): MonthlyDisplayFigures | undefined {
+  if (!monthly) return undefined;
+  return monthlyDisplayFigures(monthly, planningRollup);
 }
 
 /* -------------------------------- Health ---------------------------------- */
@@ -679,9 +713,26 @@ export interface ProjectExecutiveRow {
   basis: MonthlyBasis;
   monthly?: MonthlyReport;
   monthlyStatusLabel?: string;
+  /**
+   * Planned/Actual/Variance/SPI below all come from `executiveFiguresFor()`
+   * — the SAME governed-or-fallback figures the selected Monthly itself
+   * shows, never re-derived and never mixed: when `planningBacked`, all
+   * four come from that Monthly's ONE pinned snapshot rollup; otherwise all
+   * four are the Monthly's own stored columns.
+   */
   planned?: number;
   actual?: number;
   variance?: number;
+  /** True only when the selected Monthly is Planning-backed (3E). Absent
+      figures above are `undefined`, per "absence is never zero" — never 0. */
+  planningBacked: boolean;
+  /** EV/PV. `null` when Planning-backed but value data is unavailable (or
+      Planned Value <= 0) — never the Actual%/Planned% ratio. Absent
+      entirely when `planningBacked` is false. */
+  spi?: number | null;
+  coveragePercent?: number;
+  snapshotVersion?: number;
+  dataDate?: string;
   reading: HealthReading;
   attention: AttentionItem[];
   risks: AttentionItem[];
@@ -709,6 +760,30 @@ export function byAttention(a: ProjectExecutiveRow, b: ProjectExecutiveRow): num
   const bv = b.variance ?? 0;
   if (av !== bv) return av - bv;
   return a.projectName.localeCompare(b.projectName);
+}
+
+export interface ManagementAttentionLists {
+  decisions: AttentionItem[];
+  risks: AttentionItem[];
+  clientActions: AttentionItem[];
+  overdue: AttentionItem[];
+  struggling: ProjectExecutiveRow[];
+}
+
+/**
+ * ONE definition of "what needs management attention," shared by the
+ * printed Management Attention section and the screen cockpit's compact
+ * version — extracted so the two presentations of the same lists can never
+ * silently diverge in what they count.
+ */
+export function buildManagementAttention(rows: ProjectExecutiveRow[]): ManagementAttentionLists {
+  return {
+    decisions: rows.flatMap((row) => row.decisions).sort(bySeverity),
+    risks: rows.flatMap((row) => row.risks).sort(bySeverity),
+    clientActions: rows.flatMap((row) => row.clientActions).sort(bySeverity),
+    overdue: rows.flatMap((row) => row.overdue).sort(bySeverity),
+    struggling: rows.filter((row) => row.reading.health === "delayed" || row.reading.health === "critical"),
+  };
 }
 
 /* ------------------------------- Aggregation ------------------------------- */
@@ -1001,10 +1076,23 @@ export function draftExecutiveNarrative(input: {
   const sentences: string[] = [];
   const count = aggregate.totalProjects;
 
-  /* 1–2 · Period and coverage. */
+  /*
+   * 1–2 · Period and coverage.
+   *
+   * `monthLabel` is the literal sentinel "No reporting period" when no
+   * Monthly Report exists for any project in view (see `hasReportingPeriods`
+   * in `executive-view.tsx`) — never a real month label, which is always
+   * `monthLabelOf()`'s "<Month> <Year>". Folding the sentinel straight into
+   * the sentence read as "No reporting period Portfolio Summary:", which is
+   * not a sentence. State the absence first, as its own clause.
+   */
+  const hasPeriod = monthLabel !== "No reporting period";
   sentences.push(
-    `${monthLabel} Portfolio Summary: the portfolio currently includes ` +
-      `${count} project${count === 1 ? "" : "s"}.`
+    hasPeriod
+      ? `${monthLabel} Portfolio Summary: the portfolio currently includes ` +
+          `${count} project${count === 1 ? "" : "s"}.`
+      : `Portfolio Summary — No reporting period selected. The portfolio currently includes ` +
+          `${count} project${count === 1 ? "" : "s"}.`
   );
 
   /* 3–4 · Position and schedule health. */

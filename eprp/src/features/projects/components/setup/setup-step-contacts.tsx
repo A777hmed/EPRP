@@ -37,6 +37,11 @@ import {
   removeScopedAssignment,
   setAssignment,
 } from "../../assignment-rules";
+import {
+  canPromoteToDepartmentManager,
+  isDepartmentManagerHolderLocked,
+  REPLACE_PERSON_MANAGER_HELP_TEXT,
+} from "../../responsibility-guard";
 import { DepartmentTeamAssignments } from "./department-team-assignments";
 import { LinkedRecordRow } from "./linked-record-row";
 
@@ -44,6 +49,13 @@ export interface SetupStepContactsProps {
   /** Hierarchy wording — display only. */
   terms: HierarchyTerms;
   project: Project;
+  /**
+   * The project as last saved — never the live draft — so a Department
+   * Manager promotion made earlier in this same editing session, before
+   * Save, does not immediately lock itself back up. See
+   * `../../responsibility-guard`.
+   */
+  savedProject: Project;
   context: ProjectLinkContext;
   contacts: Contact[];
   disciplines: Discipline[];
@@ -69,6 +81,7 @@ export interface SetupStepContactsProps {
  */
 export function SetupStepContacts({
   project,
+  savedProject,
   context,
   contacts,
   disciplines,
@@ -111,6 +124,14 @@ export function SetupStepContacts({
     (member) => member.disciplineId === disciplineId
   );
   const activeManager = departmentManager(project, activeDepartmentId);
+  /*
+   * Governed once occupied — checked against the SAVED project, not the live
+   * draft, so promoting someone earlier in this same visit does not lock the
+   * picker before Save. See ../../responsibility-guard.
+   */
+  const managerLocked =
+    activeDepartmentId !== "" &&
+    !canPromoteToDepartmentManager(savedProject, activeDepartmentId);
 
   const setDepartmentManager = (contactId: string) => {
     // Exactly one manager per department: `setAssignment` seats the new one and
@@ -338,8 +359,16 @@ export function SetupStepContacts({
               searchPlaceholder="Search department contacts…"
               emptyLabel="No contacts belong to this department yet."
               clearable={false}
+              disabled={managerLocked}
               controlProps={{ id: "setup-department-manager" }}
             />
+            {managerLocked && (
+              <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                <span className="truncate">
+                  {REPLACE_PERSON_MANAGER_HELP_TEXT}
+                </span>
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -421,40 +450,63 @@ export function SetupStepContacts({
                         one leaves the person and their other assignments in
                         place — the Person record is never touched. */}
                     <ul className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      {person.rows.map((row) => (
-                        <li
-                          key={`${row.departmentId ?? ""}-${row.disciplineId ?? ""}`}
-                          className="flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs"
-                        >
-                          <span className="truncate">
-                            {row.disciplineId
-                              ? disciplineName(row.disciplineId)
-                              : "No scope item"}
-                            <span className="ml-1 text-muted-foreground">
-                              {departmentName(row.departmentId ?? "")}
-                            </span>
-                          </span>
-                          <button
-                            type="button"
-                            className="rounded-sm text-muted-foreground hover:text-foreground"
-                            aria-label={`Remove ${
-                              row.disciplineId
-                                ? disciplineName(row.disciplineId)
-                                : "assignment"
-                            } from ${contactName(person.contactId)}`}
-                            onClick={() =>
-                              onDraftChange({
-                                team: removeAssignmentRow(
-                                  person.contactId,
-                                  row
-                                ),
-                              })
-                            }
+                      {person.rows.map((row) => {
+                        // The department's saved Manager cannot be removed
+                        // from here — only Replace Person may vacate the role.
+                        const rowLocked =
+                          row.assignmentRole === "department_manager" &&
+                          Boolean(row.departmentId) &&
+                          isDepartmentManagerHolderLocked(
+                            savedProject,
+                            row.departmentId!,
+                            person.contactId
+                          );
+                        return (
+                          <li
+                            key={`${row.departmentId ?? ""}-${row.disciplineId ?? ""}`}
+                            className="flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs"
                           >
-                            <X className="size-3" aria-hidden="true" />
-                          </button>
-                        </li>
-                      ))}
+                            <span className="truncate">
+                              {row.disciplineId
+                                ? disciplineName(row.disciplineId)
+                                : "No scope item"}
+                              <span className="ml-1 text-muted-foreground">
+                                {departmentName(row.departmentId ?? "")}
+                              </span>
+                            </span>
+                            <button
+                              type="button"
+                              disabled={rowLocked}
+                              className="rounded-sm text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                              aria-label={
+                                rowLocked
+                                  ? `${contactName(person.contactId)} is the Department Manager — use Replace Person to reassign`
+                                  : `Remove ${
+                                      row.disciplineId
+                                        ? disciplineName(row.disciplineId)
+                                        : "assignment"
+                                    } from ${contactName(person.contactId)}`
+                              }
+                              title={
+                                rowLocked
+                                  ? REPLACE_PERSON_MANAGER_HELP_TEXT
+                                  : undefined
+                              }
+                              onClick={() => {
+                                if (rowLocked) return;
+                                onDraftChange({
+                                  team: removeAssignmentRow(
+                                    person.contactId,
+                                    row
+                                  ),
+                                });
+                              }}
+                            >
+                              <X className="size-3" aria-hidden="true" />
+                            </button>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </LinkedRecordRow>
                 </li>
@@ -469,6 +521,7 @@ export function SetupStepContacts({
         <DepartmentTeamAssignments
           key={id}
           project={project}
+          savedProject={savedProject}
           departmentId={id}
           departmentName={departmentName(id)}
           contactName={contactName}

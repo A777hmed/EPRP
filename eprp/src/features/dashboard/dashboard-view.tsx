@@ -13,7 +13,7 @@
  *
  *   header    title and scope controls, on the canvas rather than in a card
  *   KPI row   five blocks, each carrying a different mark
- *   main      44 / 28 / 28  — trend, distribution, polar comparison
+ *   main      44 / 28 / 28  — progress comparison, distribution, polar comparison
  *   lower     25 / 42 / 33  — milestone bars + variance, schedule, queues
  *
  * The lower row is top-aligned on purpose: the calendar takes its natural
@@ -41,25 +41,33 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarPreview } from "@/features/calendar";
 import { todayIso } from "@/features/calendar/calendar-types";
+import { useMasterData } from "@/features/master-data";
+import type { ProjectPhase } from "@/types";
 import {
   HealthPanel,
   KpiStrip,
   MilestonePanel,
   ProgressByProjectPanel,
   StatusPanel,
-  TrendPanel,
+  useReducedMotion,
   type HealthAxis,
 } from "./dashboard-analytics";
+import { MilestoneModal } from "./milestone-modal";
+import { ProjectProgressComparisonPanel } from "./components/progress-comparison-panel";
+import { ExpandedProgressCurveModal } from "./components/progress-curve-modal";
+import { SummaryDetailModal, type SummaryModalKind } from "./components/summary-modals";
+import { ProjectWorkspace, type ProjectWorkspaceSelection, type WorkspaceTab } from "./components/project-workspace";
+import { usePlanningProgressCurve } from "./use-planning-progress-curve";
 import {
+  BASIS_LABEL,
   EMPTY_DASHBOARD_FILTERS,
   HEALTH_META,
+  PORTFOLIO_BASIS_NOTE,
   TIME_PERIOD_LABEL,
-  periodWindow,
   positionsFor,
   round,
   totalsFor,
   useDashboardData,
-  varianceTrend,
   type DashboardFilters,
   type DashboardMilestone,
   type ProjectPosition,
@@ -71,6 +79,8 @@ const PERIODS: TimePeriod[] = ["this_week", "this_month", "quarter", "all"];
 export function DashboardView({ canManage }: { canManage: boolean }) {
   const data = useDashboardData();
   const [filters, setFilters] = React.useState<DashboardFilters>(EMPTY_DASHBOARD_FILTERS);
+  const { records: projectPhaseRecords } = useMasterData("projectPhase");
+  const projectPhases = projectPhaseRecords as ProjectPhase[];
 
   /* Scope first, then derive. Every panel below reads from these. */
   const scopedProjects = React.useMemo(
@@ -82,8 +92,8 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
   );
 
   const positions = React.useMemo(
-    () => positionsFor(scopedProjects, data.weeklies, data.monthlies, filters.period),
-    [scopedProjects, data.weeklies, data.monthlies, filters.period]
+    () => positionsFor(scopedProjects, data.weeklies, data.monthlies, filters.period, data.planningRollups),
+    [scopedProjects, data.weeklies, data.monthlies, filters.period, data.planningRollups]
   );
 
   const totals = React.useMemo(
@@ -96,31 +106,40 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
     [scopedProjects]
   );
 
-  /*
-   * The trend obeys the PERIOD control, like every other reading.
-   *
-   * `varianceTrend` takes no period argument, so the window is applied to its
-   * input here using the same `periodWindow` that `positionsFor` uses
-   * internally. Without this the KPI headlines were period-scoped while the
-   * chart and sparkline beneath them plotted every week ever filed — so
-   * "This Week" could render an em-dash above a live eight-week series.
-   */
-  const trend = React.useMemo(() => {
-    const { from, to } = periodWindow(filters.period);
-    const windowed = data.weeklies.filter(
-      (report) => (!from || report.periodEnd >= from) && (!to || report.periodEnd <= to)
-    );
-    return varianceTrend(windowed, scopedIds);
-  }, [data.weeklies, scopedIds, filters.period]);
+  const reduced = useReducedMotion();
 
-  const milestones = React.useMemo(
+  /*
+   * Dashboard UX Part 1 (item 5/6): the Expanded Progress Analysis modal
+   * shares ONE selection with the Comparison panel's "Expand" action, over
+   * EVERY visible project — not only the Planning-backed ones. The default
+   * selection still prefers a Planning-backed project (a real curve beats
+   * an honest-but-empty one on first open); `planningCandidates` exists
+   * only to pick that default.
+   */
+  const planningCandidates = React.useMemo(
+    () => positions.filter((position) => position.basis === "planning"),
+    [positions]
+  );
+  const [manualCurveProjectId, setManualCurveProjectId] = React.useState<string | null>(null);
+  const curveProjectId =
+    manualCurveProjectId && positions.some((p) => p.project.id === manualCurveProjectId)
+      ? manualCurveProjectId
+      : (planningCandidates[0]?.project.id ?? positions[0]?.project.id ?? "");
+  const planningCurve = usePlanningProgressCurve(curveProjectId);
+  const [expandCurveOpen, setExpandCurveOpen] = React.useState(false);
+
+  /* `milestones` (capped) still feeds the Milestones health axis below;
+     `scopedMilestones` (uncapped) feeds the Milestone panels and modal, each
+     of which does its own capping so their "+N more" counts stay accurate
+     against everything in scope. */
+  const scopedMilestones = React.useMemo(
     () =>
       data.milestones
         .filter((milestone) => scopedIds.has(milestone.projectId))
-        .filter((milestone) => !filters.departmentId || milestone.departmentId === filters.departmentId)
-        .slice(0, 8),
+        .filter((milestone) => !filters.departmentId || milestone.departmentId === filters.departmentId),
     [data.milestones, scopedIds, filters.departmentId]
   );
+  const milestones = React.useMemo(() => scopedMilestones.slice(0, 8), [scopedMilestones]);
 
   /* Derived ONCE and read by both the KPI caption and Reporting Exceptions, so
      the two can never disagree. */
@@ -206,6 +225,41 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
     return axes;
   }, [totals, data.weeklies, data.monthlies, scopedIds, overdue, milestones]);
 
+  /*
+   * Milestones stay on the Dashboard: "View All" and any row both open the
+   * same in-page modal rather than navigating away. `undefined` selection
+   * shows the list; a milestone id jumps straight to its detail.
+   */
+  const [milestoneModalOpen, setMilestoneModalOpen] = React.useState(false);
+  const [milestoneModalSelection, setMilestoneModalSelection] = React.useState<string | undefined>();
+
+  const openMilestoneList = () => {
+    setMilestoneModalSelection(undefined);
+    setMilestoneModalOpen(true);
+  };
+  const openMilestoneDetail = (milestoneId: string) => {
+    setMilestoneModalSelection(milestoneId);
+    setMilestoneModalOpen(true);
+  };
+
+  /*
+   * Top summary-card quick detail (§A) — a compact CENTER modal, selection-
+   * driven exactly like the Milestone modal above. Never the wide Project
+   * Workspace: these five answer "what is behind this one portfolio
+   * number", not "let me explore this project".
+   */
+  const [summaryModalKind, setSummaryModalKind] = React.useState<SummaryModalKind | null>(null);
+
+  /*
+   * The Project Workspace (§C/§D) — one selection drives one wide right-side
+   * drawer with its own internal tabs. `open`/`close` never re-fetch
+   * anything: the workspace reads the SAME `positions`/`scopedMilestones`/
+   * `weeklies`/`monthlies` already computed for the rest of the page.
+   */
+  const [workspaceSelection, setWorkspaceSelection] = React.useState<ProjectWorkspaceSelection | null>(null);
+  const openWorkspace = (projectId: string, tab?: WorkspaceTab) => setWorkspaceSelection({ projectId, tab });
+  const openManagementWorkspace = (projectId: string) => openWorkspace(projectId, "management");
+
   if (data.loading) return <DashboardSkeleton />;
   if (data.error) {
     return <EmptyState title="Dashboard unavailable" description={data.error} icon={AlertTriangle} />;
@@ -290,23 +344,23 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
         <Shortcut href="/executive-reports" icon={<ArrowUpRight aria-hidden />} label="Executive" />
       </nav>
 
-      <KpiStrip
-        totals={totals}
-        trend={trend}
-        overdueWeekly={overdue.weekly}
-        overdueMonthly={overdue.monthly}
-      />
+      <KpiStrip totals={totals} onSelectCard={setSummaryModalKind} />
 
       <section className="dash-row dash-row-main">
-        <TrendPanel positions={positions} trend={trend} />
+        <ProjectProgressComparisonPanel positions={positions} onExpand={() => setExpandCurveOpen(true)} />
         <StatusPanel totals={totals} />
         <HealthPanel axes={healthAxes} />
       </section>
 
       <section className="dash-row dash-row-lower">
         <div className="dash-stack">
-          <MilestonePanel milestones={milestones} />
-          <ProgressByProjectPanel positions={positions} />
+          <MilestonePanel
+            milestones={scopedMilestones}
+            singleProject={!!filters.projectId}
+            onViewAll={openMilestoneList}
+            onSelectMilestone={openMilestoneDetail}
+          />
+          <ProgressByProjectPanel positions={positions} onSelectProject={(projectId) => openWorkspace(projectId)} />
         </div>
 
         <CalendarPreview
@@ -321,10 +375,61 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
             monthly={overdue.monthly}
             notReported={totals.notReported}
           />
-          <MilestonesUpcoming milestones={milestones} />
-          <ManagementAttention positions={positions} />
+          <MilestonesUpcoming
+            milestones={scopedMilestones}
+            onViewAll={openMilestoneList}
+            onSelectMilestone={openMilestoneDetail}
+          />
+          <ManagementAttention positions={positions} onSelectProject={openManagementWorkspace} />
         </div>
       </section>
+
+      <MilestoneModal
+        open={milestoneModalOpen}
+        onOpenChange={setMilestoneModalOpen}
+        milestones={scopedMilestones}
+        groupByProject={!filters.projectId}
+        scopeLabel={filters.projectId ? (scopedProjects[0]?.name ?? "Project") : "All Projects"}
+        initialMilestoneId={milestoneModalSelection}
+        departments={data.departments}
+      />
+
+      <SummaryDetailModal
+        selection={summaryModalKind}
+        onOpenChange={(open) => {
+          if (!open) setSummaryModalKind(null);
+        }}
+        totals={totals}
+        positions={positions}
+        weeklies={data.weeklies}
+        monthlies={data.monthlies}
+        contacts={data.contacts}
+        portfolioBasisNote={PORTFOLIO_BASIS_NOTE}
+      />
+
+      <ExpandedProgressCurveModal
+        open={expandCurveOpen}
+        onOpenChange={setExpandCurveOpen}
+        candidates={positions}
+        selectedProjectId={curveProjectId}
+        onSelectProject={setManualCurveProjectId}
+        curve={planningCurve}
+        reduced={reduced}
+      />
+
+      <ProjectWorkspace
+        selection={workspaceSelection}
+        onOpenChange={(open) => {
+          if (!open) setWorkspaceSelection(null);
+        }}
+        positions={positions}
+        milestones={scopedMilestones}
+        projectPhases={projectPhases}
+        weeklies={data.weeklies}
+        monthlies={data.monthlies}
+        departments={data.departments}
+        contacts={data.contacts}
+      />
     </div>
   );
 }
@@ -373,8 +478,14 @@ function ReportingExceptions({
     },
   ];
 
+  /*
+   * No panel-level "View All": the three rows below point at three different
+   * registers (Weekly, Monthly, Projects), so a single link here would only
+   * ever cover one of them — that was the misleading `/weekly-reports`
+   * default this replaces. Each row keeps its own correct destination.
+   */
   return (
-    <QueuePanel title="Reporting Exceptions" href="/weekly-reports">
+    <QueuePanel title="Reporting Exceptions">
       <ul className="dash-items">
         {rows.map((row) => (
           <li key={row.href}>
@@ -397,25 +508,43 @@ function ReportingExceptions({
   );
 }
 
-function MilestonesUpcoming({ milestones }: { milestones: DashboardMilestone[] }) {
+function MilestonesUpcoming({
+  milestones,
+  onViewAll,
+  onSelectMilestone,
+}: {
+  milestones: DashboardMilestone[];
+  onViewAll: () => void;
+  onSelectMilestone: (milestoneId: string) => void;
+}) {
   const rows = milestones.slice(0, 3);
+  const hidden = milestones.length - rows.length;
   return (
-    <QueuePanel title="Milestones Upcoming" href="/weekly-reports">
+    <QueuePanel title="Milestones Upcoming" onAction={onViewAll}>
       {rows.length ? (
-        <ul className="dash-items">
-          {rows.map((milestone) => (
-            <li key={milestone.id}>
-              <Link href={milestone.href}>
-                <Flag className={`dash-item-icon ${dueTone(milestone.dueDate)}`} aria-hidden />
-                <span>
-                  <b title={milestone.title}>{milestone.title}</b>
-                  <small>{milestone.projectName}</small>
-                </span>
-                <em className={dueTone(milestone.dueDate)}>{relativeDate(milestone.dueDate)}</em>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="dash-items">
+            {rows.map((milestone) => (
+              <li key={milestone.id}>
+                {/* Opens the same modal "View All" uses, not a page navigation
+                    — a milestone stays a Dashboard reading, not a detour. */}
+                <button type="button" onClick={() => onSelectMilestone(milestone.id)}>
+                  <Flag className={`dash-item-icon ${dueTone(milestone.dueDate)}`} aria-hidden />
+                  <span>
+                    <b title={milestone.title}>{milestone.title}</b>
+                    <small>{milestone.projectName}</small>
+                  </span>
+                  <em className={dueTone(milestone.dueDate)}>{relativeDate(milestone.dueDate)}</em>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {hidden > 0 && (
+            <button type="button" className="dash-more-footer" onClick={onViewAll}>
+              + {hidden} more upcoming
+            </button>
+          )}
+        </>
       ) : (
         <p className="dash-note">No dated milestone is recorded ahead of today for this scope.</p>
       )}
@@ -423,7 +552,17 @@ function MilestonesUpcoming({ milestones }: { milestones: DashboardMilestone[] }
   );
 }
 
-function ManagementAttention({ positions }: { positions: ProjectPosition[] }) {
+function ManagementAttention({
+  positions,
+  onSelectProject,
+}: {
+  positions: ProjectPosition[];
+  /** Opens the Project Workspace straight to its Management tab (Top-Level
+      5A1 correction, §D) — replaces the previous full-page navigation to
+      `/projects/[id]`, so checking a flagged project no longer leaves the
+      Dashboard. */
+  onSelectProject: (projectId: string) => void;
+}) {
   const flagged = positions
     .filter((position) => position.health !== "on_track")
     .sort((a, b) => (a.variance ?? 0) - (b.variance ?? 0))
@@ -437,14 +576,18 @@ function ManagementAttention({ positions }: { positions: ProjectPosition[] }) {
             const tone = HEALTH_META[position.health].tone;
             return (
               <li key={position.project.id}>
-                <Link href={`/projects/${position.project.id}`}>
+                <button
+                  type="button"
+                  onClick={() => onSelectProject(position.project.id)}
+                  aria-label={`Open ${position.project.name} in the Project Workspace`}
+                >
                   <AlertTriangle className={`dash-item-icon is-${tone}`} aria-hidden />
                   <span>
                     <b>{position.project.name}</b>
                     <small>
                       {position.basis === "none"
                         ? "No report in the selected period"
-                        : `${position.basis === "weekly" ? "Latest Weekly" : "Monthly"}${
+                        : `${BASIS_LABEL[position.basis]}${
                             position.reportedOn ? ` · ${position.reportedOn}` : ""
                           }`}
                     </small>
@@ -454,7 +597,7 @@ function ManagementAttention({ positions }: { positions: ProjectPosition[] }) {
                       ? HEALTH_META[position.health].label
                       : `${position.variance > 0 ? "+" : ""}${round(position.variance)}%`}
                   </em>
-                </Link>
+                </button>
               </li>
             );
           })}
@@ -469,10 +612,13 @@ function ManagementAttention({ positions }: { positions: ProjectPosition[] }) {
 function QueuePanel({
   title,
   href,
+  onAction,
   children,
 }: {
   title: string;
-  href: string;
+  href?: string;
+  /** Alternative to `href` for a "View All" that opens a drawer in-page. */
+  onAction?: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -481,9 +627,17 @@ function QueuePanel({
         <div>
           <b>{title}</b>
         </div>
-        <Link href={href} className="dash-link">
-          View All
-        </Link>
+        {href ? (
+          <Link href={href} className="dash-link">
+            View All
+          </Link>
+        ) : (
+          onAction && (
+            <button type="button" className="dash-link" onClick={onAction}>
+              View All
+            </button>
+          )
+        )}
       </header>
       <div className="dash-panel-body">{children}</div>
     </section>

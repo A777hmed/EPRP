@@ -35,11 +35,53 @@ export interface ExecutiveScopeInput {
   contactId: string | null;
   /** Platform administrator — project-agnostic by definition. */
   isAdmin: boolean;
+  /**
+   * Phase B: a portfolio-wide READ ONLY entitlement (`portfolio_read_grants`),
+   * independent of `contactId`/`isAdmin` above — the same fourth axis
+   * `resolveWeeklyScope()` now consults (`features/weekly-reports/scope.ts`).
+   *
+   * Sourced from the SAME helper, `getCurrentPortfolioReadTier()`
+   * (`features/auth/portfolio-read.ts`) — this is not a second entitlement
+   * mechanism, just this module's own consumption of the one that already
+   * exists. `"none"` and `undefined` are equivalent (no grant).
+   *
+   * Grants READ reach on the project only — see {@link canAccessProject}.
+   * Never consulted by anything write-side in this module
+   * (`canManageExecutivePortfolio`, `canPrepareProjectExecutive` take no
+   * scope at all), so it cannot widen edit/prepare/approve/finalize
+   * authority.
+   */
+  portfolioReadTier?: "full" | "published" | "none";
 }
 
-/** Whether one project is within the viewer's reach. */
+/**
+ * Whether one project is within the viewer's reach.
+ *
+ * A plain OR of independent conditions, so adding the portfolio-read branch
+ * can only ever WIDEN what this returns — there is no "narrower wins"
+ * precedence to protect here, unlike `resolveWeeklyScope()`'s capability
+ * levels (which carry write authority tied to level). This function grants
+ * no write authority of any kind either way.
+ */
 export function canAccessProject(project: Project, scope: ExecutiveScopeInput): boolean {
   if (scope.isAdmin) return true;
+
+  /*
+   * Both portfolio-read tiers see the PROJECT itself here, mirroring
+   * `projects_select`'s own added branch (`has_full_portfolio_read() or
+   * has_published_portfolio_read()`). Which Weekly/Monthly/Executive
+   * CONTENT actually comes back for a published-tier reader is decided by
+   * RLS alone (`weekly_report_viewable`, `monthly_report_viewable`,
+   * `executive_reports_select`'s existing `report_status_is_approved()`
+   * branch) — never re-derived or duplicated here. A published-tier reader
+   * on a project with no approved/finalized/locked report yet simply sees
+   * no report content for it, the same "absence is never zero" behaviour
+   * Dashboard already has, rather than the project being hidden outright.
+   */
+  if (scope.portfolioReadTier === "full" || scope.portfolioReadTier === "published") {
+    return true;
+  }
+
   if (!scope.contactId) return false;
 
   // Consolidation authority comes from the canonical rule, not from a second

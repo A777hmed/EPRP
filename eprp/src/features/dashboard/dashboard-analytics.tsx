@@ -18,11 +18,6 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
   Cell,
   Pie,
   PieChart,
@@ -33,31 +28,30 @@ import {
   RadarChart,
   ResponsiveContainer,
   Tooltip,
-  XAxis,
-  YAxis,
 } from "recharts";
-import { CircleCheck, TriangleAlert } from "lucide-react";
+import { CircleCheck, TrendingDown, TrendingUp, TriangleAlert } from "lucide-react";
 
 import {
   HEALTH_META,
+  compareMilestonesByAttention,
   round,
+  sortMilestonesByAttention,
   type DashboardMilestone,
   type PortfolioTotals,
   type ProjectPosition,
-  type TrendPoint,
 } from "./dashboard-data";
+import type { SummaryModalKind } from "./components/summary-modals";
 
 /* --------------------------------- Chrome ---------------------------------- */
 
 /* Chart chrome reads the workspace tokens, so axes follow the theme with no JS
    theme detection — a hardcoded light hex would glow on the dark ground. */
-const AXIS = { fontSize: 10, fill: "var(--dash-muted)" } as const;
 const GRID = "var(--dash-hairline)";
 const PLANNED = "var(--dash-chart-planned)";
 const ACTUAL = "var(--dash-chart-actual)";
 
 type HealthKey = ProjectPosition["health"];
-type Tone = "success" | "warning" | "behind" | "danger" | "default";
+export type Tone = "success" | "warning" | "behind" | "danger" | "default";
 
 /* ================================ KPI strip ================================= */
 
@@ -66,39 +60,56 @@ type Tone = "success" | "warning" | "behind" | "danger" | "default";
  * icon. Two rings on purpose: they read as a matched pair of rate metrics, and
  * the three that follow deliberately break the rhythm so the strip cannot be
  * skimmed as one repeated card.
+ *
+ * Dashboard UX Part 1: each card is now title + large value + ONE short
+ * supporting line + its visual mark — methodology, week-over-week delta and
+ * every other explanation moved into the card's own quick-detail modal
+ * (`summary-modals.tsx`), reached by clicking it. A card states a fact; the
+ * modal explains it.
  */
 export function KpiStrip({
   totals,
-  trend,
-  overdueWeekly,
-  overdueMonthly,
+  onSelectCard,
 }: {
   totals: PortfolioTotals;
-  trend: TrendPoint[];
-  overdueWeekly: number;
-  overdueMonthly: number;
+  /** Opens a compact centered quick-detail modal for one card (§A) — a
+      management quick-look, never the wide Project Workspace. */
+  onSelectCard: (kind: SummaryModalKind) => void;
 }) {
   const coverage = totals.totalProjects
     ? Math.round((totals.reportedProjects / totals.totalProjects) * 100)
     : undefined;
   const bands = healthRows(totals);
-  const spark = trend.filter((point) => point.variance !== undefined);
+
+  /* Final Micro-Polish: keyed on the figures the five cards actually
+     render — not `totals` identity, which is stable across an unrelated
+     re-render — so the strip cleanly re-mounts and its short fade/
+     translate stagger replays once per relevant filter/scope change,
+     never on an incidental re-render, never looping. */
+  const stripKey = [
+    totals.totalProjects,
+    totals.reportedProjects,
+    totals.onTrack,
+    totals.actual,
+    totals.planned,
+    totals.variance,
+    totals.overdueReports,
+  ].join(":");
 
   return (
-    <section className="dash-kpis" aria-label="Portfolio summary">
+    <section key={stripKey} className="dash-kpis" aria-label="Portfolio summary">
       {/* 1 — ring */}
-      <article className="dash-kpi">
+      <button type="button" className="dash-kpi" onClick={() => onSelectCard("portfolio")} aria-label="Open Portfolio Progress detail">
         <div className="dash-kpi-text">
           <span>Portfolio Progress</span>
           <b>{totals.actual === undefined ? "—" : `${round(totals.actual)}%`}</b>
           <small>Planned {totals.planned === undefined ? "—" : `${round(totals.planned)}%`}</small>
-          <Delta series={trend} field="actual" enabled={totals.actual !== undefined} />
         </div>
         <Ring value={totals.actual} tone="primary" label="Portfolio actual progress" />
-      </article>
+      </button>
 
       {/* 2 — ring, paired with the first */}
-      <article className="dash-kpi">
+      <button type="button" className="dash-kpi" onClick={() => onSelectCard("coverage")} aria-label="Open Reporting Coverage detail">
         <div className="dash-kpi-text">
           <span>Reporting Coverage</span>
           <b>{coverage === undefined ? "—" : `${coverage}%`}</b>
@@ -107,22 +118,16 @@ export function KpiStrip({
               ? `${totals.reportedProjects} of ${totals.totalProjects} projects`
               : "No projects in view"}
           </small>
-          <p className="dash-kpi-note">
-            {totals.notReported ? `${totals.notReported} without a basis` : "Every project reporting"}
-          </p>
         </div>
         <Ring value={coverage} tone="success" label="Reporting coverage" />
-      </article>
+      </button>
 
       {/* 3 — mini vertical bars */}
-      <article className="dash-kpi">
+      <button type="button" className="dash-kpi" onClick={() => onSelectCard("onTrack")} aria-label="Open Projects On Track detail">
         <div className="dash-kpi-text">
           <span>Projects On Track</span>
           <b>{totals.onTrack}</b>
           <small>of {totals.totalProjects} in view</small>
-          <p className="dash-kpi-note">
-            {bands.length ? `${bands.length} status ${plural(bands.length, "band")} present` : "Nothing to rank"}
-          </p>
         </div>
         <div className="dash-kpi-columns" role="img" aria-label={healthSummary(bands)}>
           {bands.length ? (
@@ -138,189 +143,45 @@ export function KpiStrip({
             <i className="is-default" style={{ "--h": "14%" } as React.CSSProperties} />
           )}
         </div>
-      </article>
+      </button>
 
       {/* 4 — sparkline */}
-      <article className="dash-kpi">
+      <button type="button" className="dash-kpi" onClick={() => onSelectCard("variance")} aria-label="Open Schedule Variance detail">
         <div className="dash-kpi-text">
           <span>Schedule Variance</span>
           <b className={`is-${varianceTone(totals.variance)}`}>{signed(totals.variance)}</b>
           <small>Actual less planned</small>
-          <Delta series={trend} field="variance" unit="pts" enabled={totals.variance !== undefined} />
         </div>
-        <div className="dash-kpi-spark" role="img" aria-label="Schedule variance across recent reporting weeks">
-          {spark.length >= 2 ? (
-            <ResponsiveContainer width="100%" height={42}>
-              <AreaChart data={spark} margin={{ top: 4, right: 0, bottom: 2, left: 0 }}>
-                <defs>
-                  <linearGradient id="dashSparkFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={ACTUAL} stopOpacity={0.34} />
-                    <stop offset="100%" stopColor={ACTUAL} stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <Area
-                  type="monotone"
-                  dataKey="variance"
-                  stroke={ACTUAL}
-                  strokeWidth={1.75}
-                  fill="url(#dashSparkFill)"
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+        <div className="dash-kpi-status" aria-hidden>
+          {(totals.variance ?? 0) >= 0 ? (
+            <TrendingUp className={`is-${varianceTone(totals.variance)}`} />
           ) : (
-            <span className="dash-kpi-flat" aria-hidden />
+            <TrendingDown className={`is-${varianceTone(totals.variance)}`} />
           )}
         </div>
-      </article>
+      </button>
 
       {/* 5 — a STATE, so a status icon rather than a chart */}
-      <article className={`dash-kpi ${totals.overdueReports ? "is-danger" : "is-clear"}`}>
+      <button
+        type="button"
+        className={`dash-kpi ${totals.overdueReports ? "is-danger" : "is-clear"}`}
+        onClick={() => onSelectCard("overdue")}
+        aria-label="Open Overdue Reports detail"
+      >
         <div className="dash-kpi-text">
           <span>Overdue Reports</span>
           <b className={totals.overdueReports ? "is-danger" : "is-success"}>{totals.overdueReports}</b>
           <small>Past period end, not approved</small>
-          <p className={`dash-kpi-note ${totals.overdueReports ? "is-danger" : ""}`}>
-            {totals.overdueReports
-              ? `${overdueWeekly} Weekly · ${overdueMonthly} Monthly`
-              : "Reporting is current"}
-          </p>
         </div>
         <div className="dash-kpi-status" aria-hidden>
           {totals.overdueReports ? <TriangleAlert /> : <CircleCheck />}
         </div>
-      </article>
+      </button>
     </section>
   );
 }
 
 /* =============================== Main row ================================== */
-
-/**
- * Left panel. A trend is the preferred reading, but it needs at least two
- * reporting weeks — one week is a POSITION, not a trend. Below that the panel
- * swaps to a per-project planned-against-actual comparison: the same fact,
- * compared across projects instead of across weeks, at the same visual weight.
- */
-export function TrendPanel({
-  positions,
-  trend,
-}: {
-  positions: ProjectPosition[];
-  trend: TrendPoint[];
-}) {
-  const reduced = useReducedMotion();
-  const [visible, setVisible] = React.useState({ planned: true, actual: true });
-  const reported = positions.filter(
-    (position) => position.planned !== undefined && position.actual !== undefined
-  );
-
-  if (trend.length < 2) {
-    if (reported.length === 0) {
-      return (
-        <Panel title="Project Performance" hint="Planned against actual">
-          <PanelEmpty>
-            No project in view has reported planned and actual progress for this period.
-          </PanelEmpty>
-        </Panel>
-      );
-    }
-
-    /* The basis is DERIVED, never asserted. This branch also fires when there
-       is no weekly at all — a monthly-only portfolio — so hardcoding "single
-       reporting week" would state a week that does not exist. */
-    const bases = new Set(reported.map((position) => position.basis));
-    const basis =
-      bases.size > 1
-        ? "mixed Weekly and Monthly basis"
-        : bases.has("monthly")
-          ? "latest Monthly per project"
-          : trend.length === 1
-            ? "single reporting week"
-            : "latest Weekly per project";
-
-    const rows = reported.slice(0, 7).map((position) => ({
-      name: position.basis === "monthly" ? `${shortName(position)} (M)` : shortName(position),
-      Planned: round(position.planned as number),
-      Actual: round(position.actual as number),
-    }));
-
-    return (
-      <Panel
-        title="Planned vs Actual"
-        hint={`${reported.length} reporting ${plural(reported.length, "project")} · ${basis}`}
-      >
-        <div className="dash-plot" role="img" aria-label="Planned against actual progress by project">
-          <ResponsiveContainer width="100%" height={214}>
-            <BarChart layout="vertical" data={rows} margin={{ top: 4, right: 24, bottom: 0, left: 4 }} barGap={3}>
-              <CartesianGrid stroke={GRID} horizontal={false} />
-              <XAxis type="number" unit="%" domain={[0, 100]} tick={AXIS} tickLine={false} axisLine={false} />
-              <YAxis type="category" dataKey="name" width={96} tick={AXIS} tickLine={false} axisLine={false} />
-              <Tooltip formatter={percent} cursor={{ fill: "var(--dash-surface-2)" }} />
-              <Bar dataKey="Planned" fill={PLANNED} radius={[0, 3, 3, 0]} maxBarSize={10} isAnimationActive={!reduced} />
-              <Bar dataKey="Actual" fill={ACTUAL} radius={[0, 3, 3, 0]} maxBarSize={10} isAnimationActive={!reduced} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        <PlotKeys visible={{ planned: true, actual: true }} onToggle={() => {}} readOnly />
-      </Panel>
-    );
-  }
-
-  return (
-    <Panel title="Project Progress Trend" hint="Planned against actual, by reporting week">
-      <div className="dash-plot" role="img" aria-label="Planned and actual progress by reporting week">
-        <ResponsiveContainer width="100%" height={214}>
-          <AreaChart data={trend} margin={{ top: 10, right: 14, bottom: 0, left: -16 }}>
-            <defs>
-              <linearGradient id="dashActualFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={ACTUAL} stopOpacity={0.22} />
-                <stop offset="100%" stopColor={ACTUAL} stopOpacity={0.01} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke={GRID} vertical={false} />
-            <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={false} dy={4} />
-            <YAxis unit="%" domain={[0, 100]} tick={AXIS} tickLine={false} axisLine={false} width={44} />
-            <Tooltip formatter={percent} cursor={{ stroke: GRID }} />
-            {visible.planned && (
-              <Area
-                type="monotone"
-                dataKey="planned"
-                name="Planned"
-                stroke={PLANNED}
-                strokeWidth={1.75}
-                strokeDasharray="5 4"
-                fill="transparent"
-                dot={false}
-                isAnimationActive={!reduced}
-                animationDuration={600}
-              />
-            )}
-            {visible.actual && (
-              <Area
-                type="monotone"
-                dataKey="actual"
-                name="Actual"
-                stroke={ACTUAL}
-                strokeWidth={2.25}
-                fill="url(#dashActualFill)"
-                dot={{ r: 2.5, fill: ACTUAL, strokeWidth: 0 }}
-                activeDot={{ r: 4.5 }}
-                isAnimationActive={!reduced}
-                animationDuration={700}
-              />
-            )}
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-      <PlotKeys
-        visible={visible}
-        onToggle={(key) => setVisible((state) => ({ ...state, [key]: !state[key] }))}
-      />
-    </Panel>
-  );
-}
 
 /** Centre panel — the distribution, with the scope total in the hole. */
 export function StatusPanel({ totals }: { totals: PortfolioTotals }) {
@@ -339,6 +200,12 @@ export function StatusPanel({ totals }: { totals: PortfolioTotals }) {
             <ResponsiveContainer width="100%" height={186}>
               <PieChart>
                 <Pie
+                  /* Dashboard UX Part 1: keyed on the distribution itself
+                     (not on `totals` identity, which is stable across a
+                     hover) — the ring cleanly re-mounts and replays its one
+                     700ms reveal exactly when the scope/filter change moves
+                     a project between bands, never on hover, never looping. */
+                  key={bands.map((row) => `${row.key}:${row.value}`).join("|")}
                   data={bands}
                   dataKey="value"
                   nameKey="label"
@@ -453,7 +320,17 @@ export function HealthPanel({ axes }: { axes: HealthAxis[] }) {
     <Panel title="Project Health" hint={`${axes.length} derived dimensions`}>
       <div className="dash-radar" role="img" aria-label={axes.map((a) => `${a.axis} ${a.current}%`).join(", ")}>
         <ResponsiveContainer width="100%" height={222}>
-          <RadarChart data={axes} outerRadius="78%" margin={{ top: 10, right: 20, bottom: 6, left: 20 }}>
+          <RadarChart
+            /* Final Micro-Polish: keyed on the axes' own values (not
+               `axes` identity, which is stable across an unrelated
+               re-render) — the radar cleanly re-mounts and replays its
+               one grow-from-center reveal exactly when a relevant filter/
+               scope change actually moves it, never looping. */
+            key={axes.map((a) => `${a.axis}:${a.current}:${a.target}`).join("|")}
+            data={axes}
+            outerRadius="78%"
+            margin={{ top: 10, right: 20, bottom: 6, left: 20 }}
+          >
             <PolarGrid stroke={GRID} />
             <PolarAngleAxis
               dataKey="axis"
@@ -505,7 +382,14 @@ export function HealthPanel({ axes }: { axes: HealthAxis[] }) {
  * The ring this replaces was misleading: a full-circumference arc at 65% still
  * looked like a completed circle.
  */
-export function ProgressByProjectPanel({ positions }: { positions: ProjectPosition[] }) {
+export function ProgressByProjectPanel({
+  positions,
+  onSelectProject,
+}: {
+  positions: ProjectPosition[];
+  /** Opens the Project Workspace for one row (Top-Level 5A1 correction, §C). */
+  onSelectProject?: (projectId: string) => void;
+}) {
   const rows = positions
     .filter((position) => position.actual !== undefined)
     .sort((a, b) => (b.actual as number) - (a.actual as number))
@@ -523,8 +407,8 @@ export function ProgressByProjectPanel({ positions }: { positions: ProjectPositi
         <ul className="dash-bars is-progress">
           {rows.map((position) => {
             const value = round(position.actual as number);
-            return (
-              <li key={position.project.id}>
+            const row = (
+              <>
                 <span className="dash-bar-name" title={position.project.name}>
                   {position.project.name}
                 </span>
@@ -542,6 +426,22 @@ export function ProgressByProjectPanel({ positions }: { positions: ProjectPositi
                     style={{ "--p": `${clamp(value)}%` } as React.CSSProperties}
                   />
                 </span>
+              </>
+            );
+            return (
+              <li key={position.project.id}>
+                {onSelectProject ? (
+                  <button
+                    type="button"
+                    className="dash-bar-row"
+                    onClick={() => onSelectProject(position.project.id)}
+                    aria-label={`Open ${position.project.name} in the Project Workspace`}
+                  >
+                    {row}
+                  </button>
+                ) : (
+                  row
+                )}
               </li>
             );
           })}
@@ -566,7 +466,7 @@ export function ProgressByProjectPanel({ positions }: { positions: ProjectPositi
  * reports — recorded, in progress, complete — and the label states that stage
  * in words. Three discrete segments, no invented number.
  */
-const STAGES: Record<string, { step: number; label: string; tone: Tone }> = {
+export const MILESTONE_STAGES: Record<string, { step: number; label: string; tone: Tone }> = {
   not_started: { step: 1, label: "Not Started", tone: "default" },
   planned: { step: 1, label: "Planned", tone: "default" },
   in_progress: { step: 2, label: "In Progress", tone: "warning" },
@@ -576,29 +476,82 @@ const STAGES: Record<string, { step: number; label: string; tone: Tone }> = {
   done: { step: 3, label: "Completed", tone: "success" },
 };
 
-export function MilestonePanel({ milestones }: { milestones: DashboardMilestone[] }) {
-  const rows = milestones.slice(0, 5);
+/** The one place a milestone's raw `status` becomes a step/label/tone — shared
+    by the lifecycle bars here and the drawer's detail view, so neither can
+    describe a status differently from the other. */
+export function milestoneStageOf(status: string): { step: number; label: string; tone: Tone } {
+  return MILESTONE_STAGES[status] ?? { step: 1, label: titleCase(status), tone: "default" };
+}
+
+/** Fixed-size preview cards, so the panel stays useful with 5 projects or
+    500 — one representative row each, everything else behind "+N". */
+const MAX_PROJECT_PREVIEW = 5;
+const MAX_MILESTONE_PREVIEW = 5;
+
+export function MilestonePanel({
+  milestones,
+  singleProject,
+  onViewAll,
+  onSelectMilestone,
+}: {
+  /** The FULL scoped set, not capped — the panel does its own capping so its
+      "+N" and overflow counts are always accurate against everything in
+      scope, not just whatever a caller happened to slice off first. */
+  milestones: DashboardMilestone[];
+  /** True once the Dashboard is scoped to one project — previews milestones
+      directly instead of one row per project. */
+  singleProject: boolean;
+  onViewAll: () => void;
+  /** Opens the Milestone Modal straight to this milestone's detail. */
+  onSelectMilestone: (milestoneId: string) => void;
+}) {
+  const hasMilestones = milestones.length > 0;
 
   return (
     <Panel
       title="Milestone Progress"
-      hint="Lifecycle stage"
-      href="/weekly-reports"
-      className={rows.length ? "dash-milestones" : "dash-milestones is-collapsed"}
+      hint={singleProject ? "Attention priority" : "By project · attention priority"}
+      onAction={onViewAll}
+      className={hasMilestones ? "dash-milestones" : "dash-milestones is-collapsed"}
     >
-      {rows.length === 0 ? (
+      {!hasMilestones ? (
         <PanelEmpty>No dated milestone is recorded ahead of today for this scope.</PanelEmpty>
+      ) : singleProject ? (
+        <MilestoneRowsPreview milestones={milestones} onSelect={onSelectMilestone} onViewAll={onViewAll} />
       ) : (
-        <ul className="dash-bars">
-          {rows.map((milestone) => {
-            const stage = STAGES[milestone.status] ?? {
-              step: 1,
-              label: titleCase(milestone.status),
-              tone: "default" as Tone,
-            };
-            return (
-              <li key={milestone.id}>
-                <span className="dash-bar-name" title={`${milestone.title} — ${milestone.projectName}`}>
+        <ProjectSummaryRows milestones={milestones} onSelect={onSelectMilestone} onViewAll={onViewAll} />
+      )}
+    </Panel>
+  );
+}
+
+/**
+ * Single-project mode: the scope is already one project, so the preview
+ * shows milestones directly — worst status first, then nearest due date —
+ * rather than the (redundant, here) project-summary rows below.
+ */
+function MilestoneRowsPreview({
+  milestones,
+  onSelect,
+  onViewAll,
+}: {
+  milestones: DashboardMilestone[];
+  onSelect: (id: string) => void;
+  onViewAll: () => void;
+}) {
+  const ordered = sortMilestonesByAttention(milestones);
+  const shown = ordered.slice(0, MAX_MILESTONE_PREVIEW);
+  const hidden = ordered.length - shown.length;
+
+  return (
+    <>
+      <ul className="dash-bars">
+        {shown.map((milestone) => {
+          const stage = milestoneStageOf(milestone.status);
+          return (
+            <li key={milestone.id}>
+              <button type="button" className="dash-bar-row" onClick={() => onSelect(milestone.id)}>
+                <span className="dash-bar-name" title={milestone.title}>
                   {milestone.title}
                 </span>
                 <b className={`is-${stage.tone}`}>{stage.label}</b>
@@ -615,14 +568,137 @@ export function MilestonePanel({ milestones }: { milestones: DashboardMilestone[
                     />
                   ))}
                 </span>
-                <small>{milestone.projectName}</small>
-              </li>
-            );
-          })}
-        </ul>
+                <small>{formatShortDate(milestone.dueDate)}</small>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {hidden > 0 && (
+        <button type="button" className="dash-more-footer" onClick={onViewAll}>
+          + {hidden} more {plural(hidden, "milestone")}
+        </button>
       )}
-    </Panel>
+    </>
   );
+}
+
+interface ProjectMilestoneSummary {
+  projectId: string;
+  projectName: string;
+  /** The one milestone this project's row previews — see `buildProjectSummaries`. */
+  representative: DashboardMilestone;
+  /** Other dated milestones on this project, not individually shown. */
+  extraCount: number;
+}
+
+/**
+ * All Projects mode: ONE row per project (never several from the same
+ * project), so the card stays a fixed height with 2 projects or 200. Each
+ * row previews that project's single most attention-worthy milestone; a
+ * "+N" marks the rest.
+ */
+function ProjectSummaryRows({
+  milestones,
+  onSelect,
+  onViewAll,
+}: {
+  milestones: DashboardMilestone[];
+  onSelect: (id: string) => void;
+  onViewAll: () => void;
+}) {
+  const summaries = buildProjectSummaries(milestones);
+  const shown = summaries.slice(0, MAX_PROJECT_PREVIEW);
+  const hiddenSummaries = summaries.slice(MAX_PROJECT_PREVIEW);
+  /* Milestones already counted by a VISIBLE row's own "+N" badge are not
+     counted again here — the footer covers only entire projects the 5-row
+     cap pushed out of view, never the overflow a shown row already states. */
+  const hiddenMilestones = hiddenSummaries.reduce((sum, summary) => sum + summary.extraCount + 1, 0);
+
+  return (
+    <>
+      <ul className="dash-bars">
+        {shown.map((summary) => {
+          const stage = milestoneStageOf(summary.representative.status);
+          return (
+            <li key={summary.projectId}>
+              <button
+                type="button"
+                className="dash-bar-row"
+                onClick={() => onSelect(summary.representative.id)}
+              >
+                <span className="dash-bar-name" title={summary.projectName}>
+                  {summary.projectName}
+                </span>
+                <span className="dash-bar-badges">
+                  <b className={`is-${stage.tone}`}>{stage.label}</b>
+                  {summary.extraCount > 0 && <em className="dash-bar-more">+{summary.extraCount}</em>}
+                </span>
+                <span
+                  className="dash-bar-track"
+                  role="img"
+                  aria-label={`${summary.representative.title}: stage ${stage.step} of 3, ${stage.label}`}
+                >
+                  {[1, 2, 3].map((step) => (
+                    <i
+                      key={step}
+                      className={step <= stage.step ? `is-${stage.tone}` : undefined}
+                      style={{ "--d": `${step * 90}ms` } as React.CSSProperties}
+                    />
+                  ))}
+                </span>
+                <small title={summary.representative.title}>{summary.representative.title}</small>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {hiddenSummaries.length > 0 && (
+        <button type="button" className="dash-more-footer" onClick={onViewAll}>
+          {overflowLabel(hiddenSummaries.length, hiddenMilestones)}
+        </button>
+      )}
+    </>
+  );
+}
+
+/**
+ * One summary per project: its representative milestone (priority: Delayed
+ * -> In Progress -> Not Started -> Completed, then nearest due date) and how
+ * many others it has. Projects then surface in that same attention order,
+ * so a project whose worst milestone is Delayed leads a project whose worst
+ * is merely Not Started.
+ */
+function buildProjectSummaries(milestones: DashboardMilestone[]): ProjectMilestoneSummary[] {
+  const groups = new Map<string, DashboardMilestone[]>();
+  for (const milestone of milestones) {
+    const list = groups.get(milestone.projectId);
+    if (list) list.push(milestone);
+    else groups.set(milestone.projectId, [milestone]);
+  }
+
+  const summaries = [...groups.entries()].map(([projectId, items]) => {
+    const ordered = sortMilestonesByAttention(items);
+    return {
+      projectId,
+      projectName: items[0].projectName,
+      representative: ordered[0],
+      extraCount: ordered.length - 1,
+    };
+  });
+
+  return summaries.sort((a, b) => compareMilestonesByAttention(a.representative, b.representative));
+}
+
+/** Called only once the 5-project cap has actually hidden a whole project,
+    so both counts are always positive — never the "0 more" a shown row's
+    own "+N" already speaks for. */
+function overflowLabel(hiddenProjects: number, hiddenMilestones: number): string {
+  return `+ ${hiddenProjects} more ${plural(hiddenProjects, "project")} · ${hiddenMilestones} ${plural(hiddenMilestones, "milestone")}`;
+}
+
+function formatShortDate(date: string): string {
+  return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
 /* ================================ Fragments ================================= */
@@ -631,6 +707,7 @@ export function Panel({
   title,
   hint,
   href,
+  onAction,
   linkLabel = "View All",
   className,
   children,
@@ -638,6 +715,9 @@ export function Panel({
   title: string;
   hint?: string;
   href?: string;
+  /** Alternative to `href` for a "View All" that opens something in-page
+      (a drawer) rather than navigating — e.g. Milestone Progress. */
+  onAction?: () => void;
   linkLabel?: string;
   className?: string;
   children: React.ReactNode;
@@ -649,10 +729,16 @@ export function Panel({
           <b>{title}</b>
           {hint && <small>{hint}</small>}
         </div>
-        {href && (
+        {href ? (
           <Link href={href} className="dash-link">
             {linkLabel}
           </Link>
+        ) : (
+          onAction && (
+            <button type="button" className="dash-link" onClick={onAction}>
+              {linkLabel}
+            </button>
+          )
         )}
       </header>
       <div className="dash-panel-body">{children}</div>
@@ -697,82 +783,12 @@ function Ring({
   );
 }
 
-function PlotKeys({
-  visible,
-  onToggle,
-  readOnly,
-}: {
-  visible: { planned: boolean; actual: boolean };
-  onToggle: (key: "planned" | "actual") => void;
-  readOnly?: boolean;
-}) {
-  const entries = [
-    { key: "planned" as const, label: "Planned Progress" },
-    { key: "actual" as const, label: "Actual Progress" },
-  ];
-  return (
-    <div className="dash-plotkeys">
-      {entries.map((entry) =>
-        readOnly ? (
-          <span key={entry.key} className={`dash-plotkey is-${entry.key}`}>
-            <i aria-hidden />
-            {entry.label}
-          </span>
-        ) : (
-          <button
-            key={entry.key}
-            type="button"
-            className={`dash-plotkey is-${entry.key}`}
-            aria-pressed={visible[entry.key]}
-            onClick={() => onToggle(entry.key)}
-          >
-            <i aria-hidden />
-            {entry.label}
-          </button>
-        )
-      )}
-    </div>
-  );
-}
-
-/**
- * Week-on-week movement, from the SAME series the chart plots.
- *
- * `enabled` gates it on the figure it sits under. The weekly series and the
- * headline are not always drawn from the same population — `positionsFor`
- * falls back to Monthly reports, which the weekly series knows nothing about —
- * so an ungated delta could annotate an em-dash with "↑ 2.4% vs last week".
- * A delta must never describe a value it did not derive.
- */
-function Delta({
-  series,
-  field,
-  unit = "%",
-  enabled = true,
-}: {
-  series: TrendPoint[];
-  field: "actual" | "variance";
-  unit?: string;
-  enabled?: boolean;
-}) {
-  const points = series.filter((point) => point[field] !== undefined);
-  if (!enabled) return <p className="dash-kpi-note">No comparable prior week</p>;
-  if (points.length < 2) return <p className="dash-kpi-note">No prior reporting week</p>;
-
-  const change = round((points[points.length - 1][field] as number) - (points[points.length - 2][field] as number));
-  if (change === 0) return <p className="dash-kpi-note">Unchanged vs last week</p>;
-
-  return (
-    <p className={`dash-kpi-delta ${change > 0 ? "is-up" : "is-down"}`}>
-      <span aria-hidden>{change > 0 ? "↑" : "↓"}</span>
-      {`${Math.abs(change)}${unit} vs last week`}
-    </p>
-  );
-}
-
 /* --------------------------------- Helpers --------------------------------- */
 
-function useReducedMotion(): boolean {
+/** Exported so `dashboard-view.tsx` can gate the Expanded Progress Analysis
+    curve chart the same way every in-panel chart already is — one shared
+    media-query listener rather than a second, silently-hardcoded copy. */
+export function useReducedMotion(): boolean {
   const [reduced, setReduced] = React.useState(false);
   React.useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -782,10 +798,6 @@ function useReducedMotion(): boolean {
     return () => media.removeEventListener("change", update);
   }, []);
   return reduced;
-}
-
-function shortName(position: ProjectPosition): string {
-  return position.project.shortName || position.project.code || position.project.name;
 }
 
 function toneOf(position: ProjectPosition): Tone {

@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertTriangle,
   Building2,
   Info,
   Loader2,
+  Lock,
   PenLine,
   Plus,
   Save,
@@ -38,6 +40,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/shared";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import {
   OVERALL_STATUS_META,
   PRIORITY_META,
@@ -47,10 +50,12 @@ import type {
   Client,
   Contact,
   OverallStatus,
+  PlanningOnboardingMode,
   Priority,
   Project,
   ProjectLifecycleStatus,
 } from "@/types";
+import { planningService } from "@/services/planning-service";
 import {
   createProjectDraftSchema,
   createProjectFinalSchema,
@@ -67,6 +72,13 @@ import {
   responsibilityPerson,
   type ResponsibilityEntry,
 } from "@/features/projects/responsibilities";
+import {
+  isFixedResponsibilityOccupied,
+  isProjectPositionOccupied,
+  REPLACE_PERSON_HELP_TEXT,
+  REPLACE_PERSON_POSITION_HELP_TEXT,
+} from "@/features/projects/responsibility-guard";
+import { projectSectionHref } from "@/config/project-sections";
 import type { ProjectLinkContext } from "@/features/projects/project-link-context";
 import {
   currencyOptions,
@@ -233,6 +245,54 @@ function ManagedSelectField({
   );
 }
 
+const ONBOARDING_MODE_OPTIONS: { value: PlanningOnboardingMode; label: string }[] = [
+  { value: "new_project", label: "New Project — plan from zero" },
+  { value: "existing_active_project", label: "Existing Active Project — publish an Opening Position as Snapshot V1" },
+  { value: "no_formal_schedule", label: "No Formal Schedule — tracked without a formal schedule" },
+];
+
+/**
+ * Planning Onboarding Mode — deliberately NOT a react-hook-form field.
+ *
+ * It lives in `project_planning_settings`, a separate table saved through
+ * `planningService.upsertSettings()` after the project itself saves (see
+ * `onValid` below), not through `toProjectInput`. Built by hand from the same
+ * `Field`/`FieldLabel`/`FieldDescription` primitives `RhfField` uses, so it
+ * reads identically to every other field on this form.
+ */
+function PlanningOnboardingModeField({
+  value,
+  onChange,
+}: {
+  value: PlanningOnboardingMode;
+  onChange: (value: PlanningOnboardingMode) => void;
+}) {
+  const id = React.useId();
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>
+        Planning Onboarding Mode
+        <span className="text-xs font-normal text-muted-foreground">Optional</span>
+      </FieldLabel>
+      <Select value={value} onValueChange={(v) => onChange(v as PlanningOnboardingMode)}>
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {ONBOARDING_MODE_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <FieldDescription>
+        How this project enters Planning & Control. Saved once the project itself is saved.
+      </FieldDescription>
+    </Field>
+  );
+}
+
 /* --------------------- Unified responsibility list ------------------------ */
 
 /** Field name for the fixed role held in `entry`, for RHF binding. */
@@ -302,7 +362,7 @@ function ResponsibilityBadge({
   tone,
   children,
 }: {
-  tone: "muted" | "additional" | "warning";
+  tone: "muted" | "additional" | "warning" | "governed";
   children: React.ReactNode;
 }) {
   return (
@@ -311,7 +371,8 @@ function ResponsibilityBadge({
         "shrink-0 rounded-full border px-1.5 py-px text-[10px] font-medium leading-4",
         tone === "muted" && "text-muted-foreground",
         tone === "additional" && "border-chart-4/40 text-chart-4",
-        tone === "warning" && "border-warning/40 text-warning"
+        tone === "warning" && "border-warning/40 text-warning",
+        tone === "governed" && "border-primary/40 text-primary"
       )}
     >
       {children}
@@ -333,16 +394,26 @@ function ResponsibilityRow({
   onEdit,
   onDelete,
   busy,
+  locked,
+  teamHref,
 }: {
   entry: ResponsibilityEntry;
   contacts: Contact[];
   onEdit: () => void;
   onDelete?: () => void;
   busy: boolean;
+  /** Already holds a person — a raw setup save may not reassign it. */
+  locked: boolean;
+  /** Team & Responsibilities, where Replace Person actually lives. */
+  teamHref?: string;
 }) {
   const person = responsibilityPerson(entry, contacts);
   const unfilled = !entry.contactId;
   const accent = accentFor(entry);
+  const helpText =
+    entry.kind === "additional"
+      ? REPLACE_PERSON_POSITION_HELP_TEXT
+      : REPLACE_PERSON_HELP_TEXT;
 
   return (
     <div className="relative flex min-w-0 flex-col overflow-hidden rounded-xl border bg-background p-3 pl-4 shadow-sm">
@@ -381,6 +452,9 @@ function ResponsibilityRow({
             {entry.required && unfilled && (
               <ResponsibilityBadge tone="warning">Required</ResponsibilityBadge>
             )}
+            {locked && (
+              <ResponsibilityBadge tone="governed">Governed</ResponsibilityBadge>
+            )}
           </div>
 
           <p
@@ -402,8 +476,13 @@ function ResponsibilityRow({
             variant="outline"
             size="icon"
             className="size-7"
-            disabled={busy}
-            aria-label={`Edit ${entry.roleLabel}`}
+            disabled={busy || locked}
+            aria-label={
+              locked
+                ? `${entry.roleLabel} is already assigned — reassign it from Replace Person`
+                : `Edit ${entry.roleLabel}`
+            }
+            title={locked ? helpText : undefined}
             onClick={onEdit}
           >
             <PenLine className="size-3.5" aria-hidden="true" />
@@ -416,8 +495,13 @@ function ResponsibilityRow({
               variant="outline"
               size="icon"
               className="size-7"
-              disabled={busy}
-              aria-label={`Remove ${entry.roleLabel}`}
+              disabled={busy || locked}
+              aria-label={
+                locked
+                  ? `${entry.roleLabel} cannot be removed while assigned`
+                  : `Remove ${entry.roleLabel}`
+              }
+              title={locked ? helpText : undefined}
               onClick={onDelete}
             >
               <Trash2 className="size-3.5" aria-hidden="true" />
@@ -436,6 +520,30 @@ function ResponsibilityRow({
       {entry.notes && (
         <p className="mt-1 truncate text-xs text-muted-foreground">
           {entry.notes}
+        </p>
+      )}
+
+      {/* Explains the disabled controls above in place, so a locked card reads
+          as governed rather than broken. */}
+      {locked && (
+        <p className="mt-2 flex items-start gap-1.5 text-pretty text-xs text-muted-foreground">
+          <Lock className="mt-px size-3 shrink-0" aria-hidden="true" />
+          <span>
+            {teamHref ? (
+              <>
+                Already assigned —{" "}
+                <Link
+                  href={teamHref}
+                  className="underline underline-offset-2"
+                >
+                  use Replace Person in Team &amp; Responsibilities
+                </Link>{" "}
+                to change it.
+              </>
+            ) : (
+              helpText
+            )}
+          </span>
         </p>
       )}
     </div>
@@ -464,6 +572,8 @@ function ResponsibilityList({
   saving,
   onMutated,
   onClientRepresentativeChange,
+  savedProject,
+  teamHref,
 }: {
   entries: ResponsibilityEntry[];
   control: Control<ProjectFormValues>;
@@ -477,6 +587,14 @@ function ResponsibilityList({
   saving: boolean;
   onMutated: () => void;
   onClientRepresentativeChange: (value: string, previous: string) => void;
+  /**
+   * The project as last saved — never the live draft — so a person picked in
+   * this same editing session, before Save, does not immediately lock itself
+   * back up. `undefined`/`null` (creating a new project) locks nothing.
+   */
+  savedProject: Project | null | undefined;
+  /** Team & Responsibilities, where Replace Person actually lives. */
+  teamHref?: string;
 }) {
   return (
     <div className="space-y-3">
@@ -494,13 +612,20 @@ function ResponsibilityList({
           const blockedByOtherEditor = editingRow !== null && !editing;
 
           if (entry.kind === "fixed") {
-            if (!editing) {
+            const locked = Boolean(
+              savedProject &&
+                entry.fixedField &&
+                isFixedResponsibilityOccupied(savedProject, entry.fixedField)
+            );
+            if (!editing || locked) {
               return (
                 <ResponsibilityRow
                   key={entry.key}
                   entry={entry}
                   contacts={contacts}
                   busy={saving || blockedByOtherEditor}
+                  locked={locked}
+                  teamHref={teamHref}
                   onEdit={() => onEditRow(entry.key)}
                 />
               );
@@ -546,15 +671,18 @@ function ResponsibilityList({
           }
 
           const index = entry.positionIndex ?? 0;
-          if (!editing) {
+          const locked = isProjectPositionOccupied(entry.positionId);
+          if (!editing || locked) {
             return (
               <ResponsibilityRow
                 key={entry.key}
                 entry={entry}
                 contacts={contacts}
                 busy={saving || blockedByOtherEditor}
+                locked={locked}
+                teamHref={teamHref}
                 onEdit={() => onEditRow(entry.key)}
-                onDelete={() => onDeleteRow(index)}
+                onDelete={locked ? undefined : () => onDeleteRow(index)}
               />
             );
           }
@@ -634,7 +762,7 @@ function ResponsibilityList({
         <Info className="mt-px size-3.5 shrink-0" aria-hidden="true" />
         <span>
           {canEditPositions
-            ? "The five fixed roles cannot be removed. Additional positions can be edited or removed at any time."
+            ? "The five fixed roles cannot be removed. You can add a new position freely, but an existing position that already has a holder is governed — use Replace Person in Team & Responsibilities to change who holds it."
             : "Save the project first — additional positions attach to a saved project."}
         </span>
       </p>
@@ -988,6 +1116,23 @@ export function ProjectForm({
     mode: "onBlur",
   });
   const { control, getValues, handleSubmit, formState, setValue } = form;
+
+  // Planning Onboarding Mode lives in project_planning_settings, a separate
+  // table this form does not otherwise touch — see PlanningOnboardingModeField
+  // and the save call in onValid below.
+  const [onboardingMode, setOnboardingMode] =
+    React.useState<PlanningOnboardingMode>("new_project");
+  React.useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    void planningService.getSettings(projectId).then((settings) => {
+      if (!cancelled && settings) setOnboardingMode(settings.onboardingMode);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
   const additionalSites = useFieldArray({ control, name: "additionalSites" });
   const additionalPositions = useFieldArray({
     control,
@@ -1178,6 +1323,20 @@ export function ProjectForm({
   const onValid = async (values: ProjectFormValues) => {
     setSummary(null);
     await onSubmit(values);
+    // Best-effort: Planning configuration is supplementary to the project
+    // save that just succeeded, and only meaningful once the project exists.
+    // A brand-new project (no projectId yet) picks this up on its next edit.
+    if (projectId) {
+      try {
+        await planningService.upsertSettings({ projectId, onboardingMode });
+      } catch (error) {
+        toast.warning(
+          error instanceof Error
+            ? error.message
+            : "Planning Onboarding Mode could not be saved."
+        );
+      }
+    }
   };
 
   const onInvalid: SubmitErrorHandler<ProjectFormValues> = (rhfErrors) => {
@@ -1301,6 +1460,8 @@ export function ProjectForm({
           saving={savingPositions}
           onMutated={markMasterTouched}
           onClientRepresentativeChange={fillClientContactFromRepresentative}
+          savedProject={project}
+          teamHref={projectId ? projectSectionHref(projectId, "team") : undefined}
         />
       </ProjectFormSection>
 
@@ -1314,7 +1475,9 @@ export function ProjectForm({
         <NumberField control={control} name="plannedProgress" label="Planned Progress (%)" min={0} max={100} description="Required once the project has started." />
         <NumberField control={control} name="actualProgress" label="Actual Progress (%)" min={0} max={100} description="Required once the project has started." />
         <ManagedSelectField control={control} name="currentPhaseId" label="Current Phase" required kind="projectPhase" placeholder="Search or select phase…" onMutated={markMasterTouched} />
+        <ManagedSelectField control={control} name="portfolioGroupId" label="Portfolio / Reporting Group" optional kind="portfolioGroup" placeholder="Search or select group…" allowClear onMutated={markMasterTouched} />
         <SelectField control={control} name="priority" label="Priority" required options={priorityOptions} />
+        <PlanningOnboardingModeField value={onboardingMode} onChange={setOnboardingMode} />
         <p className="text-xs text-muted-foreground sm:col-span-2">
           Schedule variance and SPI are calculated automatically from planned
           and actual progress.

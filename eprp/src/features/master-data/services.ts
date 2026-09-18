@@ -5,6 +5,7 @@ import type {
   Discipline,
   JobTitle,
   MasterRecordBase,
+  PortfolioGroup,
   ProjectPhase,
   ProjectType,
   System,
@@ -295,6 +296,14 @@ const mockJobTitleService: MasterDataService<JobTitle> =
         .map((contact) => `Contact: ${contact.name}`),
   });
 
+/** Planning Slice 1 — no seed data; the register starts empty until admins add groups. */
+const mockPortfolioGroupService: MasterDataService<PortfolioGroup> =
+  createMasterDataService({
+    idPrefix: "pg",
+    seed: [],
+    usedBy: (id) => projectsUsing((p) => p.portfolioGroupId === id),
+  });
+
 /* ------------------------- Active service selection ----------------------- */
 
 const supabaseClientService = createSupabaseMasterDataService<Client>({
@@ -498,6 +507,14 @@ const supabaseJobTitleService = createSupabaseMasterDataService<JobTitle>({
   references: [{ table: "contacts", column: "job_title_id", label: "contact" }],
 });
 
+const supabasePortfolioGroupService =
+  createSupabaseMasterDataService<PortfolioGroup>({
+    table: "portfolio_groups",
+    references: [
+      { table: "projects", column: "portfolio_group_id", label: "project" },
+    ],
+  });
+
 /** Managed selectors use Supabase whenever configured; local development
  * keeps the in-memory stores as the offline fallback. */
 const useSupabase = isSupabaseConfigured();
@@ -533,6 +550,10 @@ export const disciplineService: MasterDataService<Discipline> = useSupabase
 export const jobTitleService: MasterDataService<JobTitle> = useSupabase
   ? supabaseJobTitleService
   : mockJobTitleService;
+
+export const portfolioGroupService: MasterDataService<PortfolioGroup> = useSupabase
+  ? supabasePortfolioGroupService
+  : mockPortfolioGroupService;
 
 /* ------------------------------- Kind registry ---------------------------- */
 
@@ -689,6 +710,16 @@ export const MASTER_KIND_CONFIG: Record<MasterKind, MasterKindConfig> = {
     ],
     optionSublabel: (record) => record.code,
   },
+  portfolioGroup: {
+    kind: "portfolioGroup",
+    singular: "Portfolio Group",
+    plural: "Portfolio Groups",
+    fields: [
+      { key: "name", label: "Group Name", type: "text", required: true },
+      { key: "code", label: "Group Code", type: "text" },
+      { key: "description", label: "Description", type: "textarea" },
+    ],
+  },
 };
 
 const services: Record<MasterKind, MasterDataService<MasterRecordBase>> = {
@@ -700,6 +731,7 @@ const services: Record<MasterKind, MasterDataService<MasterRecordBase>> = {
   system: systemService,
   discipline: disciplineService,
   jobTitle: jobTitleService,
+  portfolioGroup: portfolioGroupService,
 };
 
 export function getMasterService(
@@ -748,4 +780,10 @@ export function getDisciplineById(
 
 export function getJobTitleById(id: string | undefined): JobTitle | undefined {
   return jobTitleService.getByIdSync(id);
+}
+
+export function getPortfolioGroupById(
+  id: string | undefined
+): PortfolioGroup | undefined {
+  return portfolioGroupService.getByIdSync(id);
 }

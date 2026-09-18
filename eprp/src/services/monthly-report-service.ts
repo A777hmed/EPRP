@@ -2,16 +2,78 @@ import { format, parseISO, startOfMonth } from "date-fns";
 import { isApprovedReportStatus } from "@/config/workflows";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { MonthlyComment, MonthlyDepartmentSummary, MonthlyPlanItem, MonthlyReport, WeeklyEntry } from "@/types";
+import type { MonthlyComment, MonthlyDepartmentSummary, MonthlyPlanItem, MonthlyReport, MonthlySubmission, WeeklyEntry } from "@/types";
 import { calculateSpi, formatReportNumber, scheduleVariance } from "@/lib/reporting";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { deriveMonthlyPlanningFigures } from "@/features/monthly-reports/planning-integration";
+import { planningRollupService } from "./planning-rollup-service";
 import { projectService } from "./project-service";
 import { weeklyReportService } from "./weekly-report-service";
-import type { MonthlyCommentRow, MonthlyDepartmentSummaryRow, MonthlyPlanItemRow, MonthlyReportRow } from "@/lib/supabase/database.types";
+import type { MonthlyCommentRow, MonthlyDepartmentSummaryRow, MonthlyPlanItemRow, MonthlyReportRow, MonthlySubmissionRow } from "@/lib/supabase/database.types";
 
-export type MonthlyCommentInput = Omit<MonthlyComment, "id" | "monthlyReportId" | "sourceKind" | "sourceWeeklyEntryId" | "sourceWeeklyReportId" | "weekNumber" | "createdByContactId" | "updatedByContactId" | "createdAt" | "updatedAt" | "sourceCreatedAt"> & { id?: string };
+/**
+ * Refuse to change planned/actual progress on a Planning-backed Monthly
+ * report (3C, rule 5: "no silent override path"), mirroring
+ * `assertProgressEditable` in `supabase-weekly-report-service.ts`.
+ *
+ * Read from the database, not from the caller's own copy, for the same
+ * reason the Weekly guard does: a client holding a stale report object must
+ * not be able to bypass this by never re-fetching it. `create()` only ever
+ * pins `planning_snapshot_id` when the rollup was usable, so a pinned
+ * snapshot found here should always be `planningBacked` — recomputed and
+ * re-checked anyway rather than trusted by the mere presence of the id.
+ */
+async function assertMonthlyProgressEditable(
+  sb: SupabaseClient,
+  reportId: string
+): Promise<void> {
+  const { data, error } = await sb
+    .from("monthly_reports")
+    .select("planning_snapshot_id")
+    .eq("id", reportId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error(`Monthly report ${reportId} not found`);
+
+  const snapshotId = (data as { planning_snapshot_id: string | null })
+    .planning_snapshot_id;
+  if (!snapshotId) return;
+
+  const rollup = await planningRollupService.computeSnapshotRollup(snapshotId);
+  if (deriveMonthlyPlanningFigures(rollup).planningBacked) {
+    throw new Error(
+      "Planned and Actual Progress are governed by the Published Planning Snapshot on this report and cannot be edited manually."
+    );
+  }
+}
+
+export type MonthlyCommentInput = Omit<MonthlyComment, "id" | "monthlyReportId" | "sourceKind" | "sourceWeeklyEntryId" | "sourceWeeklyReportId" | "weekNumber" | "createdByContactId" | "updatedByContactId" | "createdAt" | "updatedAt" | "sourceCreatedAt"> & {
+  id?: string;
+  /**
+   * Which round authored this comment. `weekly` is deliberately not offerable:
+   * a comment with a Weekly source exists only because compilation created it,
+   * and its `source_weekly_entry_id` is what makes re-import idempotent.
+   * Defaults to `monthly_manual`, which is what Project Control adds.
+   */
+  sourceKind?: "monthly_manual" | "monthly_department";
+};
 export type MonthlyPlanItemInput = Omit<MonthlyPlanItem, "id" | "monthlyReportId" | "createdAt" | "updatedAt"> & { id?: string };
 export type MonthlySummaryInput = Omit<MonthlyDepartmentSummary, "id" | "monthlyReportId" | "createdAt" | "updatedAt" | "createdByContactId" | "updatedByContactId">;
+
+/**
+ * A change to one department's Monthly submission.
+ *
+ * `submittedAt`, `submittedByContactId`, `reviewedAt` and `reviewedByContactId`
+ * are absent on purpose: the database stamps them from the acting identity when
+ * the status actually changes hands, so a client cannot claim someone else
+ * submitted or approved.
+ */
+export interface MonthlySubmissionInput {
+  departmentId: string;
+  status: MonthlySubmission["status"];
+  noAdditionalComments?: boolean;
+  returnReason?: string;
+}
 
 /** What one compilation run did, and what it left out and why. */
 export interface MonthlyCompilationResult {
@@ -51,6 +113,19 @@ export interface MonthlyReportService {
   listComments(reportId: string): Promise<MonthlyComment[]>;
   saveComment(reportId: string, input: MonthlyCommentInput): Promise<MonthlyComment>;
   deleteComment(reportId: string, id: string): Promise<void>;
+  /** Every department row for the Monthly round, whether started or not. */
+  listSubmissions(reportId: string): Promise<MonthlySubmission[]>;
+  /**
+   * Open (or re-open) the department round for the named departments.
+   *
+   * Idempotent by (report, department): re-sending re-stamps the timing and
+   * leaves any answer already given alone, exactly as Weekly's
+   * `startCollection` does. Status is deliberately untouched — distributing a
+   * Monthly does not mean the department has begun it.
+   */
+  startCollection(reportId: string, departmentIds: string[], dueAt?: string): Promise<MonthlySubmission[]>;
+  /** Department input state: the contributor's status, the manager's verdict. */
+  saveSubmission(reportId: string, input: MonthlySubmissionInput): Promise<MonthlySubmission>;
   listSummaries(reportId: string): Promise<MonthlyDepartmentSummary[]>;
   saveSummary(reportId: string, input: MonthlySummaryInput): Promise<MonthlyDepartmentSummary>;
   listPlanItems(reportId: string): Promise<MonthlyPlanItem[]>;
@@ -61,10 +136,13 @@ export interface MonthlyReportService {
 function client(): SupabaseClient { return getSupabaseBrowserClient() as unknown as SupabaseClient; }
 function monthStart(value: string) { return format(startOfMonth(parseISO(value)), "yyyy-MM-dd"); }
 function reportFromRow(row: MonthlyReportRow): MonthlyReport {
-  return { id:row.id, reportNumber:row.report_number, projectId:row.project_id, status:row.status as MonthlyReport["status"], source:"platform", periodStart:row.reporting_month, periodEnd:format(new Date(new Date(row.reporting_month).getFullYear(), new Date(row.reporting_month).getMonth()+1,0),"yyyy-MM-dd"), reportingMonth:row.reporting_month, preparedByContactId:row.prepared_by_contact_id ?? undefined, reviewedByContactId:row.reviewed_by_contact_id ?? undefined, approvedByContactId:row.approved_by_contact_id ?? undefined, plannedProgress:Number(row.planned_progress), actualProgress:Number(row.actual_progress), scheduleVariance:scheduleVariance(Number(row.planned_progress),Number(row.actual_progress)), spi:calculateSpi(Number(row.planned_progress),Number(row.actual_progress)), hseStatus:row.hse_status as MonthlyReport["hseStatus"], qualityStatus:row.quality_status as MonthlyReport["qualityStatus"], overallProgressStatus:row.overall_progress_status as MonthlyReport["overallProgressStatus"], executiveSummary:row.executive_summary ?? undefined, attachmentIds:[], createdAt:row.created_at, updatedAt:row.updated_at };
+  return { id:row.id, reportNumber:row.report_number, projectId:row.project_id, status:row.status as MonthlyReport["status"], source:"platform", periodStart:row.reporting_month, periodEnd:format(new Date(new Date(row.reporting_month).getFullYear(), new Date(row.reporting_month).getMonth()+1,0),"yyyy-MM-dd"), reportingMonth:row.reporting_month, preparedByContactId:row.prepared_by_contact_id ?? undefined, reviewedByContactId:row.reviewed_by_contact_id ?? undefined, approvedByContactId:row.approved_by_contact_id ?? undefined, plannedProgress:Number(row.planned_progress), actualProgress:Number(row.actual_progress), scheduleVariance:scheduleVariance(Number(row.planned_progress),Number(row.actual_progress)), spi:calculateSpi(Number(row.planned_progress),Number(row.actual_progress)), planningSnapshotId:row.planning_snapshot_id ?? undefined, hseStatus:row.hse_status as MonthlyReport["hseStatus"], qualityStatus:row.quality_status as MonthlyReport["qualityStatus"], overallProgressStatus:row.overall_progress_status as MonthlyReport["overallProgressStatus"], executiveSummary:row.executive_summary ?? undefined, attachmentIds:[], createdAt:row.created_at, updatedAt:row.updated_at };
 }
 function commentFromRow(row: MonthlyCommentRow): MonthlyComment {
   return { id:row.id, monthlyReportId:row.monthly_report_id, sourceKind:row.source_kind as MonthlyComment["sourceKind"], sourceWeeklyEntryId:row.source_weekly_entry_id ?? undefined, sourceWeeklyReportId:row.source_weekly_report_id ?? undefined, weekNumber:row.week_number ?? undefined, departmentId:row.department_id ?? undefined, systemId:row.system_id ?? undefined, disciplineId:row.discipline_id ?? undefined, updateType:row.update_type as MonthlyComment["updateType"], originalText:row.original_text, presentationText:row.presentation_text ?? undefined, priority:row.priority as MonthlyComment["priority"], status:row.status as MonthlyComment["status"], responsibleContactId:row.responsible_contact_id ?? undefined, targetDate:row.target_date ?? undefined, includeInFinal:row.include_in_final, escalateToManagement:row.escalate_to_management, isMajorAchievement:row.is_major_achievement, createdByContactId:row.created_by_contact_id ?? undefined, updatedByContactId:row.updated_by_contact_id ?? undefined, sourceCreatedAt:row.source_created_at ?? undefined, createdAt:row.created_at, updatedAt:row.updated_at };
+}
+function submissionFromRow(row: MonthlySubmissionRow): MonthlySubmission {
+  return { id:row.id, monthlyReportId:row.monthly_report_id, departmentId:row.department_id, status:row.status as MonthlySubmission["status"], noAdditionalComments:row.no_additional_comments, sentAt:row.sent_at ?? undefined, dueAt:row.due_at ?? undefined, submittedByContactId:row.submitted_by_contact_id ?? undefined, submittedAt:row.submitted_at ?? undefined, reviewedByContactId:row.reviewed_by_contact_id ?? undefined, reviewedAt:row.reviewed_at ?? undefined, returnReason:row.return_reason ?? undefined, createdAt:row.created_at, updatedAt:row.updated_at };
 }
 function summaryFromRow(row: MonthlyDepartmentSummaryRow): MonthlyDepartmentSummary { return { id:row.id, monthlyReportId:row.monthly_report_id, departmentId:row.department_id, systemId:row.system_id ?? undefined, disciplineId:row.discipline_id ?? undefined, monthlySummary:row.monthly_summary ?? undefined, keyAchievements:row.key_achievements ?? undefined, challenges:row.challenges ?? undefined, outstandingActions:row.outstanding_actions ?? undefined, nextMonthPlan:row.next_month_plan ?? undefined, createdByContactId:row.created_by_contact_id ?? undefined, updatedByContactId:row.updated_by_contact_id ?? undefined, createdAt:row.created_at, updatedAt:row.updated_at }; }
 function planFromRow(row: MonthlyPlanItemRow): MonthlyPlanItem { return { id:row.id, monthlyReportId:row.monthly_report_id, title:row.title, departmentId:row.department_id ?? undefined, startDate:row.start_date ?? undefined, targetDate:row.target_date ?? undefined, ownerContactId:row.owner_contact_id ?? undefined, status:row.status as MonthlyPlanItem["status"], remarks:row.remarks ?? undefined, sortOrder:row.sort_order, createdAt:row.created_at, updatedAt:row.updated_at }; }
@@ -73,8 +151,56 @@ function monthlyType(entry: WeeklyEntry): MonthlyComment["updateType"] { if (ent
 const supabaseMonthlyReportService: MonthlyReportService = {
   async list(projectId) { let q=client().from("monthly_reports").select("*").order("reporting_month",{ascending:false}); if(projectId) q=q.eq("project_id",projectId); const {data,error}=await q; if(error) throw new Error(error.message); return (data??[] as MonthlyReportRow[]).map(reportFromRow); },
   async getById(id) { const {data,error}=await client().from("monthly_reports").select("*").eq("id",id).maybeSingle(); if(error) throw new Error(error.message); return data ? reportFromRow(data as MonthlyReportRow) : null; },
-  async create(projectId, reportingMonth) { const project=await projectService.getProjectById(projectId); if(!project) throw new Error("Selected project not found"); const month=monthStart(reportingMonth); const date=parseISO(month); const {data,error}=await client().from("monthly_reports").insert({report_number:formatReportNumber("monthly",project.code,date.getFullYear(),date.getMonth()+1),project_id:projectId,reporting_month:month,prepared_by_contact_id:project.reportingCoordinatorId??null,planned_progress:project.plannedProgress,actual_progress:project.actualProgress,status:"draft"}).select("*").single(); if(error) throw new Error(error.message); return reportFromRow(data as MonthlyReportRow); },
-  async update(id,input) { const fields={...(input.reportNumber !== undefined ? {report_number:input.reportNumber.trim()} : {}),...(input.executiveSummary !== undefined ? {executive_summary:input.executiveSummary} : {}),...(input.plannedProgress !== undefined ? {planned_progress:input.plannedProgress} : {}),...(input.actualProgress !== undefined ? {actual_progress:input.actualProgress} : {}),...(input.hseStatus !== undefined ? {hse_status:input.hseStatus} : {}),...(input.qualityStatus !== undefined ? {quality_status:input.qualityStatus} : {}),...(input.overallProgressStatus !== undefined ? {overall_progress_status:input.overallProgressStatus} : {}),...(input.preparedByContactId !== undefined ? {prepared_by_contact_id:input.preparedByContactId||null} : {}),...(input.reviewedByContactId !== undefined ? {reviewed_by_contact_id:input.reviewedByContactId||null} : {}),...(input.approvedByContactId !== undefined ? {approved_by_contact_id:input.approvedByContactId||null} : {})}; const {data,error}=await client().from("monthly_reports").update(fields).eq("id",id).select("*").single(); if(error) throw new Error(error.message); return reportFromRow(data as MonthlyReportRow); },
+  async create(projectId, reportingMonth) {
+    const project = await projectService.getProjectById(projectId);
+    if (!project) throw new Error("Selected project not found");
+    const month = monthStart(reportingMonth);
+    const date = parseISO(month);
+    const periodEnd = format(new Date(date.getFullYear(), date.getMonth() + 1, 0), "yyyy-MM-dd");
+
+    /*
+     * Planning Integration 3C — resolved ONCE, here, and never again for
+     * this report. The pin is permanent: `getSnapshotForPeriod` is never
+     * called again for an existing report, so a later, newer snapshot
+     * publish cannot retroactively change what this month reports against.
+     *
+     * Resolved INDEPENDENTLY of any Weekly pin on the same project — this
+     * is Monthly's own resolution against its own period end (the last day
+     * of the reporting month), never inherited from a Weekly report.
+     *
+     * Pinned ONLY when the rollup actually has both a Planned and an
+     * Actual figure, exactly like Weekly (3B): a snapshot that resolves
+     * but has no usable weighted schedule data yet is NOT pinned at all —
+     * planning_snapshot_id stays null and this report is never labeled or
+     * locked as Planning-backed, exactly as if no snapshot had resolved.
+     */
+    const snapshot = await planningRollupService.getSnapshotForPeriod(projectId, periodEnd);
+    const figures = snapshot
+      ? deriveMonthlyPlanningFigures(await planningRollupService.computeSnapshotRollup(snapshot.id))
+      : deriveMonthlyPlanningFigures(null);
+
+    const { data, error } = await client()
+      .from("monthly_reports")
+      .insert({
+        report_number: formatReportNumber("monthly", project.code, date.getFullYear(), date.getMonth() + 1),
+        project_id: projectId,
+        reporting_month: month,
+        prepared_by_contact_id: project.reportingCoordinatorId ?? null,
+        planning_snapshot_id: figures.planningBacked ? snapshot!.id : null,
+        planned_progress: figures.planningBacked ? Math.round(figures.plannedProgress!) : project.plannedProgress,
+        actual_progress: figures.planningBacked ? Math.round(figures.actualProgress!) : project.actualProgress,
+        status: "draft",
+      })
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return reportFromRow(data as MonthlyReportRow);
+  },
+  async update(id,input) {
+    if (input.plannedProgress !== undefined || input.actualProgress !== undefined) {
+      await assertMonthlyProgressEditable(client(), id);
+    }
+    const fields={...(input.reportNumber !== undefined ? {report_number:input.reportNumber.trim()} : {}),...(input.executiveSummary !== undefined ? {executive_summary:input.executiveSummary} : {}),...(input.plannedProgress !== undefined ? {planned_progress:input.plannedProgress} : {}),...(input.actualProgress !== undefined ? {actual_progress:input.actualProgress} : {}),...(input.hseStatus !== undefined ? {hse_status:input.hseStatus} : {}),...(input.qualityStatus !== undefined ? {quality_status:input.qualityStatus} : {}),...(input.overallProgressStatus !== undefined ? {overall_progress_status:input.overallProgressStatus} : {}),...(input.preparedByContactId !== undefined ? {prepared_by_contact_id:input.preparedByContactId||null} : {}),...(input.reviewedByContactId !== undefined ? {reviewed_by_contact_id:input.reviewedByContactId||null} : {}),...(input.approvedByContactId !== undefined ? {approved_by_contact_id:input.approvedByContactId||null} : {})}; const {data,error}=await client().from("monthly_reports").update(fields).eq("id",id).select("*").single(); if(error) throw new Error(error.message); return reportFromRow(data as MonthlyReportRow); },
   async changeStatus(id,to) { const {error}=await client().rpc("set_monthly_report_status",{p_report:id,p_to:to}); if(error) throw new Error(error.message); const updated=await supabaseMonthlyReportService.getById(id); if(!updated) throw new Error("Monthly report not found"); return updated; },
   async compileFromWeeklies(reportId) {
     const report = await this.getById(reportId);
@@ -174,12 +300,77 @@ const supabaseMonthlyReportService: MonthlyReportService = {
       if(error) throw new Error(error.message);
       return commentFromRow(data as MonthlyCommentRow);
     }
-    const fields={monthly_report_id:reportId,source_kind:"monthly_manual",department_id:input.departmentId??null,system_id:input.systemId??null,discipline_id:input.disciplineId??null,update_type:input.updateType,original_text:text,presentation_text:input.presentationText?.trim()||null,priority:input.priority,status:input.status,responsible_contact_id:input.responsibleContactId??null,target_date:input.targetDate??null,include_in_final:input.includeInFinal,escalate_to_management:input.escalateToManagement,is_major_achievement:input.isMajorAchievement};
+    const fields={monthly_report_id:reportId,source_kind:input.sourceKind??"monthly_manual",department_id:input.departmentId??null,system_id:input.systemId??null,discipline_id:input.disciplineId??null,update_type:input.updateType,original_text:text,presentation_text:input.presentationText?.trim()||null,priority:input.priority,status:input.status,responsible_contact_id:input.responsibleContactId??null,target_date:input.targetDate??null,include_in_final:input.includeInFinal,escalate_to_management:input.escalateToManagement,is_major_achievement:input.isMajorAchievement};
     const {data,error}=await client().from("monthly_comments").insert(fields).select("*").single();
     if(error) throw new Error(error.message);
     return commentFromRow(data as MonthlyCommentRow);
   },
   async deleteComment(reportId,id) { const {error}=await client().from("monthly_comments").delete().eq("id",id).eq("monthly_report_id",reportId); if(error) throw new Error(error.message); },
+  async listSubmissions(reportId) { const {data,error}=await client().from("monthly_submissions").select("*").eq("monthly_report_id",reportId); if(error) throw new Error(error.message); return (data??[] as MonthlySubmissionRow[]).map(submissionFromRow); },
+
+  async startCollection(reportId, departmentIds, dueAt) {
+    if (departmentIds.length === 0) return supabaseMonthlyReportService.listSubmissions(reportId);
+    /*
+     * Upsert on the (report, department) unique key. Only the distribution
+     * timing is written: re-sending a round must not reset a department that
+     * has already answered, and `status` therefore never appears here. A row
+     * that does not exist yet is created at its default 'pending'.
+     */
+    const sentAt = new Date().toISOString();
+    const { error } = await client()
+      .from("monthly_submissions")
+      .upsert(
+        departmentIds.map((departmentId) => ({ monthly_report_id: reportId, department_id: departmentId, sent_at: sentAt, due_at: dueAt ?? null })),
+        { onConflict: "monthly_report_id,department_id" }
+      );
+    if (error) throw new Error(error.message);
+    return supabaseMonthlyReportService.listSubmissions(reportId);
+  },
+
+  async saveSubmission(reportId, input) {
+    /*
+     * UPDATE, never upsert.
+     *
+     * This was an upsert, and PostgREST compiles an upsert to
+     * `INSERT ... ON CONFLICT DO UPDATE` — an INSERT STATEMENT, whether or not
+     * a conflicting row exists. PostgreSQL therefore evaluates
+     * `monthly_submissions_insert`'s WITH CHECK first, which is
+     * `monthly_can_manage_project()` by design: a department may not enrol
+     * itself in a round. A Department User pressing Submit was refused with
+     * "new row violates row-level security policy" before the UPDATE branch
+     * that would have admitted them was ever consulted.
+     *
+     * The row is created by `startCollection`, which is Project Control's act.
+     * By the time a department can submit, the row exists — so the write it
+     * needs is an update, and an update is what it now issues. The policies are
+     * unchanged: no INSERT right is granted to anyone new.
+     *
+     * Matched on the KEY, so a stale or borrowed id cannot steer the write onto
+     * another report or department — it simply matches no row. A missing result
+     * is reported as a refusal rather than assumed to be a success, because
+     * row-level security refuses by matching nothing.
+     */
+    const fields = {
+      status: input.status,
+      ...(input.noAdditionalComments !== undefined ? { no_additional_comments: input.noAdditionalComments } : {}),
+      ...(input.returnReason !== undefined ? { return_reason: input.returnReason || null } : {}),
+    };
+    const { data, error } = await client()
+      .from("monthly_submissions")
+      .update(fields)
+      .eq("monthly_report_id", reportId)
+      .eq("department_id", input.departmentId)
+      .select("*")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) {
+      throw new Error(
+        "This department input was not saved. Either Project Control has not started the Monthly collection for this department yet, or you may not change it."
+      );
+    }
+    return submissionFromRow(data as MonthlySubmissionRow);
+  },
+
   async listSummaries(reportId) { const {data,error}=await client().from("monthly_department_summaries").select("*").eq("monthly_report_id",reportId); if(error) throw new Error(error.message); return (data??[] as MonthlyDepartmentSummaryRow[]).map(summaryFromRow); },
   async saveSummary(reportId,input) { const fields={monthly_report_id:reportId,department_id:input.departmentId,system_id:input.systemId??null,discipline_id:input.disciplineId??null,monthly_summary:input.monthlySummary??null,key_achievements:input.keyAchievements??null,challenges:input.challenges??null,outstanding_actions:input.outstandingActions??null,next_month_plan:input.nextMonthPlan??null}; const {data,error}=await client().from("monthly_department_summaries").upsert(fields,{onConflict:"monthly_report_id,department_id,system_id,discipline_id"}).select("*").single(); if(error) throw new Error(error.message); return summaryFromRow(data as MonthlyDepartmentSummaryRow); },
   async listPlanItems(reportId) { const {data,error}=await client().from("monthly_plan_items").select("*").eq("monthly_report_id",reportId).order("sort_order"); if(error) throw new Error(error.message); return (data??[] as MonthlyPlanItemRow[]).map(planFromRow); },

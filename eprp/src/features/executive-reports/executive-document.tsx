@@ -25,6 +25,7 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
+import { ChevronDown } from "lucide-react";
 
 import { StatusBadge } from "@/components/shared";
 import { siteConfig } from "@/config/site";
@@ -38,14 +39,18 @@ import {
   MONTHLY_BASIS_META,
   NOT_REPORTED,
   NO_MOVEMENT,
-  bySeverity,
+  buildManagementAttention,
   upcomingMilestones,
   type AttentionItem,
+  type ExecHealth,
   type MilestoneRow,
   type PortfolioAggregate,
   type PreparedBy,
   type ProjectExecutiveRow,
 } from "./executive-data";
+import { BASIS_BADGE_CLASS, EmptyRow, ReportSection, pct, shortDate, signed } from "./executive-format";
+import { ExecutiveProjectBrief, ExecutiveProjectCardsSection, type BriefFocus, type OpenBrief } from "./executive-project-brief";
+import { CockpitAnalytics, CockpitAttention, CockpitNotes, CockpitSummary, WhatChangedSection } from "./executive-cockpit";
 import {
   SIGNATORY_ROLES,
   SIGNATORY_ROLE_LABEL,
@@ -57,6 +62,11 @@ import {
 export interface ExecutiveDocumentModel {
   month: string;
   monthLabel: string;
+  /** False when no Monthly Report exists for ANY month across the visible
+      projects — `month`/`monthLabel` still default to the current calendar
+      month for querying, but that default must never be presented as a real
+      selected reporting period (see `useDocumentModel()`). */
+  hasReportingPeriods: boolean;
   rows: ProjectExecutiveRow[];
   aggregate: PortfolioAggregate;
   narrative: string;
@@ -90,77 +100,6 @@ export interface ExecutiveDocumentModel {
 }
 
 /* -------------------------------- Primitives ------------------------------- */
-
-/**
- * Section shell and empty row.
- *
- * Declared here rather than imported from `monthly-report-document`: that
- * module builds a module-scope lookup from a `"use client"` export, so pulling
- * it in makes the Executive tree fragile to the server/client boundary for the
- * sake of twenty lines. The CSS classes are the shared ones, so the two reports
- * still render identically.
- */
-function ReportSection({
-  number,
-  title,
-  note,
-  children,
-  /**
-   * A solid navy pill reads as "this is a headline the reader must not miss"
-   * — right for Executive Summary and Management Attention. Applied to every
-   * section indiscriminately it reads as template chrome instead of
-   * hierarchy. Secondary sections (currently Snapshots) pass `accent={false}`
-   * for a plain navy heading + hairline, still numbered, still legible.
-   */
-  accent = true,
-}: {
-  number: number;
-  title: string;
-  note?: string;
-  children: React.ReactNode;
-  accent?: boolean;
-}) {
-  return (
-    <section className="monthly-section">
-      <div className={accent ? "monthly-section-title-row" : "monthly-section-title-row is-plain"}>
-        <h2>
-          <span>
-            {number} · {title}
-          </span>
-        </h2>
-        {note && <p>{note}</p>}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function EmptyRow({ children }: { children: React.ReactNode }) {
-  return <div className="monthly-empty-row">{children}</div>;
-}
-
-/**
- * Compact modifier for the Monthly-basis badges only ("Draft / Not Approved",
- * "No Monthly Report") — never the Schedule Health badge. These sit inside
- * the narrow Project column/card header, where the default badge size was
- * tight against its neighbours; Schedule Health carries the primary reading
- * and stays at its normal size so it still reads as the heavier of the two.
- */
-const BASIS_BADGE_CLASS = "px-1.5 py-0 text-[0.62rem] leading-4";
-
-function pct(value: number | undefined, digits = 1): string {
-  return value === undefined ? NOT_REPORTED : `${value.toFixed(digits)}%`;
-}
-
-function signed(value: number | undefined): string {
-  if (value === undefined) return NOT_REPORTED;
-  return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
-}
-
-function shortDate(value: string | undefined): string {
-  if (!value) return "—";
-  return format(parseISO(value), "dd MMM yyyy");
-}
 
 /** The Open Actions figure navigates straight to that project's Actions tab. */
 function actionsHref(row: ProjectExecutiveRow, month: string): string {
@@ -203,21 +142,33 @@ function DocumentHeader({ model }: { model: ExecutiveDocumentModel }) {
           <p>Executive Reporting</p>
           <h1>Project Portfolio Executive Report</h1>
         </div>
+        {/*
+          Never a static claim. A period with no approved Monthly at all must
+          not headline "Approved Monthly Reports" — that is the exact
+          contradiction the figures below it (marked "No approved basis")
+          already refuse to make.
+        */}
         <div className="exec-title-note">
           <span>Basis</span>
-          <b>Approved Monthly Reports</b>
+          <b>{model.aggregate.noApprovedBasis ? "Provisional — No Approved Monthly Basis" : "Approved Monthly Reports"}</b>
         </div>
       </div>
       {/*
         `03` §17.2: an output that is not generated from an approved snapshot
         must be unmistakably marked, as part of the document rather than as a
-        covering note. Nothing here is snapshotted, numbered or approved.
+        covering note. The FIGURES are never snapshotted, numbered or
+        approved — they are read live on every view. That is distinct from
+        the Executive-owned CONTENT (summary wording, notes, signatories,
+        lifecycle status), which IS stored, in `executive_reports` — see
+        `executive-record.ts`. The line below used to claim persistence was
+        "not yet implemented", which stopped being true once that record
+        shipped; it now says only what remains true of the figures.
       */}
       <div className="exec-provenance-band">
         <b>Live derived view</b>
         <span>
-          Composed from approved Monthly Reports at the moment of viewing. Not a snapshotted, numbered or approved
-          controlled document — Executive persistence is not yet implemented.
+          Figures above are computed live from approved Monthly Reports at the moment of viewing, never snapshotted
+          or numbered. Only the reviewed summary, notes and lifecycle status are stored.
         </span>
       </div>
     </header>
@@ -389,15 +340,38 @@ function MovementCell({ row }: { row: ProjectExecutiveRow }) {
   );
 }
 
-function ProjectStatusTable({ model }: { model: ExecutiveDocumentModel }) {
+/**
+ * Full Project Data — the original nine-column table, kept in full for anyone
+ * who needs every figure on one screen (or on paper), but no longer the
+ * default view. Project Executive Status (the cards, above) is what a reader
+ * opens the portfolio to scan; this stays available a click away, and always
+ * renders in full when printed regardless of its on-screen collapsed state
+ * (`globals.css`'s print block forces `.exec-fulldata-body` open).
+ */
+function ProjectStatusTable({ model, onOpenBrief }: { model: ExecutiveDocumentModel; onOpenBrief: OpenBrief }) {
   const { rows } = model;
+  const [expanded, setExpanded] = React.useState(false);
 
   return (
     <ReportSection
-      number={3}
-      title="Project Status Overview"
-      note="Ordered by attention required. Every row states the Monthly it speaks from."
+      number={5}
+      title="Full Project Data"
+      note="Every field, one row per project. Collapsed by default — Project Executive Status above is the primary view."
+      accent={false}
     >
+      <button
+        type="button"
+        className="exec-fulldata-toggle"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        <ChevronDown aria-hidden className={expanded ? "is-open" : undefined} />
+        {expanded ? "Hide full data table" : "Show full data table"}
+        <span className="exec-fulldata-count">
+          {rows.length} project{rows.length === 1 ? "" : "s"}
+        </span>
+      </button>
+      <div className={`exec-fulldata-body${expanded ? "" : " is-collapsed"}`}>
       {rows.length ? (
         <div className="monthly-table-wrap">
           <table className="monthly-table exec-status-table">
@@ -438,6 +412,14 @@ function ProjectStatusTable({ model }: { model: ExecutiveDocumentModel }) {
                       <span className="exec-basis-chip">
                         <StatusBadge tone={basis.tone} className={BASIS_BADGE_CLASS}>{basis.label}</StatusBadge>
                       </span>
+                      {/* Planning Integration 3E: additive provenance only —
+                          shown only when governed, never a second badge
+                          repeating "Manual"/"fallback" beside every row. */}
+                      {row.planningBacked && (
+                        <small className="exec-planning-tag" title={row.dataDate ? `Data Date ${row.dataDate}` : undefined}>
+                          Planning v{row.snapshotVersion}
+                        </small>
+                      )}
                     </td>
                     <td>{row.clientName}</td>
                     {/*
@@ -463,7 +445,13 @@ function ProjectStatusTable({ model }: { model: ExecutiveDocumentModel }) {
                       {row.basis === "none" ? (
                         <span className="muted">—</span>
                       ) : (
-                        <StatusBadge tone={row.reading.tone}>{row.reading.label}</StatusBadge>
+                        <button
+                          type="button"
+                          className="exec-health-trigger"
+                          onClick={() => onOpenBrief(row.project.id, "health")}
+                        >
+                          <StatusBadge tone={row.reading.tone}>{row.reading.label}</StatusBadge>
+                        </button>
                       )}
                     </td>
                     <td className="exec-numeric">
@@ -528,11 +516,12 @@ function ProjectStatusTable({ model }: { model: ExecutiveDocumentModel }) {
                           )}
                           {/*
                             Decisions are deliberately NOT repeated here.
-                            Section 4 carries Decisions Required at portfolio
-                            level and the project snapshot carries it per
-                            project; printing it a third time directly beneath
-                            the table put the same sentence in two adjacent
-                            sections.
+                            Management Attention carries Decisions Required at
+                            portfolio level, and the Executive Project Brief
+                            (opened from the card or the Health badge above)
+                            carries it per project; printing it a third time
+                            directly beneath the table put the same sentence
+                            in two adjacent places.
                           */}
                         </div>
                         <div className="exec-detail">
@@ -551,25 +540,32 @@ function ProjectStatusTable({ model }: { model: ExecutiveDocumentModel }) {
       ) : (
         <EmptyRow>No projects are available for this reporting period.</EmptyRow>
       )}
+      </div>
     </ReportSection>
   );
 }
 
-/* ----------------------- 4 · Management attention -------------------------- */
+/* ----------------------- 3 · Management attention -------------------------- */
 
 function AttentionList({
   title,
   items,
   emptyText,
   showDue = false,
+  onOpenBrief,
+  prominent = false,
 }: {
   title: string;
   items: AttentionItem[];
   emptyText: string;
   showDue?: boolean;
+  onOpenBrief: OpenBrief;
+  /** The Decisions Required panel leads the grid and carries a stronger
+      accent — decision-first, per the Executive UX brief. */
+  prominent?: boolean;
 }) {
   return (
-    <div className="exec-attention-panel">
+    <div className={prominent ? "exec-attention-panel is-decision" : "exec-attention-panel"}>
       <div className="monthly-mini-heading">
         <span>{title}</span>
         {items.length > 0 && <small>{items.length}</small>}
@@ -578,18 +574,20 @@ function AttentionList({
         <ul className="exec-attention-list">
           {items.slice(0, 5).map((item) => (
             <li key={item.id}>
-              <span className="exec-attention-text">{item.text}</span>
-              <span className="exec-attention-meta">
-                <StatusBadge tone={item.priorityTone}>{item.priorityLabel}</StatusBadge>
-                <b>{item.projectName}</b>
-                {showDue && item.dueDate && (
-                  <em className={item.overdue ? "exec-overdue" : ""}>
-                    {item.overdue ? "Overdue " : "Due "}
-                    {shortDate(item.dueDate)}
-                  </em>
-                )}
-                {item.ownerName && <em>{item.ownerName}</em>}
-              </span>
+              <button type="button" className="exec-attention-trigger" onClick={() => onOpenBrief(item.projectId)}>
+                <span className="exec-attention-text">{item.text}</span>
+                <span className="exec-attention-meta">
+                  <StatusBadge tone={item.priorityTone}>{item.priorityLabel}</StatusBadge>
+                  <b>{item.projectName}</b>
+                  {showDue && item.dueDate && (
+                    <em className={item.overdue ? "exec-overdue" : ""}>
+                      {item.overdue ? "Overdue " : "Due "}
+                      {shortDate(item.dueDate)}
+                    </em>
+                  )}
+                  {item.ownerName && <em>{item.ownerName}</em>}
+                </span>
+              </button>
             </li>
           ))}
         </ul>
@@ -600,21 +598,35 @@ function AttentionList({
   );
 }
 
-function ManagementAttention({ model }: { model: ExecutiveDocumentModel }) {
-  const { rows } = model;
-
-  const risks = rows.flatMap((row) => row.risks).sort(bySeverity);
-  const decisions = rows.flatMap((row) => row.decisions).sort(bySeverity);
-  const clientActions = rows.flatMap((row) => row.clientActions).sort(bySeverity);
-  const overdue = rows.flatMap((row) => row.overdue).sort(bySeverity);
-  const struggling = rows.filter(
-    (row) => row.reading.health === "delayed" || row.reading.health === "critical"
-  );
+function ManagementAttention({ model, onOpenBrief }: { model: ExecutiveDocumentModel; onOpenBrief: OpenBrief }) {
+  const { decisions, risks, clientActions, overdue, struggling } = buildManagementAttention(model.rows);
 
   return (
-    <ReportSection number={4} title="Management Attention" note="Ranked by severity, then by due date.">
+    <ReportSection number={3} title="Management Attention" note="Ranked by severity, then by due date.">
+      {/*
+        Decision-first: Decisions Required leads the grid, not Top Risks, so
+        what leadership must act on is the first thing read — and it carries
+        its own accent (`.is-decision`) rather than sitting as one panel among
+        five identical ones.
+      */}
       <div className="exec-attention-grid">
-        <AttentionList title="Top Risks" items={risks} emptyText="No open risks recorded." />
+        <AttentionList
+          title="Decisions Required"
+          items={decisions}
+          emptyText="No decisions awaiting management."
+          showDue
+          onOpenBrief={onOpenBrief}
+          prominent
+        />
+        <AttentionList title="Top Risks" items={risks} emptyText="No open risks recorded." onOpenBrief={onOpenBrief} />
+        <AttentionList
+          title="Client Dependencies"
+          items={clientActions}
+          emptyText="No open client dependencies."
+          showDue
+          onOpenBrief={onOpenBrief}
+        />
+        <AttentionList title="Overdue Actions" items={overdue} emptyText="No overdue actions." showDue onOpenBrief={onOpenBrief} />
 
         <div className="exec-attention-panel">
           <div className="monthly-mini-heading">
@@ -625,12 +637,14 @@ function ManagementAttention({ model }: { model: ExecutiveDocumentModel }) {
             <ul className="exec-attention-list">
               {struggling.map((row) => (
                 <li key={row.project.id}>
-                  <span className="exec-attention-text">{row.projectName}</span>
-                  <span className="exec-attention-meta">
-                    <StatusBadge tone={row.reading.tone}>{row.reading.label}</StatusBadge>
-                    <b>{signed(row.variance)}</b>
-                    <em>{row.reading.basis}</em>
-                  </span>
+                  <button type="button" className="exec-attention-trigger" onClick={() => onOpenBrief(row.project.id, "health")}>
+                    <span className="exec-attention-text">{row.projectName}</span>
+                    <span className="exec-attention-meta">
+                      <StatusBadge tone={row.reading.tone}>{row.reading.label}</StatusBadge>
+                      <b>{signed(row.variance)}</b>
+                      <em>{row.reading.basis}</em>
+                    </span>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -638,21 +652,17 @@ function ManagementAttention({ model }: { model: ExecutiveDocumentModel }) {
             <EmptyRow>No project is reported delayed or critical.</EmptyRow>
           )}
         </div>
-
-        <AttentionList title="Decisions Required" items={decisions} emptyText="No decisions awaiting management." showDue />
-        <AttentionList title="Client Dependencies" items={clientActions} emptyText="No open client dependencies." showDue />
-        <AttentionList title="Overdue Actions" items={overdue} emptyText="No overdue actions." showDue />
       </div>
     </ReportSection>
   );
 }
 
-/* ------------------------- 5 · Portfolio analytics ------------------------- */
+/* ------------------------- 6 · Portfolio analytics ------------------------- */
 
 function PortfolioAnalytics({ model }: { model: ExecutiveDocumentModel }) {
   return (
     <ReportSection
-      number={5}
+      number={6}
       title="Portfolio Performance Analytics"
       note="Charts collapse to a compact note where the data does not support them."
     >
@@ -661,7 +671,7 @@ function PortfolioAnalytics({ model }: { model: ExecutiveDocumentModel }) {
   );
 }
 
-/* --------------------------- 6 · Milestones -------------------------------- */
+/* --------------------------- 7 · Milestones -------------------------------- */
 
 /**
  * Governed Master Milestones, portfolio-wide, read-only.
@@ -682,7 +692,7 @@ function GovernedMilestoneStatus({ model }: { model: ExecutiveDocumentModel }) {
     <section className="monthly-section">
       <div className="monthly-section-title-row">
         <h2>
-          <span>Master Milestone Status</span>
+          <span>Current Master Milestone Position</span>
         </h2>
         <p>Governed position, as approved by Project Control — across the visible portfolio.</p>
       </div>
@@ -746,7 +756,7 @@ function MilestoneTimeline({ model }: { model: ExecutiveDocumentModel }) {
 
   return (
     <ReportSection
-      number={6}
+      number={7}
       title="Upcoming Plan Items"
       note="Free-text planning entries from Monthly and Weekly plan items — not part of the governed Master Milestone register above."
     >
@@ -786,133 +796,6 @@ function MilestoneTimeline({ model }: { model: ExecutiveDocumentModel }) {
         </div>
       ) : (
         <EmptyRow>No dated plan items are recorded ahead of today in Monthly or Weekly plans.</EmptyRow>
-      )}
-    </ReportSection>
-  );
-}
-
-/* ------------------------ 7 · Executive snapshots -------------------------- */
-
-function SnapshotCard({ row, month }: { row: ProjectExecutiveRow; month: string }) {
-  const basis = MONTHLY_BASIS_META[row.basis];
-  const achievement = [...row.achievements].sort(bySeverity)[0];
-  const concern = row.keyConcern;
-  const decision = row.decisions[0];
-
-  return (
-    <article className="exec-snapshot">
-      <header>
-        <div>
-          <b>{row.projectName}</b>
-          <small>{row.clientName}</small>
-        </div>
-        {/* The basis row below already carries "No Monthly Report" — a
-            second badge here would say the same thing twice, adjacent to
-            each other, in two different vocabularies. */}
-        {row.basis !== "none" && <StatusBadge tone={row.reading.tone}>{row.reading.label}</StatusBadge>}
-      </header>
-
-      <div className="exec-snapshot-basis">
-        <StatusBadge tone={basis.tone} className={BASIS_BADGE_CLASS}>{basis.label}</StatusBadge>
-        {row.monthlyStatusLabel && <small>{row.monthlyStatusLabel}</small>}
-      </div>
-
-      <div className="exec-snapshot-figures">
-        <div>
-          <span>Planned</span>
-          <b className="planned-value">{row.basis === "none" ? "—" : pct(row.planned, 0)}</b>
-        </div>
-        <div>
-          <span>Actual</span>
-          <b className="actual-value">{row.basis === "none" ? "—" : pct(row.actual, 0)}</b>
-        </div>
-        <div>
-          <span>Variance</span>
-          <b className="variance-value">{row.basis === "none" ? "—" : signed(row.variance)}</b>
-        </div>
-      </div>
-
-      {/*
-        One concise item per field, each from its OWN source classification, so
-        nothing appears twice. Fallbacks say what is true rather than repeating
-        a generic "None recorded" everywhere.
-      */}
-      <dl className="exec-snapshot-lines">
-        <div>
-          <dt>Major achievement</dt>
-          <dd>{achievement?.text ?? <span className="muted">None reported</span>}</dd>
-        </div>
-        <div>
-          <dt>Main concern</dt>
-          <dd>
-            {concern ? (
-              <>
-                {concern.text}
-                <span className="exec-snapshot-chips">
-                  <StatusBadge tone={concern.priorityTone}>{concern.priorityLabel}</StatusBadge>
-                  <StatusBadge tone={concern.statusTone}>{concern.statusLabel}</StatusBadge>
-                </span>
-              </>
-            ) : (
-              <span className="muted">No key concern reported</span>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>Decision required</dt>
-          <dd>{decision?.text ?? <span className="muted">None required</span>}</dd>
-        </div>
-        <div>
-          <dt>Next plan item</dt>
-          <dd>
-            {row.nextMilestone ? (
-              <>
-                {row.nextMilestone.title} <small>({shortDate(row.nextMilestone.date)})</small>
-              </>
-            ) : (
-              <span className="muted">No upcoming plan item recorded</span>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>Weekly movement</dt>
-          <dd>
-            {row.movement.length ? (
-              // One line: the drill-down carries the full movement history.
-              <span className="exec-snapshot-move">
-                <StatusBadge tone={row.movement[0].tone}>{row.movement[0].label}</StatusBadge>
-                <small>{row.movement[0].text}</small>
-              </span>
-            ) : (
-              <span className="muted">{NO_MOVEMENT}</span>
-            )}
-          </dd>
-        </div>
-      </dl>
-
-      <Link className="exec-snapshot-link" href={`/executive-reports/projects/${row.project.id}?month=${month}`}>
-        View Project →
-      </Link>
-    </article>
-  );
-}
-
-function SnapshotCards({ model }: { model: ExecutiveDocumentModel }) {
-  return (
-    <ReportSection
-      number={7}
-      title="Project Executive Snapshots"
-      note="One card per project — a summary, never a reproduction of the Monthly Report."
-      accent={false}
-    >
-      {model.rows.length ? (
-        <div className="exec-snapshot-grid">
-          {model.rows.map((row) => (
-            <SnapshotCard key={row.project.id} row={row} month={model.month} />
-          ))}
-        </div>
-      ) : (
-        <EmptyRow>No projects to summarise.</EmptyRow>
       )}
     </ReportSection>
   );
@@ -1103,24 +986,192 @@ function ExecutivePrintPage() {
   );
 }
 
+/**
+ * Executive UX — visual refinement pass. A HYBRID document: screen and print
+ * are two different compositions of the SAME `model` — nothing is fetched,
+ * derived or invented twice:
+ *
+ *   SCREEN — the Executive Decision Cockpit (`.exec-cockpit-only`):
+ *     Executive Summary (shared) → Portfolio Position (Dynamic Executive
+ *     Cards) → Management Attention (decision-first) →
+ *     Project Executive Status (cards, primary, shared) →
+ *     What Changed Since Last Approved Period → Portfolio Analytics
+ *     (reduced to panels with real data) → Current Master Milestone Position
+ *     → Full Project Data (secondary, collapsed, shared) →
+ *     Executive Notes (low in the hierarchy).
+ *
+ *   PRINT — the formal, numbered Project Portfolio Executive Report
+ *     (`.exec-print-only`), unchanged from the existing report contract:
+ *     masthead → 1 Executive Summary (shared) → 2 Portfolio Position →
+ *     3 Management Attention → 4 Project Executive Status (shared) →
+ *     5 Full Project Data → 6 Portfolio Performance Analytics (full set) →
+ *     Current Master Milestone Position → 7 Upcoming Plan Items →
+ *     8 Executive Notes → Sign-off.
+ *
+ * Executive Summary and Project Executive Status are SHARED sections that
+ * mount ONCE, at a DOM position simultaneously valid for both sequences —
+ * each already shows the right content per medium on its own
+ * (`ExecutiveProjectCardsSection` toggles interactive vs. printed cards
+ * internally). Full Project Data and Current Master Milestone Position sit
+ * at INCOMPATIBLE positions between the two orders (print wants Full Data
+ * right after the cards; screen wants it last), so those two mount TWICE —
+ * once per medium, each reading the same `model` — rather than forcing one
+ * shared DOM position to serve two contradictory orders. See `globals.css`
+ * for why `.exec-cockpit-only`/`.exec-print-only` are plain classes rather
+ * than Tailwind's `hidden`/`print:` utilities.
+ *
+ * `briefProjectId`/`briefFocus` are owned here, once, because every trigger —
+ * a card, a Health badge, an item in Management Attention or What Changed —
+ * lives somewhere in this same tree and all of them open the SAME Executive
+ * Project Brief for the row they point at.
+ */
 export function ExecutiveDocument({ model }: { model: ExecutiveDocumentModel }) {
+  const [briefProjectId, setBriefProjectId] = React.useState<string | null>(null);
+  const [briefFocus, setBriefFocus] = React.useState<BriefFocus>("overview");
+
+  const openBrief = React.useCallback<OpenBrief>((projectId, focus = "overview") => {
+    setBriefProjectId(projectId);
+    setBriefFocus(focus);
+  }, []);
+
+  const briefRow = React.useMemo(
+    () => (briefProjectId ? model.rows.find((row) => row.project.id === briefProjectId) : undefined),
+    [briefProjectId, model.rows]
+  );
+
+  const projectNameOf = React.useCallback(
+    (id: string) => model.rows.find((row) => row.project.id === id)?.projectName ?? "Project",
+    [model.rows]
+  );
+  const scopeOptions = React.useMemo(
+    () => model.rows.map((row) => ({ id: row.project.id, name: row.projectName })),
+    [model.rows]
+  );
+
+  /*
+   * Dynamic Executive Cards (Portfolio Position) filter/focus the rest of the
+   * cockpit rather than merely restating a count. A health tile narrows the
+   * INTERACTIVE Project Executive Status grid (never the printed one — see
+   * `ExecutiveProjectCardsSection`) and scrolls to it; Decisions Required /
+   * Client Actions scroll to Management Attention, where that category
+   * already leads. Nothing here recomputes a figure — every value clicked
+   * came from `model.aggregate`/`model.rows`, already resolved.
+   */
+  const [healthFilter, setHealthFilter] = React.useState<ExecHealth[] | null>(null);
+  const cardsRef = React.useRef<HTMLDivElement>(null);
+  const attentionRef = React.useRef<HTMLDivElement>(null);
+
+  const onSelectHealth = React.useCallback((health: ExecHealth[]) => {
+    setHealthFilter((current) =>
+      current && current.length === health.length && current.every((h) => health.includes(h)) ? null : health
+    );
+    requestAnimationFrame(() => cardsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, []);
+  const onFocusAttention = React.useCallback(() => {
+    attentionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+  const onClearHealthFilter = React.useCallback(() => setHealthFilter(null), []);
+
   return (
     <article className="monthly-report-sheet monthly-print-document exec-document">
       <ExecutivePrintPage />
-      <DocumentHeader model={model} />
-      <div className="monthly-report-body">
-        <ExecutiveSummarySection model={model} />
-        <KpiStrip model={model} />
-        <ProjectStatusTable model={model} />
-        <ManagementAttention model={model} />
-        <PortfolioAnalytics model={model} />
-        <GovernedMilestoneStatus model={model} />
-        <MilestoneTimeline model={model} />
-        <SnapshotCards model={model} />
-        <ExecutiveNotesSection model={model} />
-        <PrintSignOff model={model} />
+
+      <div className="exec-print-only">
+        <DocumentHeader model={model} />
       </div>
-      <footer className="monthly-report-footer exec-footer">
+
+      <div className="monthly-report-body">
+        {/*
+          Executive Summary is SHARED — the same narrative, first in both the
+          cockpit and the formal print sequence (where it is numbered "1").
+          The AI drafting controls it may show are gated at the source
+          (`model.onAcceptSummary`, set only for a manager — see
+          `useDocumentModel()` in `executive-view.tsx`), not here.
+        */}
+        <ExecutiveSummarySection model={model} />
+
+        <div className="exec-cockpit-only">
+          <CockpitSummary
+            monthLabel={model.monthLabel}
+            hasReportingPeriods={model.hasReportingPeriods}
+            aggregate={model.aggregate}
+            activeHealthFilter={healthFilter}
+            onSelectHealth={onSelectHealth}
+            onFocusAttention={onFocusAttention}
+          />
+        </div>
+        <div className="exec-print-only">
+          <KpiStrip model={model} />
+        </div>
+
+        <div className="exec-print-only">
+          <ManagementAttention model={model} onOpenBrief={openBrief} />
+        </div>
+        <div className="exec-cockpit-only">
+          <CockpitAttention ref={attentionRef} rows={model.rows} onOpenBrief={openBrief} />
+        </div>
+
+        <ExecutiveProjectCardsSection
+          ref={cardsRef}
+          rows={model.rows}
+          month={model.month}
+          sectionNumber={4}
+          onOpenBrief={openBrief}
+          healthFilter={healthFilter}
+          onClearHealthFilter={onClearHealthFilter}
+        />
+
+        {/* Full Project Data prints immediately after Project Executive
+            Status (formal sequence, unchanged); on screen it moves near the
+            end (see the second mount below) — two mounts of the SAME
+            component/data, each visible in only one medium. */}
+        <div className="exec-print-only">
+          <ProjectStatusTable model={model} onOpenBrief={openBrief} />
+        </div>
+
+        <div className="exec-cockpit-only">
+          <WhatChangedSection rows={model.rows} onOpenBrief={openBrief} />
+          <CockpitAnalytics panels={model.panels} />
+        </div>
+        <div className="exec-print-only">
+          <PortfolioAnalytics model={model} />
+        </div>
+
+        {/* Current Master Milestone Position — likewise two mounts of the
+            SAME governed-state component: print keeps it in its established
+            position (between Analytics and Upcoming Plan Items); the cockpit
+            gives it its own place in the screen hierarchy, right after
+            Analytics. */}
+        <div className="exec-cockpit-only">
+          <GovernedMilestoneStatus model={model} />
+        </div>
+        <div className="exec-print-only">
+          <GovernedMilestoneStatus model={model} />
+          <MilestoneTimeline model={model} />
+        </div>
+
+        <div className="exec-cockpit-only">
+          <ProjectStatusTable model={model} onOpenBrief={openBrief} />
+        </div>
+
+        <div className="exec-cockpit-only">
+          <CockpitNotes
+            notes={model.notes}
+            availability={model.notesAvailability}
+            canManage={model.canManageNotes}
+            onChanged={model.onNotesChanged}
+            projectNameOf={projectNameOf}
+            scopeOptions={scopeOptions}
+          />
+        </div>
+
+        <div className="exec-print-only">
+          <ExecutiveNotesSection model={model} />
+          <PrintSignOff model={model} />
+        </div>
+      </div>
+
+      <footer className="monthly-report-footer exec-footer exec-print-only">
         <b>EPROM — Project Portfolio Executive Report</b>
         <span>{model.monthLabel}</span>
         {/*
@@ -1132,6 +1183,16 @@ export function ExecutiveDocument({ model }: { model: ExecutiveDocumentModel }) 
         */}
         <span>Live derived view · not a controlled document</span>
       </footer>
+
+      <ExecutiveProjectBrief
+        row={briefRow}
+        month={model.month}
+        focus={briefFocus}
+        open={Boolean(briefRow)}
+        onOpenChange={(next) => {
+          if (!next) setBriefProjectId(null);
+        }}
+      />
     </article>
   );
 }

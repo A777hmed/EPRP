@@ -283,6 +283,7 @@ export function ProjectInfoWorkspace({
       body: (
         <SetupStepContacts
           project={draft}
+          savedProject={project}
           context={context}
           contacts={workflow.contacts}
           disciplines={workflow.disciplines}

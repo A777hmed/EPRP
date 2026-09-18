@@ -11,6 +11,14 @@
  *   · the Executive Summary wording
  *   · Executive Notes
  *   · the three signature blocks
+ *   · the report's lifecycle status (draft/under_review/approved/locked/
+ *     archived) — shown ONLY to `canManagePortfolio` (Top-Level Reporting
+ *     4B). Before 4B this lived solely on the dedicated
+ *     `/executive-reports/workspace` page, reachable only from the register's
+ *     own Edit action; once that action was removed for the read-only
+ *     register, this panel became the only in-app path left, so the SAME
+ *     control (same statuses, same `executiveRecordService.update()` call)
+ *     was added here rather than reintroducing a register write affordance.
  *
  * Everything else is absent by construction, not merely disabled. Planned %,
  * Actual %, SV, Schedule Health, the KPI strip, every chart and every
@@ -27,10 +35,16 @@ import { RotateCcw, Save, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/shared";
 import type { Contact } from "@/types";
 import { ExecutiveNotesPanel } from "./executive-notes-panel";
 import type { ExecutiveNote, NotesAvailability } from "./executive-notes";
-import { executiveRecordService, type ExecutiveReportRecord } from "./executive-record";
+import {
+  executiveRecordService,
+  EXECUTIVE_STATUS_LABEL,
+  type ExecutiveReportRecord,
+  type ExecutiveReportStatus,
+} from "./executive-record";
 import { SignatoryEditor } from "./executive-signatory-panel";
 import {
   isSnapshotEmpty,
@@ -41,6 +55,9 @@ import {
 } from "./executive-signatories";
 import type { PreparedBy } from "./executive-data";
 
+/** Lifecycle order, matching the workspace's own `STATUSES` exactly. */
+const STATUSES: ExecutiveReportStatus[] = ["draft", "under_review", "approved", "locked", "archived"];
+
 export interface ExecutiveEditPanelProps {
   month: string;
   monthLabel: string;
@@ -48,6 +65,16 @@ export interface ExecutiveEditPanelProps {
   /** The auto-drafted narrative, used as placeholder and as "restore". */
   autoDraft: string;
   contacts: Contact[];
+  /**
+   * PORTFOLIO management — Edit, Archive, Delete of the stored record.
+   * Global authorities only (mirrors `executive_can_manage()`, the same
+   * predicate `executive_reports_update`'s RLS already requires for ANY
+   * write here, lifecycle included). Gates the Report status control ONLY:
+   * Summary/Signatories/Notes keep their existing, broader `onClose`/save
+   * reach exactly as before this control was added — this prop widens
+   * nothing, it only decides whether ONE MORE field renders.
+   */
+  canManagePortfolio: boolean;
   /** Derived preparers, used to seed an unsaved period. */
   derivedPreparedBy: PreparedBy;
   notes: ExecutiveNote[];
@@ -70,6 +97,14 @@ export function ExecutiveEditPanel(props: ExecutiveEditPanelProps) {
   const [snapshot, setSnapshot] = React.useState<SignatorySnapshot>(() =>
     seedSnapshot(record?.signatories ?? {}, props.derivedPreparedBy)
   );
+  /*
+   * Only ever read/written when `canManagePortfolio` — a viewer without that
+   * authority never sees this control, and `save()` below only includes it
+   * in the update when it does. Unauthorized either way, RLS
+   * (`executive_reports_update`) is the actual boundary: this is presentation
+   * only, matching every other write gate in this module.
+   */
+  const [status, setStatus] = React.useState<ExecutiveReportStatus>(record?.status ?? "draft");
   const [saving, setSaving] = React.useState(false);
 
   /*
@@ -108,6 +143,10 @@ export function ExecutiveEditPanel(props: ExecutiveEditPanelProps) {
       const next = await executiveRecordService.update(target.id, {
         executiveSummary: summary.trim() ? summary.trim() : null,
         signatories: snapshot,
+        // Only ever sent when the control is rendered, i.e. `canManagePortfolio`
+        // — an unauthorized viewer's `status` state never leaves "draft"'s
+        // seed because the field that would change it does not exist for them.
+        ...(props.canManagePortfolio ? { status } : {}),
       });
       props.onSaved(next);
       toast.success("Executive Report saved. No Weekly or Monthly record was changed.");
@@ -124,10 +163,11 @@ export function ExecutiveEditPanel(props: ExecutiveEditPanelProps) {
       <header className="exec-edit-head">
         <div>
           <p className="monthly-eyebrow">Edit Mode · {props.monthLabel}</p>
-          <h2>Executive content</h2>
+          <h2>Executive content{props.canManagePortfolio ? " & report status" : ""}</h2>
           <span>
-            Summary, notes and signatories only. Planned, Actual, SV, Schedule Health, KPIs and charts stay
-            controlled by their Monthly source.
+            {props.canManagePortfolio
+              ? "Summary, notes, signatories and report status. Planned, Actual, SV, Schedule Health, KPIs and charts stay controlled by their Monthly source."
+              : "Summary, notes and signatories only. Planned, Actual, SV, Schedule Health, KPIs and charts stay controlled by their Monthly source."}
           </span>
         </div>
         <div className="exec-edit-actions">
@@ -178,6 +218,40 @@ export function ExecutiveEditPanel(props: ExecutiveEditPanelProps) {
             </p>
           )}
         </div>
+
+        {/*
+          Lifecycle management — the one thing this panel did NOT cover before
+          Top-Level Reporting 4B removed the register's own Edit action, which
+          had been the only in-app path to it (via `/executive-reports/
+          workspace`). Portfolio management only: mirrors `executive_can_manage()`,
+          the same predicate `executive_reports_update`'s RLS already requires
+          for every write this panel makes, lifecycle included — this is the
+          identical transition set and the identical service call
+          `executive-workspace.tsx` uses, not a second implementation of either.
+        */}
+        {props.canManagePortfolio && (
+          <div className="exec-edit-block">
+            <div className="monthly-mini-heading">
+              <span>Report status</span>
+              <small>Approved and Locked reports cannot be deleted — Archive withdraws one from active use instead</small>
+            </div>
+            <div className="exec-ws-state">
+              <StatusBadge tone={status === "approved" || status === "locked" ? "success" : "warning"}>
+                {EXECUTIVE_STATUS_LABEL[status]}
+              </StatusBadge>
+              <label>
+                Status
+                <select value={status} onChange={(event) => setStatus(event.target.value as ExecutiveReportStatus)}>
+                  {STATUSES.map((value) => (
+                    <option key={value} value={value}>
+                      {EXECUTIVE_STATUS_LABEL[value]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+        )}
 
         <div className="exec-edit-block">
           <div className="monthly-mini-heading">

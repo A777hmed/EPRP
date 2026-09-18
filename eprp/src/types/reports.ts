@@ -217,6 +217,17 @@ export interface WeeklyReport extends ReportBase {
   weekNumber: number; // ISO week of periodStart
   plannedProgress: number; // cumulative planned %
   actualProgress: number; // cumulative actual %
+  /**
+   * The Published Planning Snapshot this report is pinned to (Planning
+   * Integration 3B) — resolved once at creation (the latest snapshot whose
+   * data_date <= this report's periodEnd) and never re-resolved afterward.
+   * Nullable, and set ONLY when that snapshot's rollup actually has both a
+   * Planned and an Actual figure: an eligible snapshot with no usable
+   * weighted data yet is never pinned "for provenance" alone. Null means
+   * plannedProgress/actualProgress are direct manual entry, exactly as if
+   * no snapshot had ever resolved.
+   */
+  planningSnapshotId?: string;
   /** Disciplines in scope for this reporting week (master-data ids). */
   disciplineIds: string[];
   /** Cumulative man-hours expended to the end of this reporting week. */
@@ -245,10 +256,50 @@ export interface WeeklyReport extends ReportBase {
 
 /* --------------------------------- Monthly -------------------------------- */
 
+/**
+ * One department's participation in one Monthly report.
+ *
+ * Department-grained and nothing else: the Monthly round asks a department to
+ * review the month and answer for itself. `weekly_submissions` additionally
+ * carries a scope-item grain in the same table, and reading those two grains as
+ * one is what broke the Weekly lifecycle count — so Monthly keeps one row per
+ * (report, department) and the scope of any individual remark lives on the
+ * comment it belongs to.
+ */
+export interface MonthlySubmission {
+  id: string;
+  monthlyReportId: string;
+  departmentId: string;
+  status: SubmissionStatus;
+  /**
+   * The department reviewed the month and had nothing to add. A deliberate nil
+   * return, which is not the same fact as never having answered.
+   */
+  noAdditionalComments: boolean;
+  /** When collection was sent to the department. */
+  sentAt?: IsoDateTime;
+  /** The deadline Project Control set, if any. */
+  dueAt?: IsoDateTime;
+  submittedByContactId?: string;
+  submittedAt?: IsoDateTime;
+  /** Stamped by the database when a Department Manager rules on the row. */
+  reviewedByContactId?: string;
+  reviewedAt?: IsoDateTime;
+  returnReason?: string;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
 export interface MonthlyComment {
   id: string;
   monthlyReportId: string;
-  sourceKind: "weekly" | "monthly_manual";
+  /**
+   * Where the comment came from:
+   *   weekly ............. compiled from an approved Weekly entry
+   *   monthly_manual ..... added by Project Control on the Monthly itself
+   *   monthly_department . added by a department during the Monthly round
+   */
+  sourceKind: "weekly" | "monthly_manual" | "monthly_department";
   sourceWeeklyEntryId?: string;
   sourceWeeklyReportId?: string;
   weekNumber?: number;
@@ -323,6 +374,23 @@ export interface MonthlyReport extends ReportBase {
   actualProgress: number;
   scheduleVariance: number; // percentage points, negative = behind
   spi: number;
+  /**
+   * The Published Planning Snapshot this report is pinned to (Planning
+   * Integration 3C) — resolved once at creation (the latest snapshot whose
+   * data_date <= this report's reporting-month end) and never re-resolved
+   * afterward, independently of any Weekly pin on the same project. Set
+   * ONLY when that snapshot's rollup actually has both a Planned and an
+   * Actual figure — an eligible snapshot with no usable weighted data yet
+   * is never pinned "for provenance" alone. Null means plannedProgress/
+   * actualProgress are direct manual entry, exactly as if no snapshot had
+   * ever resolved. Governed EV/PV SPI and variance for a pinned report are
+   * derived from the snapshot's rollup, not from this type's own `spi`/
+   * `scheduleVariance` fields (see `features/monthly-reports/planning-
+   * integration.ts`), which remain the plain Actual/Planned-ratio figures
+   * for the manual/fallback case and for portfolio-wide list/analytics
+   * reads that do not resolve a rollup.
+   */
+  planningSnapshotId?: string;
   hseStatus?: KpiRating;
   qualityStatus?: KpiRating;
   overallProgressStatus?: ProgressStatus;
