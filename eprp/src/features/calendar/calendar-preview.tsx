@@ -21,8 +21,8 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { EVENT_TYPE_META, timeRangeLabel, type CalendarEvent } from "./calendar-types";
-import { EventDrawer } from "./event-editor";
+import { EVENT_TYPE_META, type CalendarEvent } from "./calendar-types";
+import { CalendarDetailModal, StickyEventCard, dateLabel, eventNoteTypeClass } from "./calendar-workspace";
 import {
   addDays,
   isoDate,
@@ -46,6 +46,7 @@ export function CalendarPreview({
   const [monthAnchor, setMonthAnchor] = React.useState(() => startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = React.useState(() => isoDate(new Date()));
   const [selectedEvent, setSelectedEvent] = React.useState<CalendarEvent | null>(null);
+  const [detailDate, setDetailDate] = React.useState<string | null>(null);
 
   /* The query window is the visible grid, so trailing days of the neighbouring
      months carry their real indicators instead of reading as empty. */
@@ -75,15 +76,21 @@ export function CalendarPreview({
   /* The key lists the types actually present in the visible month — a fixed
      legend would advertise categories the scope contains nothing of. */
   const legend = React.useMemo(() => {
-    const seen = new Map<string, string>();
+    const seen = new Map<CalendarEvent["type"], string>();
     for (const event of calendar.events) {
       const meta = EVENT_TYPE_META[event.type];
-      if (!seen.has(meta.tone)) seen.set(meta.tone, meta.label);
+      if (!seen.has(event.type)) seen.set(event.type, meta.label);
     }
-    return [...seen.entries()].map(([tone, label]) => ({ tone, label }));
+    return [...seen.entries()].map(([type, label]) => ({ type, label }));
   }, [calendar.events]);
 
   const selected = byDate.get(selectedDate) ?? [];
+  const calendarHref = `/calendar?${new URLSearchParams({ date: selectedDate, projectId, departmentId })}`;
+  const openDate = (date: string) => {
+    setSelectedDate(date);
+    setSelectedEvent(null);
+    setDetailDate(date);
+  };
 
   const moveMonth = (offset: number) => {
     const next = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + offset, 1);
@@ -103,7 +110,7 @@ export function CalendarPreview({
           <b>Project Schedule</b>
           <small>Meetings, milestones and report due dates in scope</small>
         </div>
-        <Link href="/calendar" className="dash-link">
+        <Link href={calendarHref} className="dash-link">
           Open Calendar
         </Link>
       </header>
@@ -128,6 +135,8 @@ export function CalendarPreview({
               <Skeleton key={index} className="h-8 rounded-md" />
             ))}
           </div>
+        ) : calendar.error ? (
+          <p role="alert" className="cal-preview-error">Calendar unavailable: {calendar.error}</p>
         ) : (
           <>
             <div className="dash-cal-weekdays" aria-hidden>
@@ -158,43 +167,33 @@ export function CalendarPreview({
                       day: "numeric",
                       month: "long",
                     })} — ${events.length} scheduled`}
-                    onClick={() => setSelectedDate(iso)}
+                    onClick={() => openDate(iso)}
                   >
                     <span className="dash-cal-date">{day.getDate()}</span>
                     <span className="dash-cal-marks" aria-hidden>
-                      {events.slice(0, 3).map((event) => (
-                        <i key={event.id} className={`cal-chip-${EVENT_TYPE_META[event.type].tone}`} />
+                      {events.slice(0, 2).map((event) => (
+                        <i key={event.id} className={eventNoteTypeClass(event.type)} />
                       ))}
+                      {events.length > 2 && <small>+{events.length - 2}</small>}
                     </span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Selected-day detail appears only when the day holds something, so
-                a quiet day costs no vertical space. */}
+            <button type="button" className="cal-preview-date" onClick={() => openDate(selectedDate)}>
+              {dateLabel(selectedDate)} · {selected.length} events
+            </button>
             {selected.length > 0 && (
-              <ul className="dash-cal-agenda">
+              <ul className="cal-preview-notes">
                 {selected.slice(0, 2).map((event) => (
                   <li key={event.id}>
-                    <button
-                      type="button"
-                      className={`cal-chip-${EVENT_TYPE_META[event.type].tone}`}
-                      onClick={() => setSelectedEvent(event)}
-                    >
-                      <i aria-hidden />
-                      <span>
-                        <b>{event.title}</b>
-                        <small>
-                          {timeRangeLabel(event)} · {event.projectName}
-                        </small>
-                      </span>
-                    </button>
+                    <StickyEventCard compact event={event} onOpen={(item) => { setDetailDate(selectedDate); setSelectedEvent(item); }} />
                   </li>
                 ))}
                 {selected.length > 2 && (
                   <li className="dash-cal-more">
-                    <Link href="/calendar">+{selected.length - 2} more on this day</Link>
+                    <button type="button" className="cal-more" onClick={() => openDate(selectedDate)}>+{selected.length - 2} more on this day</button>
                   </li>
                 )}
               </ul>
@@ -203,7 +202,7 @@ export function CalendarPreview({
             <div className="dash-cal-key">
               {legend.length ? (
                 legend.map((entry) => (
-                  <span key={entry.tone} className={`cal-chip-${entry.tone}`}>
+                  <span key={entry.type} className={eventNoteTypeClass(entry.type)}>
                     <i aria-hidden />
                     {entry.label}
                   </span>
@@ -218,19 +217,8 @@ export function CalendarPreview({
         )}
       </div>
 
-      {selectedEvent && (
-        <div className="dash-drawer-host">
-          <EventDrawer
-            event={selectedEvent}
-            projects={calendar.projects}
-            departments={calendar.departments}
-            contacts={calendar.contacts}
-            canManage={canManage}
-            onClose={() => setSelectedEvent(null)}
-            onChanged={calendar.reload}
-          />
-        </div>
-      )}
+      <CalendarDetailModal date={detailDate} event={selectedEvent} events={calendar.events} calendar={calendar}
+        canManage={canManage} onSelect={setSelectedEvent} onClose={() => { setDetailDate(null); setSelectedEvent(null); }} />
     </section>
   );
 }

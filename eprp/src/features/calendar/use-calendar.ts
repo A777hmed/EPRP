@@ -213,6 +213,6 @@ export function windowFor(view: "day" | "week" | "month" | "agenda", anchor: Dat
     return { from: isoDate(anchor), to: isoDate(addDays(anchor, 30)) };
   }
   const gridStart = startOfWeek(startOfMonth(anchor));
-  const gridEnd = addDays(startOfWeek(endOfMonth(anchor)), 6);
+  const gridEnd = addDays(gridStart, 41);
   return { from: isoDate(gridStart), to: isoDate(gridEnd) };
 }
