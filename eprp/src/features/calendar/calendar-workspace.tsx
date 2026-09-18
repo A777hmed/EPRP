@@ -31,7 +31,7 @@ import {
   type CalendarEvent,
   type CalendarEventType,
 } from "./calendar-types";
-import { EventDrawer } from "./event-editor";
+import { EventDrawerDialog } from "./event-editor";
 import {
   EMPTY_CALENDAR_FILTERS,
   addDays,
@@ -53,8 +53,10 @@ const VIEW_LABEL: Record<View, string> = {
   agenda: "Agenda",
 };
 
-/** 7am–7pm covers the working day without a scroll for the common case. */
-const HOURS = Array.from({ length: 13 }, (_, i) => i + 7);
+/** Normal working window; TimeGrid expands only when its current events need it. */
+const DEFAULT_START_HOUR = 7;
+const DEFAULT_END_HOUR = 19;
+const OUTLIER_PADDING_HOURS = 1;
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -89,6 +91,7 @@ function CalendarWorkspaceContent({ canManage, initialDate, initialProject, init
   const [selected, setSelected] = React.useState<CalendarEvent | null>(null);
   const [creatingOn, setCreatingOn] = React.useState<string | undefined>();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const viewTabRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
 
   const window = React.useMemo(() => windowFor(view, anchor), [view, anchor]);
   const calendar = useCalendar(window, filters);
@@ -137,6 +140,12 @@ function CalendarWorkspaceContent({ canManage, initialDate, initialProject, init
         : [...current.types, type],
     }));
 
+  const moveViewTab = (currentIndex: number, direction: 1 | -1) => {
+    const nextIndex = (currentIndex + direction + VIEWS.length) % VIEWS.length;
+    setView(VIEWS[nextIndex]);
+    viewTabRefs.current[nextIndex]?.focus();
+  };
+
   return (
     <div className="cal-stage">
       <header className="cal-header">
@@ -148,14 +157,27 @@ function CalendarWorkspaceContent({ canManage, initialDate, initialProject, init
 
         <div className="cal-header-actions">
           <div className="cal-view-switch" role="tablist" aria-label="Calendar view">
-            {VIEWS.map((value) => (
+            {VIEWS.map((value, index) => (
               <button
                 key={value}
+                ref={(node) => { viewTabRefs.current[index] = node; }}
                 type="button"
                 role="tab"
+                id={`calendar-view-tab-${value}`}
+                aria-controls={`calendar-view-panel-${value}`}
                 aria-selected={view === value}
+                tabIndex={view === value ? 0 : -1}
                 className={view === value ? "is-active" : undefined}
                 onClick={() => setView(value)}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowLeft") {
+                    event.preventDefault();
+                    moveViewTab(index, -1);
+                  } else if (event.key === "ArrowRight") {
+                    event.preventDefault();
+                    moveViewTab(index, 1);
+                  }
+                }}
               >
                 {VIEW_LABEL[value]}
               </button>
@@ -239,46 +261,52 @@ function CalendarWorkspaceContent({ canManage, initialDate, initialProject, init
       </div>
 
       <div className="cal-body">
-        <div className="cal-surface">
-          {calendar.loading ? (
-            <LoadingState label="Loading calendar…" />
-          ) : calendar.error ? (
-            <EmptyState title="Calendar unavailable" description={calendar.error} icon={CalendarDays} />
-          ) : view === "month" ? (
-            <MonthGrid
-              anchor={anchor}
-              from={window.from}
-              events={events}
-              onOpen={openEvent}
-              onDate={openDate}
-            />
-          ) : view === "agenda" ? (
-            <AgendaList events={events} onOpen={openEvent} />
-          ) : (
-            <TimeGrid
-              days={view === "day" ? [anchor] : weekDays(anchor)}
-              events={events}
-              onOpen={openEvent}
-              onCreate={canManage ? openCreate : undefined}
-            />
-          )}
-        </div>
+        {VIEWS.map((panelView) => (
+          <div
+            key={panelView}
+            className="cal-surface"
+            role="tabpanel"
+            id={`calendar-view-panel-${panelView}`}
+            aria-labelledby={`calendar-view-tab-${panelView}`}
+            hidden={view !== panelView}
+            tabIndex={0}
+          >
+            {view === panelView && (calendar.loading ? (
+              <LoadingState label="Loading calendar…" />
+            ) : calendar.error ? (
+              <EmptyState title="Calendar unavailable" description={calendar.error} icon={CalendarDays} />
+            ) : panelView === "month" ? (
+              <MonthGrid
+                anchor={anchor}
+                from={window.from}
+                events={events}
+                onOpen={openEvent}
+                onDate={openDate}
+              />
+            ) : panelView === "agenda" ? (
+              <AgendaList events={events} onOpen={openEvent} />
+            ) : (
+              <TimeGrid
+                days={panelView === "day" ? [anchor] : weekDays(anchor)}
+                events={events}
+                onOpen={openEvent}
+                onCreate={canManage ? openCreate : undefined}
+              />
+            ))}
+          </div>
+        ))}
 
         {drawerOpen && (
-          <div className="cal-detail-drawer-host" onMouseDown={(event) => {
-            if (event.target === event.currentTarget) { setDrawerOpen(false); setSelected(null); }
-          }}>
-            <EventDrawer
-              event={selected ? calendar.all.find((event) => event.id === selected.id) ?? selected : null}
-              createOn={creatingOn}
-              projects={calendar.projects}
-              departments={calendar.departments}
-              contacts={calendar.contacts}
-              canManage={canManage}
-              onClose={() => { setDrawerOpen(false); setSelected(null); }}
-              onChanged={calendar.reload}
-            />
-          </div>
+          <EventDrawerDialog
+            event={selected ? calendar.all.find((event) => event.id === selected.id) ?? selected : null}
+            createOn={creatingOn}
+            projects={calendar.projects}
+            departments={calendar.departments}
+            contacts={calendar.contacts}
+            canManage={canManage}
+            onClose={() => { setDrawerOpen(false); setSelected(null); }}
+            onChanged={calendar.reload}
+          />
         )}
       </div>
       <CalendarDetailModal date={detailDate} event={drawerOpen ? null : selected} events={events} calendar={calendar} canManage={canManage}
@@ -326,6 +354,7 @@ function TimeGrid({
   onCreate?: (date: string) => void;
 }) {
   const today = isoDate(new Date());
+  const hours = React.useMemo(() => hoursForTimeGrid(days, events), [days, events]);
 
   return (
     <div className="cal-timegrid" style={{ "--cal-days": days.length } as React.CSSProperties}>
@@ -360,7 +389,7 @@ function TimeGrid({
 
       <div className="cal-timegrid-body">
         <div className="cal-hours">
-          {HOURS.map((hour) => (
+          {hours.map((hour) => (
             <div key={hour} className="cal-hour-label">
               {String(hour).padStart(2, "0")}:00
             </div>
@@ -371,7 +400,7 @@ function TimeGrid({
           const iso = isoDate(day);
           return (
             <div key={iso} className="cal-daycol">
-              {HOURS.map((hour) => {
+              {hours.map((hour) => {
                 const slot = events.filter((event) => {
                   if (event.date !== iso || !event.startTime) return false;
                   return Number(event.startTime.slice(0, 2)) === hour;
@@ -510,6 +539,31 @@ export function dateLabel(date: string): string {
   });
 }
 
+function hoursForTimeGrid(days: Date[], events: CalendarEvent[]): number[] {
+  const visibleDates = new Set(days.map(isoDate));
+  let earliest = DEFAULT_START_HOUR;
+  let latest = DEFAULT_END_HOUR;
+
+  for (const event of events) {
+    if (!visibleDates.has(event.date) || !event.startTime) continue;
+    const startHour = timeHour(event.startTime);
+    if (startHour === undefined) continue;
+    const endHour = timeHour(event.endTime) ?? startHour;
+    earliest = Math.min(earliest, startHour - OUTLIER_PADDING_HOURS);
+    latest = Math.max(latest, endHour + OUTLIER_PADDING_HOURS);
+  }
+
+  const from = Math.max(0, earliest);
+  const to = Math.min(23, latest);
+  return Array.from({ length: to - from + 1 }, (_, index) => from + index);
+}
+
+function timeHour(value?: string): number | undefined {
+  if (!value) return undefined;
+  const hour = Number(value.slice(0, 2));
+  return Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : undefined;
+}
+
 export function eventNoteTypeClass(type: CalendarEventType): string {
   return `cal-note-type cal-note-type-${type.replace("_", "-")}`;
 }
@@ -546,28 +600,24 @@ export function CalendarDetailModal({ date, event, events, calendar, canManage, 
   // Resolve against refreshed data after edits; preserve selection while a reload is pending.
   const current = event ? calendar.all.find((item) => item.id === event.id) ?? event : null;
   const closeDetail = date ? () => onSelect(null) : onClose;
-  if (current) {
-    return <div className="cal-detail-drawer-host" onMouseDown={(click) => {
-      if (click.target === click.currentTarget) closeDetail();
-    }}>
-      <EventDrawer key={current.id} event={current} projects={calendar.projects}
-        departments={calendar.departments} contacts={calendar.contacts} canManage={canManage}
-        onChanged={calendar.reload} onClose={closeDetail} />
-    </div>;
-  }
 
-  return <DetailModal open={Boolean(date)} onOpenChange={(open) => { if (!open) onClose(); }}
-    title={date ? dateLabel(date) : "Events"}
-    description={`${items.length} events in the current filters`}
-    toolbar={date && onCreate ? <Button size="sm" onClick={() => onCreate(date)}><Plus aria-hidden /> Add Event</Button> : undefined}>
-    <div className="cal-date-modal-body">
-      {calendar.loading ? <LoadingState label="Loading events…" /> : calendar.error ?
-        <EmptyState title="Calendar unavailable" description={calendar.error} icon={CalendarDays} /> :
-        items.length ? <div className="cal-date-list">{items.map((item) =>
-          <StickyEventCard key={item.id} event={item} onOpen={onSelect} />)}</div> :
-          <EmptyState title="Nothing scheduled" description="No events for this date match the current filters." icon={CalendarDays} />}
-    </div>
-  </DetailModal>;
+  return <>
+    <DetailModal open={Boolean(date)} onOpenChange={(open) => { if (!open) onClose(); }}
+      title={date ? dateLabel(date) : "Events"}
+      description={`${items.length} events in the current filters`}
+      toolbar={date && onCreate ? <Button size="sm" onClick={() => onCreate(date)}><Plus aria-hidden /> Add Event</Button> : undefined}>
+      <div className="cal-date-modal-body">
+        {calendar.loading ? <LoadingState label="Loading events…" /> : calendar.error ?
+          <EmptyState title="Calendar unavailable" description={calendar.error} icon={CalendarDays} /> :
+          items.length ? <div className="cal-date-list">{items.map((item) =>
+            <StickyEventCard key={item.id} event={item} onOpen={onSelect} />)}</div> :
+            <EmptyState title="Nothing scheduled" description="No events for this date match the current filters." icon={CalendarDays} />}
+      </div>
+    </DetailModal>
+    {current && <EventDrawerDialog key={current.id} event={current} projects={calendar.projects}
+      departments={calendar.departments} contacts={calendar.contacts} canManage={canManage}
+      onChanged={calendar.reload} onClose={closeDetail} />}
+  </>;
 }
 
 export function EventPill({

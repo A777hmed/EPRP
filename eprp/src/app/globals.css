@@ -3893,16 +3893,17 @@ span.dash-plotkey { cursor: default; }
 .dark .cal-note-meta,
 .dark .cal-note-source { color: var(--dash-ink-soft); }
 
-.cal-detail-drawer-host {
-  position: fixed;
+.cal-detail-sheet {
   z-index: 70;
-  inset: 0;
-  display: flex;
-  justify-content: flex-end;
-  background: rgb(12 36 66 / 18%);
-}
-.cal-detail-drawer-host .cal-drawer {
   width: min(470px, calc(100vw - 16px));
+  max-width: 470px;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.cal-detail-sheet .cal-drawer {
+  width: 100%;
   height: 100dvh;
   max-height: 100dvh;
   border-radius: 12px 0 0 12px;
@@ -3993,7 +3994,8 @@ span.dash-plotkey { cursor: default; }
 .dash-cal-key .cal-note-type { color: var(--note-accent); }
 
 @media (max-width: 700px) {
-  .cal-detail-drawer-host .cal-drawer { width: min(100%, 470px); border-radius: 0; }
+  .cal-detail-sheet { width: min(100%, 470px); }
+  .cal-detail-sheet .cal-drawer { border-radius: 0; }
   [data-slot="dialog-content"]:has(.cal-date-modal-body) { width: calc(100vw - 16px); max-height: 86dvh; }
   .dash-cal-marks { gap: 3px; }
   .dash-cal-marks i { width: 24px; height: 16px; }

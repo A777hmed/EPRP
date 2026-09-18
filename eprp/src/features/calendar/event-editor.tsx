@@ -30,6 +30,12 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { StatusBadge } from "@/components/shared";
 import type { Contact, Department, Project } from "@/types";
 import {
@@ -99,18 +105,10 @@ function draftFrom(event: CalendarEvent | null, createOn: string | undefined, pr
 }
 
 export function EventDrawer(props: EventEditorProps) {
-  const { event, canManage, onClose } = props;
+  const { event, canManage } = props;
   const creating = !event;
   const derived = event?.origin === "derived";
   const [editing, setEditing] = React.useState(creating);
-
-  React.useEffect(() => {
-    const closeOnEscape = (keyEvent: KeyboardEvent) => {
-      if (keyEvent.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
 
   if (derived) return <DerivedDetail {...props} event={event} />;
   if (editing) return <EventForm {...props} onDoneEditing={() => setEditing(false)} />;
@@ -134,6 +132,30 @@ export function EventDrawer(props: EventEditorProps) {
   );
 }
 
+/**
+ * Accessible modal host for the Calendar drawer.
+ *
+ * Radix Sheet owns focus entry, focus trapping, Escape dismissal, background
+ * inertness and restoring focus to whichever control opened the drawer. The
+ * Calendar-specific shell remains responsible only for the existing visual
+ * presentation and event actions.
+ */
+export function EventDrawerDialog(props: EventEditorProps) {
+  const title = props.event?.title || (props.createOn ? "New Event" : "Event details");
+
+  return (
+    <Sheet open onOpenChange={(open) => { if (!open) props.onClose(); }}>
+      <SheetContent className="cal-detail-sheet" showCloseButton={false}>
+        <SheetTitle className="sr-only">{title}</SheetTitle>
+        <SheetDescription className="sr-only">
+          View or edit this calendar event. Press Escape to close.
+        </SheetDescription>
+        <EventDrawer {...props} />
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 /* --------------------------------- Shell ---------------------------------- */
 
 function DrawerShell({
@@ -148,7 +170,7 @@ function DrawerShell({
   children: React.ReactNode;
 }) {
   return (
-    <aside className="cal-drawer" role="dialog" aria-modal="true" aria-label="Event details">
+    <section className="cal-drawer" aria-label="Event details">
       <header className="cal-drawer-head">
         <div>
           <h2>{title || "Untitled event"}</h2>
@@ -159,7 +181,7 @@ function DrawerShell({
         </button>
       </header>
       <div className="cal-drawer-body">{children}</div>
-    </aside>
+    </section>
   );
 }
 
