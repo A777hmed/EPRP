@@ -36,11 +36,14 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export function CalendarPreview({
   projectId,
   departmentId,
+  projectIds,
   canManage,
 }: {
   /** Driven by the Dashboard's global filters, so the panel follows the page. */
   projectId: string;
   departmentId: string;
+  /** Canonical Dashboard project scope; archived projects are absent. */
+  projectIds: readonly string[];
   canManage: boolean;
 }) {
   const [monthAnchor, setMonthAnchor] = React.useState(() => startOfMonth(new Date()));
@@ -56,8 +59,8 @@ export function CalendarPreview({
     [days]
   );
   const filters = React.useMemo<CalendarFilters>(
-    () => ({ projectId, departmentId, types: [] }),
-    [projectId, departmentId]
+    () => ({ projectId, departmentId, types: [], projectIds }),
+    [projectId, departmentId, projectIds]
   );
 
   const calendar = useCalendar(window, filters);

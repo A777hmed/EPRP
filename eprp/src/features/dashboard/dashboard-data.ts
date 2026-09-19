@@ -38,6 +38,7 @@ import { milestoneService } from "@/services/milestone-service";
 import { planningRollupService, type PlanningSnapshotRollup } from "@/services/planning-rollup-service";
 import { milestoneStates as deriveMilestoneStates, type MilestoneState } from "@/features/projects/milestone-state";
 import { deriveDashboardPlanningFigures } from "./planning-integration";
+import { dashboardProjectScope } from "./dashboard-project-scope";
 import type {
   Client,
   Contact,
@@ -189,7 +190,7 @@ export function useDashboardData(): DashboardData {
       setLoading(true);
       setError(undefined);
       try {
-        const [allProjects, weeklyList, monthlyList] = await Promise.all([
+        const [allProjects, allWeeklies, allMonthlies] = await Promise.all([
           projectService.getProjects(),
           weeklyReportService.list(),
           monthlyReportService.list(),
@@ -197,7 +198,7 @@ export function useDashboardData(): DashboardData {
         if (cancelled) return;
 
         /*
-         * ONE PROJECT UNIVERSE, DECIDED IN ONE PLACE.
+         * ONE CURRENT-MANAGEMENT PROJECT UNIVERSE, DECIDED IN ONE PLACE.
          *
          * This used to re-filter the list in React, because `projects_select`
          * was `USING (true)` and handed every project to every reader — so the
@@ -205,17 +206,19 @@ export function useDashboardData(): DashboardData {
          * and a Department User was told "0 of 5 reporting coverage" about four
          * projects that were not theirs.
          *
-         * `projects_select` is now `can_access_project(id)`, so the query
-         * itself returns exactly the reader's projects. Filtering again here
-         * would be a second implementation of the rule that could drift from
-         * the first — the defect this whole pass exists to remove. The
-         * Dashboard, the Projects register, every project picker and every
-         * report loader now get their universe from the same place.
+         * `projects_select` decides which projects the reader may access; it
+         * deliberately includes archived records so the Projects register and
+         * historical reports retain them. The Dashboard answers a narrower
+         * current-management question, so its one additional lifecycle rule is
+         * applied here before ANY project collection or calculation is built.
          *
          * "Absence is never zero" (§7.3) is unaffected: a project with no
          * report still contributes to no average and counts as Not Reported.
          */
-        const projectList = allProjects;
+        const projectList = dashboardProjectScope(allProjects);
+        const projectIds = new Set(projectList.map((project) => project.id));
+        const weeklyList = allWeeklies.filter((report) => projectIds.has(report.projectId));
+        const monthlyList = allMonthlies.filter((report) => projectIds.has(report.projectId));
 
         setProjects(projectList);
         setWeeklies(weeklyList);

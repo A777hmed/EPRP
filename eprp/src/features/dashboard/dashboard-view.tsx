@@ -105,6 +105,10 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
     () => new Set(scopedProjects.map((project) => project.id)),
     [scopedProjects]
   );
+  const dashboardProjectIds = React.useMemo(
+    () => data.projects.map((project) => project.id),
+    [data.projects]
+  );
 
   const reduced = useReducedMotion();
 
@@ -366,6 +370,7 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
         <CalendarPreview
           projectId={filters.projectId}
           departmentId={filters.departmentId}
+          projectIds={dashboardProjectIds}
           canManage={canManage}
         />
 
