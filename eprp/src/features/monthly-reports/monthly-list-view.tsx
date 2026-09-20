@@ -36,6 +36,7 @@ import {
 import { useMasterData } from "@/features/master-data";
 import type { Client, Contact, MonthlyReport, PortfolioGroup, Project } from "@/types";
 import { NOT_RECORDED, monthEndStatus, nameOf } from "./monthly-data";
+import { summarizeReportRegister } from "@/features/reports/register-summary";
 
 /**
  * Planning Integration 4A — the report's pinned snapshot only, never a
@@ -144,11 +145,16 @@ export function MonthlyReportsView() {
     );
   });
 
+  const summary = summarizeReportRegister(filtered, {
+    draft: ["draft"],
+    review: ["submitted", "under_review"],
+    approved: ["approved", "finalized", "locked", "archived"],
+  });
   const counts = {
-    total: reports.length,
-    draft: reports.filter((report) => report.status === "draft").length,
-    review: reports.filter((report) => ["submitted", "under_review"].includes(report.status)).length,
-    approved: reports.filter((report) => ["approved", "finalized", "locked", "archived"].includes(report.status)).length,
+    total: summary.total,
+    draft: summary.statusCounts.draft,
+    review: summary.statusCounts.review,
+    approved: summary.statusCounts.approved,
   };
 
   const clientOptions = clients
@@ -159,7 +165,7 @@ export function MonthlyReportsView() {
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div className="monthly-list-view">
+    <div className="monthly-list-view monthly-register-view">
       <div className="monthly-list-header">
         <div>
           <p className="monthly-eyebrow">Reporting register</p>
@@ -278,16 +284,33 @@ export function MonthlyReportsView() {
                           {report.reportNumber}
                         </Link>
                       </td>
-                      <td>
-                        {projectName(report.projectId)}
+                      <td className="monthly-register-project">
+                        <span
+                          className="monthly-register-primary"
+                          title={projectName(report.projectId)}
+                        >
+                          {projectName(report.projectId)}
+                        </span>
                         {(projectOf(report.projectId)?.code || groupName) && (
-                          <small className="block muted">
+                          <small
+                            className="block muted monthly-register-meta"
+                            title={[
+                              projectOf(report.projectId)?.code,
+                              groupName,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          >
                             {projectOf(report.projectId)?.code}
                             {groupName ? ` · ${groupName}` : ""}
                           </small>
                         )}
                       </td>
-                      <td>{clientName(report.projectId)}</td>
+                      <td className="monthly-register-client">
+                        <span title={clientName(report.projectId)}>
+                          {clientName(report.projectId)}
+                        </span>
+                      </td>
                       <td>{getMonthLabel(report.reportingMonth)}</td>
                       <td className="planned-value">{report.plannedProgress.toFixed(1)}%</td>
                       <td className="actual-value">{report.actualProgress.toFixed(1)}%</td>
@@ -301,7 +324,14 @@ export function MonthlyReportsView() {
                           rollup={report.planningSnapshotId ? planningRollups.get(report.planningSnapshotId) : null}
                         />
                       </td>
-                      <td className="muted">{preparedByName(report)}</td>
+                      <td className="muted">
+                        <span
+                          className="monthly-register-compact-text"
+                          title={preparedByName(report)}
+                        >
+                          {preparedByName(report)}
+                        </span>
+                      </td>
                       <td>
                         <StatusBadge tone={status.tone}>{REPORT_STATUS_META[report.status]?.label ?? status.label}</StatusBadge>
                       </td>

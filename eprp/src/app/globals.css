@@ -419,16 +419,64 @@
 .monthly-search-field input { width: 100%; height: 38px; padding: 0 10px 0 33px; border: 1px solid #c7d6e5; border-radius: 5px; background: white; color: #173b68; font: inherit; font-size: .74rem; }
 
 .monthly-list-card { margin-top: 16px; padding: 4px 14px; background: white; border: 1px solid #c9d8e7; border-radius: 8px; }
-.monthly-register-table { min-width: 1180px; }
-.monthly-register-table th:nth-child(1), .monthly-register-table td:nth-child(1) { width: 12%; }
-.monthly-register-table th:nth-child(2), .monthly-register-table td:nth-child(2) { width: 15%; }
+.monthly-register-view { max-width: 1560px; }
+.monthly-register-view .monthly-table-wrap {
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+}
+.monthly-register-table { min-width: 1600px; }
+.monthly-register-table th { white-space: nowrap; }
+.monthly-register-table th:nth-child(1), .monthly-register-table td:nth-child(1) { width: 128px; }
+.monthly-register-table th:nth-child(2), .monthly-register-table td:nth-child(2) { width: 250px; }
+.monthly-register-table th:nth-child(3), .monthly-register-table td:nth-child(3) { width: 190px; }
+.monthly-register-table th:nth-child(4), .monthly-register-table td:nth-child(4) { width: 110px; }
 .monthly-register-table th:nth-child(5), .monthly-register-table td:nth-child(5),
 .monthly-register-table th:nth-child(6), .monthly-register-table td:nth-child(6),
-.monthly-register-table th:nth-child(7), .monthly-register-table td:nth-child(7) { width: 7%; text-align: right; }
+.monthly-register-table th:nth-child(7), .monthly-register-table td:nth-child(7) { width: 86px; text-align: right; }
+.monthly-register-table th:nth-child(8), .monthly-register-table td:nth-child(8) { width: 190px; }
+.monthly-register-table th:nth-child(9), .monthly-register-table td:nth-child(9) { width: 170px; }
+.monthly-register-table th:nth-child(10), .monthly-register-table td:nth-child(10) { width: 135px; }
+.monthly-register-table th:nth-child(11), .monthly-register-table td:nth-child(11) { width: 120px; }
+.monthly-register-table th:nth-child(n + 4), .monthly-register-table td:nth-child(n + 4) { white-space: nowrap; }
+.monthly-register-table td:nth-child(5),
+.monthly-register-table td:nth-child(6),
+.monthly-register-table td:nth-child(7),
+.monthly-register-table td:nth-child(11) { font-variant-numeric: tabular-nums; }
+.monthly-register-project,
+.monthly-register-client {
+  hyphens: none;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.monthly-register-primary,
+.monthly-register-client > span {
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.monthly-register-meta,
+.monthly-register-compact-text,
+.monthly-register-table td:nth-child(8) > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .monthly-row-action-cell { display: flex; align-items: center; gap: 6px; }
 .monthly-row-action-cell a { white-space: nowrap; }
 .monthly-register-table td { vertical-align: middle; }
-.monthly-register-table th:last-child, .monthly-register-table td:last-child { width: 15%; }
+.monthly-register-table th:last-child,
+.monthly-register-table td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  width: 94px;
+  background: white;
+  box-shadow: -1px 0 #e0e7ef;
+}
+.monthly-register-table th:last-child { z-index: 2; }
 .monthly-register-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .monthly-register-actions a, .monthly-register-actions button { color: #0d59a8; background: none; border: 0; padding: 0; font: inherit; font-size: .67rem; font-weight: 700; cursor: pointer; }
 .monthly-register-actions a:hover, .monthly-register-actions button:hover { text-decoration: underline; }
@@ -3114,6 +3162,10 @@ button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset:
 .dark .monthly-list-card .monthly-table td {
   color: var(--dash-ink);
   border-bottom-color: var(--dash-edge);
+}
+.dark .monthly-list-card .monthly-register-table :is(th, td):last-child {
+  background: var(--dash-surface);
+  box-shadow: -1px 0 var(--dash-edge);
 }
 .dark .monthly-list-card .monthly-table td small { color: var(--dash-muted); }
 .dark .monthly-list-card .planned-value { color: var(--dash-blue); }

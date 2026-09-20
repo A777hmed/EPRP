@@ -59,6 +59,10 @@ import {
   SIGNED_OFF_STATUSES,
 } from "@/features/weekly-reports/utils";
 import { WeeklyStatusBadge } from "./weekly-status-badge";
+import {
+  latestPeriodCount,
+  summarizeReportRegister,
+} from "@/features/reports/register-summary";
 
 /**
  * Schedule variance for a register row.
@@ -288,18 +292,17 @@ export function WeeklyReportsView() {
   }, [reports, filters, projects]);
 
   const stats = React.useMemo(() => {
-    const all = reports ?? [];
+    const summary = summarizeReportRegister(visible, {
+      inProgress: IN_PROGRESS_STATUSES,
+      signedOff: SIGNED_OFF_STATUSES,
+    });
     return {
-      total: all.length,
-      inProgress: all.filter((r) => IN_PROGRESS_STATUSES.includes(r.status))
-        .length,
-      signedOff: all.filter((r) => SIGNED_OFF_STATUSES.includes(r.status))
-        .length,
-      thisWeek: weekOptions.length > 0
-        ? all.filter((r) => r.weekNumber === Math.max(...weekOptions)).length
-        : 0,
+      total: summary.total,
+      inProgress: summary.statusCounts.inProgress,
+      signedOff: summary.statusCounts.signedOff,
+      thisWeek: latestPeriodCount(visible, (report) => report.weekNumber),
     };
-  }, [reports, weekOptions]);
+  }, [visible]);
 
   const activeFilters =
     (filters.query ? 1 : 0) +
