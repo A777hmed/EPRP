@@ -57,7 +57,7 @@ import { ProjectProgressComparisonPanel } from "./components/progress-comparison
 import { ExpandedProgressCurveModal } from "./components/progress-curve-modal";
 import { SummaryDetailModal, type SummaryModalKind } from "./components/summary-modals";
 import { ProjectWorkspace, type ProjectWorkspaceSelection, type WorkspaceTab } from "./components/project-workspace";
-import { usePlanningProgressCurve } from "./use-planning-progress-curve";
+import { usePlanningProgressCurve, usePortfolioProgressCurve } from "./use-planning-progress-curve";
 import {
   BASIS_LABEL,
   EMPTY_DASHBOARD_FILTERS,
@@ -130,6 +130,8 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
       ? manualCurveProjectId
       : (planningCandidates[0]?.project.id ?? positions[0]?.project.id ?? "");
   const planningCurve = usePlanningProgressCurve(curveProjectId);
+  const activeProjectIds = React.useMemo(() => positions.map((position) => position.project.id), [positions]);
+  const portfolioTrend = usePortfolioProgressCurve(activeProjectIds);
   const [expandCurveOpen, setExpandCurveOpen] = React.useState(false);
 
   /* `milestones` (capped) still feeds the Milestones health axis below;
@@ -419,6 +421,7 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
         selectedProjectId={curveProjectId}
         onSelectProject={setManualCurveProjectId}
         curve={planningCurve}
+        portfolioTrend={portfolioTrend}
         reduced={reduced}
       />
 

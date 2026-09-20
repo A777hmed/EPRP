@@ -31,7 +31,7 @@ import {
   type CalendarEvent,
   type CalendarEventType,
 } from "./calendar-types";
-import { EventDrawerDialog } from "./event-editor";
+import { EventAgendaDetail, EventDrawerDialog } from "./event-editor";
 import {
   EMPTY_CALENDAR_FILTERS,
   addDays,
@@ -590,34 +590,98 @@ export function StickyEventCard({ event, onOpen, compact = false }: {
   </button>;
 }
 
-/** Shared date/list/detail navigation; editing is still owned by EventDrawer. */
+/**
+ * Shared date/list/detail navigation — ONE centered modal per date.
+ *
+ * Clicking a date opens this modal on the Day Agenda list; clicking an
+ * event REPLACES that same modal's content with the event's detail (a
+ * "← Back to [date]" control returns to the list) rather than stacking a
+ * second surface on top — a modal and the Sheet-based event editor must
+ * never be visible together. "Edit Event" is the one deliberate exception:
+ * it hands off to the full `EventDrawerDialog` Sheet, closing this modal
+ * first so the two never overlap, and returns here once the Sheet closes.
+ */
 export function CalendarDetailModal({ date, event, events, calendar, canManage, onSelect, onClose, onCreate }: {
   date: string | null; event: CalendarEvent | null; events: CalendarEvent[];
   calendar: UseCalendarResult; canManage: boolean;
   onSelect: (event: CalendarEvent | null) => void; onClose: () => void; onCreate?: (date: string) => void;
 }) {
+  const [editing, setEditing] = React.useState(false);
   const items = events.filter((item) => item.date === date);
   // Resolve against refreshed data after edits; preserve selection while a reload is pending.
   const current = event ? calendar.all.find((item) => item.id === event.id) ?? event : null;
-  const closeDetail = date ? () => onSelect(null) : onClose;
+
+  // Reset "editing" the moment the selected event changes (including to
+  // none) — adjusted during render rather than a useEffect, since it is
+  // state derived from a prop change, not a side effect.
+  const [lastEventId, setLastEventId] = React.useState<string | null>(current?.id ?? null);
+  if ((current?.id ?? null) !== lastEventId) {
+    setLastEventId(current?.id ?? null);
+    if (editing) setEditing(false);
+  }
+
+  const backToList = () => {
+    setEditing(false);
+    onSelect(null);
+  };
+
+  const title = current ? current.title?.trim() || "Untitled event" : date ? dateLabel(date) : "Events";
+  const description = current
+    ? current.projectName?.trim() || "Project not recorded"
+    : `${items.length} events in the current filters`;
 
   return <>
-    <DetailModal open={Boolean(date)} onOpenChange={(open) => { if (!open) onClose(); }}
-      title={date ? dateLabel(date) : "Events"}
-      description={`${items.length} events in the current filters`}
-      toolbar={date && onCreate ? <Button size="sm" onClick={() => onCreate(date)}><Plus aria-hidden /> Add Event</Button> : undefined}>
+    <DetailModal open={Boolean(date) && !editing} onOpenChange={(open) => { if (!open) onClose(); }}
+      title={title}
+      description={description}
+      onBack={current ? backToList : undefined}
+      backLabel={current && date ? `Back to ${shortDateLabel(date)}` : undefined}
+      toolbar={!current && date && onCreate ? <Button size="sm" onClick={() => onCreate(date)}><Plus aria-hidden /> Add Event</Button> : undefined}>
       <div className="cal-date-modal-body">
-        {calendar.loading ? <LoadingState label="Loading events…" /> : calendar.error ?
+        {current ? (
+          <EventAgendaDetail event={current} canManage={canManage} onChanged={calendar.reload}
+            onEdit={() => setEditing(true)} onBack={backToList} />
+        ) : calendar.loading ? <LoadingState label="Loading events…" /> : calendar.error ?
           <EmptyState title="Calendar unavailable" description={calendar.error} icon={CalendarDays} /> :
           items.length ? <div className="cal-date-list">{items.map((item) =>
-            <StickyEventCard key={item.id} event={item} onOpen={onSelect} />)}</div> :
+            <AgendaEventCard key={item.id} event={item} onOpen={onSelect} />)}</div> :
             <EmptyState title="Nothing scheduled" description="No events for this date match the current filters." icon={CalendarDays} />}
       </div>
     </DetailModal>
-    {current && <EventDrawerDialog key={current.id} event={current} projects={calendar.projects}
+    {current && editing && <EventDrawerDialog key={current.id} event={current} startEditing projects={calendar.projects}
       departments={calendar.departments} contacts={calendar.contacts} canManage={canManage}
-      onChanged={calendar.reload} onClose={closeDetail} />}
+      onChanged={calendar.reload} onClose={() => setEditing(false)} />}
   </>;
+}
+
+function shortDateLabel(date: string): string {
+  return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, {
+    weekday: "short", day: "numeric", month: "short",
+  });
+}
+
+/**
+ * One event card in the Day Agenda modal's list — a dedicated, grid-based
+ * layout (badge / title / project / time each on their own row) so a long
+ * title can never collide with the project line beneath it. Distinct from
+ * `StickyEventCard`, which stays the compact "paper note" used in the Month
+ * grid and the Dashboard mini-calendar, where cramming in a full layout
+ * would defeat the point of a compact preview.
+ */
+function AgendaEventCard({ event, onOpen }: { event: CalendarEvent; onOpen: (event: CalendarEvent) => void }) {
+  const meta = EVENT_TYPE_META[event.type];
+  const title = event.title?.trim() || "Untitled event";
+  const project = event.projectName?.trim() || "Project not recorded";
+  const timing = timeRangeLabel(event);
+  return (
+    <button type="button" className="cal-agenda-card" onClick={() => onOpen(event)}
+      aria-label={`Open ${title}, ${meta.label}, ${timing}, ${project}`}>
+      <span className={`cal-agenda-card-badge cal-chip cal-chip-${meta.tone}`}>{meta.short}</span>
+      <span className="cal-agenda-card-title">{title}</span>
+      <span className="cal-agenda-card-project">{project}</span>
+      <span className="cal-agenda-card-time">{timing}</span>
+    </button>
+  );
 }
 
 export function EventPill({

@@ -23,6 +23,7 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -32,8 +33,18 @@ import {
 import { cn } from "@/lib/utils";
 import { PanelEmpty } from "../dashboard-analytics";
 import type { ProjectPosition } from "../dashboard-data";
-import type { ProgressCurvePoint } from "../planning-integration";
+import type { PortfolioProgressPoint } from "../portfolio-progress";
 import { pct, signedPct, varianceTone } from "./dashboard-format";
+
+/** The subset of a curve point `PlanningCurveChart` actually reads — shared
+    structurally by a single project's `ProgressCurvePoint` and the
+    portfolio's `PortfolioProgressPoint`, so ONE chart draws both without a
+    cast. */
+export interface CurveLikePoint {
+  dataDate: string;
+  planned: number | null;
+  actual: number | null;
+}
 
 const AXIS = { fontSize: 10, fill: "var(--dash-muted)" } as const;
 const GRID = "var(--dash-hairline)";
@@ -48,6 +59,16 @@ function percentTooltip(value: unknown): string {
   return typeof value === "number" ? `${value.toFixed(1)}%` : "—";
 }
 
+/** Above this many sample dates, thin the displayed X-axis LABELS — never
+    the underlying data — so a dense time-phased baseline (one sample per
+    real schedule boundary date) doesn't collapse every tick into unreadable
+    overlapping text. */
+const MAX_X_AXIS_TICKS = 8;
+
+function xAxisTickInterval(sampleCount: number): number {
+  return sampleCount > MAX_X_AXIS_TICKS ? Math.ceil(sampleCount / MAX_X_AXIS_TICKS) - 1 : 0;
+}
+
 /** The chart alone — shared verbatim between the inline panel and the
     expanded analysis modal, so the two can never draw the same data two
     different ways. */
@@ -56,7 +77,7 @@ export function PlanningCurveChart({
   reduced,
   height = 220,
 }: {
-  curve: ProgressCurvePoint[] | undefined;
+  curve: CurveLikePoint[] | undefined;
   reduced: boolean;
   height?: number;
 }) {
@@ -101,7 +122,7 @@ export function PlanningCurveChart({
   return (
     <div className="dash-plot" role="img" aria-label="Planned and actual progress by Planning Snapshot Data Date">
       <ResponsiveContainer width="100%" height={height}>
-        <AreaChart data={rows} margin={{ top: 10, right: 14, bottom: 0, left: -16 }}>
+        <AreaChart data={rows} margin={{ top: 10, right: 14, bottom: 0, left: -4 }}>
           <defs>
             <linearGradient id="dashPlanningActualFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={ACTUAL} stopOpacity={0.22} />
@@ -109,9 +130,10 @@ export function PlanningCurveChart({
             </linearGradient>
           </defs>
           <CartesianGrid stroke={GRID} vertical={false} />
-          <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={false} dy={4} />
-          <YAxis unit="%" domain={[0, 100]} tick={AXIS} tickLine={false} axisLine={false} width={44} />
+          <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={false} dy={4} interval={xAxisTickInterval(rows.length)} />
+          <YAxis unit="%" domain={[0, 100]} tick={AXIS} tickLine={false} axisLine={false} width={50} />
           <Tooltip formatter={percentTooltip} cursor={{ stroke: GRID }} />
+          <Legend wrapperStyle={{ fontSize: 11 }} iconType="plainline" />
           <Area
             type="monotone"
             dataKey="planned"
@@ -135,6 +157,14 @@ export function PlanningCurveChart({
             activeDot={{ r: 4.5 }}
             isAnimationActive={!reduced}
             animationDuration={700}
+            // Real published snapshots only ever land at their own real Data
+            // Dates; the dense schedule-only samples added to time-phase
+            // Planned always carry a null Actual. connectNulls draws the
+            // line straight through those gaps to the NEXT real snapshot —
+            // it changes nothing about the data, only stops a schedule-only
+            // sample date from visually snapping a real chronological trend
+            // into an isolated dot.
+            connectNulls
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -206,6 +236,38 @@ export function PlanningFigureStrip({ position }: { position: ProjectPosition })
       <div className="dash-planning-figure">
         <dt>Coverage</dt>
         <dd>{typeof position.coveragePercent === "number" ? `${Math.round(position.coveragePercent)}%` : "N/A"}</dd>
+      </div>
+    </dl>
+  );
+}
+
+/** The Portfolio Progress equivalent of `PlanningFigureStrip` — Planned /
+    Actual / Variance / Coverage only, never SPI: SPI is an EV/PV ratio that
+    does not aggregate across un-weighted projects. Coverage reads as a
+    sample count ("N of M projects"), not a percentage, so a reader sees
+    exactly how many projects the mean is standing on at this date. */
+export function PortfolioFigureStrip({ point, totalProjects }: { point: PortfolioProgressPoint | undefined; totalProjects: number }) {
+  const planned = point?.planned ?? null;
+  const actual = point?.actual ?? null;
+  const variance = planned !== null && actual !== null ? actual - planned : null;
+  const sampleCount = point?.sampleCount ?? 0;
+  return (
+    <dl className="dash-planning-strip">
+      <div className="dash-planning-figure">
+        <dt>Planned</dt>
+        <dd>{pct(planned)}</dd>
+      </div>
+      <div className="dash-planning-figure">
+        <dt>Actual</dt>
+        <dd>{pct(actual)}</dd>
+      </div>
+      <div className={cn("dash-planning-figure", varianceClass(varianceTone(variance)))}>
+        <dt>Variance</dt>
+        <dd>{signedPct(variance)}</dd>
+      </div>
+      <div className="dash-planning-figure">
+        <dt>Coverage</dt>
+        <dd>{sampleCount} of {totalProjects} projects</dd>
       </div>
     </dl>
   );

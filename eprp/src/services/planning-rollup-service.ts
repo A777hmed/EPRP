@@ -1,5 +1,5 @@
 import type { IsoDate, PlanningSnapshot } from "@/types";
-import { computeRollupFromActivities, type SnapshotRollupMetrics } from "@/lib/planning-rollup";
+import { computeRollupFromActivities, rollupFromOpeningPosition, type SnapshotRollupMetrics } from "@/lib/planning-rollup";
 import { planningService } from "./planning-service";
 
 /**
@@ -44,6 +44,25 @@ function toRollup(snapshot: PlanningSnapshot, metrics: SnapshotRollupMetrics): P
   };
 }
 
+/**
+ * A Snapshot's real rollup figures, wherever they actually live.
+ *
+ * Most snapshots carry their own activities and roll up from them. A
+ * Snapshot promoted from an Opening Position (`sourceOpeningPositionId`)
+ * deliberately does NOT — "do not create fake history" — so its figures
+ * live on the Opening Position row instead; folding its (empty) activities
+ * would silently read null/null and drop a real governed position from
+ * every curve and KPI that reads this rollup.
+ */
+async function metricsForSnapshot(snapshot: PlanningSnapshot): Promise<SnapshotRollupMetrics> {
+  if (snapshot.sourceOpeningPositionId) {
+    const opening = await planningService.getOpeningPositionById(snapshot.sourceOpeningPositionId);
+    if (opening) return rollupFromOpeningPosition(opening);
+  }
+  const activities = await planningService.listSnapshotActivities(snapshot.id);
+  return computeRollupFromActivities(activities);
+}
+
 export const planningRollupService = {
   /**
    * The project's current (highest-version) published snapshot, or `null`
@@ -79,8 +98,7 @@ export const planningRollupService = {
     if (!snapshot) {
       throw new Error(`Planning snapshot ${snapshotId} was not found.`);
     }
-    const activities = await planningService.listSnapshotActivities(snapshotId);
-    return toRollup(snapshot, computeRollupFromActivities(activities));
+    return toRollup(snapshot, await metricsForSnapshot(snapshot));
   },
 
   /**
@@ -92,11 +110,6 @@ export const planningRollupService = {
    */
   async listPublishedSnapshotRollups(projectId: string): Promise<PlanningSnapshotRollup[]> {
     const snapshots = await planningService.listSnapshots(projectId);
-    return Promise.all(
-      snapshots.map(async (snapshot) => {
-        const activities = await planningService.listSnapshotActivities(snapshot.id);
-        return toRollup(snapshot, computeRollupFromActivities(activities));
-      })
-    );
+    return Promise.all(snapshots.map(async (snapshot) => toRollup(snapshot, await metricsForSnapshot(snapshot))));
   },
 };

@@ -865,6 +865,23 @@ export const planningService = {
   },
 
   /**
+   * One Opening Position by id, regardless of status — recovers the
+   * declared figures behind a Snapshot promoted from one
+   * (`PlanningSnapshot.sourceOpeningPositionId`), since that snapshot has
+   * no activities of its own to roll up. `getDraftOpeningPosition` cannot
+   * reach it once promoted: its status has already moved to `"promoted"`.
+   */
+  async getOpeningPositionById(id: string): Promise<PlanningOpeningPosition | null> {
+    const { data, error } = await client()
+      .from("planning_opening_positions")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw await readFailure("read the Opening Position", error);
+    return data ? mapOpeningPosition(data as PlanningOpeningPositionRow) : null;
+  },
+
+  /**
    * Declares a starting position for a project onboarded mid-execution.
    * Does not itself become Snapshot V1 — call `publishSnapshot` with the
    * returned id to promote it. "Do not create fake history": this never

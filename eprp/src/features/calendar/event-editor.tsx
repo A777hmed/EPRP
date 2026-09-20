@@ -54,6 +54,11 @@ export interface EventEditorProps {
   event: CalendarEvent | null;
   /** Set when creating: the date the user clicked. */
   createOn?: string;
+  /** Opens directly into the edit form instead of the read-only detail —
+      used when a caller already showed the read-only detail itself (the
+      Day Agenda modal) and "Edit Event" should not require a second click
+      once the Sheet takes over. */
+  startEditing?: boolean;
   projects: Project[];
   departments: Department[];
   contacts: Contact[];
@@ -108,7 +113,7 @@ export function EventDrawer(props: EventEditorProps) {
   const { event, canManage } = props;
   const creating = !event;
   const derived = event?.origin === "derived";
-  const [editing, setEditing] = React.useState(creating);
+  const [editing, setEditing] = React.useState(creating || Boolean(props.startEditing));
 
   if (derived) return <DerivedDetail {...props} event={event} />;
   if (editing) return <EventForm {...props} onDoneEditing={() => setEditing(false)} />;
@@ -156,6 +161,58 @@ export function EventDrawerDialog(props: EventEditorProps) {
   );
 }
 
+/**
+ * The event-detail content used INSIDE the Day Agenda modal (`calendar-
+ * workspace.tsx`'s `CalendarDetailModal`) — the same read-only detail
+ * `EventDrawer` shows, but with no `DrawerShell` of its own: the modal's own
+ * `DetailModal` header (title, "← Back to [date]") already carries that
+ * chrome, so a second header here would duplicate it, not replace it.
+ *
+ * "Edit Event" hands off to the Sheet-based `EventDrawerDialog` rather than
+ * an inline form — `onEdit` closes this modal first so it and the Sheet are
+ * never on screen together.
+ */
+export function EventAgendaDetail({
+  event,
+  canManage,
+  onChanged,
+  onEdit,
+  onBack,
+}: {
+  event: CalendarEvent;
+  canManage: boolean;
+  onChanged: () => Promise<void> | void;
+  onEdit: () => void;
+  onBack: () => void;
+}) {
+  const derived = event.origin === "derived";
+  return (
+    <div className="cal-agenda-detail">
+      <DetailBody event={event} />
+      {derived ? (
+        <div className="cal-detail-block">
+          <p className="cal-muted">
+            This entry comes from {event.sourceLabel ?? "another record"} and is not edited on the
+            calendar. Open the source to change it.
+          </p>
+          {event.sourceHref && (
+            <div className="cal-drawer-actions">
+              <Button asChild size="sm" variant="outline">
+                <Link href={event.sourceHref}>Open {event.sourceLabel ?? "source record"}</Link>
+              </Button>
+            </div>
+          )}
+        </div>
+      ) : canManage ? (
+        <div className="cal-drawer-actions">
+          <Button size="sm" onClick={onEdit}>Edit Event</Button>
+          <DeleteButton event={event} onChanged={onChanged} onClose={onBack} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /* --------------------------------- Shell ---------------------------------- */
 
 function DrawerShell({
@@ -195,7 +252,7 @@ function Row({ icon, label, value }: { icon: React.ReactNode; label: string; val
   );
 }
 
-function DetailBody({ event }: { event: CalendarEvent }) {
+export function DetailBody({ event }: { event: CalendarEvent }) {
   const meta = EVENT_TYPE_META[event.type];
   const eventDate = new Date(`${event.date}T00:00:00`).toLocaleDateString(undefined, {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
@@ -289,7 +346,7 @@ function DerivedDetail({ event, onClose }: EventEditorProps & { event: CalendarE
 
 /* --------------------------------- Delete ---------------------------------- */
 
-function DeleteButton({
+export function DeleteButton({
   event,
   onChanged,
   onClose,

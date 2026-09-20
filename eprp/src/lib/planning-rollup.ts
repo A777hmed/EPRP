@@ -153,3 +153,39 @@ function computeSpi(plannedValue: number | null, earnedValue: number | null): nu
   if (plannedValue <= 0) return null;
   return earnedValue / plannedValue;
 }
+
+/** Opening Position input this module reads for a Snapshot promoted from
+    one — see `rollupFromOpeningPosition`. */
+export interface OpeningPositionRollupInput {
+  plannedProgressPercent?: number;
+  actualProgressPercent?: number;
+}
+
+/**
+ * The rollup for a Snapshot promoted from an Opening Position.
+ *
+ * `computeRollupFromActivities` cannot see this snapshot's real figures: a
+ * project onboarded mid-execution declares ONE starting position and that
+ * promotes straight to Snapshot V1 with NO activities beneath it ("do not
+ * create fake history" — see `PlanningOpeningPosition`) — so folding zero
+ * activities always reads null/null, even though a real governed figure was
+ * declared. This reads that figure directly instead.
+ *
+ * Same nullability discipline as the activity-based rollup: a missing
+ * figure is `null`, never 0. `coveragePercent` is 100 only when BOTH
+ * figures were actually declared — otherwise 0, the same "how much can you
+ * trust this number" signal a single declared point can give.
+ */
+export function rollupFromOpeningPosition(opening: OpeningPositionRollupInput): SnapshotRollupMetrics {
+  const plannedProgress = isReported(opening.plannedProgressPercent) ? opening.plannedProgressPercent : null;
+  const actualProgress = isReported(opening.actualProgressPercent) ? opening.actualProgressPercent : null;
+  return {
+    plannedProgress,
+    actualProgress,
+    variance: plannedProgress !== null && actualProgress !== null ? actualProgress - plannedProgress : null,
+    plannedValue: null,
+    earnedValue: null,
+    spi: null,
+    coveragePercent: plannedProgress !== null && actualProgress !== null ? 100 : 0,
+  };
+}
