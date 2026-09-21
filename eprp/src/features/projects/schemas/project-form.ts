@@ -355,16 +355,10 @@ function addFinalIssues(values: BaseValues, ctx: z.RefinementCtx): void {
       !!values.actualStartDate,
       `Actual start date is required for ${statusLabel} projects`
     );
-    require(
-      ["plannedProgress"],
-      !Number.isNaN(values.plannedProgress),
-      "Planned progress is required once the project has started"
-    );
-    require(
-      ["actualProgress"],
-      !Number.isNaN(values.actualProgress),
-      "Actual progress is required once the project has started"
-    );
+    // Planned/Actual progress are no longer entered here — they are governed
+    // performance read from the project's Published Planning Snapshot
+    // (see GovernedPerformancePanel). Requiring them on this hidden pair
+    // would block Save on a field the user has no way to fix.
   }
   if (values.status === "completed") {
     require(

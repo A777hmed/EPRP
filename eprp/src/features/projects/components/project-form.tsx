@@ -42,14 +42,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/shared";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import {
-  OVERALL_STATUS_META,
   PRIORITY_META,
   PROJECT_LIFECYCLE_META,
 } from "@/lib/constants";
 import type {
   Client,
   Contact,
-  OverallStatus,
   PlanningOnboardingMode,
   Priority,
   Project,
@@ -98,6 +96,7 @@ import { RhfField } from "./form-field";
 import { ProjectFormSection } from "./project-form-section";
 import { ProjectScopeSummary } from "./project-scope-summary";
 import { LogoUploadField } from "./logo-upload-field";
+import { GovernedPerformancePanel } from "./governed-performance-panel";
 
 /* ------------------------- Local field shorthands ------------------------- */
 
@@ -985,9 +984,6 @@ function TextareaField({
 const statusOptions = (
   Object.keys(PROJECT_LIFECYCLE_META) as ProjectLifecycleStatus[]
 ).map((s) => ({ value: s, label: PROJECT_LIFECYCLE_META[s].label }));
-const overallOptions = (Object.keys(OVERALL_STATUS_META) as OverallStatus[]).map(
-  (s) => ({ value: s, label: OVERALL_STATUS_META[s].label })
-);
 const priorityOptions = (Object.keys(PRIORITY_META) as Priority[]).map((p) => ({
   value: p,
   label: PRIORITY_META[p].label,
@@ -1467,21 +1463,18 @@ export function ProjectForm({
 
       <ProjectFormSection
         title="4. Status & Progress"
-        description="Lifecycle, health, and progress figures."
+        description="Lifecycle and configuration you own here; performance is governed by Master Planning & Control."
         status={sectionStatuses[4]}
+        plain
       >
-        <SelectField control={control} name="status" label="Project Status" required options={statusOptions} />
-        <SelectField control={control} name="overallStatus" label="Overall Status" required options={overallOptions} />
-        <NumberField control={control} name="plannedProgress" label="Planned Progress (%)" min={0} max={100} description="Required once the project has started." />
-        <NumberField control={control} name="actualProgress" label="Actual Progress (%)" min={0} max={100} description="Required once the project has started." />
-        <ManagedSelectField control={control} name="currentPhaseId" label="Current Phase" required kind="projectPhase" placeholder="Search or select phase…" onMutated={markMasterTouched} />
-        <ManagedSelectField control={control} name="portfolioGroupId" label="Portfolio / Reporting Group" optional kind="portfolioGroup" placeholder="Search or select group…" allowClear onMutated={markMasterTouched} />
-        <SelectField control={control} name="priority" label="Priority" required options={priorityOptions} />
-        <PlanningOnboardingModeField value={onboardingMode} onChange={setOnboardingMode} />
-        <p className="text-xs text-muted-foreground sm:col-span-2">
-          Schedule variance and SPI are calculated automatically from planned
-          and actual progress.
-        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <SelectField control={control} name="status" label="Project Status" required options={statusOptions} />
+          <ManagedSelectField control={control} name="currentPhaseId" label="Current Phase" required kind="projectPhase" placeholder="Search or select phase…" onMutated={markMasterTouched} />
+          <SelectField control={control} name="priority" label="Priority" required options={priorityOptions} />
+          <ManagedSelectField control={control} name="portfolioGroupId" label="Portfolio / Reporting Group" optional kind="portfolioGroup" placeholder="Search or select group…" allowClear onMutated={markMasterTouched} />
+          <PlanningOnboardingModeField value={onboardingMode} onChange={setOnboardingMode} />
+        </div>
+        <GovernedPerformancePanel project={project} />
       </ProjectFormSection>
 
       <ProjectFormSection
