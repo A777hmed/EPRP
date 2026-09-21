@@ -113,14 +113,12 @@ export function CockpitSummary({
   return (
     <ReportSection title="Portfolio Position" note={hasReportingPeriods ? monthLabel : "No reporting period yet"}>
       <p className="exec-cockpit-coverage">
-        Monthly Basis Coverage — {aggregate.contributing} Approved
-        {aggregate.excludedDraft > 0 ? ` · ${aggregate.excludedDraft} Draft` : ""}
-        {aggregate.excludedMissing > 0 ? ` · ${aggregate.excludedMissing} Missing` : ""}
-        {` (${aggregate.contributing} of ${aggregate.totalProjects})`}
+        Monthly Reporting Governance — {aggregate.activeProjects} Active · {aggregate.submitted} Submitted ·{" "}
+        {aggregate.contributing} Approved · {aggregate.excludedDraft} Draft · {aggregate.excludedMissing} Missing
       </p>
 
       <div className="exec-kpi-card-grid">
-        <KpiCard label="Projects in View" value={aggregate.totalProjects} detail={`${aggregate.activeProjects} active`} />
+        <KpiCard label="Active Projects" value={aggregate.activeProjects} detail={`${aggregate.submitted} submitted`} />
         <KpiCard
           label="On Track"
           value={aggregate.health.on_track}
@@ -185,16 +183,16 @@ function AttentionRow({ item, onOpenBrief }: { item: AttentionItem; onOpenBrief:
     <li>
       <button type="button" className="exec-cockpit-row" onClick={() => onOpenBrief(item.projectId)}>
         <StatusBadge tone={item.priorityTone}>{item.priorityLabel}</StatusBadge>
-        <span className="exec-cockpit-row-text">{item.text}</span>
+        <span className="exec-cockpit-row-text" title={item.text}>{item.text}</span>
         <span className="exec-cockpit-row-meta">
-          <b>{item.projectName}</b>
+          <b className="exec-cockpit-project">{item.projectName}</b>
           {item.dueDate && (
-            <em className={item.overdue ? "exec-overdue" : undefined}>
+            <em className={`exec-cockpit-due${item.overdue ? " exec-overdue" : ""}`}>
               {item.overdue ? "Overdue " : "Due "}
               {shortDate(item.dueDate)}
             </em>
           )}
-          {item.ownerName && <em>{item.ownerName}</em>}
+          {item.ownerName && <em className="exec-cockpit-owner">{item.ownerName}</em>}
         </span>
       </button>
     </li>
@@ -205,25 +203,49 @@ function AttentionGroup({
   title,
   items,
   onOpenBrief,
+  compactColumns = false,
+  collapseAfter,
 }: {
   title: string;
   items: AttentionItem[];
   onOpenBrief: OpenBrief;
+  compactColumns?: boolean;
+  collapseAfter?: number;
 }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const listId = React.useId();
   if (items.length === 0) return null;
-  const shown = items.slice(0, 4);
+  const collapseLimit = collapseAfter ?? Number.POSITIVE_INFINITY;
+  const hasCollapsibleOverflow = items.length > collapseLimit;
+  const shown = hasCollapsibleOverflow && !expanded
+    ? items.slice(0, collapseLimit)
+    : compactColumns
+      ? items
+      : items.slice(0, 4);
   return (
-    <div className="exec-cockpit-group">
+    <div className={`exec-cockpit-group${compactColumns ? " exec-cockpit-critical" : ""}`}>
       <div className="exec-cockpit-group-head">
         <span>{title}</span>
         <small>{items.length}</small>
       </div>
-      <ul className="exec-cockpit-list">
+      <ul id={hasCollapsibleOverflow ? listId : undefined} className="exec-cockpit-list">
         {shown.map((item) => (
           <AttentionRow key={item.id} item={item} onOpenBrief={onOpenBrief} />
         ))}
       </ul>
-      {items.length > shown.length && <p className="exec-cockpit-more">+{items.length - shown.length} more</p>}
+      {hasCollapsibleOverflow ? (
+        <button
+          type="button"
+          className="exec-cockpit-overflow"
+          aria-expanded={expanded}
+          aria-controls={listId}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? "Show less" : `Show ${items.length - collapseLimit} more`}
+        </button>
+      ) : items.length > shown.length ? (
+        <p className="exec-cockpit-more">+{items.length - shown.length} more</p>
+      ) : null}
     </div>
   );
 }
@@ -240,8 +262,7 @@ export const CockpitAttention = React.forwardRef<
   HTMLDivElement,
   { rows: ProjectExecutiveRow[]; onOpenBrief: OpenBrief }
 >(function CockpitAttention({ rows, onOpenBrief }, ref) {
-  const { decisions, risks, clientActions, overdue, struggling } = buildManagementAttention(rows);
-  const nothingElse = risks.length === 0 && clientActions.length === 0 && overdue.length === 0 && struggling.length === 0;
+  const { decisions, risks, clientActions, overdue } = buildManagementAttention(rows);
 
   return (
     <div ref={ref}>
@@ -253,7 +274,7 @@ export const CockpitAttention = React.forwardRef<
           </div>
           {decisions.length ? (
             <ul className="exec-cockpit-list">
-              {decisions.slice(0, 4).map((item) => (
+              {decisions.map((item) => (
                 <AttentionRow key={item.id} item={item} onOpenBrief={onOpenBrief} />
               ))}
             </ul>
@@ -262,32 +283,18 @@ export const CockpitAttention = React.forwardRef<
           )}
         </div>
 
-        {nothingElse && decisions.length === 0 ? null : (
+        <AttentionGroup
+          title="Critical Risks / Issues"
+          items={risks}
+          onOpenBrief={onOpenBrief}
+          compactColumns
+          collapseAfter={3}
+        />
+
+        {(clientActions.length > 0 || overdue.length > 0) && (
           <div className="exec-cockpit-group-grid">
             <AttentionGroup title="Client Actions / Dependencies" items={clientActions} onOpenBrief={onOpenBrief} />
-            <AttentionGroup title="Critical Risks / Issues" items={risks} onOpenBrief={onOpenBrief} />
             <AttentionGroup title="Overdue Actions" items={overdue} onOpenBrief={onOpenBrief} />
-            {struggling.length > 0 && (
-              <div className="exec-cockpit-group">
-                <div className="exec-cockpit-group-head">
-                  <span>Delayed / Critical Projects</span>
-                  <small>{struggling.length}</small>
-                </div>
-                <ul className="exec-cockpit-list">
-                  {struggling.slice(0, 4).map((row) => (
-                    <li key={row.project.id}>
-                      <button type="button" className="exec-cockpit-row" onClick={() => onOpenBrief(row.project.id, "health")}>
-                        <StatusBadge tone={row.reading.tone}>{row.reading.label}</StatusBadge>
-                        <span className="exec-cockpit-row-text">{row.projectName}</span>
-                        <span className="exec-cockpit-row-meta">
-                          <b>{signed(row.variance)}</b>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
         )}
       </ReportSection>

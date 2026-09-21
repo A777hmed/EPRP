@@ -200,10 +200,10 @@ function cappedNote(total: number, ranked: string, note?: string): string | unde
   return parts.length ? parts.join(" ") : undefined;
 }
 
-function draftNote(rows: ProjectExecutiveRow[]): string | undefined {
-  const draft = rows.filter((row) => row.basis === "draft").length;
-  if (draft === 0) return undefined;
-  return `Includes ${draft} unapproved Monthly position${draft === 1 ? "" : "s"}.`;
+function approvedBasisNote(aggregate: PortfolioAggregate): string | undefined {
+  const excluded = aggregate.excludedDraft + aggregate.excludedMissing;
+  if (excluded === 0) return undefined;
+  return `${aggregate.excludedDraft} draft and ${aggregate.excludedMissing} missing project position${excluded === 1 ? "" : "s"} excluded.`;
 }
 
 export interface ExecutiveAnalyticsInput {
@@ -344,21 +344,21 @@ function assignSpans(panels: ExecPanel[]): ExecPanel[] {
 
 export function buildExecutivePanels(input: ExecutiveAnalyticsInput): ExecPanel[] {
   const { rows, aggregate, allMonthlies, visibleProjectIds, month } = input;
-  const reported = rows.filter((row) => row.monthly !== undefined);
-  const note = draftNote(reported);
+  const approved = rows.filter((row) => row.basis === "approved");
+  const note = approvedBasisNote(aggregate);
 
   const panels: ExecPanel[] = [
     // Row 1 — where the portfolio stands.
-    plannedVsActual(reported, note),
+    plannedVsActual(approved, note),
     portfolioTrend(allMonthlies, visibleProjectIds, month),
     healthDistribution(rows),
     // Row 2 — how it distributes, and what threatens it.
     lifecycleDistribution(rows),
-    varianceDistributionPanel(reported),
+    varianceDistributionPanel(approved),
     topRisksByPriority(rows),
     // Row 3 — where management attention goes.
-    actualProgress(reported, note),
-    behindPlan(reported, note),
+    actualProgress(approved, note),
+    behindPlan(approved, note),
     attentionRanking(aggregate),
     // Row 4 (folded into Row 3 by `assignSpans` when alone) — the governed
     // register's own position, read-only.
@@ -371,17 +371,24 @@ export function buildExecutivePanels(input: ExecutiveAnalyticsInput): ExecPanel[
 /* 1 · Planned vs Actual --------------------------------------------------- */
 
 function plannedVsActual(rows: ProjectExecutiveRow[], note?: string): ExecPanel {
-  if (rows.length === 0) {
+  const complete = rows.filter(
+    (row): row is ProjectExecutiveRow & { planned: number; actual: number } =>
+      typeof row.planned === "number" && typeof row.actual === "number"
+  );
+
+  if (complete.length === 0) {
     return {
       kind: "empty",
       id: "planned-actual",
       title: "Planned vs Actual by Project",
-      text: "No Monthly position reported for any project this month.",
+      text: "No approved Monthly position reports both Planned and Actual for this month.",
     };
   }
 
   // Widest gap first: the comparison exists to expose outliers.
-  const ordered = [...rows].sort((a, b) => (a.variance ?? 0) - (b.variance ?? 0)).slice(0, MAX_BARS);
+  const ordered = [...complete]
+    .sort((a, b) => (a.variance ?? Number.POSITIVE_INFINITY) - (b.variance ?? Number.POSITIVE_INFINITY))
+    .slice(0, MAX_BARS);
 
   return {
     kind: "hgrouped",
@@ -390,7 +397,7 @@ function plannedVsActual(rows: ProjectExecutiveRow[], note?: string): ExecPanel 
     subtitle: "Cumulative progress against plan",
     rows: ordered.map((row) => ({
       label: shortLabel(row),
-      values: [round1(row.planned ?? 0), round1(row.actual ?? 0)],
+      values: [round1(row.planned), round1(row.actual)],
     })),
     series: [
       { key: "planned", label: "Planned %", color: EXEC_PALETTE.navyLight },
@@ -398,7 +405,7 @@ function plannedVsActual(rows: ProjectExecutiveRow[], note?: string): ExecPanel 
     ],
     maxValue: 100,
     suffix: "%",
-    note: cappedNote(rows.length, "widest variance first", note),
+    note: cappedNote(complete.length, "widest variance first", note),
   };
 }
 
@@ -424,9 +431,7 @@ function portfolioTrend(
     return [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   };
 
-  const approved = group(visible.filter(isApprovedMonthly));
-  const useApproved = approved.length >= 2;
-  const months = useApproved ? approved : group(visible);
+  const months = group(visible.filter(isApprovedMonthly));
 
   if (months.length < 2) {
     return {
@@ -436,7 +441,7 @@ function portfolioTrend(
       text:
         months.length === 1
           ? "One reporting month so far — a trend needs at least two."
-          : "No Monthly Reports available to trend.",
+          : "No approved Monthly Reports available to trend.",
     };
   }
 
@@ -447,7 +452,7 @@ function portfolioTrend(
     kind: "trend",
     id: "trend",
     title: "Portfolio Trend",
-    subtitle: useApproved ? "Approved Monthly basis" : "Includes unapproved months",
+    subtitle: "Approved Monthly basis",
     categories: months.map(([key]) => monthLabelOf(key).replace(/ (\d{2})(\d{2})$/, " $2").toUpperCase()),
     series: [
       {
@@ -561,7 +566,8 @@ function topRisksByPriority(rows: ProjectExecutiveRow[]): ExecPanel {
 /* 6 · Variance distribution ------------------------------------------------ */
 
 function varianceDistributionPanel(rows: ProjectExecutiveRow[]): ExecPanel {
-  const counts = varianceDistribution(rows);
+  const reported = rows.filter((row) => typeof row.variance === "number");
+  const counts = varianceDistribution(reported);
   const slices = VARIANCE_BUCKET_ORDER.map((bucket) => ({
     name: VARIANCE_BUCKET_META[bucket].label,
     value: counts[bucket],
@@ -583,7 +589,7 @@ function varianceDistributionPanel(rows: ProjectExecutiveRow[]): ExecPanel {
     title: "Variance Distribution",
     subtitle: "Acceptable = within the on-schedule tolerance",
     slices,
-    total: rows.length,
+    total: reported.length,
     totalLabel: "Total Projects",
   };
 }
@@ -592,8 +598,8 @@ function varianceDistributionPanel(rows: ProjectExecutiveRow[]): ExecPanel {
 
 function actualProgress(rows: ProjectExecutiveRow[], note?: string): ExecPanel {
   const bars = rows
-    .filter((row) => typeof row.actual === "number")
-    .map((row) => ({ label: shortLabel(row), value: round1(row.actual ?? 0), color: EXEC_PALETTE.teal }))
+    .filter((row): row is ProjectExecutiveRow & { actual: number } => typeof row.actual === "number")
+    .map((row) => ({ label: shortLabel(row), value: round1(row.actual), color: EXEC_PALETTE.teal }))
     .sort((a, b) => b.value - a.value)
     .slice(0, MAX_BARS);
 
@@ -622,22 +628,25 @@ function actualProgress(rows: ProjectExecutiveRow[], note?: string): ExecPanel {
 /* 8 · Behind plan ---------------------------------------------------------- */
 
 function behindPlan(rows: ProjectExecutiveRow[], note?: string): ExecPanel {
-  const behind = rows
-    .filter((row) => (row.variance ?? 0) < 0)
-    .map((row) => ({ label: shortLabel(row), value: round1(row.variance ?? 0) }))
+  const reported = rows.filter(
+    (row): row is ProjectExecutiveRow & { variance: number } => typeof row.variance === "number"
+  );
+  const behind = reported
+    .filter((row) => row.variance < 0)
+    .map((row) => ({ label: shortLabel(row), value: round1(row.variance) }))
     .sort((a, b) => a.value - b.value)
     .slice(0, MAX_BARS);
 
-  const atOrAhead = rows.filter((row) => (row.variance ?? 0) >= 0).length;
+  const atOrAhead = reported.filter((row) => row.variance >= 0).length;
 
   if (behind.length === 0) {
     return {
       kind: "empty",
       id: "variance",
       title: "Behind Plan",
-      text: rows.length
-        ? `No project is behind plan — all ${rows.length} reported at or ahead of schedule.`
-        : "No Monthly position reported this month.",
+      text: reported.length
+        ? `No project is behind plan — all ${reported.length} approved positions reported at or ahead of schedule.`
+        : "No approved Monthly position reported a variance this month.",
     };
   }
 
@@ -650,7 +659,7 @@ function behindPlan(rows: ProjectExecutiveRow[], note?: string): ExecPanel {
     minValue: Math.min(...behind.map((row) => row.value)),
     suffix: "",
     note: cappedNote(
-      rows.filter((row) => (row.variance ?? 0) < 0).length,
+      behind.length,
       "furthest behind first",
       [atOrAhead ? `${atOrAhead} project${atOrAhead === 1 ? "" : "s"} at or ahead of plan.` : undefined, note]
         .filter(Boolean)

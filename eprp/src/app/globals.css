@@ -1022,8 +1022,8 @@ button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset:
 
 /* ------------------------------ Attention lists ------------------------------ */
 
-.exec-cockpit-decision { margin-bottom: 14px; }
-.exec-cockpit-group-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px 26px; }
+.exec-cockpit-decision { margin-bottom: 12px; padding: 10px 12px; border: 1px solid #cad9e8; border-left: 4px solid #a3333a; border-radius: 6px; background: #fbfdff; }
+.exec-cockpit-group-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 20px; padding-top: 2px; }
 .exec-cockpit-group { min-width: 0; }
 .exec-cockpit-group-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; color: #33506f; font-size: .72rem; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
 .exec-cockpit-group-head small { min-width: 18px; padding: 1px 6px; border-radius: 999px; background: #eef3f9; color: #33506f; font-size: .62rem; font-weight: 800; text-align: center; }
@@ -1032,10 +1032,10 @@ button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset:
 
 .exec-cockpit-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .exec-cockpit-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: start;
+  gap: 5px 8px;
   width: 100%;
   padding: 7px 8px;
   border: 0;
@@ -1049,11 +1049,35 @@ button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset:
 }
 .exec-cockpit-row:hover { background: #f0f5fa; }
 .exec-cockpit-row:focus-visible { outline: 2px solid #0d59a8; outline-offset: -2px; }
-.exec-cockpit-row-text { color: #2c4a72; font-size: .78rem; line-height: 1.4; flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
-.exec-cockpit-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: #6d84a0; font-size: .68rem; }
+.exec-cockpit-row-text { min-width: 0; color: #2c4a72; font-size: .78rem; line-height: 1.35; overflow-wrap: anywhere; }
+.exec-cockpit-row-meta { grid-column: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: #6d84a0; font-size: .68rem; }
 .exec-cockpit-row-meta b { color: #33506f; }
 .exec-cockpit-row-meta em { font-style: normal; color: #8494a7; }
+.exec-cockpit-decision .exec-cockpit-row {
+  grid-template-columns: max-content minmax(220px, 1fr) minmax(110px, .34fr) max-content minmax(90px, .28fr);
+  column-gap: 10px;
+  padding-block: 6px;
+}
+.exec-cockpit-decision .exec-cockpit-row-meta { display: contents; }
+.exec-cockpit-decision .exec-cockpit-project { grid-column: 3; }
+.exec-cockpit-decision .exec-cockpit-due { grid-column: 4; white-space: nowrap; }
+.exec-cockpit-decision .exec-cockpit-owner { grid-column: 5; min-width: 0; overflow-wrap: anywhere; }
+.exec-cockpit-critical { margin-bottom: 12px; padding: 8px 10px; border: 1px solid #dce6ef; border-radius: 6px; background: #fff; }
+.exec-cockpit-critical .exec-cockpit-group-head { margin-bottom: 4px; }
+.exec-cockpit-critical .exec-cockpit-row {
+  grid-template-columns: max-content minmax(220px, 1fr) minmax(110px, .34fr) max-content minmax(90px, .28fr);
+  column-gap: 10px;
+  padding-block: 5px;
+}
+.exec-cockpit-critical .exec-cockpit-row-meta { display: contents; }
+.exec-cockpit-critical .exec-cockpit-row-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.exec-cockpit-critical .exec-cockpit-project { grid-column: 3; }
+.exec-cockpit-critical .exec-cockpit-due { grid-column: 4; white-space: nowrap; }
+.exec-cockpit-critical .exec-cockpit-owner { grid-column: 5; min-width: 0; overflow-wrap: anywhere; }
 .exec-cockpit-more { margin: 4px 0 0 8px; color: #8494a7; font-size: .68rem; }
+.exec-cockpit-overflow { display: inline-flex; margin: 5px 0 0 8px; padding: 2px 0; border: 0; background: none; color: #315f91; font: inherit; font-size: .68rem; font-weight: 700; cursor: pointer; }
+.exec-cockpit-overflow:hover { color: #0d59a8; text-decoration: underline; }
+.exec-cockpit-overflow:focus-visible { outline: 2px solid #0d59a8; outline-offset: 2px; border-radius: 2px; }
 
 /* -------------------------------- Control bar ----------------------------- */
 
@@ -1338,31 +1362,15 @@ button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset:
 
 /* -------------------------- Full Project Data ------------------------------ */
 
-/*
- * The original dense table, now secondary and collapsed by default on
- * screen — Project Executive Status (the cards) is the primary view. Print
- * always shows the full table regardless of the on-screen toggle state; see
- * the print block below.
- */
-.exec-fulldata-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  margin-bottom: 10px;
-  padding: 7px 12px;
-  border: 1px solid #c5d5e5;
-  border-radius: 6px;
-  background: white;
-  color: #17477d;
-  font-size: .74rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-.exec-fulldata-toggle:hover { background: #f3f8fc; }
-.exec-fulldata-toggle svg { width: 14px; height: 14px; transition: transform .12s ease; }
-.exec-fulldata-toggle svg.is-open { transform: rotate(180deg); }
-.exec-fulldata-count { margin-left: 2px; padding: 1px 7px; border-radius: 999px; background: #eef3f9; color: #5b718c; font-size: .62rem; font-weight: 700; }
-.exec-fulldata-body.is-collapsed { display: none; }
+/* The cockpit is a single-project drill-down; the separate print mount keeps
+   the complete formal register without exposing an expand-all screen table. */
+.exec-fulldata-picker-row { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.exec-fulldata-picker { display: grid; gap: 5px; width: min(100%, 390px); color: #5b718c; font-size: .62rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.exec-fulldata-picker select { width: 100%; height: 36px; padding: 0 32px 0 10px; border: 1px solid #bdcfe0; border-radius: 5px; background: #fff; color: #173b68; font: inherit; font-size: .76rem; font-weight: 600; letter-spacing: normal; text-transform: none; }
+.exec-fulldata-picker select:focus-visible { outline: 2px solid #0d59a8; outline-offset: 2px; }
+.exec-fulldata-register-link { flex: none; padding-bottom: 8px; color: #0d59a8; font-size: .7rem; font-weight: 700; }
+.exec-fulldata-register-link:hover { text-decoration: underline; }
+.exec-fulldata-prompt { margin: 0; padding: 11px 12px; border: 1px dashed #d4e0eb; border-radius: 5px; color: #768ba2; font-size: .72rem; }
 
 /*
  * Headers WRAP at spaces; they never run on and they never break mid-word.
@@ -1505,14 +1513,22 @@ button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset:
 .exec-attention-list li:last-child { border-bottom: 0; }
 /* Each item opens that project's Executive Brief. Button reset so the row
    still reads as plain text, not as a form control. */
-.exec-attention-trigger { display: grid; gap: 3px; width: 100%; padding: 0 0 7px; border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.exec-attention-trigger { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 7px; width: 100%; padding: 0 0 7px; border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
 .exec-attention-list li:last-child .exec-attention-trigger { padding-bottom: 0; }
 .exec-attention-trigger:hover .exec-attention-text { color: #0d59a8; }
 .exec-attention-trigger:focus-visible { outline: 2px solid #0d59a8; outline-offset: 2px; border-radius: 3px; }
 .exec-attention-text { color: #2c4a72; font-size: .72rem; line-height: 1.4; overflow-wrap: anywhere; }
-.exec-attention-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: #6d7f94; font-size: .62rem; }
-.exec-attention-meta b { color: #17477d; }
-.exec-attention-meta em { font-style: normal; color: #8494a7; }
+.exec-attention-project { grid-column: 2; color: #17477d; font-size: .62rem; }
+.exec-attention-due, .exec-attention-owner { grid-column: 2; color: #8494a7; font-size: .62rem; font-style: normal; }
+.exec-attention-panel.is-decision .exec-attention-trigger {
+  grid-template-columns: max-content minmax(190px, 1fr) minmax(110px, .34fr) max-content minmax(90px, .25fr);
+  align-items: start;
+  column-gap: 9px;
+  padding-block: 5px;
+}
+.exec-attention-panel.is-decision .exec-attention-project { grid-column: 3; }
+.exec-attention-panel.is-decision .exec-attention-due { grid-column: 4; white-space: nowrap; }
+.exec-attention-panel.is-decision .exec-attention-owner { grid-column: 5; min-width: 0; overflow-wrap: anywhere; }
 
 /* -------------------------------- Milestones ------------------------------- */
 
@@ -1523,6 +1539,24 @@ button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset:
 .exec-milestone-table th:nth-child(4), .exec-milestone-table td:nth-child(4) { width: 15%; }
 .exec-milestone-table th:nth-child(5), .exec-milestone-table td:nth-child(5) { width: 12%; }
 .exec-milestone-table th:last-child, .exec-milestone-table td:last-child { width: 12%; }
+.exec-milestone-table.is-project-only th:nth-child(1), .exec-milestone-table.is-project-only td:nth-child(1) { width: 12%; }
+.exec-milestone-table.is-project-only th:nth-child(2), .exec-milestone-table.is-project-only td:nth-child(2) { width: auto; }
+.exec-milestone-table.is-project-only th:nth-child(3), .exec-milestone-table.is-project-only td:nth-child(3) { width: 16%; }
+.exec-milestone-table.is-project-only th:nth-child(4), .exec-milestone-table.is-project-only td:nth-child(4) { width: 14%; }
+.exec-milestone-table.is-project-only th:nth-child(5), .exec-milestone-table.is-project-only td:nth-child(5) { width: 14%; }
+.exec-milestone-table.is-project-only th:nth-child(6), .exec-milestone-table.is-project-only td:nth-child(6) { width: 14%; }
+.exec-milestone-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0 0 12px; border: 1px solid #d8e3ee; border-radius: 6px; background: #f8fafd; overflow: hidden; }
+.exec-milestone-summary > div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; padding: 9px 12px; border-right: 1px solid #e2eaf2; }
+.exec-milestone-summary > div:last-child { border-right: 0; }
+.exec-milestone-summary dt { color: #667a91; font-size: .6rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.exec-milestone-summary dd { margin: 0; color: #0d4d99; font-size: 1rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.exec-milestone-picker-row { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.exec-milestone-picker { display: grid; gap: 5px; width: min(100%, 390px); color: #5b718c; font-size: .62rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.exec-milestone-picker select { width: 100%; height: 36px; padding: 0 32px 0 10px; border: 1px solid #bdcfe0; border-radius: 5px; background: #fff; color: #173b68; font: inherit; font-size: .76rem; font-weight: 600; letter-spacing: normal; text-transform: none; }
+.exec-milestone-picker select:focus-visible { outline: 2px solid #0d59a8; outline-offset: 2px; }
+.exec-milestone-register-link { flex: none; padding-bottom: 8px; color: #0d59a8; font-size: .7rem; font-weight: 700; }
+.exec-milestone-register-link:hover { text-decoration: underline; }
+.exec-milestone-prompt { margin: 0; padding: 11px 12px; border: 1px dashed #d4e0eb; border-radius: 5px; color: #768ba2; font-size: .72rem; }
 
 /* --------------------------------- Snapshots ------------------------------- */
 
@@ -1576,14 +1610,14 @@ button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset:
  * card, not as a form control, while remaining a real, keyboard-reachable
  * control (§27 — no interaction may require hover alone).
  */
-.exec-project-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; }
+.exec-project-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); align-items: stretch; gap: 10px; }
 .exec-project-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   width: 100%;
   min-width: 0;
-  padding: 12px 14px;
+  padding: 11px 13px;
   border: 1px solid #dde7f1;
   border-radius: 8px;
   background: #ffffff;
@@ -1597,29 +1631,35 @@ button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset:
 .exec-project-card:hover { border-color: #9db8d4; box-shadow: 0 4px 14px rgb(19 47 79 / 10%); transform: translateY(-1px); }
 .exec-project-card:focus-visible { outline: 2px solid #0d59a8; outline-offset: 2px; }
 .exec-project-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.exec-project-card-head b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #0d4384; font-size: .86rem; line-height: 1.25; overflow-wrap: anywhere; }
+.exec-project-card-head > div { min-width: 0; }
+.exec-project-card-head b { display: block; color: #0d4384; font-size: .86rem; line-height: 1.25; overflow-wrap: anywhere; text-wrap: balance; }
 .exec-project-card-head small { display: block; margin-top: 2px; color: #7d8fa4; font-size: .64rem; }
-.exec-project-card-figures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px 0; border-top: 1px solid #e5ecf3; border-bottom: 1px solid #e5ecf3; }
-.exec-project-card-figures > div { display: grid; gap: 2px; }
+.exec-project-card-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; padding: 7px 0; border-top: 1px solid #e5ecf3; border-bottom: 1px solid #e5ecf3; }
+.exec-project-card-figures > div { display: grid; align-content: end; gap: 2px; min-width: 0; padding: 0 8px; border-right: 1px solid #edf2f7; }
+.exec-project-card-figures > div:first-child { padding-left: 0; }
+.exec-project-card-figures > div:last-child { padding-right: 0; border-right: 0; }
 .exec-project-card-figures span { color: #667a91; font-size: .56rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
 .exec-project-card-figures b { font-size: 1.02rem; }
-.exec-project-card-line { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: baseline; gap: 8px; font-size: .7rem; color: #2c4a72; line-height: 1.4; }
-.exec-project-card-line > span:last-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.exec-project-card-line { display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: baseline; gap: 7px; font-size: .7rem; color: #2c4a72; line-height: 1.35; }
+.exec-project-card-line > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.exec-project-card-line.is-exception > span:last-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .exec-project-card-label { color: #7386a0; font-size: .54rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .exec-project-card-decision {
   display: grid;
-  gap: 4px;
-  margin-top: 2px;
-  padding-top: 8px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: start;
+  gap: 7px;
+  margin-top: 1px;
+  padding-top: 7px;
   border-top: 1px dashed #dfe7f0;
   font-size: .7rem;
   color: #2c4a72;
   line-height: 1.4;
 }
-.exec-project-card-decision span { overflow-wrap: anywhere; }
+.exec-project-card-decision > span:last-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-width: 0; overflow: hidden; overflow-wrap: anywhere; }
 /* "View Executive Brief →" — a small, restrained affordance so a card's
    clickability never depends on the reader noticing a hover effect alone. */
-.exec-project-card-cta { margin-top: auto; padding-top: 8px; color: #0d59a8; font-size: .68rem; font-weight: 700; opacity: .85; }
+.exec-project-card-cta { margin-top: auto; padding-top: 5px; color: #0d59a8; font-size: .68rem; font-weight: 700; opacity: .85; }
 .exec-project-card:hover .exec-project-card-cta,
 .exec-project-card:focus-visible .exec-project-card-cta { opacity: 1; text-decoration: underline; }
 
@@ -2241,6 +2281,21 @@ button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset:
 @media (max-width: 1180px) {
   .exec-kpi-health { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .exec-attention-grid, .exec-snapshot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .exec-cockpit-decision .exec-cockpit-row,
+  .exec-cockpit-critical .exec-cockpit-row,
+  .exec-attention-panel.is-decision .exec-attention-trigger { grid-template-columns: max-content minmax(0, 1fr) minmax(100px, .34fr); }
+  .exec-cockpit-decision .exec-cockpit-project,
+  .exec-cockpit-critical .exec-cockpit-project,
+  .exec-attention-panel.is-decision .exec-attention-project { grid-column: 3; }
+  .exec-cockpit-decision .exec-cockpit-due,
+  .exec-cockpit-decision .exec-cockpit-owner,
+  .exec-cockpit-critical .exec-cockpit-due,
+  .exec-cockpit-critical .exec-cockpit-owner,
+  .exec-attention-panel.is-decision .exec-attention-due,
+  .exec-attention-panel.is-decision .exec-attention-owner { grid-column: 2 / -1; }
+  .exec-cockpit-critical .exec-cockpit-due { grid-column: 2; grid-row: 2; }
+  .exec-cockpit-critical .exec-cockpit-owner { grid-column: 3; grid-row: 2; }
+  .exec-milestone-summary { grid-template-columns: repeat(5, minmax(100px, 1fr)); overflow-x: auto; }
 }
 
 @media (max-width: 800px) {
@@ -2249,6 +2304,22 @@ button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset:
   .exec-filter-row select { max-width: none; flex-basis: 100%; }
   .exec-kpi-position, .exec-kpi-health, .exec-attention-grid, .exec-snapshot-grid,
   .exec-figure-row, .exec-snapshot-figures, .exec-funnel-impact-row { grid-template-columns: 1fr; }
+  .exec-cockpit-decision .exec-cockpit-row,
+  .exec-cockpit-critical .exec-cockpit-row,
+  .exec-attention-panel.is-decision .exec-attention-trigger { grid-template-columns: max-content minmax(0, 1fr); }
+  .exec-cockpit-decision .exec-cockpit-project,
+  .exec-cockpit-decision .exec-cockpit-due,
+  .exec-cockpit-decision .exec-cockpit-owner,
+  .exec-cockpit-critical .exec-cockpit-project,
+  .exec-cockpit-critical .exec-cockpit-due,
+  .exec-cockpit-critical .exec-cockpit-owner,
+  .exec-attention-panel.is-decision .exec-attention-project,
+  .exec-attention-panel.is-decision .exec-attention-due,
+  .exec-attention-panel.is-decision .exec-attention-owner { grid-column: 2; }
+  .exec-cockpit-critical .exec-cockpit-due,
+  .exec-cockpit-critical .exec-cockpit-owner { grid-row: auto; }
+  .exec-milestone-picker-row, .exec-fulldata-picker-row { align-items: stretch; flex-direction: column; }
+  .exec-milestone-register-link, .exec-fulldata-register-link { padding-bottom: 0; }
   .exec-header-meta { flex-wrap: wrap; }
   .exec-drilldown-head { grid-template-columns: 1fr; }
   .exec-drilldown-status { justify-content: flex-start; }
@@ -2718,16 +2789,13 @@ button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset:
 
   /*
    * Executive UX Slice 2 — Project Executive Status prints as the fuller
-   * Snapshot-style card (`.exec-print-cards`), not the interactive one, and
-   * Full Project Data always prints in full regardless of its on-screen
-   * collapsed state. `!important` because these classes also set `display`
+   * Snapshot-style card (`.exec-print-cards`), not the interactive one.
+   * `!important` because these classes also set `display`
    * outside this media query — see `executive-project-brief.tsx`'s note on
    * why Tailwind's `print:`/`hidden` utilities are not used here instead.
    */
   .exec-project-card-grid { display: none !important; }
   .exec-print-cards { display: grid !important; }
-  .exec-fulldata-toggle { display: none !important; }
-  .exec-fulldata-body.is-collapsed { display: block !important; }
 
   /*
    * Executive UX final pass — the screen/print composition toggle. See the

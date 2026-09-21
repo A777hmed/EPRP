@@ -39,7 +39,7 @@ import {
   nextDueMilestone,
   openActionSummary,
   openItems,
-  readHealth,
+  readExecutiveHealth,
   selectOfficialMonthly,
   executiveFiguresFor,
   bySeverity,
@@ -47,7 +47,8 @@ import {
   type NamedRecord,
   type ProjectExecutiveRow,
 } from "./executive-data";
-import { visibleProjects, type ExecutiveScopeInput } from "./executive-scope";
+import { currentExecutiveProjects, type ExecutiveScopeInput } from "./executive-scope";
+import { currentExecutiveScope } from "./executive-current-scope";
 import { executiveNoteService, type ExecutiveNote, type NotesAvailability } from "./executive-notes";
 import { executiveRecordService, type ExecutiveReportRecord } from "./executive-record";
 
@@ -73,7 +74,7 @@ export interface ExecutivePortfolioState {
   availableMonths: string[];
   month: string;
   setMonth: (month: string) => void;
-  /** Total projects returned by the service, before the access filter. */
+  /** Current non-archived projects returned by the service, before access. */
   totalProjects: number;
   lastUpdated?: string;
   /** How many post-baseline weeks were inspected, for the coverage note. */
@@ -160,9 +161,10 @@ export function useExecutivePortfolio(
         ]);
         if (cancelled) return;
 
-        const nextVisible = visibleProjects(nextProjects, scope);
+        const nextCurrent = currentExecutiveScope(nextProjects);
+        const nextVisible = currentExecutiveProjects(nextProjects, scope);
 
-        setTotalProjects(nextProjects.length);
+        setTotalProjects(nextCurrent.length);
         setProjects(nextVisible);
         setAllMonthlies(nextMonthlies);
         setAllWeeklies(nextWeeklies);
@@ -433,10 +435,10 @@ export function useExecutivePortfolio(
       const projectName = project.name || project.code;
       const monthly = selection.report;
       const projectComments = monthly ? comments.get(monthly.id) ?? [] : [];
-      const figures = executiveFiguresFor(
+      const figures = selection.basis === "approved" ? executiveFiguresFor(
         monthly,
         monthly?.planningSnapshotId ? planningRollupsBySnapshot.get(monthly.planningSnapshotId) : null
-      );
+      ) : undefined;
 
       const attention = buildAttention({
         comments: projectComments,
@@ -483,7 +485,7 @@ export function useExecutivePortfolio(
         plansByWeekly: weeklyPlans,
       });
 
-      const reading = readHealth(monthly);
+      const reading = readExecutiveHealth(selection);
 
       /*
        * Key Concern is drawn from RISKS AND ISSUES ONLY.

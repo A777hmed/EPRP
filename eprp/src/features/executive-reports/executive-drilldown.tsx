@@ -54,6 +54,7 @@ import type {
 } from "@/types";
 import {
   MONTHLY_BASIS_META,
+  NOT_APPLICABLE,
   NOT_RECORDED,
   NO_MOVEMENT,
   availableMonths,
@@ -68,7 +69,7 @@ import {
   nextDueMilestone,
   openActionSummary,
   openItems,
-  readHealth,
+  readExecutiveHealth,
   selectOfficialMonthly,
   executiveFiguresFor,
   type MilestoneRow,
@@ -142,12 +143,18 @@ function useProjectDetail(projectId: string, scope: ExecutiveScopeInput, request
         ]);
         if (cancelled) return;
 
-        const milestoneStates = deriveMilestoneStates(milestoneRegister.milestones, milestoneRegister.updates);
-
         if (!project) {
           setDetail(null);
           return;
         }
+
+        // This panel is the CURRENT governed position. Archived projects keep
+        // their Monthly history below, but do not contribute a live milestone
+        // position to Executive management scope.
+        const milestoneStates =
+          project.status === "archived"
+            ? []
+            : deriveMilestoneStates(milestoneRegister.milestones, milestoneRegister.updates);
 
         // The same access predicate the portfolio applies. A project outside
         // the viewer's reach is refused here too, rather than being reachable
@@ -713,8 +720,11 @@ export function ExecutiveProjectDrilldown({
       project: detail.project,
       projectName,
       clientName: nameOf(detail.project.clientId, clients as NamedRecord[], NOT_RECORDED),
-      reading: readHealth(detail.selection.report),
-      figures: executiveFiguresFor(detail.selection.report, detail.planningRollup),
+      reading: readExecutiveHealth(detail.selection),
+      figures:
+        detail.selection.basis === "approved"
+          ? executiveFiguresFor(detail.selection.report, detail.planningRollup)
+          : undefined,
       attention,
       risks,
       decisions,
@@ -824,14 +834,14 @@ export function ExecutiveProjectDrilldown({
             <section className="exec-funnel-block">
               <h2 className="exec-tab-heading">Performance</h2>
               <div className="exec-figure-row exec-figure-row-3">
-                <Figure label="Planned" value={model.figures ? `${model.figures.planned.toFixed(1)}%` : NOT_RECORDED} className="planned-value" />
-                <Figure label="Actual" value={model.figures ? `${model.figures.actual.toFixed(1)}%` : NOT_RECORDED} className="actual-value" />
+                <Figure label="Planned" value={model.figures ? `${model.figures.planned.toFixed(1)}%` : NOT_APPLICABLE} className="planned-value" />
+                <Figure label="Actual" value={model.figures ? `${model.figures.actual.toFixed(1)}%` : NOT_APPLICABLE} className="actual-value" />
                 <Figure
                   label="Variance"
                   value={
                     model.figures && model.figures.variance !== null
                       ? `${model.figures.variance > 0 ? "+" : ""}${model.figures.variance.toFixed(1)}%`
-                      : NOT_RECORDED
+                      : NOT_APPLICABLE
                   }
                   className="variance-value"
                 />

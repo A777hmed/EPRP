@@ -26,6 +26,7 @@ import { MILESTONE_STATUS_META } from "@/lib/constants";
 import {
   EXEC_HEALTH_META,
   MONTHLY_BASIS_META,
+  NOT_APPLICABLE,
   NOT_REPORTED,
   NO_MOVEMENT,
   bySeverity,
@@ -83,10 +84,10 @@ function ExecutiveProjectCard({
     >
       <header className="exec-project-card-head">
         <div>
-          <b>{row.projectName}</b>
+          <b title={row.projectName}>{row.projectName}</b>
           <small>{row.clientName}</small>
         </div>
-        {row.basis !== "none" && <StatusBadge tone={row.reading.tone}>{row.reading.label}</StatusBadge>}
+        <StatusBadge tone={row.reading.tone}>{row.reading.label}</StatusBadge>
       </header>
 
       <StatusBadge tone={basis.tone} className={BASIS_BADGE_CLASS}>
@@ -96,19 +97,19 @@ function ExecutiveProjectCard({
       <div className="exec-project-card-figures">
         <div>
           <span>Planned</span>
-          <b className="planned-value">{row.basis === "none" ? "—" : pct(row.planned, 0)}</b>
+          <b className="planned-value">{row.basis === "approved" ? pct(row.planned, 0) : NOT_APPLICABLE}</b>
         </div>
         <div>
           <span>Actual</span>
-          <b className="actual-value">{row.basis === "none" ? "—" : pct(row.actual, 0)}</b>
+          <b className="actual-value">{row.basis === "approved" ? pct(row.actual, 0) : NOT_APPLICABLE}</b>
         </div>
         <div>
           <span>Variance</span>
-          <b className="variance-value">{row.basis === "none" ? "—" : signed(row.variance)}</b>
+          <b className="variance-value">{row.basis === "approved" ? signed(row.variance) : NOT_APPLICABLE}</b>
         </div>
       </div>
 
-      <div className="exec-project-card-line">
+      <div className="exec-project-card-line is-milestone">
         <span className="exec-project-card-label">Next Milestone</span>
         <span>
           {row.nextMilestone ? (
@@ -122,15 +123,17 @@ function ExecutiveProjectCard({
         </span>
       </div>
 
-      <div className="exec-project-card-line">
+      <div className="exec-project-card-line is-exception">
         <span className="exec-project-card-label">Top Exception</span>
-        <span>{row.keyConcern ? row.keyConcern.text : <span className="muted">No open risks or issues</span>}</span>
+        <span title={row.keyConcern?.text}>
+          {row.keyConcern ? row.keyConcern.text : <span className="muted">No open risks or issues</span>}
+        </span>
       </div>
 
       {flagged && (
         <div className="exec-project-card-decision">
           <StatusBadge tone={flagged.priorityTone}>{decision ? "Decision Required" : "Client Action"}</StatusBadge>
-          <span>{flagged.text}</span>
+          <span title={flagged.text}>{flagged.text}</span>
         </div>
       )}
 
@@ -160,7 +163,7 @@ function PrintProjectCard({ row, month }: { row: ProjectExecutiveRow; month: str
           <b>{row.projectName}</b>
           <small>{row.clientName}</small>
         </div>
-        {row.basis !== "none" && <StatusBadge tone={row.reading.tone}>{row.reading.label}</StatusBadge>}
+        <StatusBadge tone={row.reading.tone}>{row.reading.label}</StatusBadge>
       </header>
 
       <div className="exec-snapshot-basis">
@@ -183,15 +186,15 @@ function PrintProjectCard({ row, month }: { row: ProjectExecutiveRow; month: str
       <div className="exec-snapshot-figures">
         <div>
           <span>Planned</span>
-          <b className="planned-value">{row.basis === "none" ? "—" : pct(row.planned, 0)}</b>
+          <b className="planned-value">{row.basis === "approved" ? pct(row.planned, 0) : NOT_APPLICABLE}</b>
         </div>
         <div>
           <span>Actual</span>
-          <b className="actual-value">{row.basis === "none" ? "—" : pct(row.actual, 0)}</b>
+          <b className="actual-value">{row.basis === "approved" ? pct(row.actual, 0) : NOT_APPLICABLE}</b>
         </div>
         <div>
           <span>Variance</span>
-          <b className="variance-value">{row.basis === "none" ? "—" : signed(row.variance)}</b>
+          <b className="variance-value">{row.basis === "approved" ? signed(row.variance) : NOT_APPLICABLE}</b>
         </div>
       </div>
 
@@ -448,18 +451,18 @@ export function ExecutiveProjectBrief({
         <div className="exec-figure-row exec-figure-row-3">
           <div className="exec-figure">
             <span>Planned</span>
-            <b className="planned-value">{row.basis === "none" ? NOT_REPORTED : pct(row.planned)}</b>
+            <b className="planned-value">{row.basis === "approved" ? pct(row.planned) : NOT_APPLICABLE}</b>
           </div>
           <div className="exec-figure">
             <span>Actual</span>
-            <b className="actual-value">{row.basis === "none" ? NOT_REPORTED : pct(row.actual)}</b>
+            <b className="actual-value">{row.basis === "approved" ? pct(row.actual) : NOT_APPLICABLE}</b>
           </div>
           <div className="exec-figure">
             <span>Variance</span>
-            <b className="variance-value">{row.basis === "none" ? NOT_REPORTED : signed(row.variance)}</b>
+            <b className="variance-value">{row.basis === "approved" ? signed(row.variance) : NOT_APPLICABLE}</b>
           </div>
         </div>
-        {row.basis !== "none" && (
+        {row.basis === "approved" && (
           <p className="exec-tab-note exec-planning-note">
             <StatusBadge tone={row.planningBacked ? "info" : "neutral"}>
               {row.planningBacked ? "Planning-backed" : "Manual / Monthly fallback"}

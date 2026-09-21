@@ -46,6 +46,7 @@ import { useExecutivePortfolio } from "./use-executive-portfolio";
 import type { ExecutiveScopeInput } from "./executive-scope";
 import { buildExecutivePanels } from "./executive-panels";
 import type { ExecutiveDocumentModel } from "./executive-document";
+import { pct, signed } from "./executive-format";
 import { SignatoryEditor } from "./executive-signatory-panel";
 import {
   resolveSignatories,
@@ -263,21 +264,15 @@ export function ExecutiveWorkspaceView(props: ExecutiveViewerProps) {
           </div>
           <div className="exec-figure">
             <span>Planned</span>
-            <b className="planned-value">
-              {(aggregate.planned ?? aggregate.provisionalPlanned)?.toFixed(1) ?? "—"}%
-            </b>
+            <b className="planned-value">{pct(aggregate.planned)}</b>
           </div>
           <div className="exec-figure">
             <span>Actual</span>
-            <b className="actual-value">
-              {(aggregate.actual ?? aggregate.provisionalActual)?.toFixed(1) ?? "—"}%
-            </b>
+            <b className="actual-value">{pct(aggregate.actual)}</b>
           </div>
           <div className="exec-figure">
             <span>Variance</span>
-            <b className="variance-value">
-              {(aggregate.variance ?? aggregate.provisionalVariance)?.toFixed(1) ?? "—"}%
-            </b>
+            <b className="variance-value">{signed(aggregate.variance)}</b>
           </div>
         </div>
         <p className="exec-tab-note">{aggregate.basisNote}</p>

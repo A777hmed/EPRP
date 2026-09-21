@@ -29,6 +29,7 @@
 
 import type { Project } from "@/types";
 import { isProjectConsolidator } from "@/features/projects/assignment-rules";
+import { currentExecutiveScope } from "./executive-current-scope";
 
 export interface ExecutiveScopeInput {
   /** The `contacts` row this login is linked to, or null when unlinked. */
@@ -95,6 +96,20 @@ export function canAccessProject(project: Project, scope: ExecutiveScopeInput): 
 /** The projects a viewer may aggregate over. Order is preserved. */
 export function visibleProjects(projects: Project[], scope: ExecutiveScopeInput): Project[] {
   return projects.filter((project) => canAccessProject(project, scope));
+}
+
+/**
+ * Live Executive management scope: access-filtered AND non-archived.
+ *
+ * Keep this separate from {@link visibleProjects}. The latter intentionally
+ * remains access-only so historical Executive registers can still expose an
+ * archived project's retained Monthly history.
+ */
+export function currentExecutiveProjects(
+  projects: Project[],
+  scope: ExecutiveScopeInput
+): Project[] {
+  return currentExecutiveScope(visibleProjects(projects, scope));
 }
 
 /**

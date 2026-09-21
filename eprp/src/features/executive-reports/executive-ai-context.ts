@@ -84,11 +84,11 @@ export function buildAiContext(model: ExecutiveDocumentModel): AiContextPayload 
     projectCount: model.aggregate.totalProjects,
     approvedCount: model.aggregate.contributing,
     provisional: model.aggregate.noApprovedBasis,
-    // The provisional figures are sent when no approved basis exists, and the
-    // `provisional` flag above tells the assistant to caveat them.
-    planned: model.aggregate.planned ?? model.aggregate.provisionalPlanned,
-    actual: model.aggregate.actual ?? model.aggregate.provisionalActual,
-    variance: model.aggregate.variance ?? model.aggregate.provisionalVariance,
+    // Performance is approved-only. A draft is a governance exception, never
+    // an alternate numeric basis for generated Executive wording.
+    planned: model.aggregate.planned,
+    actual: model.aggregate.actual,
+    variance: model.aggregate.variance,
     healthCounts: EXEC_HEALTH_ORDER.filter((health) => model.aggregate.health[health] > 0).map((health) => ({
       label: EXEC_HEALTH_META[health].label,
       count: model.aggregate.health[health],
