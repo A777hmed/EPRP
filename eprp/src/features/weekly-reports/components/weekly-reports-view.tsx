@@ -38,21 +38,19 @@ import {
 } from "@/components/shared";
 import { REPORT_STATUS_META } from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
-import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
+import {
+  fetchGlobalRegisterProjects,
+  fetchGlobalWeeklyReportRegister,
+  type GlobalRegisterProject,
+  type GlobalWeeklyRegisterRow,
+} from "@/services/global-report-register";
 import {
   planningRollupService,
   type PlanningSnapshotRollup,
 } from "@/services/planning-rollup-service";
 import { useMasterData } from "@/features/master-data";
-import type {
-  Client,
-  Contact,
-  PortfolioGroup,
-  Project,
-  ReportStatus,
-  WeeklyReport,
-} from "@/types";
+import type { Client, Contact, PortfolioGroup, ReportStatus } from "@/types";
 import {
   countReceived,
   IN_PROGRESS_STATUSES,
@@ -112,7 +110,7 @@ function PlanningCell({
   report,
   rollup,
 }: {
-  report: WeeklyReport;
+  report: GlobalWeeklyRegisterRow;
   rollup: PlanningSnapshotRollup | null | undefined;
 }) {
   if (!report.planningSnapshotId || !rollup) {
@@ -157,22 +155,40 @@ const statusOrder: ReportStatus[] = [
 
 /**
  * /weekly-reports — READ-ONLY consolidated register across every project
- * the viewer can see (Top-Level Reporting 4A).
+ * on the platform (Top-Level Reporting 4A, Access Hotfix R5).
  *
  * This is not a creation or editing surface. Raising and editing a Weekly
  * Report happens inside its project, at
  * `/projects/[projectId]/reports/weekly/...` — this register only ever
  * links a row to the SAME detail/preview views those project-scoped routes
- * also open, never to a form. RLS (`weekly_reports_select`) is the only
- * thing that decides which rows appear; nothing here re-filters or widens
- * that set.
+ * also open, never to a form.
+ *
+ * Rows and project options come from `global_report_register_projects()` /
+ * `global_weekly_report_register()` — platform-wide, read-only register
+ * METADATA for every project and every report status, regardless of the
+ * viewer's own assignment (see
+ * `20260922000002_global_report_register_visibility.sql`). Opening a row
+ * still resolves through the ordinary detail-page authorization (approved+
+ * content, or full content for a project the viewer actually has), so this
+ * register never grants edit or draft-content access by itself.
+ *
+ * The Submissions "received/total" figure is department-level workflow
+ * content (`weekly_submissions`), deliberately NOT part of the global
+ * register projection — it is only ever computed for the subset of rows
+ * the viewer has ordinary project access to (via the existing RLS-gated
+ * `weeklyReportService`), and shown as "—" for every other row rather than
+ * a misleading "0/0".
  */
 export function WeeklyReportsView() {
-  const [reports, setReports] = React.useState<WeeklyReport[] | null>(null);
-  const [projects, setProjects] = React.useState<Map<string, Project>>(
+  const [reports, setReports] = React.useState<GlobalWeeklyRegisterRow[] | null>(
+    null
+  );
+  const [projects, setProjects] = React.useState<Map<string, GlobalRegisterProject>>(
     new Map()
   );
-  const [received, setReceived] = React.useState<Map<string, number>>(new Map());
+  const [submissionCounts, setSubmissionCounts] = React.useState<
+    Map<string, { received: number; total: number }>
+  >(new Map());
   const [planningRollups, setPlanningRollups] = React.useState<
     Map<string, PlanningSnapshotRollup | null>
   >(new Map());
@@ -192,18 +208,34 @@ export function WeeklyReportsView() {
     (async () => {
       try {
         const [reportList, projectList] = await Promise.all([
-          weeklyReportService.list(),
-          projectService.getProjects(),
+          fetchGlobalWeeklyReportRegister(),
+          fetchGlobalRegisterProjects(),
         ]);
-        const subCounts = await Promise.all(
-          reportList.map((r) => weeklyReportService.listSubmissions(r.id))
-        );
         if (cancelled) return;
         setProjects(new Map(projectList.map((p) => [p.id, p])));
-        setReceived(
-          new Map(reportList.map((r, i) => [r.id, countReceived(subCounts[i])]))
-        );
         setReports(reportList);
+
+        /*
+         * Submissions received/total: only ever computed for the reports
+         * the viewer has ordinary (RLS-gated) project access to — the
+         * global register carries no department-level submission content.
+         * `weeklyReportService.list()` here returns exactly that
+         * ordinary-access subset, same as it always has.
+         */
+        const ownReports = await weeklyReportService.list();
+        if (cancelled) return;
+        const ownSubCounts = await Promise.all(
+          ownReports.map((r) => weeklyReportService.listSubmissions(r.id))
+        );
+        if (cancelled) return;
+        setSubmissionCounts(
+          new Map(
+            ownReports.map((r, i) => [
+              r.id,
+              { received: countReceived(ownSubCounts[i]), total: r.submissionIds.length },
+            ])
+          )
+        );
 
         /*
          * Each report's OWN pinned snapshot, read by immutable id — never
@@ -255,7 +287,7 @@ export function WeeklyReportsView() {
     const groupId = projectOf(projectId)?.portfolioGroupId;
     return groupId ? portfolioGroups.find((g) => g.id === groupId)?.name : undefined;
   };
-  const preparedByName = (report: WeeklyReport) =>
+  const preparedByName = (report: GlobalWeeklyRegisterRow) =>
     report.preparedByContactId
       ? (contacts.find((c) => c.id === report.preparedByContactId)?.name ?? "Not assigned")
       : "Not assigned";
@@ -480,8 +512,7 @@ export function WeeklyReportsView() {
             </TableHeader>
             <TableBody>
               {visible.map((report) => {
-                const total = report.submissionIds.length;
-                const got = received.get(report.id) ?? 0;
+                const submissionSummary = submissionCounts.get(report.id);
                 const groupName = portfolioGroupName(report.projectId);
                 return (
                   <TableRow key={report.id}>
@@ -533,7 +564,9 @@ export function WeeklyReportsView() {
                       />
                     </TableCell>
                     <TableCell className="tabular-nums">
-                      {got}/{total}
+                      {submissionSummary
+                        ? `${submissionSummary.received}/${submissionSummary.total}`
+                        : <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {preparedByName(report)}

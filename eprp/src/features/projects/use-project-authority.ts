@@ -62,12 +62,30 @@ export function useProjectAuthority(
 
     const { contactId, isGlobalAuthority } = identity;
 
+    /*
+     * Access & Visibility hotfix — an archived project is historical and
+     * read-only (§D of the original hotfix ticket), for EVERY role,
+     * including the two global authorities. Before this, neither
+     * `canManageOperations` nor `canManageReporting` had any archived
+     * awareness at all, so "+ New Weekly Report" / "+ New Monthly Report"
+     * (`project-reporting-workspace.tsx`) and every Project Setup/
+     * Milestones/Deliverables action gated on this hook stayed offered on
+     * an archived project's own pages. This is PRESENTATION authority only
+     * — see the header comment — so this closes the button, not the write
+     * boundary; `can_manage_reporting_workflow()` / `can_manage_project_
+     * operations()` do not themselves check project status at the database
+     * layer today, which is a separate, deeper gap flagged in this
+     * session's completion report rather than closed here (closing it
+     * needs a new migration, which is out of scope for a button fix).
+     */
+    const archived = project.status === "archived";
+
     return {
-      canManageOperations: isProjectControlPlanning(project, contactId, {
-        isGlobalAuthority,
-      }),
+      canManageOperations:
+        !archived &&
+        isProjectControlPlanning(project, contactId, { isGlobalAuthority }),
       canManageReporting:
-        isGlobalAuthority || isProjectConsolidator(project, contactId),
+        !archived && (isGlobalAuthority || isProjectConsolidator(project, contactId)),
       canAccessProject:
         isGlobalAuthority || hasProjectAssignment(project, contactId),
       resolved: true,

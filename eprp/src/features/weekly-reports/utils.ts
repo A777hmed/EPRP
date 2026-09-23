@@ -35,8 +35,15 @@ export const IN_PROGRESS_STATUSES: ReportStatus[] = [
  */
 export const SIGNED_OFF_STATUSES: ReportStatus[] = APPROVED_REPORT_STATUSES;
 
+/** Same rule as {@link isEditableReport}, by status alone — for callers that
+ *  have not (or cannot) load the full report row, e.g. server-side route
+ *  authorization resolved from `getWeeklyViewerContext`'s `reportStatus`. */
+export function isEditableReportStatus(status: ReportStatus): boolean {
+  return ["draft", "collecting", "returned"].includes(status);
+}
+
 export function isEditableReport(report: WeeklyReport): boolean {
-  return ["draft", "collecting", "returned"].includes(report.status);
+  return isEditableReportStatus(report.status);
 }
 
 /**

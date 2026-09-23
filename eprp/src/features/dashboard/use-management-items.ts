@@ -10,7 +10,10 @@ import {
   normalizeWeeklyEntries,
   type NormalizedManagementItem,
 } from "./components/management-items";
-import type { MonthlyReport, WeeklyReport } from "@/types";
+import type {
+  DashboardMonthlyReportSummary,
+  DashboardWeeklyReportSummary,
+} from "@/services/dashboard-read-model";
 
 /**
  * The Project Workspace Management tab's source (Dashboard Data Depth,
@@ -36,8 +39,8 @@ export type ManagementSource =
     };
 
 export function useManagementItems(
-  projectWeeklies: WeeklyReport[],
-  projectMonthlies: MonthlyReport[]
+  projectWeeklies: DashboardWeeklyReportSummary[],
+  projectMonthlies: DashboardMonthlyReportSummary[]
 ): ManagementSource {
   const latestWeekly = React.useMemo(
     () => [...projectWeeklies].sort((a, b) => b.periodEnd.localeCompare(a.periodEnd))[0],

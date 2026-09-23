@@ -23,6 +23,7 @@ import {
   type PlanningSnapshotRollup,
 } from "@/services/planning-rollup-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
+import { fetchGlobalWeeklyReportDetail } from "@/services/global-report-register";
 import type {
   Project,
   ReportSignatory,
@@ -333,6 +334,20 @@ export function WeeklyReportPreview({
   const [reportLoadError, setReportLoadError] = React.useState<string | null>(
     null
   );
+  /**
+   * Distinguishes "genuinely does not exist" from "exists and is approved+,
+   * but this viewer has no ordinary project access" (Access & Visibility
+   * hotfix, R6). The print/PDF preview needs full department-level content
+   * (submissions, activities, entries) this hotfix does not expose
+   * cross-project, so a cross-project viewer is never handed a half-built
+   * document here — they are told plainly and pointed at the read-only
+   * summary view instead, which DOES render for them.
+   * `undefined` = not checked yet, `false` = checked and unavailable there
+   * either, `true` = available as a read-only summary elsewhere.
+   */
+  const [availableAsSummary, setAvailableAsSummary] = React.useState<
+    boolean | undefined
+  >(undefined);
   const names = useWeeklyNameLookup();
   const terms = useHierarchyTerms(project);
 
@@ -349,6 +364,7 @@ export function WeeklyReportPreview({
       setEntries([]);
       setPlanItems([]);
       setPlanningRollup(undefined);
+      setAvailableAsSummary(undefined);
 
       try {
         const r = await weeklyReportService.getById(reportId);
@@ -356,6 +372,12 @@ export function WeeklyReportPreview({
         setReport(r);
         if (!r) {
           setProjectLoadState("ready");
+          try {
+            const fallback = await fetchGlobalWeeklyReportDetail(reportId);
+            if (!cancelled) setAvailableAsSummary(Boolean(fallback));
+          } catch {
+            if (!cancelled) setAvailableAsSummary(false);
+          }
           return;
         }
 
@@ -441,6 +463,23 @@ export function WeeklyReportPreview({
   }
 
   if (report === null) {
+    if (!reportLoadError && availableAsSummary === undefined) {
+      return <LoadingState variant="page" label="Loading preview…" />;
+    }
+    if (availableAsSummary) {
+      return (
+        <EmptyState
+          icon={FileX}
+          title="Print preview is not available for this report"
+          description="This report is approved and viewable in read-only summary mode, but the full print/PDF layout needs department-level content that is only available inside its own project. Open the summary view instead."
+          action={
+            <Button variant="outline" asChild>
+              <Link href={`/weekly-reports/${reportId}`}>Open Read-Only Summary</Link>
+            </Button>
+          }
+        />
+      );
+    }
     return (
       <EmptyState
         icon={FileX}

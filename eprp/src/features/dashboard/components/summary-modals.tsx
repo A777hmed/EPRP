@@ -24,14 +24,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  BASIS_LABEL,
   HEALTH_META,
   overdueReports,
+  positionStatusLabel,
   type PortfolioTotals,
   type ProjectPosition,
 } from "../dashboard-data";
 import { healthStatusBadgeTone, pct, signedPct } from "./dashboard-format";
-import type { Contact, MonthlyReport, WeeklyReport } from "@/types";
+import type {
+  DashboardMonthlyReportSummary,
+  DashboardWeeklyReportSummary,
+} from "@/services/dashboard-read-model";
+import type { Contact } from "@/types";
 
 export type SummaryModalKind = "portfolio" | "coverage" | "onTrack" | "variance" | "overdue";
 
@@ -52,7 +56,7 @@ const SUBTITLE: Record<SummaryModalKind, string> = {
 };
 
 function basisCell(position: ProjectPosition): string {
-  return position.basis === "none" ? "Not Reported" : BASIS_LABEL[position.basis];
+  return positionStatusLabel(position);
 }
 
 function dataDateCell(position: ProjectPosition): string {
@@ -284,16 +288,16 @@ function ScheduleVarianceContent({ positions }: { positions: ProjectPosition[] }
 
 function OverdueReportsContent({
   positions,
-  weeklies,
-  monthlies,
+  overdueWeeklies,
+  overdueMonthlies,
   contacts,
 }: {
   positions: ProjectPosition[];
-  weeklies: WeeklyReport[];
-  monthlies: MonthlyReport[];
+  overdueWeeklies: DashboardWeeklyReportSummary[];
+  overdueMonthlies: DashboardMonthlyReportSummary[];
   contacts: Contact[];
 }) {
-  const rows = overdueReports(positions, weeklies, monthlies);
+  const rows = overdueReports(positions, overdueWeeklies, overdueMonthlies);
   const projectName = (projectId: string) => positions.find((p) => p.project.id === projectId)?.project.name ?? "—";
   const contactName = (contactId?: string) => (contactId ? contacts.find((c) => c.id === contactId)?.name : undefined);
 
@@ -351,8 +355,8 @@ export function SummaryDetailModal({
   onOpenChange,
   totals,
   positions,
-  weeklies,
-  monthlies,
+  overdueWeeklies,
+  overdueMonthlies,
   contacts,
   portfolioBasisNote,
 }: {
@@ -360,8 +364,8 @@ export function SummaryDetailModal({
   onOpenChange: (open: boolean) => void;
   totals: PortfolioTotals;
   positions: ProjectPosition[];
-  weeklies: WeeklyReport[];
-  monthlies: MonthlyReport[];
+  overdueWeeklies: DashboardWeeklyReportSummary[];
+  overdueMonthlies: DashboardMonthlyReportSummary[];
   contacts: Contact[];
   portfolioBasisNote: string;
 }) {
@@ -384,7 +388,12 @@ export function SummaryDetailModal({
       {rendered === "onTrack" && <ProjectsOnTrackContent positions={positions} />}
       {rendered === "variance" && <ScheduleVarianceContent positions={positions} />}
       {rendered === "overdue" && (
-        <OverdueReportsContent positions={positions} weeklies={weeklies} monthlies={monthlies} contacts={contacts} />
+        <OverdueReportsContent
+          positions={positions}
+          overdueWeeklies={overdueWeeklies}
+          overdueMonthlies={overdueMonthlies}
+          contacts={contacts}
+        />
       )}
     </DetailModal>
   );

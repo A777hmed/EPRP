@@ -15,6 +15,16 @@ import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
 import { planningRollupService, type PlanningSnapshotRollup } from "@/services/planning-rollup-service";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import {
+  fetchGlobalRegisterProjects,
+  fetchGlobalMonthlyReportDetail,
+  fetchGlobalMonthlyReportRegister,
+  fetchGlobalWeeklyReportRegister,
+} from "@/services/global-report-register";
+export {
+  globalMonthlyRowToReport,
+  globalWeeklyRowToReport,
+} from "./executive-register-adapters";
 import type {
   Client,
   Contact,
@@ -47,10 +57,15 @@ import {
   type NamedRecord,
   type ProjectExecutiveRow,
 } from "./executive-data";
-import { currentExecutiveProjects, type ExecutiveScopeInput } from "./executive-scope";
-import { currentExecutiveScope } from "./executive-current-scope";
+import { canAccessProject, type ExecutiveScopeInput } from "./executive-scope";
+
 import { executiveNoteService, type ExecutiveNote, type NotesAvailability } from "./executive-notes";
 import { executiveRecordService, type ExecutiveReportRecord } from "./executive-record";
+
+import {
+  globalMonthlyRowToReport,
+  globalWeeklyRowToReport,
+} from "./executive-register-adapters";
 
 /**
  * How many post-baseline Weekly reports are inspected per project for movement.
@@ -116,6 +131,7 @@ export function useExecutivePortfolio(
   const [loading, setLoading] = React.useState(true);
   const [projects, setProjects] = React.useState<Project[]>([]);
   const [totalProjects, setTotalProjects] = React.useState(0);
+  const [detailProjectIds, setDetailProjectIds] = React.useState<Set<string>>(new Set());
   const [allMonthlies, setAllMonthlies] = React.useState<MonthlyReport[]>([]);
   const [allWeeklies, setAllWeeklies] = React.useState<WeeklyReport[]>([]);
   /** Governed Master Milestone current state, keyed by project id — read-only. */
@@ -154,17 +170,72 @@ export function useExecutivePortfolio(
 
     const load = async () => {
       try {
-        const [nextProjects, nextMonthlies, nextWeeklies] = await Promise.all([
+        // Global directory is a deliberately narrow, read-only RPC. Never
+        // reinterpret a directory record as an operational Project.
+        const [directory, scopedProjects, registerMonthlies, nextWeeklies] = await Promise.all([
+          fetchGlobalRegisterProjects(),
           projectService.getProjects(),
-          monthlyReportService.list(),
-          weeklyReportService.list(),
+          fetchGlobalMonthlyReportRegister(),
+          fetchGlobalWeeklyReportRegister().then((rows) => rows.map(globalWeeklyRowToReport)),
         ]);
         if (cancelled) return;
 
-        const nextCurrent = currentExecutiveScope(nextProjects);
-        const nextVisible = currentExecutiveProjects(nextProjects, scope);
+        // Only assigned/full-portfolio viewers receive operational detail.
+        // The directory itself does not grant that entitlement.
+        const fullProjects = new Map(
+          scopedProjects
+            .filter((project) => canAccessProject(project, scope) &&
+              (scope.isAdmin || scope.portfolioReadTier === "full" ||
+                (scope.portfolioReadTier !== "published" && Boolean(scope.contactId))))
+            .map((project) => [project.id, project])
+        );
+        const nextVisible = directory
+          .filter((project) => project.status !== "archived")
+          .map((project) => fullProjects.get(project.id) ?? ({
+            // The narrow directory has no operational fields. These values
+            // are only an internal presentation shell; they are never saved.
+            id: project.id,
+            code: project.code,
+            name: project.name,
+            shortName: project.shortName,
+            status: project.status,
+            clientId: project.clientId ?? "",
+            projectManagerId: project.projectManagerId ?? "",
+            projectTypeId: project.projectTypeId,
+            portfolioGroupId: project.portfolioGroupId,
+            currentPhaseId: project.currentPhaseId,
+            forecastFinishDate: project.forecastFinishDate,
+            updatedAt: project.updatedAt,
+          } as Project));
+        const permitted = new Set(fullProjects.keys());
 
-        setTotalProjects(nextCurrent.length);
+        // The register exposes metadata, not recorded health. For approved
+        // reports read the existing guarded summary RPC; never load cross-
+        // project draft narratives or department-level content.
+        const nextMonthlies = await Promise.all(registerMonthlies.map(async (row) => {
+          const basic = globalMonthlyRowToReport(row);
+          if (!(["approved", "finalized", "locked"].includes(row.status) || permitted.has(row.projectId))) {
+            return basic;
+          }
+          try {
+            const detail = await fetchGlobalMonthlyReportDetail(row.id);
+            if (!detail) return basic;
+            return {
+              ...basic,
+              overallProgressStatus: detail.overallProgressStatus,
+              hseStatus: detail.hseStatus,
+              qualityStatus: detail.qualityStatus,
+              executiveSummary: detail.executiveSummary,
+              createdAt: detail.createdAt,
+            };
+          } catch {
+            return basic;
+          }
+        }));
+        if (cancelled) return;
+
+        setTotalProjects(nextVisible.length);
+        setDetailProjectIds(permitted);
         setProjects(nextVisible);
         setAllMonthlies(nextMonthlies);
         setAllWeeklies(nextWeeklies);
@@ -191,7 +262,7 @@ export function useExecutivePortfolio(
          * after deriving the frozen current-state read, never re-derived here.
          */
         const milestoneRegister = isSupabaseConfigured()
-          ? await milestoneService.listRegister(nextVisible.map((project) => project.id))
+          ? await milestoneService.listRegister([...permitted])
           : { milestones: [], updates: [] };
         if (cancelled) return;
 
@@ -232,11 +303,11 @@ export function useExecutivePortfolio(
   const projectIdKey = React.useMemo(() => [...visibleProjectIds].sort().join(","), [visibleProjectIds]);
 
   const reloadNotes = React.useCallback(async () => {
-    const ids = projectIdKey ? projectIdKey.split(",") : [];
+    const ids = projectIdKey ? projectIdKey.split(",").filter((id) => detailProjectIds.has(id)) : [];
     const result = await executiveNoteService.list(ids);
     setNotes(result.notes);
     setNotesAvailability(result.availability);
-  }, [projectIdKey]);
+  }, [projectIdKey, detailProjectIds]);
 
   React.useEffect(() => {
     void reloadNotes();
@@ -329,21 +400,21 @@ export function useExecutivePortfolio(
   const selectedReportIds = React.useMemo(
     () =>
       selections
-        .map(({ selection }) => selection.report?.id)
+        .map(({ project, selection }) => detailProjectIds.has(project.id) ? selection.report?.id : undefined)
         .filter((id): id is string => Boolean(id))
         .sort()
         .join(","),
-    [selections]
+    [selections, detailProjectIds]
   );
 
   const laterWeeklyIds = React.useMemo(
     () =>
-      [...laterWeeklies.values()]
+      [...laterWeeklies.entries()].filter(([projectId]) => detailProjectIds.has(projectId)).map(([, weeks]) => weeks)
         .flat()
         .map((weekly) => weekly.id)
         .sort()
         .join(","),
-    [laterWeeklies]
+    [laterWeeklies, detailProjectIds]
   );
 
   /** Distinct pinned Planning Snapshot ids among this period's selected
@@ -354,13 +425,13 @@ export function useExecutivePortfolio(
       [
         ...new Set(
           selections
-            .map(({ selection }) => selection.report?.planningSnapshotId)
+            .map(({ project, selection }) => detailProjectIds.has(project.id) ? selection.report?.planningSnapshotId : undefined)
             .filter((id): id is string => Boolean(id))
         ),
       ]
         .sort()
         .join(","),
-    [selections]
+    [selections, detailProjectIds]
   );
 
   React.useEffect(() => {
@@ -485,7 +556,11 @@ export function useExecutivePortfolio(
         plansByWeekly: weeklyPlans,
       });
 
-      const reading = readExecutiveHealth(selection);
+      // Register-only draft rows lack the recorded Monthly verdict. Never
+      // turn that missing protected verdict into a variance-derived claim.
+      const reading = !detailProjectIds.has(project.id) && selection.basis === "draft"
+        ? { health: "unknown" as const, label: "Status Restricted", tone: "neutral" as const, basis: "Draft Monthly health is not published for this viewer." }
+        : readExecutiveHealth(selection);
 
       /*
        * Key Concern is drawn from RISKS AND ISSUES ONLY.
@@ -508,6 +583,7 @@ export function useExecutivePortfolio(
       return {
         project,
         projectName,
+        detailAvailable: detailProjectIds.has(project.id),
         clientName: nameOf(project.clientId, clients as NamedRecord[], NOT_RECORDED),
         managerName: project.projectManagerId
           ? nameOf(project.projectManagerId, contacts as NamedRecord[], NOT_RECORDED)
@@ -551,6 +627,7 @@ export function useExecutivePortfolio(
     today,
     milestoneStatesByProject,
     planningRollupsBySnapshot,
+    detailProjectIds,
   ]);
 
   const milestones = React.useMemo(() => rows.flatMap((row) => row.milestones), [rows]);
@@ -582,3 +659,6 @@ export function useExecutivePortfolio(
     applyRecord,
   };
 }
+
+
+

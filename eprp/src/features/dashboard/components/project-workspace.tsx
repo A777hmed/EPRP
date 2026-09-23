@@ -42,7 +42,13 @@ import {
 } from "@/components/shared";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MilestoneDetail, MilestoneTimeline } from "../milestone-modal";
-import { BASIS_LABEL, HEALTH_META, type DashboardMilestone, type ProjectPosition } from "../dashboard-data";
+import {
+  BASIS_LABEL,
+  HEALTH_META,
+  positionStatusLabel,
+  type DashboardMilestone,
+  type ProjectPosition,
+} from "../dashboard-data";
 import { healthDrawerTone, healthStatusBadgeTone, pct, signedPct } from "./dashboard-format";
 import { activityProgressRows, coverageBreakdown } from "./planning-activity";
 import {
@@ -53,7 +59,12 @@ import {
 } from "./management-items";
 import { usePlanningSnapshotActivities } from "../use-planning-snapshot-activities";
 import { useManagementItems } from "../use-management-items";
-import type { Contact, Department, MonthlyReport, Project, ProjectPhase, WeeklyReport } from "@/types";
+import type {
+  DashboardMonthlyReportSummary,
+  DashboardProjectSummary,
+  DashboardWeeklyReportSummary,
+} from "@/services/dashboard-read-model";
+import type { Contact, Department, ProjectPhase } from "@/types";
 
 export type WorkspaceTab = "overview" | "performance" | "planning" | "milestones" | "reports" | "management";
 
@@ -73,7 +84,7 @@ export interface ProjectWorkspaceSelection {
 }
 
 function basisLabelOf(position: ProjectPosition): string {
-  return position.basis === "none" ? "Not Reported" : BASIS_LABEL[position.basis];
+  return positionStatusLabel(position);
 }
 
 function PerformanceContextRow({ position }: { position: ProjectPosition }) {
@@ -116,7 +127,9 @@ function OverviewTab({
       />
       <DrawerEmptyNote>
         {position.basis === "none"
-          ? "This project has no Weekly or Monthly report and no usable Planning Snapshot, so no schedule health can be derived — it is not counted as on track or as a failure."
+          ? position.reportingStatus === "pending_approval"
+            ? "This project has a Weekly or Monthly report in progress, but nothing approved yet, so no schedule health can be derived from it — it is not counted as on track or as a failure."
+            : "This project has no Weekly or Monthly report and no usable Planning Snapshot, so no schedule health can be derived — it is not counted as on track or as a failure."
           : "Schedule health is derived from the current variance band for this Dashboard position — no additional cause is recorded."}
       </DrawerEmptyNote>
 
@@ -323,8 +336,8 @@ function ReportsTab({
   monthlies,
 }: {
   position: ProjectPosition;
-  weeklies: WeeklyReport[];
-  monthlies: MonthlyReport[];
+  weeklies: DashboardWeeklyReportSummary[];
+  monthlies: DashboardMonthlyReportSummary[];
 }) {
   const latestWeekly = [...weeklies].sort((a, b) => b.periodEnd.localeCompare(a.periodEnd))[0];
   const latestMonthly = [...monthlies].sort((a, b) => (b.reportingMonth ?? "").localeCompare(a.reportingMonth ?? ""))[0];
@@ -427,8 +440,8 @@ function ManagementTab({
   contacts,
 }: {
   position: ProjectPosition;
-  weeklies: WeeklyReport[];
-  monthlies: MonthlyReport[];
+  weeklies: DashboardWeeklyReportSummary[];
+  monthlies: DashboardMonthlyReportSummary[];
   contacts: Contact[];
 }) {
   const meta = HEALTH_META[position.health];
@@ -510,8 +523,8 @@ export function ProjectWorkspace({
   positions: ProjectPosition[];
   milestones: DashboardMilestone[];
   projectPhases: ProjectPhase[];
-  weeklies: WeeklyReport[];
-  monthlies: MonthlyReport[];
+  weeklies: DashboardWeeklyReportSummary[];
+  monthlies: DashboardMonthlyReportSummary[];
   departments: Department[];
   contacts: Contact[];
 }) {
@@ -569,7 +582,7 @@ export function ProjectWorkspace({
     return <DetailDrawer open={false} onOpenChange={onOpenChange} title="">{null}</DetailDrawer>;
   }
 
-  const project: Project = position.project;
+  const project: DashboardProjectSummary = position.project;
 
   /* Nested milestone detail (§C2): nothing stacks another overlay — the
      drawer's own back control returns to the Milestones list inside this

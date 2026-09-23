@@ -5,7 +5,6 @@ import { cache } from "react";
 import { getCurrentUserIdentity } from "@/features/auth/profile";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { isEditableStatus } from "@/config/workflows";
 import type {
   MonthlyReportRow,
   ProjectContactRow,
@@ -17,6 +16,7 @@ import { rowToProject } from "@/services/supabase-project-service";
 import type { MonthlyReport, ProjectType } from "@/types";
 import { getWeeklyViewerScope } from "@/features/weekly-reports/viewer-scope";
 import type { WeeklyScope } from "@/features/weekly-reports/scope";
+import { monthlyEditability } from "./monthly-editability";
 
 /**
  * "Who is asking?" for a Monthly report, resolved on the server.
@@ -68,48 +68,6 @@ function rowToProjectType(row: ProjectTypeRow): ProjectType {
   };
 }
 
-/**
- * Whether this viewer may still write department input for this Monthly.
- *
- * Project Control keeps writing for as long as its own policies allow, so its
- * verdict does not depend on the round being open. Everyone else is bound by
- * `monthlyWorkflow.editableIn`, which is the same list
- * `monthly_report_accepts_department_input()` mirrors in SQL — so the control
- * offered and the write permitted cannot drift apart.
- */
-function monthlyEditability(
-  scope: WeeklyScope,
-  status: MonthlyReport["status"]
-): { canEdit: boolean; reason?: string } {
-  if (scope.capability === "none") {
-    return {
-      canEdit: false,
-      reason:
-        "You have no assignments on this project, so this Monthly Report is read-only for you.",
-    };
-  }
-  if (scope.capability === "portfolio_read") {
-    // Same distinction as the Weekly mirror (`scope.ts`'s weeklyEditability):
-    // a portfolio-wide READ grant working as designed, not a missing
-    // assignment — and never editable, regardless of the round being open.
-    return {
-      canEdit: false,
-      reason:
-        scope.portfolioReadTier === "published"
-          ? "You have Published Portfolio Read access. This Monthly Report is shown because it is finalized or locked; editing requires an assignment on this project."
-          : "You have Full Portfolio Read access to this project. Viewing only — editing requires an assignment on this project.",
-    };
-  }
-  if (scope.canConsolidate) return { canEdit: true };
-  if (!isEditableStatus("monthly", status)) {
-    return {
-      canEdit: false,
-      reason:
-        "This Monthly Report has left the department round, so your department input is read-only.",
-    };
-  }
-  return { canEdit: true };
-}
 
 export const getMonthlyViewerContext = cache(
   async (reportId: string): Promise<MonthlyViewerContext> => {
@@ -183,7 +141,7 @@ export const getMonthlyViewerContext = cache(
     return {
       demoMode: false,
       scope,
-      editability: monthlyEditability(scope, status),
+      editability: monthlyEditability(scope, status, project.status),
       reportStatus: status,
       viewerName: identity?.fullName,
       viewerRoleLabel: identity?.roleLabel,

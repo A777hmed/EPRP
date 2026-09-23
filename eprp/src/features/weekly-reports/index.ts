@@ -1,5 +1,6 @@
 export { WeeklyReportsView } from "./components/weekly-reports-view";
 export { WeeklyReportFormView } from "./components/weekly-report-form-view";
+export { WeeklyReportEditDenied } from "./components/weekly-report-edit-gate";
 export {
   WeeklyReportDetailView,
   type WeeklyReportLinks,

@@ -857,6 +857,7 @@ function ApprovalPanel({
   bundle,
   reload,
   canControlReportLifecycle,
+  contentEditable,
 }: {
   bundle: MonthlyReportBundle;
   reload: () => Promise<void>;
@@ -867,6 +868,20 @@ function ApprovalPanel({
    * (`isPreparationTransition`); everyone else keeps the full set.
    */
   canControlReportLifecycle: boolean;
+  /**
+   * Whether the report's CONTENT is open — `editability.canEdit`, i.e. not
+   * locked/finalized/archived and not an archived project. Deliberately a
+   * SEPARATE axis from `canControlReportLifecycle`: the Report Status control
+   * below must stay reachable at `finalized` and `locked` for whoever holds
+   * lifecycle authority (finalized → locked, locked → archived, and archive
+   * from most other states, are exactly the transitions that only happen once
+   * content is otherwise closed), mirroring how the Weekly detail page's own
+   * "Move to …" buttons are gated on scope alone, never on Weekly's own
+   * `editability.canEdit`. Reviewed By / Approved By are sign-off CONTENT,
+   * though, and stay governed by this flag — a closed report's sign-off
+   * cannot be rewritten even by someone who may still move its status.
+   */
+  contentEditable: boolean;
 }) {
   const { report, project, contacts } = bundle;
   const [reviewedBy, setReviewedBy] = React.useState(report.reviewedByContactId ?? project?.projectControlManagerId ?? "");
@@ -936,7 +951,11 @@ function ApprovalPanel({
       <div className="monthly-ws-grid">
         <label>
           Reviewed By
-          <select value={reviewedBy} onChange={(event) => setReviewedBy(event.target.value)}>
+          <select
+            value={reviewedBy}
+            disabled={!contentEditable}
+            onChange={(event) => setReviewedBy(event.target.value)}
+          >
             <option value="">Not recorded</option>
             {contacts.map((contact) => (
               <option key={contact.id} value={contact.id}>
@@ -947,7 +966,11 @@ function ApprovalPanel({
         </label>
         <label>
           Approved By
-          <select value={approvedBy} onChange={(event) => setApprovedBy(event.target.value)}>
+          <select
+            value={approvedBy}
+            disabled={!contentEditable}
+            onChange={(event) => setApprovedBy(event.target.value)}
+          >
             <option value="">Not recorded</option>
             {contacts.map((contact) => (
               <option key={contact.id} value={contact.id}>
@@ -1212,9 +1235,7 @@ export function MonthlyWorkspaceView({
    * they DO take for their OWN save button (`ApprovalPanel`'s Reviewed
    * By / Approved By / Save are not gated by `canControlReportLifecycle` at
    * all — only which Report Status options are offered is), and none was
-   * ever exercised with a viewer who has zero write authority. A portfolio
-   * reader (Phase B) is exactly that viewer, and now reaches this branch
-   * (see `departmentOnly` above).
+   * ever exercised with a viewer who has zero write authority.
    *
    * Rather than auditing and re-wiring every one of those panels' internal
    * controls individually, each is wrapped in a native `<fieldset disabled>`
@@ -1224,8 +1245,54 @@ export function MonthlyWorkspaceView({
    * suggestion — with zero risk of missing one field. `className="contents"`
    * removes the fieldset from layout entirely, so it changes nothing for
    * every other viewer, for whom `disabled` is always `false`.
+   *
+   * ACCESS & VISIBILITY HOTFIX: this used to disable the fieldsets only for
+   * a portfolio-wide reader (`scope.isPortfolioReadOnly`). A viewer with NO
+   * assignment on this project at all — `scope.capability === "none"` — has
+   * `isPortfolioReadOnly: false` (it is a different capability), zero
+   * `departmentIds` (so `departmentOnly` above never routes them to the
+   * restricted department view either), and fell straight through to this
+   * full multi-panel branch with every fieldset enabled. `editability.canEdit`
+   * is the general-purpose answer `monthlyEditability()` (in
+   * `monthly-viewer-context.ts`) already resolved server-side for every
+   * capability — none, portfolio_read, and the left-the-department-round
+   * case alike — so using it here closes all three at once instead of only
+   * the one case this previously named. A viewer with no resolved
+   * `editability` at all (demo mode, or a caller that never resolved one)
+   * keeps the pre-existing open behavior rather than being locked out of a
+   * workspace nothing here can explain access for.
    */
-  const isPortfolioReadOnly = viewer?.scope?.isPortfolioReadOnly ?? false;
+  const isReadOnlyWorkspace = viewer?.editability
+    ? !viewer.editability.canEdit
+    : false;
+
+  /*
+   * The Approval panel is deliberately NOT gated by `isReadOnlyWorkspace`.
+   *
+   * `editability.canEdit` (3A of the Access & Visibility hotfix) now closes
+   * once the report is `finalized`/`locked`/`archived` or its project is
+   * archived — correctly, for CONTENT. But finalized → locked, locked →
+   * archived, and archive from most other states are exactly the
+   * transitions a lifecycle authority performs ONCE content is otherwise
+   * closed; wrapping this panel in the same fieldset would have made those
+   * transitions unreachable through this workspace at all, a real
+   * regression this hotfix must not introduce. `canConsolidate` — the same
+   * authority `MonthlyCollectionPanel`'s `canManage` already gates on —
+   * decides whether the panel opens at all; `contentEditable` (passed to
+   * `ApprovalPanel` below) separately locks the sign-off fields once content
+   * closes, and `canControlReportLifecycle` (unchanged) restricts which
+   * Report Status options are offered. Three axes, not one conflated fieldset.
+   *
+   * The ONE thing this panel must still refuse regardless of authority: an
+   * ARCHIVED PROJECT. Unlike a report's own closed status (locked/finalized/
+   * archived, which the panel deliberately stays open through so a lifecycle
+   * authority can progress it), an archived project has nothing left to
+   * progress — every report on it is historical, and `weekly-report-detail-
+   * view.tsx`'s `projectArchived` guard applies the identical rule to
+   * Weekly's own transition buttons and Duplicate action.
+   */
+  const projectArchived = bundle.project?.status === "archived";
+  const canOpenApprovalPanel = (viewer?.scope ? viewer.scope.canConsolidate : true) && !projectArchived;
 
   return (
     <ProjectReportingShell
@@ -1251,14 +1318,16 @@ export function MonthlyWorkspaceView({
     >
     <div className="monthly-workspace space-y-4">
       {/*
-        The only viewer who reaches this full multi-panel branch with zero
-        write authority (Phase B's portfolio-wide read grant — see
-        `isPortfolioReadOnly` above) gets a plain statement of that fact,
-        the same message `monthlyEditability()` already resolved server-side.
-        Every other viewer here already had real authority before Phase B
-        existed, so this strip is new only for them.
+        Any viewer who reaches this full multi-panel branch with zero write
+        authority — a portfolio-wide reader (Phase B) or a viewer with no
+        assignment on this project at all (`isReadOnlyWorkspace` above) —
+        gets a plain statement of that fact, using the same reason
+        `monthlyEditability()` already resolved server-side for their exact
+        case. Every viewer who reaches this branch WITH authority already had
+        it before this strip existed, so it is new only for the read-only
+        ones.
       */}
-      {isPortfolioReadOnly && (
+      {isReadOnlyWorkspace && (
         <ReportViewerStrip
           title="Access & Scope"
           facts={[
@@ -1276,7 +1345,7 @@ export function MonthlyWorkspaceView({
             canEdit: false,
             message:
               viewer?.editability?.reason ??
-              "You have portfolio-wide read access. This workspace is read-only for you.",
+              "You do not have write access to this project. This workspace is read-only for you.",
           }}
         />
       )}
@@ -1324,17 +1393,17 @@ export function MonthlyWorkspaceView({
       */}
       <ReportSectionGroup numbered startAt={PANELS.findIndex((item) => item.key === panel) + 1}>
         {panel === "overview" && (
-          <fieldset disabled={isPortfolioReadOnly} className="contents">
+          <fieldset disabled={isReadOnlyWorkspace} className="contents">
             <OverviewPanel bundle={bundle} reload={reload} />
           </fieldset>
         )}
         {panel === "weekly" && (
-          <fieldset disabled={isPortfolioReadOnly} className="contents">
+          <fieldset disabled={isReadOnlyWorkspace} className="contents">
             <WeeklyPanel bundle={bundle} reload={reload} links={links} />
           </fieldset>
         )}
         {panel === "collection" && (
-          <fieldset disabled={isPortfolioReadOnly} className="contents">
+          <fieldset disabled={isReadOnlyWorkspace} className="contents">
             <MonthlyCollectionPanel
               bundle={bundle}
               /* No viewer resolved means the pre-existing behaviour: this workspace
@@ -1348,27 +1417,27 @@ export function MonthlyWorkspaceView({
             controls to disable — so it is not wrapped. */}
         {panel === "milestones" && <MilestonesPanel bundle={bundle} />}
         {panel === "comments" && (
-          <fieldset disabled={isPortfolioReadOnly} className="contents">
+          <fieldset disabled={isReadOnlyWorkspace} className="contents">
             <CommentsPanel bundle={bundle} reload={reload} />
           </fieldset>
         )}
         {panel === "management" && (
-          <fieldset disabled={isPortfolioReadOnly} className="contents">
+          <fieldset disabled={isReadOnlyWorkspace} className="contents">
             <MonthlyManagementPanel bundle={bundle} reload={reload} />
           </fieldset>
         )}
         {panel === "plan" && (
-          <fieldset disabled={isPortfolioReadOnly} className="contents">
+          <fieldset disabled={isReadOnlyWorkspace} className="contents">
             <PlanPanel bundle={bundle} reload={reload} />
           </fieldset>
         )}
         {panel === "summary" && (
-          <fieldset disabled={isPortfolioReadOnly} className="contents">
+          <fieldset disabled={isReadOnlyWorkspace} className="contents">
             <SummaryPanel bundle={bundle} reload={reload} />
           </fieldset>
         )}
         {panel === "approval" && (
-          <fieldset disabled={isPortfolioReadOnly} className="contents">
+          <fieldset disabled={!canOpenApprovalPanel} className="contents">
             <ApprovalPanel
               bundle={bundle}
               reload={reload}
@@ -1377,6 +1446,7 @@ export function MonthlyWorkspaceView({
               canControlReportLifecycle={
                 viewer?.scope ? viewer.scope.canControlReportLifecycle : true
               }
+              contentEditable={!isReadOnlyWorkspace}
             />
           </fieldset>
         )}

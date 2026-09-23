@@ -142,19 +142,30 @@ export function CockpitSummary({
         />
         <KpiCard
           label="Not Reported"
-          value={aggregate.health.unknown}
+          value={aggregate.excludedMissing}
           active={isActive("unknown")}
           onClick={() => onSelectHealth(["unknown"])}
         />
+        {aggregate.restrictedDraftHealth > 0 && (
+          <KpiCard
+            label="Draft Status Restricted"
+            value={aggregate.restrictedDraftHealth}
+            detail="Draft health is not published for this account"
+            active={isActive("unknown")}
+            onClick={() => onSelectHealth(["unknown"])}
+          />
+        )}
         <KpiCard
           label="Decisions Required"
-          value={aggregate.openDecisions}
+          value={aggregate.restrictedDetailProjects ? "—" : aggregate.openDecisions}
+          detail={aggregate.restrictedDetailProjects ? `Details restricted for ${aggregate.restrictedDetailProjects} project(s)` : undefined}
           tone={aggregate.openDecisions ? "tone-danger" : undefined}
           onClick={onFocusAttention}
         />
         <KpiCard
           label="Client Actions"
-          value={aggregate.clientPendingActions}
+          value={aggregate.restrictedDetailProjects ? "—" : aggregate.clientPendingActions}
+          detail={aggregate.restrictedDetailProjects ? "Partial visibility" : undefined}
           tone={aggregate.clientPendingActions ? "tone-warning" : undefined}
           onClick={onFocusAttention}
         />
@@ -263,6 +274,7 @@ export const CockpitAttention = React.forwardRef<
   { rows: ProjectExecutiveRow[]; onOpenBrief: OpenBrief }
 >(function CockpitAttention({ rows, onOpenBrief }, ref) {
   const { decisions, risks, clientActions, overdue } = buildManagementAttention(rows);
+  const restrictedCount = rows.filter((row) => row.detailAvailable === false).length;
 
   return (
     <div ref={ref}>
@@ -272,6 +284,9 @@ export const CockpitAttention = React.forwardRef<
             <span>Decisions Required</span>
             {decisions.length > 0 && <small>{decisions.length}</small>}
           </div>
+          {restrictedCount > 0 && decisions.length > 0 && (
+            <p className="exec-cockpit-note">Partial view: decision details are restricted for {restrictedCount} project(s).</p>
+          )}
           {decisions.length ? (
             <ul className="exec-cockpit-list">
               {decisions.map((item) => (
@@ -279,7 +294,11 @@ export const CockpitAttention = React.forwardRef<
               ))}
             </ul>
           ) : (
-            <p className="exec-cockpit-note">No decisions currently required.</p>
+            <p className="exec-cockpit-note">
+              {restrictedCount
+                ? `Decision details are restricted for ${restrictedCount} project(s); no conclusion can be drawn for the full portfolio.`
+                : "No decisions currently required."}
+            </p>
           )}
         </div>
 

@@ -1,7 +1,12 @@
 import type { HierarchyTerms } from "@/config/project-terminology";
 import { hierarchyTermsFor } from "@/config/project-terminology";
 import { isEditableStatus } from "@/config/workflows";
-import type { Project, ProjectType, ReportStatus } from "@/types";
+import type {
+  Project,
+  ProjectLifecycleStatus,
+  ProjectType,
+  ReportStatus,
+} from "@/types";
 import {
   assignedScopeItems,
   departmentAssignments,
@@ -413,10 +418,15 @@ export interface WeeklyEditability {
  * Read-only is the default: a lifecycle state past collection, or a scope
  * that reaches nothing, both mean the UI must render disabled controls with
  * a visible reason rather than inputs that fail on save.
+ *
+ * `projectStatus` is optional so existing callers that have not loaded the
+ * project row keep working (they simply skip the archived-project check
+ * below) — every caller that HAS the project loaded should pass it.
  */
 export function weeklyEditability(
   scope: WeeklyScope,
-  reportStatus: ReportStatus
+  reportStatus: ReportStatus,
+  projectStatus?: ProjectLifecycleStatus | null
 ): WeeklyEditability {
   if (scope.capability === "none") {
     return {
@@ -439,11 +449,44 @@ export function weeklyEditability(
           : "You have Full Portfolio Read access to this project. Viewing only — editing requires an assignment on this project.",
     };
   }
-  if (reportStatus === "locked" || reportStatus === "finalized") {
+  /*
+   * ACCESS & VISIBILITY HOTFIX — archived is read-only for EVERYONE, with no
+   * `canConsolidate` override.
+   *
+   * The project check comes first and is unconditional: an archived project
+   * is historical regardless of what any individual report on it says, and
+   * "archived" cascades even though `resolveWeeklyScope` never reads project
+   * status itself (Weekly capability is assignment-driven, not lifecycle-
+   * driven — that split is correct and untouched here).
+   *
+   * The report check below closes a second, narrower gap: `reportStatus ===
+   * "archived"` used to fall through every branch below (it is not "locked"/
+   * "finalized", not "approved", and IS admitted by `canConsolidate` even
+   * though `isEditableStatus` excludes it), so a project's own consolidator
+   * could still edit one of their OWN archived reports. Grouped with locked/
+   * finalized because the business rule is the same — "this report is a
+   * closed record" — even though archive is reachable from any live status
+   * (`report_transition_allowed`) rather than only from the end of the
+   * normal path.
+   */
+  if (projectStatus === "archived") {
     return {
       canEdit: false,
       reason:
-        "This report is locked. Changes require a new revision — locked reports stay immutable.",
+        "This project is archived. Archived projects are historical and read-only.",
+    };
+  }
+  if (
+    reportStatus === "locked" ||
+    reportStatus === "finalized" ||
+    reportStatus === "archived"
+  ) {
+    return {
+      canEdit: false,
+      reason:
+        reportStatus === "archived"
+          ? "This report is archived. Archived reports are historical and read-only."
+          : "This report is locked. Changes require a new revision — locked reports stay immutable.",
     };
   }
   if (reportStatus === "approved") {

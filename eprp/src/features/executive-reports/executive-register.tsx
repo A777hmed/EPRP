@@ -29,13 +29,18 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState, StatusBadge } from "@/components/shared";
 import { useMasterData } from "@/features/master-data";
-import { monthlyReportService } from "@/services/monthly-report-service";
-import { projectService } from "@/services/project-service";
+import { scheduleVariance } from "@/lib/reporting";
+import {
+  fetchGlobalMonthlyReportRegister,
+  fetchGlobalRegisterProjects,
+  type GlobalMonthlyRegisterRow,
+  type GlobalRegisterProject,
+} from "@/services/global-report-register";
 import {
   planningRollupService,
   type PlanningSnapshotRollup,
 } from "@/services/planning-rollup-service";
-import type { Client, MonthlyReport, PortfolioGroup, Project } from "@/types";
+import type { Client, PortfolioGroup } from "@/types";
 import {
   EXEC_HEALTH_META,
   EXEC_HEALTH_ORDER,
@@ -45,7 +50,6 @@ import {
   type ExecHealth,
 } from "./executive-data";
 import { executiveRecordService, EXECUTIVE_STATUS_LABEL, type ExecutiveReportRecord } from "./executive-record";
-import { visibleProjects } from "./executive-scope";
 import type { ExecutiveViewerProps } from "./executive-view";
 import { ExecutiveDenied } from "./executive-view";
 
@@ -58,10 +62,28 @@ import { ExecutiveDenied } from "./executive-view";
  * still be on track. Collapsing the two into one badge was the defect this
  * separates.
  */
-function summarizeHealth(reports: MonthlyReport[]): { worst: ExecHealth; counts: Partial<Record<ExecHealth, number>> } {
+/**
+ * `GlobalMonthlyRegisterRow` (the platform-wide register projection, Access
+ * & Visibility hotfix R6) carries no `overallProgressStatus` — that is
+ * report-level DETAIL, not register metadata (see
+ * `20260922000002_global_report_register_visibility.sql`'s own boundary).
+ * `readHealth()` still resolves a real reading from the register's own
+ * `plannedProgress`/`actualProgress`, via the SAME `scheduleVariance()`
+ * arithmetic the Weekly/Monthly registers already use — it simply never
+ * gets the "a human recorded X" branch, only the variance-derived one. A
+ * real, computed figure either way, never a placeholder.
+ */
+function healthOfRegisterRow(report: GlobalMonthlyRegisterRow) {
+  return readHealth({
+    scheduleVariance: scheduleVariance(report.plannedProgress, report.actualProgress),
+    overallProgressStatus: undefined,
+  });
+}
+
+function summarizeHealth(reports: GlobalMonthlyRegisterRow[]): { worst: ExecHealth; counts: Partial<Record<ExecHealth, number>> } {
   const counts: Partial<Record<ExecHealth, number>> = {};
   for (const report of reports) {
-    const { health } = readHealth(report);
+    const { health } = healthOfRegisterRow(report);
     counts[health] = (counts[health] ?? 0) + 1;
   }
   const worst = EXEC_HEALTH_ORDER.find((health) => (counts[health] ?? 0) > 0) ?? "unknown";
@@ -83,7 +105,7 @@ interface PlanningSummary {
  * latest or current snapshot (Planning Integration 3E / 4B).
  */
 function summarizePlanning(
-  approvedReports: MonthlyReport[],
+  approvedReports: GlobalMonthlyRegisterRow[],
   rollups: Map<string, PlanningSnapshotRollup | null>
 ): PlanningSummary {
   if (approvedReports.length === 0) {
@@ -154,8 +176,8 @@ interface RegisterRow {
  * not exist.
  */
 function buildRegister(
-  reports: MonthlyReport[],
-  projects: Project[],
+  reports: GlobalMonthlyRegisterRow[],
+  projects: GlobalRegisterProject[],
   clients: Client[],
   portfolioGroups: PortfolioGroup[],
   planningRollups: Map<string, PlanningSnapshotRollup | null>,
@@ -164,7 +186,7 @@ function buildRegister(
   const recordByMonth = new Map(records.map((record) => [record.reportingMonth.slice(0, 7), record]));
   const projectById = new Map(projects.map((project) => [project.id, project]));
 
-  const byMonth = new Map<string, MonthlyReport[]>();
+  const byMonth = new Map<string, GlobalMonthlyRegisterRow[]>();
   for (const report of reports) {
     const month = report.reportingMonth.slice(0, 7);
     byMonth.set(month, [...(byMonth.get(month) ?? []), report]);
@@ -174,7 +196,7 @@ function buildRegister(
     .sort((a, b) => b[0].localeCompare(a[0]))
     .map(([month, monthReports]) => {
       const projectIds = new Set(monthReports.map((report) => report.projectId));
-      const monthProjects = [...projectIds].map((id) => projectById.get(id)).filter((p): p is Project => Boolean(p));
+      const monthProjects = [...projectIds].map((id) => projectById.get(id)).filter((p): p is GlobalRegisterProject => Boolean(p));
 
       const clientNames = [
         ...new Set(
@@ -230,9 +252,27 @@ const defaultFilters: Filters = {
   basis: "all",
 };
 
+/**
+ * Register metadata (project directory + Monthly headline figures) is now
+ * PLATFORM-WIDE for any authenticated viewer — Access & Visibility hotfix
+ * R6, closing the same class of defect the Weekly/Monthly registers had in
+ * R5 (`global_report_register_projects()` / `global_monthly_report_
+ * register()`, `20260922000002_global_report_register_visibility.sql`).
+ * The register never carries unapproved NARRATIVE content (no comments, no
+ * plan items) — only counts, statuses and dates, same tier the SQL
+ * migration documents as safe register metadata. `visibleProjects()`
+ * (project-assignment scoping) is deliberately NOT applied here any more;
+ * it remains exactly as-is for the live Executive Portfolio detail page
+ * (`use-executive-portfolio.ts`), which reads real department-level content
+ * (comments, plan items) still gated by ordinary RLS — see that module's
+ * own header. `canManagePortfolio` (Edit/Archive/Delete the stored
+ * Executive record) is untouched by this change: this register still has
+ * no lifecycle/edit/approval action of any kind, only "Open"/"Preview"
+ * links.
+ */
 export function ExecutiveRegisterView(props: ExecutiveViewerProps) {
-  const [allProjects, setAllProjects] = React.useState<Project[]>([]);
-  const [allReports, setAllReports] = React.useState<MonthlyReport[]>([]);
+  const [allProjects, setAllProjects] = React.useState<GlobalRegisterProject[]>([]);
+  const [allReports, setAllReports] = React.useState<GlobalMonthlyRegisterRow[]>([]);
   const [records, setRecords] = React.useState<ExecutiveReportRecord[]>([]);
   const [planningRollups, setPlanningRollups] = React.useState<Map<string, PlanningSnapshotRollup | null>>(new Map());
   const [loaded, setLoaded] = React.useState(false);
@@ -242,21 +282,13 @@ export function ExecutiveRegisterView(props: ExecutiveViewerProps) {
   const clients = clientRecords as Client[];
   const portfolioGroups = portfolioGroupRecords as PortfolioGroup[];
 
-  const scopedProjects = React.useMemo(
-    () =>
-      visibleProjects(allProjects, {
-        contactId: props.contactId,
-        isAdmin: props.isAdmin,
-        portfolioReadTier: props.portfolioReadTier,
-      }),
-    [allProjects, props.contactId, props.isAdmin, props.portfolioReadTier]
-  );
+  const scopedProjects = allProjects;
 
   const load = React.useCallback(async () => {
     try {
       const [nextProjects, nextReports, nextRecords] = await Promise.all([
-        projectService.getProjects(),
-        monthlyReportService.list(),
+        fetchGlobalRegisterProjects(),
+        fetchGlobalMonthlyReportRegister(),
         executiveRecordService.list(),
       ]);
       setAllProjects(nextProjects);
@@ -276,13 +308,10 @@ export function ExecutiveRegisterView(props: ExecutiveViewerProps) {
     void load();
   }, [load]);
 
-  // Reports whose project is not (or no longer) visible to this viewer never
-  // reach snapshot resolution, counting or display — access is filtered
-  // BEFORE aggregation, never after.
-  const visibleReports = React.useMemo(() => {
-    const visibleIds = new Set(scopedProjects.map((project) => project.id));
-    return allReports.filter((report) => visibleIds.has(report.projectId));
-  }, [allReports, scopedProjects]);
+  // Register metadata is platform-wide (see the module doc comment above) —
+  // no per-viewer project filter here. Kept as its own binding rather than
+  // a straight alias so the intent survives a future re-read of this file.
+  const visibleReports = allReports;
 
   React.useEffect(() => {
     let cancelled = false;

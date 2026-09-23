@@ -26,15 +26,21 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState, StatusBadge } from "@/components/shared";
 import { REPORT_STATUS_META } from "@/lib/constants";
-import { getMonthLabel } from "@/lib/reporting";
+import { getMonthLabel, scheduleVariance } from "@/lib/reporting";
 import { monthlyReportService } from "@/services/monthly-report-service";
 import { projectService } from "@/services/project-service";
+import {
+  fetchGlobalMonthlyReportRegister,
+  fetchGlobalRegisterProjects,
+  type GlobalMonthlyRegisterRow,
+  type GlobalRegisterProject,
+} from "@/services/global-report-register";
 import {
   planningRollupService,
   type PlanningSnapshotRollup,
 } from "@/services/planning-rollup-service";
 import { useMasterData } from "@/features/master-data";
-import type { Client, Contact, MonthlyReport, PortfolioGroup, Project } from "@/types";
+import type { Client, Contact, PortfolioGroup, Project } from "@/types";
 import { NOT_RECORDED, monthEndStatus, nameOf } from "./monthly-data";
 import { summarizeReportRegister } from "@/features/reports/register-summary";
 
@@ -46,7 +52,7 @@ function PlanningCell({
   report,
   rollup,
 }: {
-  report: MonthlyReport;
+  report: GlobalMonthlyRegisterRow;
   rollup: PlanningSnapshotRollup | null | undefined;
 }) {
   if (!report.planningSnapshotId || !rollup) {
@@ -61,8 +67,8 @@ function PlanningCell({
 }
 
 export function MonthlyReportsView() {
-  const [reports, setReports] = React.useState<MonthlyReport[] | undefined>();
-  const [projects, setProjects] = React.useState<Project[]>([]);
+  const [reports, setReports] = React.useState<GlobalMonthlyRegisterRow[] | undefined>();
+  const [projects, setProjects] = React.useState<GlobalRegisterProject[]>([]);
   const [planningRollups, setPlanningRollups] = React.useState<
     Map<string, PlanningSnapshotRollup | null>
   >(new Map());
@@ -81,7 +87,10 @@ export function MonthlyReportsView() {
 
   const load = React.useCallback(async () => {
     try {
-      const [nextReports, nextProjects] = await Promise.all([monthlyReportService.list(), projectService.getProjects()]);
+      const [nextReports, nextProjects] = await Promise.all([
+        fetchGlobalMonthlyReportRegister(),
+        fetchGlobalRegisterProjects(),
+      ]);
       setReports(nextReports);
       setProjects(nextProjects);
 
@@ -130,7 +139,7 @@ export function MonthlyReportsView() {
     const groupId = projectOf(id)?.portfolioGroupId;
     return groupId ? portfolioGroups.find((g) => g.id === groupId)?.name : undefined;
   };
-  const preparedByName = (report: MonthlyReport) =>
+  const preparedByName = (report: GlobalMonthlyRegisterRow) =>
     nameOf(report.preparedByContactId, contacts as unknown as { id: string; name: string }[], "Not assigned");
 
   const filtered = reports.filter((report) => {
@@ -275,7 +284,11 @@ export function MonthlyReportsView() {
               </thead>
               <tbody>
                 {filtered.map((report) => {
-                  const status = monthEndStatus(report);
+                  const variance = scheduleVariance(report.plannedProgress, report.actualProgress);
+                  const status = monthEndStatus({
+                    scheduleVariance: variance,
+                    overallProgressStatus: undefined,
+                  });
                   const groupName = portfolioGroupName(report.projectId);
                   return (
                     <tr key={report.id}>
@@ -315,8 +328,8 @@ export function MonthlyReportsView() {
                       <td className="planned-value">{report.plannedProgress.toFixed(1)}%</td>
                       <td className="actual-value">{report.actualProgress.toFixed(1)}%</td>
                       <td className="variance-value">
-                        {report.scheduleVariance > 0 ? "+" : ""}
-                        {report.scheduleVariance.toFixed(1)}%
+                        {variance > 0 ? "+" : ""}
+                        {variance.toFixed(1)}%
                       </td>
                       <td>
                         <PlanningCell

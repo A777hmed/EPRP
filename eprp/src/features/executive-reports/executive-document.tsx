@@ -262,7 +262,10 @@ function KpiStrip({ model }: { model: ExecutiveDocumentModel }) {
       value: String(aggregate.health.delayed + aggregate.health.critical),
       recorded: true,
     },
-    { label: "Not Reported", value: String(aggregate.health.unknown), recorded: true },
+    { label: "Not Reported", value: String(aggregate.excludedMissing), recorded: true },
+    ...(aggregate.restrictedDraftHealth > 0
+      ? [{ label: "Draft Status Restricted", value: String(aggregate.restrictedDraftHealth), recorded: true }]
+      : []),
     { label: "Open Executive Decisions", value: String(aggregate.openDecisions), recorded: true },
     { label: "Client Pending Actions", value: String(aggregate.clientPendingActions), recorded: true },
   ];

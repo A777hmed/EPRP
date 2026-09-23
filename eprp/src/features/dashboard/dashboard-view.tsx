@@ -97,8 +97,8 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
   );
 
   const totals = React.useMemo(
-    () => totalsFor(positions, data.weeklies, data.monthlies),
-    [positions, data.weeklies, data.monthlies]
+    () => totalsFor(positions, data.overdueWeeklies, data.overdueMonthlies),
+    [positions, data.overdueWeeklies, data.overdueMonthlies]
   );
 
   const scopedIds = React.useMemo(
@@ -151,19 +151,27 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
      the two can never disagree. */
   const overdue = React.useMemo(() => {
     const today = todayIso();
+    /*
+     * Access & Visibility hotfix — sourced from `data.overdueWeeklies`/
+     * `data.overdueMonthlies` (the UNBOUNDED overdue-eligible fetch), not
+     * `data.weeklies`/`data.monthlies` (the 12-per-project current-
+     * position/trend window). An old stuck report outside that window must
+     * still be counted here — the same reason `totalsFor()` above takes
+     * the same two arrays.
+     */
     return {
-      weekly: data.weeklies.filter(
+      weekly: data.overdueWeeklies.filter(
         (report) =>
           scopedIds.has(report.projectId) && report.periodEnd < today && !isDelivered(report.status)
       ).length,
-      monthly: data.monthlies.filter(
+      monthly: data.overdueMonthlies.filter(
         (report) =>
           scopedIds.has(report.projectId) &&
           !isDelivered(report.status) &&
           monthEnd(report.reportingMonth) < today
       ).length,
     };
-  }, [data.weeklies, data.monthlies, scopedIds]);
+  }, [data.overdueWeeklies, data.overdueMonthlies, scopedIds]);
 
   /*
    * Radar axes — every one a REAL ratio, none invented.
@@ -204,11 +212,21 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
       });
     }
 
-    const scopedReports =
+    /*
+     * `scopedReports` is the recent-window count (`data.weeklies`/
+     * `data.monthlies`, 12 per project); `late` is the UNBOUNDED overdue
+     * count (`overdue`, above). The two can only disagree in the edge case
+     * of a project with more than 12 reports' worth of history sitting
+     * overdue, so the denominator is widened to `late` when that happens —
+     * never a >100%/negative "compliance" reading from a mismatched pair.
+     */
+    const late = overdue.weekly + overdue.monthly;
+    const scopedReports = Math.max(
+      late,
       data.weeklies.filter((r) => scopedIds.has(r.projectId)).length +
-      data.monthlies.filter((r) => scopedIds.has(r.projectId)).length;
+        data.monthlies.filter((r) => scopedIds.has(r.projectId)).length
+    );
     if (scopedReports > 0) {
-      const late = overdue.weekly + overdue.monthly;
       axes.push({
         axis: "Compliance",
         current: pct(scopedReports - late, scopedReports),
@@ -408,8 +426,8 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
         }}
         totals={totals}
         positions={positions}
-        weeklies={data.weeklies}
-        monthlies={data.monthlies}
+        overdueWeeklies={data.overdueWeeklies}
+        overdueMonthlies={data.overdueMonthlies}
         contacts={data.contacts}
         portfolioBasisNote={PORTFOLIO_BASIS_NOTE}
       />
@@ -594,7 +612,9 @@ function ManagementAttention({
                     <b>{position.project.name}</b>
                     <small>
                       {position.basis === "none"
-                        ? "No report in the selected period"
+                        ? position.reportingStatus === "pending_approval"
+                          ? "Reported, awaiting approval"
+                          : "No report in the selected period"
                         : `${BASIS_LABEL[position.basis]}${
                             position.reportedOn ? ` · ${position.reportedOn}` : ""
                           }`}

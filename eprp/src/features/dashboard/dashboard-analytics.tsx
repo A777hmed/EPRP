@@ -186,7 +186,7 @@ export function KpiStrip({
 /** Centre panel — the distribution, with the scope total in the hole. */
 export function StatusPanel({ totals }: { totals: PortfolioTotals }) {
   const reduced = useReducedMotion();
-  const [focus, setFocus] = React.useState<HealthKey | null>(null);
+  const [focus, setFocus] = React.useState<HealthBandKey | null>(null);
   const bands = healthRows(totals);
   const focused = bands.find((row) => row.key === focus);
 
@@ -843,19 +843,32 @@ function plural(count: number, word: string): string {
   return count === 1 ? word : `${word}s`;
 }
 
+/** A synthetic sixth band, alongside the 5 real `ProjectPosition["health"]`
+ *  values — Access & Visibility hotfix. `totals.notReported` now means
+ *  ONLY "genuinely no report at all" (`reportingStatus === "not_reported"`),
+ *  narrower than the `health === "not_reported"` bucket it used to equal
+ *  (that bucket still covers both absence AND `pending_approval`, since
+ *  schedule HEALTH has no reading either way without a governed figure).
+ *  Without its own row, a pending-approval project would vanish from this
+ *  chart's total instead of being counted anywhere — folding it back into
+ *  "Not Reported" would be exactly the misrepresentation this hotfix
+ *  exists to remove. */
+export type HealthBandKey = HealthKey | "pending_approval";
+
 /** The bands actually present, in severity order. Empty bands are dropped so a
     legend never lists a status nothing is in. */
 function healthRows(totals: PortfolioTotals): Array<{
-  key: HealthKey;
+  key: HealthBandKey;
   label: string;
   value: number;
   tone: Tone;
 }> {
-  const rows: Array<{ key: HealthKey; label: string; value: number; tone: Tone }> = [
+  const rows: Array<{ key: HealthBandKey; label: string; value: number; tone: Tone }> = [
     { key: "on_track", label: HEALTH_META.on_track.label, value: totals.onTrack, tone: "success" },
     { key: "at_risk", label: HEALTH_META.at_risk.label, value: totals.atRisk, tone: "warning" },
     { key: "behind", label: HEALTH_META.behind.label, value: totals.behind, tone: "behind" },
     { key: "critical", label: HEALTH_META.critical.label, value: totals.critical, tone: "danger" },
+    { key: "pending_approval", label: "Pending Approval", value: totals.pendingApproval, tone: "default" },
     { key: "not_reported", label: HEALTH_META.not_reported.label, value: totals.notReported, tone: "default" },
   ];
   return rows.filter((row) => row.value > 0);

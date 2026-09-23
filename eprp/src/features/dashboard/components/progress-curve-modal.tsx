@@ -31,7 +31,13 @@ import { Info, LayoutGrid, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DetailModal, DrawerFact, DrawerFactGrid, DrawerSection } from "@/components/shared";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { BASIS_LABEL, HEALTH_META, PORTFOLIO_BASIS_NOTE, type ProjectPosition } from "../dashboard-data";
+import {
+  BASIS_LABEL,
+  HEALTH_META,
+  PORTFOLIO_BASIS_NOTE,
+  positionStatusLabel,
+  type ProjectPosition,
+} from "../dashboard-data";
 import type { ProjectProgressCurvePoint } from "../progress-curve";
 import { latestGovernedPortfolioPosition, type PortfolioProgressPoint } from "../portfolio-progress";
 import { PlanningCurveChart, PlanningFigureStrip, PortfolioFigureStrip, ProjectChipSelector } from "./planned-vs-actual-panel";
@@ -263,12 +269,15 @@ export function ExpandedProgressCurveModal({
             <div className="flex flex-col gap-4">
               {selected.basis !== "planning" && (
                 <p className="rounded-md bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
-                  This project&rsquo;s current position comes from{" "}
+                  This project&rsquo;s current GOVERNED position comes from{" "}
                   <b className="font-semibold text-foreground">
-                    {selected.basis === "none" ? "no governed report yet" : BASIS_LABEL[selected.basis]}
+                    {selected.basis === "none" ? positionStatusLabel(selected) : BASIS_LABEL[selected.basis]}
                   </b>
-                  , not a published Planning Snapshot — SPI and Coverage read N/A below, and the curve reflects only
-                  whatever Planning Snapshot history this project separately has, if any.
+                  , not a Planning Snapshot — SPI and Coverage read N/A below because they follow that current
+                  position&rsquo;s own basis.{" "}
+                  {curve && curve.length > 0
+                    ? "This project does separately have published Planning Snapshot history, shown in the curve below for reference — it is not what today's governed position is based on."
+                    : "No Planning Snapshot has been published for this project yet, so the curve below is empty."}
                 </p>
               )}
               <PlanningCurveChart curve={curve} reduced={reduced} height={280} />

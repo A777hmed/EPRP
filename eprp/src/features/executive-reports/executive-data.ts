@@ -85,7 +85,7 @@ export const NOT_APPLICABLE = "N/A";
  */
 export const APPROVED_MONTHLY_STATUSES: ReportStatus[] = APPROVED_REPORT_STATUSES;
 
-export function isApprovedMonthly(report: MonthlyReport): boolean {
+export function isApprovedMonthly(report: Pick<MonthlyReport, "status">): boolean {
   return APPROVED_MONTHLY_STATUSES.includes(report.status);
 }
 
@@ -256,7 +256,9 @@ export interface HealthReading {
  * own: a recorded `overallProgressStatus` wins, otherwise the variance decides.
  * Delegating to it is what keeps a single threshold set in the system.
  */
-export function readHealth(report: MonthlyReport | undefined): HealthReading {
+export function readHealth(
+  report: Pick<MonthlyReport, "scheduleVariance" | "overallProgressStatus"> | undefined
+): HealthReading {
   if (!report) {
     const meta = EXEC_HEALTH_META.unknown;
     return { health: "unknown", label: meta.label, tone: meta.tone, basis: "No Monthly Report for this month." };
@@ -736,6 +738,8 @@ export function changesSinceMonthly(input: MovementInput): MovementItem[] {
 export interface ProjectExecutiveRow {
   project: Project;
   projectName: string;
+  /** Operational comments/plans are readable for this project by this viewer. */
+  detailAvailable?: boolean;
   clientName: string;
   managerName?: string;
   basis: MonthlyBasis;
@@ -825,11 +829,15 @@ export interface PortfolioAggregate {
   contributing: number;
   excludedDraft: number;
   excludedMissing: number;
+  /** Draft Monthly exists, but its health is not authorized for this viewer. */
+  restrictedDraftHealth: number;
   planned?: number;
   actual?: number;
   variance?: number;
   health: Record<ExecHealth, number>;
   openDecisions: number;
+  /** Number of visible projects whose operational detail is not available. */
+  restrictedDetailProjects: number;
   clientPendingActions: number;
   overdueActions: number;
   openRisks: number;
@@ -857,6 +865,7 @@ export function aggregatePortfolio(rows: ProjectExecutiveRow[]): PortfolioAggreg
   const governance = executiveGovernanceCounts(rows);
   const excludedDraft = governance.draft;
   const excludedMissing = governance.missing;
+  const restrictedDraftHealth = rows.filter((row) => row.basis === "draft" && row.reading.label === "Status Restricted").length;
 
   const health = executiveHealthCounts(
     rows.map((row) => ({ health: row.reading.health })),
@@ -887,11 +896,13 @@ export function aggregatePortfolio(rows: ProjectExecutiveRow[]): PortfolioAggreg
     contributing: approved.length,
     excludedDraft,
     excludedMissing,
+    restrictedDraftHealth,
     planned,
     actual,
     variance: planned !== undefined && actual !== undefined ? scheduleVariance(planned, actual) : undefined,
     health,
     openDecisions: openOf("decision"),
+    restrictedDetailProjects: rows.filter((row) => row.detailAvailable === false).length,
     clientPendingActions: openOf("client_action"),
     overdueActions: all.filter((item) => item.overdue).length,
     openRisks: openOf("risk"),
@@ -1113,9 +1124,12 @@ export function draftExecutiveNarrative(input: {
         `Portfolio actual progress stands at ${actual.toFixed(1)}% against ${planned.toFixed(1)}% planned ` +
           `(SV ${variance > 0 ? "+" : ""}${variance.toFixed(1)}%).`
       );
-      const spread = EXEC_HEALTH_ORDER.filter((health) => aggregate.health[health] > 0)
-        .map((health) => `${aggregate.health[health]} ${EXEC_HEALTH_META[health].label}`)
-        .join(", ");
+      const spread = [
+        ...EXEC_HEALTH_ORDER.filter((health) => health !== "unknown" && aggregate.health[health] > 0)
+          .map((health) => `${aggregate.health[health]} ${EXEC_HEALTH_META[health].label}`),
+        ...(aggregate.excludedMissing > 0 ? [`${aggregate.excludedMissing} Not Reported`] : []),
+        ...(aggregate.restrictedDraftHealth > 0 ? [`${aggregate.restrictedDraftHealth} Status Restricted (Draft)`] : []),
+      ].join(", ");
       if (spread) sentences.push(`Schedule health across the portfolio: ${spread}.`);
     }
   }

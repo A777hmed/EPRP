@@ -122,7 +122,9 @@ export interface DerivedStatus {
  * the month and that judgement is data. Only when none was recorded is the
  * verdict derived from schedule variance, and the label then says so.
  */
-export function monthEndStatus(report: MonthlyReport): DerivedStatus {
+export function monthEndStatus(
+  report: Pick<MonthlyReport, "scheduleVariance" | "overallProgressStatus">
+): DerivedStatus {
   const variance = report.scheduleVariance;
   const detail = `${variance > 0 ? "+" : ""}${variance.toFixed(1)}% vs plan`;
 

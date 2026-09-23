@@ -16,7 +16,14 @@ import { EmptyState, LoadingState } from "@/components/shared";
 import { formatDate } from "@/lib/formatters";
 import { getMonthLabel } from "@/lib/reporting";
 import { monthlyReportService } from "@/services/monthly-report-service";
+import {
+  fetchGlobalMonthlyReportDetail,
+  fetchGlobalRegisterProjects,
+  type GlobalMonthlyReportDetail,
+  type GlobalRegisterProject,
+} from "@/services/global-report-register";
 import type { MonthlyReport } from "@/types";
+import { useCurrentIdentity } from "@/features/auth/use-current-identity";
 import {
   ProjectReportingShell,
   ReportContextHeader,
@@ -24,6 +31,7 @@ import {
   ReportTypeTabs,
 } from "@/features/projects/components/sections/project-reporting-shell";
 import { MonthlyReportDocument, type MonthlyReportBundle } from "./monthly-report-document";
+import { MonthlyReportCrossProjectView } from "./monthly-report-cross-project-view";
 import { useMonthlyBundle } from "./use-monthly-bundle";
 
 export { MonthlyReportsView, MonthlyNewView } from "./monthly-list-view";
@@ -193,9 +201,103 @@ export function MonthlyReportView({
     ? buildProjectMonthlyLinks(projectId)
     : GLOBAL_MONTHLY_LINKS;
   const { bundle, siblings, reload } = useMonthlyBundle(reportId);
+  /*
+   * Resolved before the cross-project effect fires: admin / global-authority
+   * viewers always have `can_access_project` in RLS and should never be
+   * redirected to the read-only cross-project summary.  Until identity
+   * resolves (`.resolved = false`) the cross-project effect is held so it
+   * does not start a fetch that identity would then invalidate.
+   */
+  const identity = useCurrentIdentity();
+
+  /*
+   * Read-only cross-project fallback (Access & Visibility hotfix, R6).
+   * Only attempted once `useMonthlyBundle()` has confirmed ordinary
+   * (assignment-gated) access came back empty — never for the editing
+   * workspace, which has its own separate call to `useMonthlyBundle()` and
+   * never reaches this component. `undefined` = not attempted / loading,
+   * `null` = attempted and genuinely unavailable, an object = approved+ and
+   * readable. See `MonthlyReportCrossProjectView` for why this deliberately
+   * does not try to render the full department-level document.
+   */
+  const [crossProjectDetail, setCrossProjectDetail] = React.useState<
+    GlobalMonthlyReportDetail | null | undefined
+  >(undefined);
+  const [crossProjectProject, setCrossProjectProject] =
+    React.useState<GlobalRegisterProject | null>(null);
+
+  React.useEffect(() => {
+    if (bundle !== null) return;
+    // Wait for identity to settle so admin bypass is applied before fetching.
+    if (!identity.resolved) return;
+    // Admin / global-authority viewers have unrestricted RLS access; the
+    // cross-project path (which tells them "you are not assigned") is wrong
+    // for them regardless of why the bundle came back empty.
+    if (identity.isGlobalAuthority) return;
+    let cancelled = false;
+    (async () => {
+      setCrossProjectDetail(undefined);
+      try {
+        const fallback = await fetchGlobalMonthlyReportDetail(reportId);
+        if (cancelled) return;
+        setCrossProjectDetail(fallback);
+        if (fallback) {
+          const directory = await fetchGlobalRegisterProjects();
+          if (cancelled) return;
+          setCrossProjectProject(
+            directory.find((p) => p.id === fallback.projectId) ?? null
+          );
+        }
+      } catch {
+        if (!cancelled) setCrossProjectDetail(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bundle, reportId, identity.resolved, identity.isGlobalAuthority]);
 
   if (bundle === undefined) return <LoadingState label="Loading Monthly Report…" />;
   if (bundle === null) {
+    // Admin / global-authority viewers: never show the cross-project banner
+    // ("you are not assigned") — they have RLS access to all projects.  If
+    // the bundle is still missing after identity resolves, that means the
+    // report genuinely cannot be loaded (deleted, network error, etc.).
+    if (identity.isGlobalAuthority) {
+      return (
+        <EmptyState
+          title="Monthly Report not found"
+          description="This report could not be loaded. It may have been deleted or a network error occurred."
+          icon={FilePlus2}
+        />
+      );
+    }
+    if (crossProjectDetail === undefined) {
+      return <LoadingState label="Loading Monthly Report…" />;
+    }
+    if (crossProjectDetail) {
+      if (mode === "preview") {
+        return (
+          <EmptyState
+            title="Print preview is not available for this report"
+            description="This report is approved and viewable in read-only summary mode, but the full print/PDF layout needs department-level content that is only available inside its own project. Open the summary view instead."
+            icon={FilePlus2}
+            action={
+              <Button variant="outline" asChild>
+                <Link href={links.detail(reportId)}>Open Read-Only Summary</Link>
+              </Button>
+            }
+          />
+        );
+      }
+      return (
+        <MonthlyReportCrossProjectView
+          detail={crossProjectDetail}
+          project={crossProjectProject}
+          links={links}
+        />
+      );
+    }
     return <EmptyState title="Monthly Report not found" description="This report is unavailable or you do not have access to it." icon={FilePlus2} />;
   }
 
