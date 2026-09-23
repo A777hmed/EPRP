@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
-import { WeeklyReportFormView } from "@/features/weekly-reports";
+import { WeeklyReportEditDenied, WeeklyReportFormView } from "@/features/weekly-reports";
+import { getWeeklyViewerContext } from "@/features/weekly-reports/viewer-context";
+import { isEditableReportStatus } from "@/features/weekly-reports/utils";
 
 export const metadata: Metadata = {
   title: "Edit Weekly Report",
@@ -16,21 +18,14 @@ export const metadata: Metadata = {
  * exit stays under `/projects/[projectId]/...` rather than dropping a
  * project-context user into the global register.
  *
- * Added alongside the 4A consolidation of `/weekly-reports` into a
- * read-only register: before that change, this was the ONLY project-scoped
- * path to `WeeklyReportFormView`'s header-field editing (Planned/Actual,
- * disciplines, prepared-by, KPIs, Major Activities) — the workspace at
- * `/projects/[projectId]/reports/weekly/[reportId]/workspace` covers
- * department input and management items, a different set of fields, not
- * this form's.
- *
- * Authorization is not re-implemented here: `WeeklyReportFormView` and
- * `weeklyReportService.update()` are the exact same functions the global
- * edit route uses, and `weekly_reports_update`
- * (`can_manage_reporting_workflow()`) remains the security boundary. An
- * account without edit authority on this project reaches the same form
- * the global route would show it and is refused by RLS on save, exactly as
- * before.
+ * Authorization is resolved HERE, on the server, mirroring the global edit
+ * route and the report detail page's own Edit-link gate
+ * (`scope?.canConsolidate`). Reaching this URL directly used to hand out the
+ * header edit form to any authenticated account, on any project, regardless
+ * of assignment — including a project this viewer has no authority on.
+ * `weekly_reports_update` (`can_manage_reporting_workflow()`) remains the
+ * write boundary; this closes the "shown a form you cannot submit" gap in
+ * front of it, per the Access & Visibility hotfix (05_PERMISSION_MODEL.md).
  */
 export default async function ProjectEditWeeklyReportPage({
   params,
@@ -38,5 +33,22 @@ export default async function ProjectEditWeeklyReportPage({
   params: Promise<{ projectId: string; reportId: string }>;
 }) {
   const { projectId, reportId } = await params;
+  const context = await getWeeklyViewerContext(reportId);
+
+  const authorized =
+    context.demoMode ||
+    (context.scope?.canConsolidate === true &&
+      context.editability?.canEdit === true &&
+      context.reportStatus !== null &&
+      isEditableReportStatus(context.reportStatus));
+
+  if (!authorized) {
+    return (
+      <WeeklyReportEditDenied
+        backHref={`/projects/${projectId}/reports/weekly/${reportId}`}
+      />
+    );
+  }
+
   return <WeeklyReportFormView reportId={reportId} projectId={projectId} />;
 }
