@@ -11,23 +11,35 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { Check, Eye, Pencil, Plus, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState, StatusBadge } from "@/components/shared";
-import { MILESTONE_STATUS_META, PRIORITY_META, REPORT_STATUS_META } from "@/lib/constants";
+import { MILESTONE_STATUS_META, PRIORITY_META } from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
 import { getMonthLabel } from "@/lib/reporting";
 import { monthlyReportService } from "@/services/monthly-report-service";
+import {
+  isPreparationTransition,
+  type WorkflowStatus,
+} from "@/config/workflows";
 import type { Contact, MonthlyComment, MonthlyPlanItem, MonthlyReport } from "@/types";
 import {
   ProjectReportingShell,
   ReportContextHeader,
+  LabeledStatus,
+  ReportPanelNav,
+  ReportSection,
+  ReportSectionGroup,
   ReportTypeTabs,
+  ReportViewerStrip,
+  ReportWorkspaceHeader,
 } from "@/features/projects/components/sections/project-reporting-shell";
 import { EmptyRow, type MonthlyReportBundle } from "./monthly-report-document";
+import { monthlyDisplayFigures } from "./planning-integration";
 import { MONTHLY_UPDATE_TYPE_OPTIONS, MonthlyCommentForm } from "./monthly-comment-form";
 import { MonthlyManagementPanel } from "./monthly-management";
 import {
@@ -36,12 +48,17 @@ import {
   buildProjectMonthlyLinks,
   type MonthlyReportLinks,
 } from "./monthly-report-view";
+import { monthlyTransitionBlockers } from "./monthly-collection";
+import { MonthlyCollectionPanel } from "./monthly-collection-panel";
+import { MonthlyDepartmentInput } from "./monthly-department-input";
 import { useMonthlyBundle } from "./use-monthly-bundle";
 import {
+  MONTHLY_STATUS_OPTIONS,
   NOT_RECORDED,
   autoDraftExecutiveSummary,
   commentStatusMeta,
   monthEndStatus,
+  monthlyStatusMeta,
   nameOf,
   nextMonthLabel,
   weekStatus,
@@ -51,13 +68,29 @@ const typeLabels = Object.fromEntries(MONTHLY_UPDATE_TYPE_OPTIONS) as Record<Mon
 const KPI_RATINGS = ["excellent", "good", "fair", "at_risk", "critical"] as const;
 const PLAN_STATUSES = ["not_started", "in_progress", "completed", "delayed", "pending"] as const;
 
-type PanelKey = "overview" | "weekly" | "milestones" | "comments" | "management" | "plan" | "summary" | "approval";
+type PanelKey = "overview" | "weekly" | "collection" | "milestones" | "comments" | "management" | "plan" | "summary" | "approval";
 
+/*
+ * Tab LABELS are shortened; the panels, their keys and their hints are not.
+ *
+ * Nine full labels measure 1243px and the workspace column is 1120px at a
+ * 1440 viewport, so the strip could not sit on one row at any normal width —
+ * "Approval" wrapped away from the set. Three labels said "Monthly" or
+ * "Progress" inside the Monthly workspace, where both are given; dropping the
+ * redundant words fits the row at laptop width without removing a tab,
+ * collapsing one into an overflow menu, or shrinking the type further.
+ *
+ * The full wording survives where it does work: each panel's `hint` renders
+ * under the strip, and each panel's own card title is unchanged. "Master
+ * Milestones" deliberately keeps "Master" — the milestone register and Next
+ * Month Plan items are different things and must not read as the same one.
+ */
 const PANELS: { key: PanelKey; label: string; hint: string }[] = [
-  { key: "overview", label: "Monthly Overview", hint: "Report identity and month-end KPIs" },
+  { key: "overview", label: "Overview", hint: "Report identity and month-end KPIs" },
   { key: "weekly", label: "Weekly Inputs", hint: "Import and review this month's Weekly Reports" },
-  { key: "milestones", label: "Master Milestone Progress", hint: "Governed milestone position, read-only" },
-  { key: "comments", label: "Monthly Comments", hint: "Add and curate Monthly updates" },
+  { key: "collection", label: "Department Collection", hint: "Ask each department to review the month and add what the Weekly Reports did not say" },
+  { key: "milestones", label: "Master Milestones", hint: "Governed milestone position, read-only" },
+  { key: "comments", label: "Comments", hint: "Add and curate Monthly updates" },
   { key: "management", label: "Management Items", hint: "Decisions and escalations for leadership" },
   { key: "plan", label: "Next Month Plan", hint: "Plan items and focus for the coming month" },
   { key: "summary", label: "Executive Summary", hint: "The narrative leadership reads first" },
@@ -85,18 +118,20 @@ function commentToInput(comment: MonthlyComment) {
   };
 }
 
+/**
+ * A Monthly workspace panel.
+ *
+ * Same signature it has always had, so every call site below is untouched; only
+ * what it renders changed. It now delegates to the shared `ReportSection`, so a
+ * Monthly panel is the same card as a Weekly section and as the Department
+ * Collection panel that already used `SectionCard` directly — and it gains a
+ * dark theme, which `.monthly-ws-panel` never had.
+ */
 function WorkspacePanel({ title, hint, action, children }: { title: string; hint: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="monthly-ws-panel">
-      <div className="monthly-ws-panel-head">
-        <div>
-          <b>{title}</b>
-          <span>{hint}</span>
-        </div>
-        {action}
-      </div>
+    <ReportSection title={title} hint={hint} action={action}>
       {children}
-    </section>
+    </ReportSection>
   );
 }
 
@@ -207,7 +242,7 @@ function CommentRows({
 /* --------------------------------- Panels ---------------------------------- */
 
 function OverviewPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload: () => Promise<void> }) {
-  const { report, project, contacts } = bundle;
+  const { report, project, contacts, planningRollup } = bundle;
   const [reportNumber, setReportNumber] = React.useState(report.reportNumber);
   const [preparedBy, setPreparedBy] = React.useState(report.preparedByContactId ?? project?.reportingCoordinatorId ?? "");
   const [planned, setPlanned] = React.useState(String(report.plannedProgress));
@@ -218,24 +253,37 @@ function OverviewPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
   const [saving, setSaving] = React.useState(false);
   const status = monthEndStatus(report);
 
+  /*
+   * Planning Integration 3C, rule 5: a Planning-backed Monthly's Planned/
+   * Actual Progress are read-only here — no silent manual override path.
+   * Enforced in the UI (fields become AUTO readouts, never submitted) AND
+   * independently in the service layer (`assertMonthlyProgressEditable`),
+   * so defeating one still hits the other.
+   */
+  const figures = monthlyDisplayFigures(report, planningRollup);
+  const planningBacked = figures.planningBacked;
+
   const save = async () => {
-    const plannedValue = Number(planned);
-    const actualValue = Number(actual);
-    if (![plannedValue, actualValue].every((value) => Number.isFinite(value) && value >= 0 && value <= 100)) {
-      toast.error("Planned and Actual progress must be between 0 and 100.");
-      return;
+    const patch: Parameters<typeof monthlyReportService.update>[1] = {
+      reportNumber,
+      preparedByContactId: preparedBy,
+      hseStatus: (hse || undefined) as MonthlyReport["hseStatus"],
+      qualityStatus: (quality || undefined) as MonthlyReport["qualityStatus"],
+      overallProgressStatus: (overall || undefined) as MonthlyReport["overallProgressStatus"],
+    };
+    if (!planningBacked) {
+      const plannedValue = Number(planned);
+      const actualValue = Number(actual);
+      if (![plannedValue, actualValue].every((value) => Number.isFinite(value) && value >= 0 && value <= 100)) {
+        toast.error("Planned and Actual progress must be between 0 and 100.");
+        return;
+      }
+      patch.plannedProgress = plannedValue;
+      patch.actualProgress = actualValue;
     }
     setSaving(true);
     try {
-      await monthlyReportService.update(report.id, {
-        reportNumber,
-        preparedByContactId: preparedBy,
-        plannedProgress: plannedValue,
-        actualProgress: actualValue,
-        hseStatus: (hse || undefined) as MonthlyReport["hseStatus"],
-        qualityStatus: (quality || undefined) as MonthlyReport["qualityStatus"],
-        overallProgressStatus: (overall || undefined) as MonthlyReport["overallProgressStatus"],
-      });
+      await monthlyReportService.update(report.id, patch);
       await reload();
       toast.success("Monthly overview saved.");
     } catch (error) {
@@ -285,11 +333,19 @@ function OverviewPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
         </label>
         <label>
           Planned %
-          <input type="number" min="0" max="100" step="0.1" value={planned} onChange={(event) => setPlanned(event.target.value)} />
+          {planningBacked ? (
+            <input type="text" readOnly disabled value={`${figures.planned.toFixed(1)}%`} />
+          ) : (
+            <input type="number" min="0" max="100" step="0.1" value={planned} onChange={(event) => setPlanned(event.target.value)} />
+          )}
         </label>
         <label>
           Actual %
-          <input type="number" min="0" max="100" step="0.1" value={actual} onChange={(event) => setActual(event.target.value)} />
+          {planningBacked ? (
+            <input type="text" readOnly disabled value={`${figures.actual.toFixed(1)}%`} />
+          ) : (
+            <input type="number" min="0" max="100" step="0.1" value={actual} onChange={(event) => setActual(event.target.value)} />
+          )}
         </label>
         <label>
           HSE Rating
@@ -325,6 +381,15 @@ function OverviewPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
           </select>
         </label>
       </div>
+      {planningBacked && (
+        <p className="monthly-ws-note">
+          <StatusBadge tone="info">Planning-backed</StatusBadge>{" "}
+          Snapshot v{figures.snapshotVersion}
+          {figures.dataDate ? ` · Data Date ${figures.dataDate}` : ""}
+          {typeof figures.coveragePercent === "number" ? ` · Coverage ${figures.coveragePercent.toFixed(0)}%` : ""}
+          . Planned/Actual Progress are governed by this snapshot and cannot be edited manually.
+        </p>
+      )}
       <p className="monthly-ws-note">
         HSE event counts (LTI, recordable, first aid, near miss) have no field in the Monthly data model — only the rating above is stored.
       </p>
@@ -788,12 +853,52 @@ function SummaryPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload:
   );
 }
 
-function ApprovalPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload: () => Promise<void> }) {
+function ApprovalPanel({
+  bundle,
+  reload,
+  canControlReportLifecycle,
+  contentEditable,
+}: {
+  bundle: MonthlyReportBundle;
+  reload: () => Promise<void>;
+  /**
+   * Project Control / Planning or admin — NOT a Report Coordinator (Phase
+   * A2). Restricts the Report Status options offered to the same allowlist
+   * `set_monthly_report_status()` admits a Coordinator for
+   * (`isPreparationTransition`); everyone else keeps the full set.
+   */
+  canControlReportLifecycle: boolean;
+  /**
+   * Whether the report's CONTENT is open — `editability.canEdit`, i.e. not
+   * locked/finalized/archived and not an archived project. Deliberately a
+   * SEPARATE axis from `canControlReportLifecycle`: the Report Status control
+   * below must stay reachable at `finalized` and `locked` for whoever holds
+   * lifecycle authority (finalized → locked, locked → archived, and archive
+   * from most other states, are exactly the transitions that only happen once
+   * content is otherwise closed), mirroring how the Weekly detail page's own
+   * "Move to …" buttons are gated on scope alone, never on Weekly's own
+   * `editability.canEdit`. Reviewed By / Approved By are sign-off CONTENT,
+   * though, and stay governed by this flag — a closed report's sign-off
+   * cannot be rewritten even by someone who may still move its status.
+   */
+  contentEditable: boolean;
+}) {
   const { report, project, contacts } = bundle;
   const [reviewedBy, setReviewedBy] = React.useState(report.reviewedByContactId ?? project?.projectControlManagerId ?? "");
   const [approvedBy, setApprovedBy] = React.useState(report.approvedByContactId ?? project?.projectManagerId ?? "");
   const [status, setStatus] = React.useState<MonthlyReport["status"]>(report.status);
   const [saving, setSaving] = React.useState(false);
+
+  const statusOptions = MONTHLY_STATUS_OPTIONS.filter(
+    (value) =>
+      value === report.status ||
+      canControlReportLifecycle ||
+      isPreparationTransition(
+        "monthly",
+        report.status as WorkflowStatus,
+        value as WorkflowStatus
+      )
+  );
 
   const save = async () => {
     setSaving(true);
@@ -807,6 +912,20 @@ function ApprovalPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
        */
       await monthlyReportService.update(report.id, { reviewedByContactId: reviewedBy, approvedByContactId: approvedBy });
       if (status !== report.status) {
+        /*
+         * Pre-flight the department round.
+         *
+         * `monthly_transition_blockers()` is the boundary and refuses this
+         * independently; asking first is what turns a raw database error into
+         * the sentence that says which departments are still outstanding. The
+         * wording is shared with the SQL so the two cannot drift.
+         */
+        const blockers = monthlyTransitionBlockers(status, bundle.monthlySubmissions);
+        if (blockers.length > 0) {
+          throw new Error(
+            `Cannot move this Monthly Report to ${monthlyStatusMeta(status).label}: ${blockers.join(" ")}`
+          );
+        }
         await monthlyReportService.changeStatus(report.id, status);
       }
       await reload();
@@ -832,7 +951,11 @@ function ApprovalPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
       <div className="monthly-ws-grid">
         <label>
           Reviewed By
-          <select value={reviewedBy} onChange={(event) => setReviewedBy(event.target.value)}>
+          <select
+            value={reviewedBy}
+            disabled={!contentEditable}
+            onChange={(event) => setReviewedBy(event.target.value)}
+          >
             <option value="">Not recorded</option>
             {contacts.map((contact) => (
               <option key={contact.id} value={contact.id}>
@@ -843,7 +966,11 @@ function ApprovalPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
         </label>
         <label>
           Approved By
-          <select value={approvedBy} onChange={(event) => setApprovedBy(event.target.value)}>
+          <select
+            value={approvedBy}
+            disabled={!contentEditable}
+            onChange={(event) => setApprovedBy(event.target.value)}
+          >
             <option value="">Not recorded</option>
             {contacts.map((contact) => (
               <option key={contact.id} value={contact.id}>
@@ -855,9 +982,9 @@ function ApprovalPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
         <label>
           Report Status
           <select value={status} onChange={(event) => setStatus(event.target.value as MonthlyReport["status"])}>
-            {Object.entries(REPORT_STATUS_META).map(([value, meta]) => (
+            {statusOptions.map((value) => (
               <option key={value} value={value}>
-                {meta.label}
+                {monthlyStatusMeta(value).label}
               </option>
             ))}
           </select>
@@ -872,9 +999,167 @@ function ApprovalPanel({ bundle, reload }: { bundle: MonthlyReportBundle; reload
 
 /* -------------------------------- Workspace -------------------------------- */
 
+/**
+ * The server's answer to "who is asking?", narrowed to what this view needs.
+ *
+ * Structurally the Weekly `WeeklyScope` plus its editability verdict — the same
+ * resolution, because a Department Manager is a project assignment and not a
+ * report-tier idea. Declared here rather than imported wholesale so the
+ * workspace depends on the two facts it uses, not on the Weekly module.
+ */
+export interface MonthlyWorkspaceViewer {
+  scope: {
+    contactId: string;
+    canConsolidate: boolean;
+    /** Project Control / Planning or admin — NOT a Report Coordinator (Phase A2). */
+    canControlReportLifecycle: boolean;
+    departmentIds: string[];
+    managedDepartmentIds: string[];
+    /**
+     * True when `departmentIds` above is populated by a portfolio-wide READ
+     * grant (Phase B), not by any project assignment — i.e. `scope.capability
+     * === "portfolio_read"` on the server. `canConsolidate` and
+     * `canControlReportLifecycle` are already `false` in that case, but they
+     * answer "may this person do X"; this answers the different question the
+     * workspace needs to route on: "does reaching every department here mean
+     * a real assignment, or only a read grant?" — see `departmentOnly` and
+     * the panel-disabling fieldsets below.
+     */
+    isPortfolioReadOnly: boolean;
+  } | null;
+  editability: { canEdit: boolean; reason?: string } | null;
+  viewerName?: string;
+  viewerRoleLabel?: string;
+}
+
+/**
+ * What a department sees: its own Monthly round, and nothing else.
+ *
+ * One card per department the viewer covers — usually exactly one. The `?dept=`
+ * the distribution link carries is used to ORDER, so a recipient who followed a
+ * link lands on their own department first; it grants nothing, and a department
+ * outside `scope.departmentIds` is simply not here.
+ */
+function MonthlyDepartmentWorkspace({
+  bundle,
+  viewer,
+  projectId,
+  reload,
+}: {
+  bundle: MonthlyReportBundle;
+  viewer: MonthlyWorkspaceViewer;
+  projectId?: string;
+  reload: () => Promise<void>;
+}) {
+  const scope = viewer.scope!;
+  /*
+   * The department a distribution link asked for. Carried in the QUERY as well
+   * as the fragment because a fragment never reaches the server, so the
+   * sign-in round trip keeps `?dept=` and loses the anchor — which is exactly
+   * the case that matters for a recipient who had to log in first.
+   *
+   * NAVIGATION ONLY: it reorders the cards. A department outside
+   * `scope.departmentIds` is not rendered whatever the URL says, and RLS
+   * refuses its rows independently.
+   */
+  const requested = useSearchParams().get("dept");
+
+  const departmentIds = React.useMemo(() => {
+    const ids = scope.departmentIds.filter((id) =>
+      (bundle.project?.departments ?? []).some(
+        (assignment) => assignment.departmentId === id
+      )
+    );
+    if (!requested || !ids.includes(requested)) return ids;
+    return [requested, ...ids.filter((id) => id !== requested)];
+  }, [scope.departmentIds, bundle.project, requested]);
+
+  const roundOpen = Boolean(viewer.editability?.canEdit);
+
+  return (
+    <ProjectReportingShell
+      header={
+        <ReportContextHeader
+          projectCode={bundle.project?.code}
+          projectName={bundle.project?.shortName ?? bundle.project?.name ?? "Project"}
+          period={getMonthLabel(bundle.report.reportingMonth)}
+          status={{
+            label: monthlyStatusMeta(bundle.report.status).label,
+            tone: monthlyStatusMeta(bundle.report.status).tone,
+          }}
+          updatedAt={formatDate(bundle.report.updatedAt)}
+        />
+      }
+      tabs={projectId ? <ReportTypeTabs projectId={projectId} active="monthly" /> : undefined}
+    >
+      <div className="monthly-workspace space-y-4">
+        {/* Project, month and lifecycle status are stated once, by
+            `ReportContextHeader` above. This is the document. */}
+        <ReportWorkspaceHeader
+          eyebrow="Monthly Department Input"
+          title="Monthly Progress Report"
+          reportNumber={bundle.report.reportNumber}
+        />
+
+        <ReportViewerStrip
+          title="Access & Scope"
+          facts={[
+            { label: "User", value: viewer.viewerName ?? "Current user" },
+            { label: "Role", value: viewer.viewerRoleLabel ?? "Resolved project role" },
+            {
+              label: "Report Status",
+              value: monthlyStatusMeta(bundle.report.status).label,
+            },
+            {
+              label: "Scope",
+              value:
+                departmentIds
+                  .map((id) => nameOf(id, bundle.departments, "Unknown department"))
+                  .join(" · ") || "No department scope",
+            },
+          ]}
+          access={{
+            canEdit: roundOpen,
+            message: roundOpen
+              ? "This Monthly Report is open for your department's input."
+              : (viewer.editability?.reason ??
+                "This Monthly Report is read-only for you."),
+          }}
+        />
+
+        {departmentIds.length === 0 ? (
+          <EmptyState
+            title="No department scope on this project"
+            description="You have no department assignment on this project, so there is no Monthly input for you to give."
+            icon={Plus}
+          />
+        ) : (
+          /* Band, but not numbered: one card per department the viewer covers
+             is a list, not a report's section sequence. */
+          <ReportSectionGroup className="space-y-4">
+            {departmentIds.map((departmentId) => (
+              <MonthlyDepartmentInput
+                key={departmentId}
+                bundle={bundle}
+                departmentId={departmentId}
+                roundOpen={roundOpen}
+                canContribute
+                canConsolidate={scope.canConsolidate}
+                managedDepartmentIds={scope.managedDepartmentIds}
+                onChanged={reload}
+              />
+            ))}
+          </ReportSectionGroup>
+        )}
+      </div>
+    </ProjectReportingShell>
+  );
+}
+
 export function MonthlyWorkspaceView({
   reportId,
   projectId,
+  viewer,
 }: {
   reportId: string;
   /**
@@ -883,6 +1168,15 @@ export function MonthlyWorkspaceView({
    * `MonthlyReportView` for why.
    */
   projectId?: string;
+  /**
+   * Who is asking, resolved on the server by `getMonthlyViewerContext`.
+   *
+   * Absent means the page did not resolve one — mock mode, or a route that has
+   * not been updated. The workspace then behaves exactly as it did before the
+   * department round existed: the full authoring surface, because that is who
+   * was ever able to open it.
+   */
+  viewer?: MonthlyWorkspaceViewer;
 }) {
   const links = projectId
     ? buildProjectMonthlyLinks(projectId)
@@ -895,7 +1189,110 @@ export function MonthlyWorkspaceView({
     return <EmptyState title="Monthly Report not found" description="This report is unavailable or you do not have access to it." icon={Plus} />;
   }
 
+  /*
+   * A department contributor gets a DEPARTMENT view, not a disabled copy of the
+   * authoring workspace.
+   *
+   * Rendering the full tab set with controls switched off would put Monthly
+   * Overview figures, Master Milestones, the Executive Summary and the Approval
+   * panel on their screen and rely on every one of those panels to refuse them.
+   * Building the department view from its own component means those panels are
+   * never mounted at all, so there is nothing to defeat.
+   */
+  /*
+   * A portfolio-wide reader (Phase B) is deliberately EXCLUDED here even
+   * though `canConsolidate` is false for them too: the department-card view
+   * below assumes every id in `departmentIds` is a real assignment (see
+   * `canContribute` on `MonthlyDepartmentWorkspace`), and a portfolio grant
+   * is read reach across the WHOLE workspace, not a narrow department round.
+   * They fall through to the full multi-panel workspace below instead,
+   * which every panel renders inside a disabled `<fieldset>` for them.
+   */
+  const departmentOnly =
+    viewer?.scope != null &&
+    !viewer.scope.isPortfolioReadOnly &&
+    !viewer.scope.canConsolidate &&
+    viewer.scope.departmentIds.length > 0;
+
+  if (departmentOnly && viewer?.scope) {
+    return (
+      <MonthlyDepartmentWorkspace
+        bundle={bundle}
+        viewer={viewer}
+        projectId={projectId}
+        reload={reload}
+      />
+    );
+  }
+
   const active = PANELS.find((item) => item.key === panel) ?? PANELS[0];
+  /*
+   * Every panel below was built assuming only a real consolidator (Report
+   * Coordinator, Project Control / Planning, or admin) ever reaches this
+   * branch — none of Overview, Weekly Inputs, Department Collection,
+   * Comments, Management Items, Next Month Plan, Executive Summary or
+   * Approval takes an edit-authority prop of its own, several ignore the one
+   * they DO take for their OWN save button (`ApprovalPanel`'s Reviewed
+   * By / Approved By / Save are not gated by `canControlReportLifecycle` at
+   * all — only which Report Status options are offered is), and none was
+   * ever exercised with a viewer who has zero write authority.
+   *
+   * Rather than auditing and re-wiring every one of those panels' internal
+   * controls individually, each is wrapped in a native `<fieldset disabled>`
+   * at the point it is mounted: `disabled` on a `<fieldset>` disables every
+   * form control and button in its subtree regardless of that control's own
+   * props, so this is real, functional read-only enforcement — not a visual
+   * suggestion — with zero risk of missing one field. `className="contents"`
+   * removes the fieldset from layout entirely, so it changes nothing for
+   * every other viewer, for whom `disabled` is always `false`.
+   *
+   * ACCESS & VISIBILITY HOTFIX: this used to disable the fieldsets only for
+   * a portfolio-wide reader (`scope.isPortfolioReadOnly`). A viewer with NO
+   * assignment on this project at all — `scope.capability === "none"` — has
+   * `isPortfolioReadOnly: false` (it is a different capability), zero
+   * `departmentIds` (so `departmentOnly` above never routes them to the
+   * restricted department view either), and fell straight through to this
+   * full multi-panel branch with every fieldset enabled. `editability.canEdit`
+   * is the general-purpose answer `monthlyEditability()` (in
+   * `monthly-viewer-context.ts`) already resolved server-side for every
+   * capability — none, portfolio_read, and the left-the-department-round
+   * case alike — so using it here closes all three at once instead of only
+   * the one case this previously named. A viewer with no resolved
+   * `editability` at all (demo mode, or a caller that never resolved one)
+   * keeps the pre-existing open behavior rather than being locked out of a
+   * workspace nothing here can explain access for.
+   */
+  const isReadOnlyWorkspace = viewer?.editability
+    ? !viewer.editability.canEdit
+    : false;
+
+  /*
+   * The Approval panel is deliberately NOT gated by `isReadOnlyWorkspace`.
+   *
+   * `editability.canEdit` (3A of the Access & Visibility hotfix) now closes
+   * once the report is `finalized`/`locked`/`archived` or its project is
+   * archived — correctly, for CONTENT. But finalized → locked, locked →
+   * archived, and archive from most other states are exactly the
+   * transitions a lifecycle authority performs ONCE content is otherwise
+   * closed; wrapping this panel in the same fieldset would have made those
+   * transitions unreachable through this workspace at all, a real
+   * regression this hotfix must not introduce. `canConsolidate` — the same
+   * authority `MonthlyCollectionPanel`'s `canManage` already gates on —
+   * decides whether the panel opens at all; `contentEditable` (passed to
+   * `ApprovalPanel` below) separately locks the sign-off fields once content
+   * closes, and `canControlReportLifecycle` (unchanged) restricts which
+   * Report Status options are offered. Three axes, not one conflated fieldset.
+   *
+   * The ONE thing this panel must still refuse regardless of authority: an
+   * ARCHIVED PROJECT. Unlike a report's own closed status (locked/finalized/
+   * archived, which the panel deliberately stays open through so a lifecycle
+   * authority can progress it), an archived project has nothing left to
+   * progress — every report on it is historical, and `weekly-report-detail-
+   * view.tsx`'s `projectArchived` guard applies the identical rule to
+   * Weekly's own transition buttons and Duplicate action.
+   */
+  const projectArchived = bundle.project?.status === "archived";
+  const canOpenApprovalPanel = (viewer?.scope ? viewer.scope.canConsolidate : true) && !projectArchived;
 
   return (
     <ProjectReportingShell
@@ -907,8 +1304,8 @@ export function MonthlyWorkspaceView({
           }
           period={getMonthLabel(bundle.report.reportingMonth)}
           status={{
-            label: REPORT_STATUS_META[bundle.report.status].label,
-            tone: REPORT_STATUS_META[bundle.report.status].tone,
+            label: monthlyStatusMeta(bundle.report.status).label,
+            tone: monthlyStatusMeta(bundle.report.status).tone,
           }}
           updatedAt={formatDate(bundle.report.updatedAt)}
         />
@@ -919,50 +1316,141 @@ export function MonthlyWorkspaceView({
         ) : undefined
       }
     >
-    <div className="monthly-workspace">
-      <div className="monthly-ws-header">
-        <div>
-          <p className="monthly-eyebrow">Monthly Workspace</p>
-          <h1>
-            {bundle.project?.name ?? NOT_RECORDED} — {getMonthLabel(bundle.report.reportingMonth)}
-          </h1>
-          <span>
-            {bundle.report.reportNumber} · <StatusBadge tone={monthEndStatus(bundle.report).tone}>{monthEndStatus(bundle.report).label}</StatusBadge>
-          </span>
-        </div>
-        <div className="monthly-ws-header-actions">
-          <Button asChild variant="outline">
-            <Link href={links.detail(bundle.report.id)}>
-              <Eye />
-              View Report
-            </Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href={links.preview(bundle.report.id)}>Print Preview</Link>
-          </Button>
-        </div>
-      </div>
-
-      <nav className="monthly-ws-nav" aria-label="Workspace sections">
-        {PANELS.map((item) => (
-          <button key={item.key} type="button" className={item.key === panel ? "active" : ""} onClick={() => setPanel(item.key)}>
-            {item.label}
-          </button>
-        ))}
-      </nav>
-
-      <p className="monthly-ws-hint">{active.hint}</p>
-
-      {panel === "overview" && <OverviewPanel bundle={bundle} reload={reload} />}
-      {panel === "weekly" && (
-        <WeeklyPanel bundle={bundle} reload={reload} links={links} />
+    <div className="monthly-workspace space-y-4">
+      {/*
+        Any viewer who reaches this full multi-panel branch with zero write
+        authority — a portfolio-wide reader (Phase B) or a viewer with no
+        assignment on this project at all (`isReadOnlyWorkspace` above) —
+        gets a plain statement of that fact, using the same reason
+        `monthlyEditability()` already resolved server-side for their exact
+        case. Every viewer who reaches this branch WITH authority already had
+        it before this strip existed, so it is new only for the read-only
+        ones.
+      */}
+      {isReadOnlyWorkspace && (
+        <ReportViewerStrip
+          title="Access & Scope"
+          facts={[
+            { label: "User", value: viewer?.viewerName ?? "Current user" },
+            {
+              label: "Role",
+              value: viewer?.viewerRoleLabel ?? "Portfolio reader",
+            },
+            {
+              label: "Report Status",
+              value: monthlyStatusMeta(bundle.report.status).label,
+            },
+          ]}
+          access={{
+            canEdit: false,
+            message:
+              viewer?.editability?.reason ??
+              "You do not have write access to this project. This workspace is read-only for you.",
+          }}
+        />
       )}
-      {panel === "milestones" && <MilestonesPanel bundle={bundle} />}
-      {panel === "comments" && <CommentsPanel bundle={bundle} reload={reload} />}
-      {panel === "management" && <MonthlyManagementPanel bundle={bundle} reload={reload} />}
-      {panel === "plan" && <PlanPanel bundle={bundle} reload={reload} />}
-      {panel === "summary" && <SummaryPanel bundle={bundle} reload={reload} />}
-      {panel === "approval" && <ApprovalPanel bundle={bundle} reload={reload} />}
+      <ReportWorkspaceHeader
+        eyebrow="Monthly Workspace"
+        title="Monthly Progress Report"
+        reportNumber={bundle.report.reportNumber}
+        /* The month-end verdict, not the lifecycle status — a different fact,
+           carried nowhere else on this screen, and named so the two do not
+           read as a contradiction. */
+        badges={
+          <LabeledStatus label="Performance" tone={monthEndStatus(bundle.report).tone}>
+            {monthEndStatus(bundle.report).label}
+          </LabeledStatus>
+        }
+        actions={
+          <>
+            <Button asChild variant="outline">
+              <Link href={links.detail(bundle.report.id)}>
+                <Eye />
+                View Report
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href={links.preview(bundle.report.id)}>Print Preview</Link>
+            </Button>
+          </>
+        }
+      />
+
+      <ReportPanelNav
+        label="Workspace sections"
+        items={PANELS}
+        value={panel}
+        onValueChange={(key) => setPanel(key as PanelKey)}
+        hint={active.hint}
+      />
+
+      {/*
+        One panel is mounted at a time, so the section number is seeded from the
+        panel's position in the tab strip rather than counted — see
+        `ReportSectionGroup`. The Department Collection panel and every other
+        panel below are untouched; they gain the section band by being inside
+        this wrapper.
+      */}
+      <ReportSectionGroup numbered startAt={PANELS.findIndex((item) => item.key === panel) + 1}>
+        {panel === "overview" && (
+          <fieldset disabled={isReadOnlyWorkspace} className="contents">
+            <OverviewPanel bundle={bundle} reload={reload} />
+          </fieldset>
+        )}
+        {panel === "weekly" && (
+          <fieldset disabled={isReadOnlyWorkspace} className="contents">
+            <WeeklyPanel bundle={bundle} reload={reload} links={links} />
+          </fieldset>
+        )}
+        {panel === "collection" && (
+          <fieldset disabled={isReadOnlyWorkspace} className="contents">
+            <MonthlyCollectionPanel
+              bundle={bundle}
+              /* No viewer resolved means the pre-existing behaviour: this workspace
+                 was only ever reachable by Project Control. */
+              canManage={viewer?.scope ? viewer.scope.canConsolidate : true}
+              onChanged={reload}
+            />
+          </fieldset>
+        )}
+        {/* Already read-only for everyone — governed milestone position, no
+            controls to disable — so it is not wrapped. */}
+        {panel === "milestones" && <MilestonesPanel bundle={bundle} />}
+        {panel === "comments" && (
+          <fieldset disabled={isReadOnlyWorkspace} className="contents">
+            <CommentsPanel bundle={bundle} reload={reload} />
+          </fieldset>
+        )}
+        {panel === "management" && (
+          <fieldset disabled={isReadOnlyWorkspace} className="contents">
+            <MonthlyManagementPanel bundle={bundle} reload={reload} />
+          </fieldset>
+        )}
+        {panel === "plan" && (
+          <fieldset disabled={isReadOnlyWorkspace} className="contents">
+            <PlanPanel bundle={bundle} reload={reload} />
+          </fieldset>
+        )}
+        {panel === "summary" && (
+          <fieldset disabled={isReadOnlyWorkspace} className="contents">
+            <SummaryPanel bundle={bundle} reload={reload} />
+          </fieldset>
+        )}
+        {panel === "approval" && (
+          <fieldset disabled={!canOpenApprovalPanel} className="contents">
+            <ApprovalPanel
+              bundle={bundle}
+              reload={reload}
+              /* No viewer resolved means the pre-existing behaviour: this
+                 workspace was only ever reachable by Project Control. */
+              canControlReportLifecycle={
+                viewer?.scope ? viewer.scope.canControlReportLifecycle : true
+              }
+              contentEditable={!isReadOnlyWorkspace}
+            />
+          </fieldset>
+        )}
+      </ReportSectionGroup>
     </div>
     </ProjectReportingShell>
   );

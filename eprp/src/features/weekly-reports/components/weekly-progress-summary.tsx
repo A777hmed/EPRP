@@ -1,6 +1,7 @@
 "use client";
 
 import { SectionCard, StatusBadge } from "@/components/shared";
+import { LabeledStatus } from "@/features/projects/components/sections/project-reporting-shell";
 import {
   KPI_RATING_META,
   PROGRESS_STATUS_META,
@@ -114,8 +115,14 @@ export function WeeklyProgressSummary({
       title="Project Progress"
       description="Planned against actual for the reporting week."
       contentClassName="space-y-4"
+      /* Named "Performance": this verdict is about the PROJECT's schedule, and
+         the report's own lifecycle status sits a few centimetres above it in
+         the context bar. Unlabelled, "Behind Schedule" under "Finalized" reads
+         as a contradiction rather than as two different questions. */
       action={
-        <StatusBadge tone={headline.tone}>{headline.label}</StatusBadge>
+        <LabeledStatus label="Performance" tone={headline.tone}>
+          {headline.label}
+        </LabeledStatus>
       }
     >
       <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
@@ -126,8 +133,27 @@ export function WeeklyProgressSummary({
           value={`${summary.variance > 0 ? "+" : ""}${summary.variance}%`}
           tone={tone}
         />
-        <Figure label="SPI" value={summary.spi.toFixed(2)} tone={tone} />
+        <Figure
+          label="SPI"
+          value={summary.spi === null ? "N/A" : summary.spi.toFixed(2)}
+          tone={tone}
+        />
       </div>
+
+      {summary.planningBacked && (
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+          <StatusBadge tone="info">Planning-backed</StatusBadge>
+          <span>
+            Snapshot v{summary.snapshotVersion}
+            {summary.dataDate ? ` · Data Date ${summary.dataDate}` : ""}
+            {typeof summary.coveragePercent === "number"
+              ? ` · Coverage ${summary.coveragePercent.toFixed(0)}%`
+              : ""}
+            . Planned/Actual Progress are governed by this snapshot and
+            cannot be edited manually.
+          </span>
+        </p>
+      )}
 
       {/* Said only when the recorded verdict and the arithmetic disagree. */}
       {!summary.statusAgrees && stated && (

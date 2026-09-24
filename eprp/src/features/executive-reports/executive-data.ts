@@ -31,6 +31,11 @@ import {
 import { scheduleVariance } from "@/lib/reporting";
 import type { StatusTone } from "@/components/shared/status-badge";
 import type { MilestoneState } from "@/features/projects/milestone-state";
+import {
+  monthlyDisplayFigures,
+  type MonthlyDisplayFigures,
+  type PlanningRollupLike,
+} from "@/features/monthly-reports/planning-integration";
 import type {
   Contact,
   MonthlyComment,
@@ -49,11 +54,19 @@ import type {
  * one. See `readHealth()` below.
  */
 import { NOT_RECORDED, monthEndStatus, nameOf, type NamedRecord } from "@/features/monthly-reports/monthly-data";
+import {
+  approvedExecutivePerformance,
+  executiveGovernanceCounts,
+  executiveHealthCounts,
+  monthlyForExecutiveHealth,
+} from "./executive-governance";
 
 export { NOT_RECORDED, nameOf, type NamedRecord };
 
 /** Text used wherever a project is present but has reported no position. */
 export const NOT_REPORTED = "Not Reported";
+/** Performance is not applicable without an approved Monthly basis. */
+export const NOT_APPLICABLE = "N/A";
 
 /* ------------------------------ Monthly basis ------------------------------ */
 
@@ -72,7 +85,7 @@ export const NOT_REPORTED = "Not Reported";
  */
 export const APPROVED_MONTHLY_STATUSES: ReportStatus[] = APPROVED_REPORT_STATUSES;
 
-export function isApprovedMonthly(report: MonthlyReport): boolean {
+export function isApprovedMonthly(report: Pick<MonthlyReport, "status">): boolean {
   return APPROVED_MONTHLY_STATUSES.includes(report.status);
 }
 
@@ -130,6 +143,35 @@ export function selectOfficialMonthly(reports: MonthlyReport[], month: string): 
 
   const latest = [...inMonth].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return { basis: "draft", report: latest[0] };
+}
+
+/**
+ * Planning Integration 3E — the SAME figures the selected Monthly Report
+ * itself shows, never re-derived.
+ *
+ * Delegates to `monthlyDisplayFigures` (Monthly's own 3C module): when the
+ * Monthly is Planning-backed, Planned/Actual/Variance/SPI all come from its
+ * ONE pinned snapshot's rollup; otherwise they are the Monthly's own stored
+ * columns, exactly as `selectOfficialMonthly` returned them. Executive
+ * supplies that rollup itself, read by the Monthly's own immutable
+ * `planningSnapshotId` (`planningRollupService.computeSnapshotRollup`) — a
+ * plain lookup by an already-fixed id, never `getLatestSnapshot()` or
+ * `getSnapshotForPeriod()`. Executive therefore never independently chooses
+ * a Planning snapshot and never disagrees with the Monthly Report it
+ * compiles: publishing a NEWER Planning Snapshot cannot change what an
+ * already-approved Monthly — and therefore this Executive period — shows,
+ * because the pin this reads is the one the Monthly was created with, not
+ * "whatever is current now".
+ *
+ * `undefined` only when there is no Monthly at all (`basis: "none"`) — the
+ * existing "absence is never zero" contract, unaffected.
+ */
+export function executiveFiguresFor(
+  monthly: MonthlyReport | undefined,
+  planningRollup: PlanningRollupLike | null | undefined
+): MonthlyDisplayFigures | undefined {
+  if (!monthly) return undefined;
+  return monthlyDisplayFigures(monthly, planningRollup);
 }
 
 /* -------------------------------- Health ---------------------------------- */
@@ -214,7 +256,9 @@ export interface HealthReading {
  * own: a recorded `overallProgressStatus` wins, otherwise the variance decides.
  * Delegating to it is what keeps a single threshold set in the system.
  */
-export function readHealth(report: MonthlyReport | undefined): HealthReading {
+export function readHealth(
+  report: Pick<MonthlyReport, "scheduleVariance" | "overallProgressStatus"> | undefined
+): HealthReading {
   if (!report) {
     const meta = EXEC_HEALTH_META.unknown;
     return { health: "unknown", label: meta.label, tone: meta.tone, basis: "No Monthly Report for this month." };
@@ -230,6 +274,26 @@ export function readHealth(report: MonthlyReport | undefined): HealthReading {
     basis: report.overallProgressStatus
       ? `Recorded on the Monthly Report as “${PROGRESS_STATUS_META[report.overallProgressStatus].label}” (${status.detail}).`
       : `The Monthly Report's own month-end reading of its schedule variance (${status.detail}).`,
+  };
+}
+
+/**
+ * Official Executive health for the selected Monthly basis.
+ *
+ * Approval governs portfolio performance, not reporting presence. A draft is
+ * still reported and preserves its Monthly-derived health; only a project with
+ * no Monthly for the selected period resolves to Not Reported.
+ */
+export function readExecutiveHealth(selection: MonthlySelection): HealthReading {
+  const report = monthlyForExecutiveHealth(selection.basis, selection.report);
+  if (report) return readHealth(report);
+
+  const meta = EXEC_HEALTH_META.unknown;
+  return {
+    health: "unknown",
+    label: meta.label,
+    tone: meta.tone,
+    basis: "No Monthly Report for this month.",
   };
 }
 
@@ -674,14 +738,33 @@ export function changesSinceMonthly(input: MovementInput): MovementItem[] {
 export interface ProjectExecutiveRow {
   project: Project;
   projectName: string;
+  /** Operational comments/plans are readable for this project by this viewer. */
+  detailAvailable?: boolean;
   clientName: string;
   managerName?: string;
   basis: MonthlyBasis;
   monthly?: MonthlyReport;
   monthlyStatusLabel?: string;
+  /**
+   * Planned/Actual/Variance/SPI below all come from `executiveFiguresFor()`
+   * — the SAME governed-or-fallback figures the selected Monthly itself
+   * shows, never re-derived and never mixed: when `planningBacked`, all
+   * four come from that Monthly's ONE pinned snapshot rollup; otherwise all
+   * four are the Monthly's own stored columns.
+   */
   planned?: number;
   actual?: number;
   variance?: number;
+  /** True only when the selected Monthly is Planning-backed (3E). Absent
+      figures above are `undefined`, per "absence is never zero" — never 0. */
+  planningBacked: boolean;
+  /** EV/PV. `null` when Planning-backed but value data is unavailable (or
+      Planned Value <= 0) — never the Actual%/Planned% ratio. Absent
+      entirely when `planningBacked` is false. */
+  spi?: number | null;
+  coveragePercent?: number;
+  snapshotVersion?: number;
+  dataDate?: string;
   reading: HealthReading;
   attention: AttentionItem[];
   risks: AttentionItem[];
@@ -711,21 +794,50 @@ export function byAttention(a: ProjectExecutiveRow, b: ProjectExecutiveRow): num
   return a.projectName.localeCompare(b.projectName);
 }
 
+export interface ManagementAttentionLists {
+  decisions: AttentionItem[];
+  risks: AttentionItem[];
+  clientActions: AttentionItem[];
+  overdue: AttentionItem[];
+}
+
+/**
+ * ONE definition of "what needs management attention," shared by the
+ * printed Management Attention section and the screen cockpit's compact
+ * version — extracted so the two presentations of the same lists can never
+ * silently diverge in what they count.
+ */
+export function buildManagementAttention(rows: ProjectExecutiveRow[]): ManagementAttentionLists {
+  return {
+    decisions: rows.flatMap((row) => row.decisions).sort(bySeverity),
+    risks: rows.flatMap((row) => row.risks).sort(bySeverity),
+    clientActions: rows.flatMap((row) => row.clientActions).sort(bySeverity),
+    overdue: rows.flatMap((row) => row.overdue).sort(bySeverity),
+  };
+}
+
 /* ------------------------------- Aggregation ------------------------------- */
 
 export interface PortfolioAggregate {
   /** Projects in view after access and filter, whatever their basis. */
   totalProjects: number;
+  /** Current non-archived management scope; equal to totalProjects here. */
   activeProjects: number;
+  /** Projects with any Monthly for the selected period. */
+  submitted: number;
   /** Rows whose basis is `approved` — the only rows behind the figures below. */
   contributing: number;
   excludedDraft: number;
   excludedMissing: number;
+  /** Draft Monthly exists, but its health is not authorized for this viewer. */
+  restrictedDraftHealth: number;
   planned?: number;
   actual?: number;
   variance?: number;
   health: Record<ExecHealth, number>;
   openDecisions: number;
+  /** Number of visible projects whose operational detail is not available. */
+  restrictedDetailProjects: number;
   clientPendingActions: number;
   overdueActions: number;
   openRisks: number;
@@ -735,23 +847,6 @@ export interface PortfolioAggregate {
   basisNote: string;
   /** True when no approved Monthly exists at all — the compact honest state. */
   noApprovedBasis: boolean;
-  /**
-   * The position including unapproved Monthly data.
-   *
-   * PRESENTATION ONLY, for the narrative. The official figures above remain
-   * approved-only and are unchanged — this exists so the summary can tell
-   * leadership where the portfolio actually stands while saying plainly that
-   * the figure is provisional, instead of opening with a refusal to answer.
-   */
-  provisionalPlanned?: number;
-  provisionalActual?: number;
-  provisionalVariance?: number;
-  provisionalCount: number;
-}
-
-function mean(values: number[]): number | undefined {
-  if (values.length === 0) return undefined;
-  return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1));
 }
 
 /**
@@ -767,24 +862,19 @@ function mean(values: number[]): number | undefined {
  */
 export function aggregatePortfolio(rows: ProjectExecutiveRow[]): PortfolioAggregate {
   const approved = rows.filter((row) => row.basis === "approved");
-  const excludedDraft = rows.filter((row) => row.basis === "draft").length;
-  const excludedMissing = rows.filter((row) => row.basis === "none").length;
+  const governance = executiveGovernanceCounts(rows);
+  const excludedDraft = governance.draft;
+  const excludedMissing = governance.missing;
+  const restrictedDraftHealth = rows.filter((row) => row.basis === "draft" && row.reading.label === "Status Restricted").length;
 
-  const health = EXEC_HEALTH_ORDER.reduce(
-    (acc, key) => ({ ...acc, [key]: 0 }),
-    {} as Record<ExecHealth, number>
+  const health = executiveHealthCounts(
+    rows.map((row) => ({ health: row.reading.health })),
+    EXEC_HEALTH_ORDER
   );
-  for (const row of rows) health[row.reading.health] += 1;
 
-  const planned = mean(approved.map((row) => row.planned ?? 0));
-  const actual = mean(approved.map((row) => row.actual ?? 0));
-
-  // Same arithmetic over every row that reported anything, approved or not.
-  // Never shown as an official figure — only the narrative uses it, and only
-  // while calling it provisional.
-  const reporting = rows.filter((row) => row.monthly !== undefined);
-  const provisionalPlanned = mean(reporting.map((row) => row.planned ?? 0));
-  const provisionalActual = mean(reporting.map((row) => row.actual ?? 0));
+  const performance = approvedExecutivePerformance(rows);
+  const planned = performance.planned;
+  const actual = performance.actual;
 
   // Attention counts read every row the viewer can see, approved or not: an
   // unapproved project's open risk is still a risk leadership should know about.
@@ -795,23 +885,24 @@ export function aggregatePortfolio(rows: ProjectExecutiveRow[]): PortfolioAggreg
 
   const noApprovedBasis = approved.length === 0;
   const basisNote = noApprovedBasis
-    ? "Provisional — no approved Monthly Report for this period."
-    : `Unweighted mean of ${approved.length} approved Monthly Report${approved.length === 1 ? "" : "s"}` +
-      (excludedDraft || excludedMissing
-        ? `; ${excludedDraft + excludedMissing} project${excludedDraft + excludedMissing === 1 ? "" : "s"} not yet approved.`
-        : ".");
+    ? `No approved Monthly performance basis; ${governance.submitted} submitted, ${excludedDraft} draft, ${excludedMissing} missing.`
+    : `Unweighted mean of ${performance.contributing} approved Monthly Report${performance.contributing === 1 ? "" : "s"}` +
+      `; ${governance.submitted} submitted, ${approved.length} approved, ${excludedDraft} draft, ${excludedMissing} missing.`;
 
   return {
     totalProjects: rows.length,
-    activeProjects: rows.filter((row) => row.project.status === "active").length,
+    activeProjects: governance.active,
+    submitted: governance.submitted,
     contributing: approved.length,
     excludedDraft,
     excludedMissing,
+    restrictedDraftHealth,
     planned,
     actual,
     variance: planned !== undefined && actual !== undefined ? scheduleVariance(planned, actual) : undefined,
     health,
     openDecisions: openOf("decision"),
+    restrictedDetailProjects: rows.filter((row) => row.detailAvailable === false).length,
     clientPendingActions: openOf("client_action"),
     overdueActions: all.filter((item) => item.overdue).length,
     openRisks: openOf("risk"),
@@ -819,13 +910,6 @@ export function aggregatePortfolio(rows: ProjectExecutiveRow[]): PortfolioAggreg
     openActionsTotal: rows.reduce((sum, row) => sum + row.openActions.total, 0),
     basisNote,
     noApprovedBasis,
-    provisionalPlanned,
-    provisionalActual,
-    provisionalVariance:
-      provisionalPlanned !== undefined && provisionalActual !== undefined
-        ? scheduleVariance(provisionalPlanned, provisionalActual)
-        : undefined,
-    provisionalCount: reporting.length,
   };
 }
 
@@ -1001,16 +1085,29 @@ export function draftExecutiveNarrative(input: {
   const sentences: string[] = [];
   const count = aggregate.totalProjects;
 
-  /* 1–2 · Period and coverage. */
+  /*
+   * 1–2 · Period and coverage.
+   *
+   * `monthLabel` is the literal sentinel "No reporting period" when no
+   * Monthly Report exists for any project in view (see `hasReportingPeriods`
+   * in `executive-view.tsx`) — never a real month label, which is always
+   * `monthLabelOf()`'s "<Month> <Year>". Folding the sentinel straight into
+   * the sentence read as "No reporting period Portfolio Summary:", which is
+   * not a sentence. State the absence first, as its own clause.
+   */
+  const hasPeriod = monthLabel !== "No reporting period";
   sentences.push(
-    `${monthLabel} Portfolio Summary: the portfolio currently includes ` +
-      `${count} project${count === 1 ? "" : "s"}.`
+    hasPeriod
+      ? `${monthLabel} Portfolio Summary: the portfolio currently includes ` +
+          `${count} project${count === 1 ? "" : "s"}.`
+      : `Portfolio Summary — No reporting period selected. The portfolio currently includes ` +
+          `${count} project${count === 1 ? "" : "s"}.`
   );
 
   /* 3–4 · Position and schedule health. */
-  const planned = aggregate.planned ?? aggregate.provisionalPlanned;
-  const actual = aggregate.actual ?? aggregate.provisionalActual;
-  const variance = aggregate.variance ?? aggregate.provisionalVariance;
+  const planned = aggregate.planned;
+  const actual = aggregate.actual;
+  const variance = aggregate.variance;
 
   if (planned !== undefined && actual !== undefined && variance !== undefined) {
     if (count === 1 && rows[0]) {
@@ -1027,9 +1124,12 @@ export function draftExecutiveNarrative(input: {
         `Portfolio actual progress stands at ${actual.toFixed(1)}% against ${planned.toFixed(1)}% planned ` +
           `(SV ${variance > 0 ? "+" : ""}${variance.toFixed(1)}%).`
       );
-      const spread = EXEC_HEALTH_ORDER.filter((health) => aggregate.health[health] > 0)
-        .map((health) => `${aggregate.health[health]} ${EXEC_HEALTH_META[health].label}`)
-        .join(", ");
+      const spread = [
+        ...EXEC_HEALTH_ORDER.filter((health) => health !== "unknown" && aggregate.health[health] > 0)
+          .map((health) => `${aggregate.health[health]} ${EXEC_HEALTH_META[health].label}`),
+        ...(aggregate.excludedMissing > 0 ? [`${aggregate.excludedMissing} Not Reported`] : []),
+        ...(aggregate.restrictedDraftHealth > 0 ? [`${aggregate.restrictedDraftHealth} Status Restricted (Draft)`] : []),
+      ].join(", ");
       if (spread) sentences.push(`Schedule health across the portfolio: ${spread}.`);
     }
   }

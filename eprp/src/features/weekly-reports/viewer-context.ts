@@ -163,7 +163,7 @@ export const getWeeklyViewerContext = cache(
     return {
       demoMode: false,
       scope,
-      editability: weeklyEditability(scope, status),
+      editability: weeklyEditability(scope, status, project.status),
       reportStatus: status,
       viewerName: identity?.fullName,
       viewerRoleLabel: identity?.roleLabel,

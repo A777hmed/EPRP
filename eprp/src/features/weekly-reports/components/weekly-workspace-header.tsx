@@ -6,6 +6,10 @@ import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 
 import { StatusBadge } from "@/components/shared";
+import {
+  ReportViewerStrip,
+  ReportWorkspaceHeader,
+} from "@/features/projects/components/sections/project-reporting-shell";
 import { siteConfig } from "@/config/site";
 import { useMasterData } from "@/features/master-data";
 import { REPORT_STATUS_META } from "@/lib/constants";
@@ -50,17 +54,20 @@ export interface WeeklyWorkspaceHeaderProps {
   qrHref?: string;
 }
 
-/** Shared document identity for Weekly detail, workspace, preview, and print. */
-export function WeeklyWorkspaceHeader({
+/**
+ * The full controlled-document identity: EPROM and client branding, the QR to
+ * the report archive, the navy title band, the document number, and the eight
+ * report facts.
+ *
+ * THIS MARKUP IS UNCHANGED and stays that way. It is what Weekly detail,
+ * preview and print render, and the print sprint walks it — so the split below
+ * takes the SCREEN WORKSPACE off it rather than editing it.
+ */
+function WeeklyDocumentHeader({
   report,
   project,
   actions,
-  viewerName,
-  viewerRoleLabel,
   mode = "detail",
-  effectiveScope,
-  canEdit,
-  editBlockedReason,
   qrHref,
 }: WeeklyWorkspaceHeaderProps) {
   const { records: clients } = useMasterData("client");
@@ -151,25 +158,68 @@ export function WeeklyWorkspaceHeader({
           <Fact label="Last Updated">{formatDateTime(report.updatedAt)}</Fact>
         </dl>
 
-        {mode === "workspace" && (
-          <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-            <p className="mb-2 text-xs font-bold tracking-[0.14em] text-primary uppercase">
-              Weekly Workspace
-            </p>
-            <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
-              <Fact label="Current User">{viewerName ?? "Current user"}</Fact>
-              <Fact label="Role">{viewerRoleLabel ?? "Resolved project role"}</Fact>
-              <Fact label="Lifecycle Status">{status.label}</Fact>
-              <Fact label="Effective Scope">{effectiveScope ?? "Project scope"}</Fact>
-            </dl>
-            <p className={`mt-2 text-xs ${canEdit ? "text-success" : "text-warning"}`}>
-              {canEdit ? "Editing is available for your resolved Weekly scope." : editBlockedReason ?? "This workspace is read-only for the current user."}
-            </p>
-          </div>
-        )}
-
         {actions && <div className="flex flex-wrap justify-end gap-2 print:hidden">{actions}</div>}
       </div>
     </header>
+  );
+}
+
+/**
+ * Weekly report identity, in the presentation the surface actually needs.
+ *
+ * `workspace` is where the work happens, so it gets the compact operational
+ * header shared with Monthly — the same `ReportWorkspaceHeader` and
+ * `ReportViewerStrip` the Monthly workspaces use, so the two tiers read as one
+ * product. `detail` and `preview` keep the full controlled-document header
+ * above, unchanged: those are the report as a reader and a printer want it.
+ *
+ * The props are the same in both directions, so no call site changed.
+ */
+export function WeeklyWorkspaceHeader(props: WeeklyWorkspaceHeaderProps) {
+  const {
+    report,
+    actions,
+    viewerName,
+    viewerRoleLabel,
+    mode = "detail",
+    effectiveScope,
+    canEdit,
+    editBlockedReason,
+  } = props;
+
+  if (mode !== "workspace") return <WeeklyDocumentHeader {...props} />;
+
+  const status = REPORT_STATUS_META[report.status];
+
+  return (
+    <div className="space-y-4">
+      {/* Project, week, period and lifecycle status are stated once, by
+          `ReportContextHeader` above. This is the document. */}
+      <ReportWorkspaceHeader
+        eyebrow="Weekly Workspace"
+        title="Weekly Project Progress Report"
+        reportNumber={report.reportNumber}
+        actions={actions}
+      />
+
+      <ReportViewerStrip
+        title="Access & Scope"
+        /* "Report Status", not "Lifecycle Status": this screen also carries a
+           project performance verdict, and the two must not read as one. */
+        facts={[
+          { label: "User", value: viewerName ?? "Current user" },
+          { label: "Role", value: viewerRoleLabel ?? "Resolved project role" },
+          { label: "Report Status", value: status.label },
+          { label: "Scope", value: effectiveScope ?? "Project scope" },
+        ]}
+        access={{
+          canEdit: Boolean(canEdit),
+          message: canEdit
+            ? "Editing is available for your resolved Weekly scope."
+            : (editBlockedReason ??
+              "This workspace is read-only for the current user."),
+        }}
+      />
+    </div>
   );
 }

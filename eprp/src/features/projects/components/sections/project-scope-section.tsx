@@ -2,7 +2,16 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Building2, Contact, ExternalLink, Layers, PenLine, Plus, Wrench } from "lucide-react";
+import {
+  Building2,
+  Contact,
+  ExternalLink,
+  Layers,
+  PenLine,
+  Plus,
+  Repeat,
+  Wrench,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +38,7 @@ import {
 } from "@/components/shared";
 import { useMasterData } from "@/features/master-data";
 import type {
+  AssignmentRole,
   Contact as ContactRecord,
   Department,
   Discipline,
@@ -42,6 +52,7 @@ import {
 import { projectWorkflowHref } from "@/config/project-workflow";
 import { ASSIGNMENT_ROLE_META } from "@/lib/constants";
 import { useCurrentIdentity } from "@/features/auth/use-current-identity";
+import { ReplacePersonDialog } from "../replace-person-dialog";
 import { withProjectContext } from "../../project-link-context";
 import { useHierarchyTerms } from "../../use-hierarchy-terms";
 import { useProjectAuthority } from "../../use-project-authority";
@@ -64,6 +75,16 @@ interface ScopeRow {
   badge?: React.ReactNode;
   /** False when the project references a record master data no longer has. */
   resolved: boolean;
+  /** `contacts` rows only — the department/team assignment this row holds. */
+  assignmentRole?: AssignmentRole;
+  /**
+   * `contacts` rows only — the raw contact id. `targetId` below is parsed out
+   * of the composite `row.id` by splitting on "-", which corrupts ids that
+   * themselves contain a hyphen (e.g. "sy-tank-farm", or a real Postgres
+   * uuid) — this field sidesteps that for Replace Person, which needs the
+   * exact id.
+   */
+  contactId?: string;
 }
 
 const KIND_META: Record<
@@ -112,6 +133,8 @@ export interface ProjectScopeSectionProps {
   kind: ScopeKind;
   sectionId: ProjectSectionId;
   description: string;
+  /** Reloads the project data this view renders from. `contacts` only. */
+  onReplaced: () => void | Promise<void>;
 }
 
 /**
@@ -126,6 +149,7 @@ export function ProjectScopeSection({
   kind,
   sectionId,
   description,
+  onReplaced,
 }: ProjectScopeSectionProps) {
   const { records: departmentRecords } = useMasterData("department");
   const { records: systemRecords } = useMasterData("system");
@@ -284,6 +308,8 @@ export function ProjectScopeSection({
             name: record?.name ?? "Unknown contact",
             departmentId: member.departmentId,
             systemId: member.systemId,
+            assignmentRole: member.assignmentRole,
+            contactId: member.contactId,
             meta: [
               nameOf(departments, member.departmentId),
               // Project-specific responsibility structure, shown alongside the
@@ -621,6 +647,43 @@ export function ProjectScopeSection({
                             </Link>
                           </Button>
                           )}
+                          {/* Same authority as fixed-responsibility Replace in
+                              Team & Responsibilities —
+                              can_manage_project_responsibilities() by way of
+                              `canManageOperations`. Every scope-item row for
+                              this (department, role, person) is retargeted
+                              together, so any one row's own Replace is enough
+                              even when the person holds more than one. */}
+                          {kind === "contacts" &&
+                            canManageSetup &&
+                            row.assignmentRole &&
+                            row.contactId && (
+                              <ReplacePersonDialog
+                                project={project}
+                                unit={{
+                                  kind: "department_assignment",
+                                  departmentId: row.departmentId ?? "",
+                                  assignmentRole: row.assignmentRole,
+                                }}
+                                responsibilityLabel={`${ASSIGNMENT_ROLE_META[row.assignmentRole].label} — ${nameOf(departments, row.departmentId)}`}
+                                currentContactId={row.contactId}
+                                onReplaced={onReplaced}
+                                trigger={
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    aria-label={`Replace ${row.name}`}
+                                    title="Replace Person"
+                                  >
+                                    <Repeat
+                                      data-icon="inline-start"
+                                      aria-hidden="true"
+                                    />
+                                    Replace
+                                  </Button>
+                                }
+                              />
+                            )}
                         </span>
                       ) : (
                         <Button variant="outline" size="sm" asChild>

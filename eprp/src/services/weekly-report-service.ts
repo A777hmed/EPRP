@@ -426,6 +426,24 @@ const mockWeeklyReportService: WeeklyReportService = {
     const existing = reportStore.get(id);
     if (!existing) throw new Error(`Weekly report ${id} not found`);
 
+    /*
+     * Planning Integration 3B, mirrored from the Supabase service: a
+     * Planning-backed report's planned/actual progress cannot be edited
+     * manually. The mock has no live Planning system to resolve a rollup
+     * against, so `planningSnapshotId` is never set here in practice — this
+     * guard exists so the two services stay behaviourally identical rather
+     * than silently diverging if that ever changes.
+     */
+    if (
+      (input.plannedProgress !== undefined ||
+        input.actualProgress !== undefined) &&
+      existing.planningSnapshotId
+    ) {
+      throw new Error(
+        "Planned and Actual Progress are governed by the Published Planning Snapshot on this report and cannot be edited manually."
+      );
+    }
+
     const patch: Partial<WeeklyReport> = {};
     if (input.periodStart) {
       const { start, end, anchor } = getReportingWeekRange(input.periodStart);

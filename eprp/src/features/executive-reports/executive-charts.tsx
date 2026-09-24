@@ -38,10 +38,10 @@ const TRACK = "#f3f7fa";
  * The label band is 27% and the value band 9%. They remain disjoint, so the
  * non-overlap guarantee is arithmetic, not a matter of tuning.
  */
-function bands(vw: number) {
-  const label = Math.max(74, Math.round(vw * 0.27));
-  const value = Math.max(28, Math.round(vw * 0.09));
-  const left = label + 6;
+function bands(vw: number, valueFloor = 42) {
+  const label = Math.max(88, Math.min(148, Math.round(vw * 0.3)));
+  const value = Math.max(valueFloor, Math.round(vw * 0.1));
+  const left = label + 10;
   const right = vw - value;
   return { label, value, left, right, width: right - left };
 }
@@ -146,7 +146,7 @@ export function ClusteredBars({
   maxValue: number;
   suffix: string;
 }) {
-  const b = bands(vw);
+  const b = bands(vw, 72);
   const g = rowGeometry(rows.length, { series: series.length });
   const barH = g.barH;
   const gap = 1.6;
@@ -189,22 +189,14 @@ export function ClusteredBars({
                 </g>
               );
             })}
-            {row.values.map((value, s) => {
-              const last = s === row.values.length - 1;
-              return (
-                <text
-                  key={s}
-                  x={b.right + 4}
-                  y={top + s * (barH + gap) + barH - 1}
-                  fill={last ? INK : MUTED}
-                  fontSize={8.4}
-                  fontWeight={last ? 700 : 500}
-                >
-                  {value}
-                  {suffix}
-                </text>
-              );
-            })}
+            <text x={b.right + 6} y={top + groupH / 2 + 3} fill={INK} fontSize={8.2} fontWeight={700}>
+              {row.values.map((value, s) => (
+                <React.Fragment key={s}>
+                  {s > 0 && <tspan fill={MUTED}> / </tspan>}
+                  <tspan fill={series[s].color}>{value}{suffix}</tspan>
+                </React.Fragment>
+              ))}
+            </text>
           </g>
         );
       })}
@@ -228,13 +220,30 @@ export function TrendChart({
   maxValue: number;
   suffix: string;
 }) {
-  const height = 146;
-  const pad = { top: 18, right: 12, bottom: 20, left: 26 };
+  const height = 150;
+  const pad = { top: 18, right: 52, bottom: 22, left: 28 };
   const plotW = vw - pad.left - pad.right;
   const plotH = height - pad.top - pad.bottom;
   const step = categories.length > 1 ? plotW / (categories.length - 1) : 0;
   const x = (i: number) => pad.left + step * i;
   const y = (v: number) => pad.top + plotH * (1 - Math.min(v, maxValue) / maxValue);
+  const lastIndex = categories.length - 1;
+  const maxTicks = Math.max(2, Math.floor(plotW / 56));
+  const tickEvery = Math.max(1, Math.ceil(Math.max(categories.length - 1, 1) / Math.max(maxTicks - 1, 1)));
+  const endpointGap = 12;
+  const endpointLabels = series
+    .map((serie, index) => ({
+      index,
+      color: serie.color,
+      value: serie.values[lastIndex],
+      desiredY: y(serie.values[lastIndex]),
+    }))
+    .sort((a, b) => a.desiredY - b.desiredY)
+    .map((entry, index, ordered) => ({
+      ...entry,
+      labelY: index === 0 ? Math.max(pad.top + 4, entry.desiredY) : Math.max(entry.desiredY, ordered[index - 1].desiredY + endpointGap),
+    }));
+  const labelOverflow = Math.max(0, (endpointLabels.at(-1)?.labelY ?? 0) - (pad.top + plotH - 3));
 
   return (
     <Frame label={title} vw={vw} height={height}>
@@ -275,18 +284,31 @@ export function TrendChart({
         );
       })}
 
-      {series[0]?.values.map((v, i) => (
-        <text key={i} x={x(i)} y={y(v) - 7} fill={INK} fontSize={8.8} fontWeight={700} textAnchor="middle">
-          {v}
-          {suffix}
+      {endpointLabels.map((entry) => (
+        <text
+          key={entry.index}
+          x={x(lastIndex) + 8}
+          y={entry.labelY - labelOverflow + 3}
+          fill={entry.color}
+          fontSize={8.5}
+          fontWeight={800}
+          paintOrder="stroke"
+          stroke="#ffffff"
+          strokeWidth={3.5}
+          strokeLinejoin="round"
+        >
+          {entry.value}{suffix}
         </text>
       ))}
 
-      {categories.map((c, i) => (
-        <text key={c} x={x(i)} y={height - 6} fill={MUTED} fontSize={8} textAnchor="middle">
-          {c}
-        </text>
-      ))}
+      {categories.map((c, i) => {
+        const show = i === 0 || i === lastIndex || i % tickEvery === 0;
+        return show ? (
+          <text key={c} x={x(i)} y={height - 6} fill={MUTED} fontSize={8} textAnchor="middle">
+            {c}
+          </text>
+        ) : null;
+      })}
     </Frame>
   );
 }
@@ -338,7 +360,7 @@ export function DonutChart({
    */
   const rOut = stacked ? 46 : 50;
   const rIn = stacked ? 30 : 33;
-  const rowH = 18;
+  const rowH = 20;
   const legendH = slices.length * rowH;
 
   const cx = stacked ? vw / 2 : rOut + 8;
@@ -391,8 +413,8 @@ export function DonutChart({
       {slices.map((slice, index) => {
         const y = legendTop + rowH * index;
         const pct = Math.round((slice.value / sum) * 100);
-        // Count and percent occupy a fixed right strip; the name gets the rest.
-        const metaW = 46;
+        // Count and percent occupy fixed, separate columns; the name gets the rest.
+        const metaW = 54;
         return (
           <g key={slice.name}>
             <circle cx={legendX + 4} cy={y - 3} r={4} fill={slice.color} />
@@ -400,11 +422,11 @@ export function DonutChart({
               {fit(slice.name, 9, legendW - metaW - 18)}
               <title>{slice.name}</title>
             </text>
+            <text x={legendX + legendW - 32} y={y} fill={INK} fontSize={8.6} fontWeight={700} textAnchor="end">
+              {slice.value}
+            </text>
             <text x={legendX + legendW - 2} y={y} fill={MUTED} fontSize={8.6} textAnchor="end">
-              <tspan fill={INK} fontWeight={700}>
-                {slice.value}
-              </tspan>
-              {`  ${pct}%`}
+              {pct}%
             </text>
           </g>
         );
@@ -497,24 +519,35 @@ export function DivergingBars({
   const height = g.height;
   const axisY = g.axisY;
   const zeroX = b.right;
-  const span = Math.abs(Math.min(minValue, -1));
+  const rawSpan = Math.abs(Math.min(minValue, -1));
+  // Round the visual domain to an executive-readable interval while keeping
+  // every real bar-end value unchanged. For example, -29 resolves to a
+  // -30…0 axis with -10 increments instead of fractional generated ticks.
+  const roughStep = rawSpan / 4;
+  const magnitude = 10 ** Math.floor(Math.log10(Math.max(roughStep, 1)));
+  const normalizedStep = roughStep / magnitude;
+  const stepMultiplier = normalizedStep <= 1 ? 1 : normalizedStep <= 2 ? 2 : normalizedStep <= 5 ? 5 : 10;
+  const tickStep = stepMultiplier * magnitude;
+  const span = Math.ceil(rawSpan / tickStep) * tickStep;
+  const ticks = Array.from({ length: Math.round(span / tickStep) + 1 }, (_, index) => -index * tickStep);
 
   return (
     <Frame label={title} vw={vw} height={height}>
-      {[0, 0.25, 0.5, 0.75, 1].map((f) => {
-        const x = zeroX - f * b.width;
+      {ticks.map((tick) => {
+        const fraction = Math.abs(tick) / span;
+        const x = zeroX - fraction * b.width;
         return (
-          <g key={f}>
+          <g key={tick}>
             <line
               x1={x}
               y1={1}
               x2={x}
               y2={axisY - 5}
-              stroke={f === 0 ? "#9fb4c9" : GRID}
-              strokeWidth={f === 0 ? 1.3 : 0.7}
+              stroke={tick === 0 ? "#9fb4c9" : GRID}
+              strokeWidth={tick === 0 ? 1.3 : 0.7}
             />
             <text x={x} y={axisY + 5} fill={MUTED} fontSize={8} textAnchor="middle">
-              {f === 0 ? 0 : -Math.round(f * span * 10) / 10}
+              {tick}
             </text>
           </g>
         );

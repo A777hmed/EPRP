@@ -95,7 +95,7 @@ export function AppSidebar({ welcome }: AppSidebarProps) {
   const pathname = usePathname();
   const { isMobile } = useSidebar();
   const projectId = activeProjectId(pathname);
-  const { isGlobalAuthority } = useCurrentIdentity();
+  const { isAdmin, isGlobalAuthority } = useCurrentIdentity();
 
   return (
     <Sidebar collapsible="icon">
@@ -159,7 +159,9 @@ export function AppSidebar({ welcome }: AppSidebarProps) {
            * shown, so a management link never flashes in and out on load.
            */
           const items = inScope.filter(
-            (item) => !item.requiresGlobalAuthority || isGlobalAuthority
+            (item) =>
+              (!item.requiresGlobalAuthority || isGlobalAuthority) &&
+              (!item.requiresSystemAdmin || isAdmin)
           );
           if (items.length === 0) return null;
 

@@ -318,7 +318,8 @@ export function WeeklyDistributionPanel({
         <Button
           size="sm"
           onClick={() => setDialogFor(rows.map((row) => row.departmentId))}
-          disabled={rows.length === 0}
+          disabled={rows.length === 0 || !canEditScope}
+          title={!canEditScope ? "This report is read-only." : undefined}
         >
           <Send aria-hidden /> Start Collection for All Departments
         </Button>
@@ -403,7 +404,14 @@ export function WeeklyDistributionPanel({
                     <button
                       type="button"
                       onClick={() => setDialogFor([row.departmentId])}
-                      title={row.submission?.sentAt ? "Resend reminder" : "Start collection for this department"}
+                      disabled={!canEditScope}
+                      title={
+                        !canEditScope
+                          ? "This report is read-only."
+                          : row.submission?.sentAt
+                            ? "Resend reminder"
+                            : "Start collection for this department"
+                      }
                     >
                       <Send aria-hidden />
                       {row.submission?.sentAt ? "Remind" : "Start Collection"}

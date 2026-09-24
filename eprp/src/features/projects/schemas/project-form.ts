@@ -122,6 +122,8 @@ function createBaseSchema() {
     plannedProgress: looseNumber,
     actualProgress: looseNumber,
     currentPhaseId: z.string().optional().or(z.literal("")),
+    /** Planning Slice 1 — optional; never required for final submission. */
+    portfolioGroupId: z.string().optional().or(z.literal("")),
     priority: z.enum(["low", "medium", "high", "critical"]),
 
     // 5 — Reporting configuration
@@ -353,16 +355,10 @@ function addFinalIssues(values: BaseValues, ctx: z.RefinementCtx): void {
       !!values.actualStartDate,
       `Actual start date is required for ${statusLabel} projects`
     );
-    require(
-      ["plannedProgress"],
-      !Number.isNaN(values.plannedProgress),
-      "Planned progress is required once the project has started"
-    );
-    require(
-      ["actualProgress"],
-      !Number.isNaN(values.actualProgress),
-      "Actual progress is required once the project has started"
-    );
+    // Planned/Actual progress are no longer entered here — they are governed
+    // performance read from the project's Published Planning Snapshot
+    // (see GovernedPerformancePanel). Requiring them on this hidden pair
+    // would block Save on a field the user has no way to fix.
   }
   if (values.status === "completed") {
     require(
@@ -492,6 +488,7 @@ export function emptyProjectFormValues(): ProjectFormValues {
     plannedProgress: Number.NaN,
     actualProgress: Number.NaN,
     currentPhaseId: "",
+    portfolioGroupId: "",
     priority: "medium",
     weeklyEnabled: true,
     monthlyEnabled: true,
@@ -572,6 +569,7 @@ export function projectToFormValues(project: Project): ProjectFormValues {
     plannedProgress: project.plannedProgress,
     actualProgress: project.actualProgress,
     currentPhaseId: project.currentPhaseId ?? "",
+    portfolioGroupId: project.portfolioGroupId ?? "",
     priority: project.priority,
     weeklyEnabled: project.reporting.weeklyEnabled,
     monthlyEnabled: project.reporting.monthlyEnabled,
@@ -685,6 +683,7 @@ export function formValuesToProjectInput(
     plannedProgress: numberOrZero(values.plannedProgress),
     actualProgress: numberOrZero(values.actualProgress),
     currentPhaseId: blankToUndefined(values.currentPhaseId),
+    portfolioGroupId: blankToUndefined(values.portfolioGroupId),
     priority: values.priority,
     reporting: {
       weeklyEnabled: values.weeklyEnabled,

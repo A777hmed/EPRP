@@ -18,7 +18,12 @@ import {
 import { formatDate } from "@/lib/formatters";
 import { getContactById, getProjectTypeById } from "@/features/master-data";
 import { projectService } from "@/services/project-service";
+import {
+  planningRollupService,
+  type PlanningSnapshotRollup,
+} from "@/services/planning-rollup-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
+import { fetchGlobalWeeklyReportDetail } from "@/services/global-report-register";
 import type {
   Project,
   ReportSignatory,
@@ -313,6 +318,15 @@ export function WeeklyReportPreview({
   const [activities, setActivities] = React.useState<WeeklyActivity[]>([]);
   const [entries, setEntries] = React.useState<WeeklyEntry[]>([]);
   const [planItems, setPlanItems] = React.useState<WeeklyPlanItem[]>([]);
+  /**
+   * The rollup for `report.planningSnapshotId` (Planning Integration 3B),
+   * fetched by that exact pinned id — never re-resolved by project/period.
+   * `null` once resolved means "no pinned snapshot" (the fallback path);
+   * `undefined` means "not resolved yet".
+   */
+  const [planningRollup, setPlanningRollup] = React.useState<
+    PlanningSnapshotRollup | null | undefined
+  >(undefined);
   const [project, setProject] = React.useState<Project | null>(null);
   const [projectLoadState, setProjectLoadState] = React.useState<
     "loading" | "ready" | "error"
@@ -320,6 +334,20 @@ export function WeeklyReportPreview({
   const [reportLoadError, setReportLoadError] = React.useState<string | null>(
     null
   );
+  /**
+   * Distinguishes "genuinely does not exist" from "exists and is approved+,
+   * but this viewer has no ordinary project access" (Access & Visibility
+   * hotfix, R6). The print/PDF preview needs full department-level content
+   * (submissions, activities, entries) this hotfix does not expose
+   * cross-project, so a cross-project viewer is never handed a half-built
+   * document here — they are told plainly and pointed at the read-only
+   * summary view instead, which DOES render for them.
+   * `undefined` = not checked yet, `false` = checked and unavailable there
+   * either, `true` = available as a read-only summary elsewhere.
+   */
+  const [availableAsSummary, setAvailableAsSummary] = React.useState<
+    boolean | undefined
+  >(undefined);
   const names = useWeeklyNameLookup();
   const terms = useHierarchyTerms(project);
 
@@ -335,6 +363,8 @@ export function WeeklyReportPreview({
       setActivities([]);
       setEntries([]);
       setPlanItems([]);
+      setPlanningRollup(undefined);
+      setAvailableAsSummary(undefined);
 
       try {
         const r = await weeklyReportService.getById(reportId);
@@ -342,17 +372,30 @@ export function WeeklyReportPreview({
         setReport(r);
         if (!r) {
           setProjectLoadState("ready");
+          try {
+            const fallback = await fetchGlobalWeeklyReportDetail(reportId);
+            if (!cancelled) setAvailableAsSummary(Boolean(fallback));
+          } catch {
+            if (!cancelled) setAvailableAsSummary(false);
+          }
           return;
         }
 
         // Preview must keep its project/scope even if an optional section
         // fails; it reads the same canonical services as the workspace.
-        const [subs, proj, acts, rows, plans] = await Promise.allSettled([
+        //
+        // The rollup is fetched by the report's PINNED snapshot id, never
+        // re-resolved by project/period — the preview must show exactly
+        // what the report was pinned to, not "the latest" (3B).
+        const [subs, proj, acts, rows, plans, rollup] = await Promise.allSettled([
           weeklyReportService.listSubmissions(r.id),
           projectService.getProjectById(r.projectId),
           weeklyReportService.listActivities(r.id),
           weeklyReportService.listEntries(r.id),
           weeklyReportService.listPlanItems(r.id),
+          r.planningSnapshotId
+            ? planningRollupService.computeSnapshotRollup(r.planningSnapshotId)
+            : Promise.resolve(null),
         ]);
         if (cancelled) return;
 
@@ -360,6 +403,7 @@ export function WeeklyReportPreview({
         setActivities(acts.status === "fulfilled" ? acts.value : []);
         setEntries(rows.status === "fulfilled" ? rows.value : []);
         setPlanItems(plans.status === "fulfilled" ? plans.value : []);
+        setPlanningRollup(rollup.status === "fulfilled" ? rollup.value : null);
         if (proj.status === "fulfilled") {
           setProject(proj.value);
           setProjectLoadState("ready");
@@ -404,14 +448,38 @@ export function WeeklyReportPreview({
   const workspace = React.useMemo(() => {
     if (!report || !project || !scope) return null;
     if (!belongsToScopeProject(scope, project.id)) return null;
-    return buildWeeklyWorkspace(project, report, submissions, scope, entries);
-  }, [report, project, scope, submissions, entries]);
+    return buildWeeklyWorkspace(
+      project,
+      report,
+      submissions,
+      scope,
+      entries,
+      planningRollup
+    );
+  }, [report, project, scope, submissions, entries, planningRollup]);
 
   if (report === undefined) {
     return <LoadingState variant="page" label="Loading preview…" />;
   }
 
   if (report === null) {
+    if (!reportLoadError && availableAsSummary === undefined) {
+      return <LoadingState variant="page" label="Loading preview…" />;
+    }
+    if (availableAsSummary) {
+      return (
+        <EmptyState
+          icon={FileX}
+          title="Print preview is not available for this report"
+          description="This report is approved and viewable in read-only summary mode, but the full print/PDF layout needs department-level content that is only available inside its own project. Open the summary view instead."
+          action={
+            <Button variant="outline" asChild>
+              <Link href={`/weekly-reports/${reportId}`}>Open Read-Only Summary</Link>
+            </Button>
+          }
+        />
+      );
+    }
     return (
       <EmptyState
         icon={FileX}
@@ -573,7 +641,18 @@ export function WeeklyReportPreview({
                   : "—"
               }
             />
-            <Cell label="SPI" value={summary ? summary.spi.toFixed(2) : "—"} />
+            <Cell
+              label="SPI"
+              value={
+                !summary
+                  ? "—"
+                  : summary.spi !== null
+                    ? summary.spi.toFixed(2)
+                    // Planning-backed with no Planned/Earned Value (or PV <= 0)
+                    // reads N/A here — never the Actual%/Planned% ratio.
+                    : "N/A"
+              }
+            />
           </dl>
           {summary && (
             <p className="mt-2 text-xs text-muted-foreground">

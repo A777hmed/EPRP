@@ -3,6 +3,10 @@ import "server-only";
 import { cache } from "react";
 
 import { getCurrentUserIdentity } from "@/features/auth/profile";
+import {
+  getCurrentPortfolioReadTier,
+  type PortfolioReadTier,
+} from "@/features/auth/portfolio-read";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { hasPermission, type Permission } from "@/config/permissions";
 import type { UserRole } from "@/types";
@@ -68,6 +72,12 @@ export interface ExecutiveViewerContext {
    * even though the model and every RLS policy treat them as portfolio-wide.
    */
   isAdmin: boolean;
+  /**
+   * Phase B: the signed-in account's own portfolio-wide READ ONLY tier, or
+   * `"none"`. Read reach only — see `executive-scope.ts`'s `canAccessProject`,
+   * the only place this is consulted. Never a write capability.
+   */
+  portfolioReadTier: PortfolioReadTier;
   /** Present whenever `allowed` is false, so the UI never hides the reason. */
   deniedReason?: string;
 }
@@ -78,6 +88,7 @@ const DENIED: ExecutiveViewerContext = {
   demoMode: false,
   contactId: null,
   isAdmin: false,
+  portfolioReadTier: "none",
   deniedReason:
     "You are not signed in, or your account has no profile record. The Executive portfolio is limited to Project Control and Executive accounts.",
 };
@@ -95,7 +106,10 @@ export const getExecutiveViewerContext = cache(async (): Promise<ExecutiveViewer
     };
   }
 
-  const identity = await getCurrentUserIdentity();
+  const [identity, portfolioReadTier] = await Promise.all([
+    getCurrentUserIdentity(),
+    getCurrentPortfolioReadTier(),
+  ]);
   if (!identity) return DENIED;
 
   const allowed = canViewExecutivePortfolio(identity.role);
@@ -108,6 +122,7 @@ export const getExecutiveViewerContext = cache(async (): Promise<ExecutiveViewer
     roleLabel: identity.roleLabel,
     viewerName: identity.fullName,
     contactId: identity.contactId,
+    portfolioReadTier,
     isAdmin:
       identity.role === "system_admin" || identity.role === "project_control_admin",
     deniedReason: allowed

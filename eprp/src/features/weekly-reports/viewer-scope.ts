@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { getCurrentUserIdentity } from "@/features/auth/profile";
+import { getCurrentPortfolioReadTier } from "@/features/auth/portfolio-read";
 import type { Project, ProjectType } from "@/types";
 import { resolveWeeklyScope, type WeeklyScope } from "./scope";
 
@@ -32,7 +33,10 @@ export const getWeeklyViewerScope = cache(
     project: Project,
     projectType?: ProjectType | null
   ): Promise<WeeklyScope> => {
-    const identity = await getCurrentUserIdentity();
+    const [identity, portfolioTier] = await Promise.all([
+      getCurrentUserIdentity(),
+      getCurrentPortfolioReadTier(),
+    ]);
 
     // No identity at all: resolve against a contact that cannot match any
     // assignment, so the result is a well-formed "none" scope rather than a
@@ -40,6 +44,11 @@ export const getWeeklyViewerScope = cache(
     const contactId = identity?.contactId ?? "";
 
     return resolveWeeklyScope(project, contactId, {
+      /* Phase B: consulted only when nothing below finds a real assignment
+         on THIS project — see the precedence note on
+         `ResolveOptions.portfolioReadTier`. */
+      portfolioReadTier:
+        portfolioTier === "none" ? undefined : portfolioTier,
       /*
        * BOTH global operational authorities, mirroring
        * `has_global_operational_authority()`.

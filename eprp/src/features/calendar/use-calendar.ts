@@ -32,6 +32,8 @@ export interface CalendarFilters {
   departmentId: string;
   /** Empty means every type. */
   types: CalendarEventType[];
+  /** Optional caller-owned project universe (used by current-management views). */
+  projectIds?: readonly string[];
 }
 
 export const EMPTY_CALENDAR_FILTERS: CalendarFilters = {
@@ -158,9 +160,16 @@ export function useCalendar(
     return [...resolved, ...named].sort(byWhen);
   }, [stored, derived, projects, departments, contacts]);
 
+  const visibleProjects = React.useMemo(() => {
+    if (!filters.projectIds) return projects;
+    const visible = new Set(filters.projectIds);
+    return projects.filter((project) => visible.has(project.id));
+  }, [projects, filters.projectIds]);
+
   const events = React.useMemo(
     () =>
       all.filter((event) => {
+        if (filters.projectIds && !filters.projectIds.includes(event.projectId)) return false;
         if (filters.projectId && event.projectId !== filters.projectId) return false;
         if (filters.departmentId && event.departmentId !== filters.departmentId) return false;
         if (filters.types.length && !filters.types.includes(event.type)) return false;
@@ -169,7 +178,7 @@ export function useCalendar(
     [all, filters]
   );
 
-  return { loading, error, all, events, projects, departments, contacts, reload };
+  return { loading, error, all, events, projects: visibleProjects, departments, contacts, reload };
 }
 
 /* ------------------------------ Window helpers ----------------------------- */
@@ -213,6 +222,6 @@ export function windowFor(view: "day" | "week" | "month" | "agenda", anchor: Dat
     return { from: isoDate(anchor), to: isoDate(addDays(anchor, 30)) };
   }
   const gridStart = startOfWeek(startOfMonth(anchor));
-  const gridEnd = addDays(startOfWeek(endOfMonth(anchor)), 6);
+  const gridEnd = addDays(gridStart, 41);
   return { from: isoDate(gridStart), to: isoDate(gridEnd) };
 }

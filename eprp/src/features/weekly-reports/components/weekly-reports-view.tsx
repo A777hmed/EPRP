@@ -2,31 +2,16 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
-  Archive,
   CalendarDays,
   CheckCircle2,
   Clock,
-  Copy,
   Eye,
   FileText,
-  MoreHorizontal,
-  PenLine,
-  Plus,
   Printer,
   SearchX,
 } from "lucide-react";
-import { toast } from "sonner";
-
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -53,19 +38,29 @@ import {
 } from "@/components/shared";
 import { REPORT_STATUS_META } from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
-import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
-import type { Project, ReportStatus, WeeklyReport } from "@/types";
+import {
+  fetchGlobalRegisterProjects,
+  fetchGlobalWeeklyReportRegister,
+  type GlobalRegisterProject,
+  type GlobalWeeklyRegisterRow,
+} from "@/services/global-report-register";
+import {
+  planningRollupService,
+  type PlanningSnapshotRollup,
+} from "@/services/planning-rollup-service";
+import { useMasterData } from "@/features/master-data";
+import type { Client, Contact, PortfolioGroup, ReportStatus } from "@/types";
 import {
   countReceived,
   IN_PROGRESS_STATUSES,
-  isEditableReport,
   SIGNED_OFF_STATUSES,
 } from "@/features/weekly-reports/utils";
-import { ConfirmDialog } from "@/components/shared";
-import { useCurrentIdentity } from "@/features/auth/use-current-identity";
-import { isProjectConsolidator } from "@/features/projects/assignment-rules";
 import { WeeklyStatusBadge } from "./weekly-status-badge";
+import {
+  latestPeriodCount,
+  summarizeReportRegister,
+} from "@/features/reports/register-summary";
 
 /**
  * Schedule variance for a register row.
@@ -103,10 +98,38 @@ function VarianceCell({
   );
 }
 
+/**
+ * Planning Integration 4A — the report's pinned snapshot only, never a
+ * re-resolved "latest". `rollup === undefined` means "not fetched yet",
+ * `null` means "fetch failed or no rollup", both rendered as "Manual /
+ * fallback" alongside a genuinely unpinned report — the register cannot
+ * tell "still loading" from "no pin" apart at a glance, and showing a
+ * spinner per row for a compact provenance cell is not worth the churn.
+ */
+function PlanningCell({
+  report,
+  rollup,
+}: {
+  report: GlobalWeeklyRegisterRow;
+  rollup: PlanningSnapshotRollup | null | undefined;
+}) {
+  if (!report.planningSnapshotId || !rollup) {
+    return <span className="text-xs text-muted-foreground">Manual / fallback</span>;
+  }
+  return (
+    <span className="text-xs text-muted-foreground" title={`Snapshot v${rollup.snapshotVersion}`}>
+      Snapshot v{rollup.snapshotVersion}
+      {rollup.dataDate ? ` · ${formatDate(rollup.dataDate)}` : ""}
+    </span>
+  );
+}
+
 interface Filters {
   query: string;
   status: ReportStatus | "all";
   projectId: string | "all";
+  clientId: string | "all";
+  portfolioGroupId: string | "all";
   week: string; // "all" or week number
 }
 
@@ -114,6 +137,8 @@ const defaultFilters: Filters = {
   query: "",
   status: "all",
   projectId: "all",
+  clientId: "all",
+  portfolioGroupId: "all",
   week: "all",
 };
 
@@ -128,39 +153,114 @@ const statusOrder: ReportStatus[] = [
   "archived",
 ];
 
-/** /weekly-reports — list with summary cards, filters, and row actions. */
+/**
+ * /weekly-reports — READ-ONLY consolidated register across every project
+ * on the platform (Top-Level Reporting 4A, Access Hotfix R5).
+ *
+ * This is not a creation or editing surface. Raising and editing a Weekly
+ * Report happens inside its project, at
+ * `/projects/[projectId]/reports/weekly/...` — this register only ever
+ * links a row to the SAME detail/preview views those project-scoped routes
+ * also open, never to a form.
+ *
+ * Rows and project options come from `global_report_register_projects()` /
+ * `global_weekly_report_register()` — platform-wide, read-only register
+ * METADATA for every project and every report status, regardless of the
+ * viewer's own assignment (see
+ * `20260922000002_global_report_register_visibility.sql`). Opening a row
+ * still resolves through the ordinary detail-page authorization (approved+
+ * content, or full content for a project the viewer actually has), so this
+ * register never grants edit or draft-content access by itself.
+ *
+ * The Submissions "received/total" figure is department-level workflow
+ * content (`weekly_submissions`), deliberately NOT part of the global
+ * register projection — it is only ever computed for the subset of rows
+ * the viewer has ordinary project access to (via the existing RLS-gated
+ * `weeklyReportService`), and shown as "—" for every other row rather than
+ * a misleading "0/0".
+ */
 export function WeeklyReportsView() {
-  const router = useRouter();
-  const identity = useCurrentIdentity();
-  const [reports, setReports] = React.useState<WeeklyReport[] | null>(null);
-  const [projects, setProjects] = React.useState<Map<string, Project>>(
-    new Map()
-  );
-  const [received, setReceived] = React.useState<Map<string, number>>(new Map());
-  const [error, setError] = React.useState(false);
-  const [filters, setFilters] = React.useState(defaultFilters);
-  const [archiveTarget, setArchiveTarget] = React.useState<WeeklyReport | null>(
+  const [reports, setReports] = React.useState<GlobalWeeklyRegisterRow[] | null>(
     null
   );
+  const [projects, setProjects] = React.useState<Map<string, GlobalRegisterProject>>(
+    new Map()
+  );
+  const [submissionCounts, setSubmissionCounts] = React.useState<
+    Map<string, { received: number; total: number }>
+  >(new Map());
+  const [planningRollups, setPlanningRollups] = React.useState<
+    Map<string, PlanningSnapshotRollup | null>
+  >(new Map());
+  const [error, setError] = React.useState(false);
+  const [filters, setFilters] = React.useState(defaultFilters);
   const [reloadKey, setReloadKey] = React.useState(0);
+
+  const { records: clientRecords } = useMasterData("client");
+  const { records: portfolioGroupRecords } = useMasterData("portfolioGroup");
+  const { records: contactRecords } = useMasterData("contact");
+  const clients = clientRecords as Client[];
+  const portfolioGroups = portfolioGroupRecords as PortfolioGroup[];
+  const contacts = contactRecords as Contact[];
 
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const [reportList, projectList] = await Promise.all([
-          weeklyReportService.list(),
-          projectService.getProjects(),
+          fetchGlobalWeeklyReportRegister(),
+          fetchGlobalRegisterProjects(),
         ]);
-        const subCounts = await Promise.all(
-          reportList.map((r) => weeklyReportService.listSubmissions(r.id))
-        );
         if (cancelled) return;
         setProjects(new Map(projectList.map((p) => [p.id, p])));
-        setReceived(
-          new Map(reportList.map((r, i) => [r.id, countReceived(subCounts[i])]))
-        );
         setReports(reportList);
+
+        /*
+         * Submissions received/total: only ever computed for the reports
+         * the viewer has ordinary (RLS-gated) project access to — the
+         * global register carries no department-level submission content.
+         * `weeklyReportService.list()` here returns exactly that
+         * ordinary-access subset, same as it always has.
+         */
+        const ownReports = await weeklyReportService.list();
+        if (cancelled) return;
+        const ownSubCounts = await Promise.all(
+          ownReports.map((r) => weeklyReportService.listSubmissions(r.id))
+        );
+        if (cancelled) return;
+        setSubmissionCounts(
+          new Map(
+            ownReports.map((r, i) => [
+              r.id,
+              { received: countReceived(ownSubCounts[i]), total: r.submissionIds.length },
+            ])
+          )
+        );
+
+        /*
+         * Each report's OWN pinned snapshot, read by immutable id — never
+         * `getLatestSnapshot()`/`getSnapshotForPeriod()`. Deduped by
+         * snapshot id (several reports can share one) and settled
+         * per-snapshot, so one bad id cannot blank the whole register.
+         */
+        const pinnedIds = [
+          ...new Set(
+            reportList
+              .map((r) => r.planningSnapshotId)
+              .filter((id): id is string => Boolean(id))
+          ),
+        ];
+        const rollupPairs = await Promise.all(
+          pinnedIds.map(async (id) => {
+            try {
+              return [id, await planningRollupService.computeSnapshotRollup(id)] as const;
+            } catch {
+              return [id, null] as const;
+            }
+          })
+        );
+        if (cancelled) return;
+        setPlanningRollups(new Map(rollupPairs));
       } catch {
         if (!cancelled) setError(true);
       }
@@ -176,40 +276,21 @@ export function WeeklyReportsView() {
     setReloadKey((k) => k + 1);
   };
 
+  const projectOf = (id: string) => projects.get(id);
   const projectName = (id: string) =>
-    projects.get(id)?.shortName ?? projects.get(id)?.name ?? "—";
-
-  /*
-   * Raising, editing, duplicating and archiving a Weekly report are all
-   * `can_manage_reporting_workflow()`, which is a PER-PROJECT question: the
-   * same person can be Report Coordinator on one project and an ordinary team
-   * member on another. So it is answered per row, against that row's project,
-   * rather than once for the register.
-   *
-   * This global register previously offered all four to everyone. A Department
-   * User arriving from the sidebar was shown New / Edit / Duplicate / Archive
-   * on projects they only contribute a department comment to, and RLS refused
-   * each one on click.
-   */
-  const canManageReportingFor = React.useCallback(
-    (projectId: string): boolean => {
-      if (identity.isGlobalAuthority) return true;
-      const project = projects.get(projectId);
-      return project
-        ? isProjectConsolidator(project, identity.contactId)
-        : false;
-    },
-    [projects, identity]
-  );
-
-  /* The register-level "New" action is not tied to one row, so it is offered
-     when the account may raise a report on ANY project it can see. The create
-     page itself still resolves authority for the project actually chosen. */
-  const canRaiseAnyReport =
-    identity.isGlobalAuthority ||
-    [...projects.values()].some((project) =>
-      isProjectConsolidator(project, identity.contactId)
-    );
+    projectOf(id)?.shortName ?? projectOf(id)?.name ?? "—";
+  const clientName = (projectId: string) => {
+    const clientId = projectOf(projectId)?.clientId;
+    return clientId ? (clients.find((c) => c.id === clientId)?.shortName ?? clients.find((c) => c.id === clientId)?.name ?? "—") : "—";
+  };
+  const portfolioGroupName = (projectId: string) => {
+    const groupId = projectOf(projectId)?.portfolioGroupId;
+    return groupId ? portfolioGroups.find((g) => g.id === groupId)?.name : undefined;
+  };
+  const preparedByName = (report: GlobalWeeklyRegisterRow) =>
+    report.preparedByContactId
+      ? (contacts.find((c) => c.id === report.preparedByContactId)?.name ?? "Not assigned")
+      : "Not assigned";
 
   const weekOptions = React.useMemo(() => {
     const weeks = new Set((reports ?? []).map((r) => r.weekNumber));
@@ -222,6 +303,13 @@ export function WeeklyReportsView() {
     return all.filter((r) => {
       if (filters.status !== "all" && r.status !== filters.status) return false;
       if (filters.projectId !== "all" && r.projectId !== filters.projectId)
+        return false;
+      if (filters.clientId !== "all" && projectOf(r.projectId)?.clientId !== filters.clientId)
+        return false;
+      if (
+        filters.portfolioGroupId !== "all" &&
+        projectOf(r.projectId)?.portfolioGroupId !== filters.portfolioGroupId
+      )
         return false;
       if (filters.week !== "all" && String(r.weekNumber) !== filters.week)
         return false;
@@ -236,78 +324,42 @@ export function WeeklyReportsView() {
   }, [reports, filters, projects]);
 
   const stats = React.useMemo(() => {
-    const all = reports ?? [];
+    const summary = summarizeReportRegister(visible, {
+      inProgress: IN_PROGRESS_STATUSES,
+      signedOff: SIGNED_OFF_STATUSES,
+    });
     return {
-      total: all.length,
-      inProgress: all.filter((r) => IN_PROGRESS_STATUSES.includes(r.status))
-        .length,
-      signedOff: all.filter((r) => SIGNED_OFF_STATUSES.includes(r.status))
-        .length,
-      thisWeek: weekOptions.length > 0
-        ? all.filter((r) => r.weekNumber === Math.max(...weekOptions)).length
-        : 0,
+      total: summary.total,
+      inProgress: summary.statusCounts.inProgress,
+      signedOff: summary.statusCounts.signedOff,
+      thisWeek: latestPeriodCount(visible, (report) => report.weekNumber),
     };
-  }, [reports, weekOptions]);
-
-  const handleDuplicate = async (report: WeeklyReport) => {
-    const copy = await weeklyReportService.duplicate(report.id);
-    toast.success("Weekly report duplicated");
-    router.push(`/weekly-reports/${copy.id}`);
-  };
-
-  /*
-   * A failed archive must never look like a successful one.
-   *
-   * This awaited the service with no catch, so when the database refused the
-   * transition the rejection escaped as an unhandled promise: no error toast,
-   * no success toast, nothing. The report stayed exactly as it was and the user
-   * had no way to know why. Matches the Monthly handler's shape, which already
-   * did this correctly.
-   */
-  const handleArchive = async () => {
-    if (!archiveTarget) return;
-    try {
-      await weeklyReportService.archive(archiveTarget.id);
-      toast.success("Weekly report archived");
-      setArchiveTarget(null);
-      reload();
-    } catch (error) {
-      // The report keeps its current status and stays in the list. The message
-      // comes from the database rule that refused it, so it says which.
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Could not archive this weekly report."
-      );
-    }
-  };
+  }, [visible]);
 
   const activeFilters =
     (filters.query ? 1 : 0) +
     (filters.status !== "all" ? 1 : 0) +
     (filters.projectId !== "all" ? 1 : 0) +
+    (filters.clientId !== "all" ? 1 : 0) +
+    (filters.portfolioGroupId !== "all" ? 1 : 0) +
     (filters.week !== "all" ? 1 : 0);
 
   const projectOptions = [...projects.values()].sort((a, b) =>
     (a.shortName ?? a.name).localeCompare(b.shortName ?? b.name)
   );
+  const clientOptions = [...clients]
+    .filter((c) => [...projects.values()].some((p) => p.clientId === c.id))
+    .sort((a, b) => (a.shortName ?? a.name).localeCompare(b.shortName ?? b.name));
+  const portfolioGroupOptions = [...portfolioGroups]
+    .filter((g) => [...projects.values()].some((p) => p.portfolioGroupId === g.id))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Reporting"
         title="Weekly Reports"
-        description="Weekly progress reports collected from project departments."
-        actions={
-          canRaiseAnyReport ? (
-            <Button asChild>
-              <Link href="/weekly-reports/new">
-                <Plus data-icon="inline-start" aria-hidden="true" />
-                New Weekly Report
-              </Link>
-            </Button>
-          ) : undefined
-        }
+        description="Consolidated Weekly progress reports across every project you can access. Raised and edited from each project's own Reporting area."
       />
 
       <section aria-label="Weekly report summary">
@@ -330,6 +382,56 @@ export function WeeklyReportsView() {
           containerClassName="w-full sm:w-60"
         />
         <Select
+          value={filters.projectId}
+          onValueChange={(v) => setFilters((f) => ({ ...f, projectId: v }))}
+        >
+          <SelectTrigger className="w-44" aria-label="Filter by project">
+            <SelectValue placeholder="Project" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All projects</SelectItem>
+            {projectOptions.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.shortName ?? p.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={filters.clientId}
+          onValueChange={(v) => setFilters((f) => ({ ...f, clientId: v }))}
+        >
+          <SelectTrigger className="w-40" aria-label="Filter by client">
+            <SelectValue placeholder="Client" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All clients</SelectItem>
+            {clientOptions.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.shortName ?? c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {portfolioGroupOptions.length > 0 && (
+          <Select
+            value={filters.portfolioGroupId}
+            onValueChange={(v) => setFilters((f) => ({ ...f, portfolioGroupId: v }))}
+          >
+            <SelectTrigger className="w-44" aria-label="Filter by portfolio group">
+              <SelectValue placeholder="Portfolio Group" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All portfolio groups</SelectItem>
+              {portfolioGroupOptions.map((g) => (
+                <SelectItem key={g.id} value={g.id}>
+                  {g.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Select
           value={filters.status}
           onValueChange={(v) =>
             setFilters((f) => ({ ...f, status: v as Filters["status"] }))
@@ -343,22 +445,6 @@ export function WeeklyReportsView() {
             {statusOrder.map((s) => (
               <SelectItem key={s} value={s}>
                 {REPORT_STATUS_META[s].label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={filters.projectId}
-          onValueChange={(v) => setFilters((f) => ({ ...f, projectId: v }))}
-        >
-          <SelectTrigger className="w-44" aria-label="Filter by project">
-            <SelectValue placeholder="Project" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All projects</SelectItem>
-            {projectOptions.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.shortName ?? p.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -393,21 +479,7 @@ export function WeeklyReportsView() {
         <EmptyState
           icon={FileText}
           title="No weekly reports yet"
-          description={
-            canRaiseAnyReport
-              ? "Create the first weekly report to start collecting department input."
-              : "No weekly report has been raised on a project you are assigned to yet. Reports are raised by Project Control or the Report Coordinator."
-          }
-          action={
-            canRaiseAnyReport ? (
-              <Button asChild>
-                <Link href="/weekly-reports/new">
-                  <Plus data-icon="inline-start" aria-hidden="true" />
-                  New Weekly Report
-                </Link>
-              </Button>
-            ) : undefined
-          }
+          description="No Weekly Report has been raised on a project you can access yet. Reports are created from a project's own Reporting area, not from this register."
         />
       ) : visible.length === 0 ? (
         <EmptyState
@@ -422,12 +494,15 @@ export function WeeklyReportsView() {
               <TableRow>
                 <TableHead>Report #</TableHead>
                 <TableHead className="min-w-40">Project</TableHead>
+                <TableHead>Client</TableHead>
                 <TableHead>Week</TableHead>
                 <TableHead>Period</TableHead>
                 <TableHead className="text-right">Planned</TableHead>
                 <TableHead className="text-right">Actual</TableHead>
                 <TableHead className="text-right">Variance</TableHead>
+                <TableHead>Planning</TableHead>
                 <TableHead>Submissions</TableHead>
+                <TableHead>Prepared By</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Updated</TableHead>
                 <TableHead>
@@ -437,8 +512,8 @@ export function WeeklyReportsView() {
             </TableHeader>
             <TableBody>
               {visible.map((report) => {
-                const total = report.submissionIds.length;
-                const got = received.get(report.id) ?? 0;
+                const submissionSummary = submissionCounts.get(report.id);
+                const groupName = portfolioGroupName(report.projectId);
                 return (
                   <TableRow key={report.id}>
                     <TableCell className="font-mono text-xs">
@@ -451,7 +526,14 @@ export function WeeklyReportsView() {
                     </TableCell>
                     <TableCell className="font-medium">
                       {projectName(report.projectId)}
+                      {projectOf(report.projectId)?.code && (
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          {projectOf(report.projectId)?.code}
+                          {groupName ? ` · ${groupName}` : ""}
+                        </span>
+                      )}
                     </TableCell>
+                    <TableCell>{clientName(report.projectId)}</TableCell>
                     <TableCell className="tabular-nums">
                       W{report.weekNumber}
                     </TableCell>
@@ -471,8 +553,23 @@ export function WeeklyReportsView() {
                         actual={report.actualProgress}
                       />
                     </TableCell>
+                    <TableCell>
+                      <PlanningCell
+                        report={report}
+                        rollup={
+                          report.planningSnapshotId
+                            ? planningRollups.get(report.planningSnapshotId)
+                            : null
+                        }
+                      />
+                    </TableCell>
                     <TableCell className="tabular-nums">
-                      {got}/{total}
+                      {submissionSummary
+                        ? `${submissionSummary.received}/${submissionSummary.total}`
+                        : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {preparedByName(report)}
                     </TableCell>
                     <TableCell>
                       <WeeklyStatusBadge status={report.status} />
@@ -481,58 +578,30 @@ export function WeeklyReportsView() {
                       {formatDate(report.updatedAt)}
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={`Actions for ${report.reportNumber}`}
-                          >
-                            <MoreHorizontal aria-hidden="true" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-44">
-                          <DropdownMenuItem asChild>
-                            <Link href={`/weekly-reports/${report.id}`}>
-                              <Eye aria-hidden="true" /> View
-                            </Link>
-                          </DropdownMenuItem>
-                          {canManageReportingFor(report.projectId) && (
-                            <DropdownMenuItem
-                              asChild
-                              disabled={!isEditableReport(report)}
-                            >
-                              <Link href={`/weekly-reports/${report.id}/edit`}>
-                                <PenLine aria-hidden="true" /> Edit
-                              </Link>
-                            </DropdownMenuItem>
-                          )}
-                          {/* Reading and printing follow the report's own read
-                              policy, which already admits the contributors. */}
-                          <DropdownMenuItem asChild>
-                            <Link href={`/weekly-reports/${report.id}/preview`}>
-                              <Printer aria-hidden="true" /> Preview / PDF
-                            </Link>
-                          </DropdownMenuItem>
-                          {canManageReportingFor(report.projectId) && (
-                            <>
-                              <DropdownMenuItem
-                                onClick={() => handleDuplicate(report)}
-                              >
-                                <Copy aria-hidden="true" /> Duplicate
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                variant="destructive"
-                                disabled={report.status === "archived"}
-                                onClick={() => setArchiveTarget(report)}
-                              >
-                                <Archive aria-hidden="true" /> Archive
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`View ${report.reportNumber}`}
+                          title="View"
+                          asChild
+                        >
+                          <Link href={`/weekly-reports/${report.id}`}>
+                            <Eye aria-hidden="true" />
+                          </Link>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Preview ${report.reportNumber}`}
+                          title="Preview / PDF"
+                          asChild
+                        >
+                          <Link href={`/weekly-reports/${report.id}/preview`}>
+                            <Printer aria-hidden="true" />
+                          </Link>
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -541,16 +610,6 @@ export function WeeklyReportsView() {
           </Table>
         </div>
       )}
-
-      <ConfirmDialog
-        open={archiveTarget !== null}
-        onOpenChange={(o) => !o && setArchiveTarget(null)}
-        title={`Archive ${archiveTarget?.reportNumber}?`}
-        description="Archived weekly reports are hidden from the active list but remain in project history. You can still view them directly."
-        confirmLabel="Archive report"
-        destructive
-        onConfirm={handleArchive}
-      />
     </div>
   );
 }

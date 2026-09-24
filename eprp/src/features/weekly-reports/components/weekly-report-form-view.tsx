@@ -9,8 +9,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState, PageHeader } from "@/components/shared";
 import { projectService } from "@/services/project-service";
+import {
+  planningRollupService,
+  type PlanningSnapshotRollup,
+} from "@/services/planning-rollup-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
 import type { Project, WeeklyActivity, WeeklyReport } from "@/types";
+import { deriveWeeklyPlanningFigures } from "../planning-integration";
 import {
   emptyWeeklyReportHeaderValues,
   weeklyReportToHeaderValues,
@@ -21,17 +26,20 @@ import { WeeklyReportHeaderForm } from "./weekly-report-header-form";
 export interface WeeklyReportFormViewProps {
   reportId?: string;
   /**
-   * Create this report against ONE fixed project, and stay inside that
-   * project afterwards.
+   * Create or edit this report against ONE fixed project, and stay inside
+   * that project afterwards (Top-Level Reporting 4A).
    *
-   * Set by `/projects/[projectId]/reports/weekly/new`. The project picker is
-   * locked (the same `projectLocked` the edit path already uses), so the
-   * project cannot be re-chosen, and every exit — save, cancel — returns to a
-   * project-scoped route rather than the global register.
+   * Set by `/projects/[projectId]/reports/weekly/new` (create) and by
+   * `/projects/[projectId]/reports/weekly/[reportId]/edit` (edit). The
+   * project picker is locked (`projectLocked`) in both cases, and every
+   * exit — save, cancel, "report not found" — returns to a project-scoped
+   * route rather than the global register a project-context user never
+   * came from.
    *
-   * Omitted on the global `/weekly-reports/new`, which keeps its picker and
-   * its global destinations. One form, two entry contexts; no duplicated
-   * create logic, validation or service call.
+   * Omitted on the global `/weekly-reports/new` and
+   * `/weekly-reports/[reportId]/edit`, which keep the picker (create) and
+   * the global register (both) as their destinations. One form, two entry
+   * contexts; no duplicated create/edit logic, validation or service call.
    */
   projectId?: string;
 }
@@ -53,6 +61,16 @@ export function WeeklyReportFormView({
     report: WeeklyReport | null;
     activities: WeeklyActivity[];
   } | null>(isEdit ? null : { report: null, activities: [] });
+  /**
+   * The rollup for the report's pinned snapshot (Planning Integration 3B),
+   * loaded by id — never re-resolved by project/period. `null` once
+   * resolved means "no pinned snapshot"; `undefined` means "not resolved
+   * yet", so the form does not briefly render editable fields for a report
+   * that turns out to be Planning-backed.
+   */
+  const [planningProvenance, setPlanningProvenance] = React.useState<
+    PlanningSnapshotRollup | null | undefined
+  >(isEdit ? undefined : null);
 
   React.useEffect(() => {
     projectService.getProjects().then(setProjects);
@@ -60,16 +78,31 @@ export function WeeklyReportFormView({
     weeklyReportService.getById(reportId).then(async (found) => {
       if (!found) {
         setLoaded({ report: null, activities: [] });
+        setPlanningProvenance(null);
         return;
       }
       // Neither submissions nor management items are loaded here: this form
       // edits neither. Both belong to the workspace.
       const activities = await weeklyReportService.listActivities(found.id);
       setLoaded({ report: found, activities });
+      if (found.planningSnapshotId) {
+        planningRollupService
+          .computeSnapshotRollup(found.planningSnapshotId)
+          .then(setPlanningProvenance);
+      } else {
+        setPlanningProvenance(null);
+      }
     });
   }, [reportId]);
 
-  if (projects === null || loaded === null) {
+  if (
+    projects === null ||
+    loaded === null ||
+    // Wait for the pinned snapshot's rollup before rendering, so a
+    // Planning-backed report never briefly shows its progress fields as
+    // editable while that resolution is still in flight.
+    planningProvenance === undefined
+  ) {
     return <LoadingState variant="page" label="Loading weekly report header…" />;
   }
 
@@ -83,7 +116,9 @@ export function WeeklyReportFormView({
         description={`No weekly report exists with id “${reportId}”.`}
         action={
           <Button variant="outline" asChild>
-            <Link href="/weekly-reports">Back to Weekly Reports</Link>
+            <Link href={fixedProjectId ? `/projects/${fixedProjectId}/reporting?tab=weekly` : "/weekly-reports"}>
+              {fixedProjectId ? "Back to Reporting" : "Back to Weekly Reports"}
+            </Link>
           </Button>
         }
       />
@@ -107,12 +142,31 @@ export function WeeklyReportFormView({
         projectId: fixedProjectId ?? "",
       };
 
-  /* Where this form came from decides where it goes back to. */
-  const projectScoped = !isEdit && Boolean(fixedProjectId);
+  /*
+   * Where this form came from decides where it goes back to — for BOTH
+   * create and edit. `fixedProjectId` is set by
+   * `/projects/[projectId]/reports/weekly/new` (create) and by
+   * `/projects/[projectId]/reports/weekly/[reportId]/edit` (edit); either
+   * way, every exit stays under that project's own routes rather than
+   * dropping the user into the global register they never came from.
+   */
+  const projectScoped = Boolean(fixedProjectId);
   const afterCreateHref = (createdId: string) =>
     projectScoped
       ? `/projects/${fixedProjectId}/reports/weekly/${createdId}`
       : `/weekly-reports/${createdId}`;
+  const afterSaveHref = (savedId: string) =>
+    projectScoped
+      ? `/projects/${fixedProjectId}/reports/weekly/${savedId}`
+      : `/weekly-reports/${savedId}`;
+
+  // Planning Integration 3B: a Planning-backed report's Planned/Actual
+  // Progress are rendered read-only (see WeeklyReportHeaderForm) and are
+  // never part of a save from here either — omitted entirely rather than
+  // resent unchanged, so there is no path, silent or otherwise, by which
+  // this form could touch them. The service independently refuses the
+  // same edit if it is ever attempted another way.
+  const planningBacked = deriveWeeklyPlanningFigures(planningProvenance).planningBacked;
 
   const handleSaveDraft = async (values: WeeklyReportHeaderValues) => {
     // Man-hours is optional: NaN maps to null so clearing a saved value persists.
@@ -120,8 +174,12 @@ export function WeeklyReportFormView({
       ? null
       : values.manHoursToDate;
     const kpis = {
-      plannedProgress: values.plannedProgress,
-      actualProgress: values.actualProgress,
+      ...(planningBacked
+        ? {}
+        : {
+            plannedProgress: values.plannedProgress,
+            actualProgress: values.actualProgress,
+          }),
       manHoursToDate,
       hseStatus: values.hseStatus,
       qualityStatus: values.qualityStatus,
@@ -167,7 +225,7 @@ export function WeeklyReportFormView({
       });
       await weeklyReportService.saveActivities(updated.id, activityRows);
       toast.success(`Draft ${updated.reportNumber} saved`);
-      router.push(`/weekly-reports/${updated.id}`);
+      router.push(afterSaveHref(updated.id));
       return;
     }
 
@@ -202,11 +260,12 @@ export function WeeklyReportFormView({
         // Locked on edit (as before) and on a project-scoped create, where the
         // project is the context the user is already standing in.
         projectLocked={isEdit || projectScoped}
+        planningProvenance={planningProvenance}
         onSaveDraft={handleSaveDraft}
         onCancel={() =>
           router.push(
             isEdit && report
-              ? `/weekly-reports/${report.id}`
+              ? afterSaveHref(report.id)
               : projectScoped
                 ? `/projects/${fixedProjectId}/reporting?tab=weekly`
                 : "/weekly-reports"

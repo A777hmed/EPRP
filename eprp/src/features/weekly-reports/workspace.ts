@@ -17,6 +17,8 @@ import {
   scheduleVariance,
   type ScheduleRecommendation,
 } from "@/lib/reporting";
+import type { PlanningSnapshotRollup } from "@/services/planning-rollup-service";
+import { deriveWeeklyPlanningFigures } from "./planning-integration";
 import {
   ALL_ITEMS,
   canAccessDepartment,
@@ -48,8 +50,13 @@ export interface ProgressSummary {
   actual: number;
   /** actual − planned, in percentage points. Negative means behind plan. */
   variance: number;
-  /** Earned / planned. Presented beside the variance, never coloured apart. */
-  spi: number;
+  /**
+   * `null` only when Planning-backed and Earned/Planned Value is
+   * unavailable (no value data, or Planned Value <= 0) — never a
+   * fabricated ratio in that case. Fallback reports always have one, via
+   * `calculateSpi`.
+   */
+  spi: number | null;
   /**
    * The single arithmetic reading of the variance, from the thresholds in
    * `docs/06_WEEKLY_REPORT_SPEC.md` §5 (`recommendScheduleStatus`).
@@ -63,6 +70,16 @@ export interface ProgressSummary {
    */
   statusAgrees: boolean;
   executiveSummary?: string;
+
+  /* ------------------------ Planning Integration 3B ----------------------- */
+  /** Whether `planned`/`actual`/`variance`/`spi` above came from a governed rollup. */
+  planningBacked: boolean;
+  /** The pinned snapshot's version, when Planning-backed. */
+  snapshotVersion?: number;
+  /** The pinned snapshot's Data Date, when Planning-backed. */
+  dataDate?: string;
+  /** Share of the schedule's weight the rollup actually speaks for. */
+  coveragePercent?: number;
 }
 
 /**
@@ -91,11 +108,30 @@ const READING_FOR_STATUS: Record<ProgressStatus, ScheduleRecommendation> = {
  * carries its own `overallProgressStatus` still leads with it — a human
  * judgement outranks an arithmetic one — but the two are only ever remarked
  * on when they genuinely disagree.
+ *
+ * Planning Integration 3B: pass the rollup for the report's PINNED snapshot
+ * (never re-resolved here — the caller already loaded it by
+ * `report.planningSnapshotId`) to read planned/actual/variance/SPI from the
+ * governed snapshot instead of the report's own stored columns. Omitted or
+ * unusable (no weight data yet), this falls back to exactly the manual
+ * behaviour it always had.
  */
-export function progressSummary(report: WeeklyReport): ProgressSummary {
-  const planned = report.plannedProgress ?? 0;
-  const actual = report.actualProgress ?? 0;
-  const variance = scheduleVariance(planned, actual);
+export function progressSummary(
+  report: WeeklyReport,
+  planningRollup?: PlanningSnapshotRollup | null
+): ProgressSummary {
+  const figures = deriveWeeklyPlanningFigures(planningRollup);
+
+  const planned = figures.planningBacked
+    ? figures.plannedProgress!
+    : (report.plannedProgress ?? 0);
+  const actual = figures.planningBacked
+    ? figures.actualProgress!
+    : (report.actualProgress ?? 0);
+  const variance = figures.planningBacked
+    ? figures.variance!
+    : scheduleVariance(planned, actual);
+  const spi = figures.planningBacked ? figures.spi : calculateSpi(planned, actual);
   const reading = recommendScheduleStatus(variance);
   const overallStatus = report.overallProgressStatus ?? undefined;
 
@@ -103,13 +139,17 @@ export function progressSummary(report: WeeklyReport): ProgressSummary {
     planned,
     actual,
     variance,
-    spi: calculateSpi(planned, actual),
+    spi,
     reading,
     overallStatus,
     statusAgrees: !overallStatus || READING_FOR_STATUS[overallStatus] === reading,
     // `summary` IS the Executive Summary narrative (spec section 5). Reused
     // rather than adding a second field that would store the same thing.
     executiveSummary: report.summary ?? undefined,
+    planningBacked: figures.planningBacked,
+    snapshotVersion: figures.snapshotVersion,
+    dataDate: figures.dataDate,
+    coveragePercent: figures.coveragePercent,
   };
 }
 
@@ -563,7 +603,14 @@ export function buildWeeklyWorkspace(
   submissions: WeeklySubmission[],
   scope: WeeklyScope,
   /** The report's narrative rows. Optional: callers that show none pass none. */
-  entries: WeeklyEntry[] = []
+  entries: WeeklyEntry[] = [],
+  /**
+   * The rollup for `report.planningSnapshotId`, when the caller has already
+   * loaded it (Planning Integration 3B). Never resolved here — this
+   * function has no Supabase access and must not re-decide which snapshot
+   * applies to an existing report.
+   */
+  planningRollup?: PlanningSnapshotRollup | null
 ): WeeklyWorkspace {
   const all = weeklyDepartments(project);
   const visible = all.filter((id) => canAccessDepartment(scope, id));
@@ -646,7 +693,7 @@ export function buildWeeklyWorkspace(
   return {
     reportId: report.id,
     projectId: project.id,
-    summary: progressSummary(report),
+    summary: progressSummary(report, planningRollup),
     departments,
     hiddenDepartmentCount: all.length - visible.length,
     awaitingInput: departments

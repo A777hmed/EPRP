@@ -209,32 +209,7 @@
   background: transparent;
 }
 
-/* -------------------------------- App chrome ------------------------------ */
-
-.monthly-app-bar {
-  min-height: 52px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 7px 16px;
-  background: #0a3974;
-  color: white;
-  font-size: 0.78rem;
-}
-.monthly-app-bar img { width: 111px; height: 30px; object-fit: contain; background: white; border-radius: 3px; padding: 2px 4px; }
-.monthly-app-bar strong { font-weight: 700; letter-spacing: .01em; }
-.monthly-app-divider { width: 1px; height: 26px; background: rgb(255 255 255 / 25%); }
-.monthly-project-selector { border: 1px solid rgb(255 255 255 / 38%); border-radius: 5px; padding: 7px 11px; font-weight: 700; }
-.monthly-app-bar > a:first-of-type { margin-left: auto; }
-.monthly-chrome-button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgb(255 255 255 / 50%); border-radius: 5px; padding: 7px 11px; color: white; font-weight: 700; white-space: nowrap; }
-.monthly-chrome-button:hover { background: rgb(255 255 255 / 12%); }
-.monthly-chrome-button svg { width: 13px; height: 13px; }
-
-.monthly-month-tabs { display: flex; align-items: center; gap: 0; min-height: 36px; padding: 0 16px; background: #f1f5f9; border-bottom: 1px solid #cad7e5; color: #0a3974; font-size: .7rem; font-weight: 700; }
-.monthly-month-tabs > span { margin-right: 20px; color: #75869a; letter-spacing: .08em; font-size: .64rem; text-transform: uppercase; }
-.monthly-month-tabs a { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 18px; border-right: 1px solid #d7e1ec; }
-.monthly-month-tabs a.active { background: white; box-shadow: inset 0 -3px 0 #1761ae; }
-.monthly-month-tabs svg { width: 15px; }
+/* ------------------------------- Report stage ----------------------------- */
 
 .monthly-sync-strip { display: flex; align-items: center; gap: 12px; width: min(100% - 32px, 1000px); margin: 14px auto 0; padding: 10px 13px; background: white; border: 1px solid #c5d6e8; border-radius: 6px; color: #0b3f7c; font-size: .74rem; }
 .monthly-sync-strip > div:first-child { display: grid; gap: 2px; margin-right: auto; }
@@ -296,7 +271,7 @@
 .monthly-status-value { display: block; }
 
 /* 2 · KPI row */
-.monthly-kpi-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.monthly-kpi-row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
 .monthly-kpi { min-height: 82px; display: grid; align-content: center; gap: 6px; padding: 11px 12px; border: 1px solid #c8d8e8; border-radius: 6px; background: linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%); }
 .monthly-kpi > span { color: #667a91; font-size: .63rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
 .monthly-kpi b { color: #0d4d99; font-size: 1.42rem; line-height: 1.05; overflow-wrap: anywhere; }
@@ -307,6 +282,7 @@
 .monthly-kpi.unavailable > span { color: #8fa0b3; }
 .monthly-kpi.actual b { color: #2e9c43; }
 .monthly-kpi.variance b { color: #bd6b00; }
+.monthly-kpi.spi b { color: #6d3fae; }
 .monthly-kpi.progress b, .monthly-kpi.hours b { color: #113e78; }
 .monthly-kpi.hours b { font-size: 1.15rem; }
 
@@ -436,23 +412,71 @@
 .monthly-counter span { color: #70839a; font-size: .65rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
 .monthly-counter b { color: #0d4384; font-size: 1.3rem; }
 
-.monthly-list-toolbar { display: grid; grid-template-columns: minmax(0, 1.7fr) 1fr 152px 152px; gap: 8px; margin-top: 16px; }
+.monthly-list-toolbar { display: grid; grid-template-columns: minmax(0, 1.7fr) repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-top: 16px; }
 .monthly-list-toolbar select, .monthly-list-toolbar > input { min-width: 0; height: 38px; padding: 0 10px; border: 1px solid #c7d6e5; border-radius: 5px; background: white; color: #173b68; font: inherit; font-size: .74rem; }
 .monthly-search-field { position: relative; display: flex; align-items: center; min-width: 0; }
 .monthly-search-field svg { position: absolute; left: 11px; width: 15px; height: 15px; color: #8fa1b5; pointer-events: none; }
 .monthly-search-field input { width: 100%; height: 38px; padding: 0 10px 0 33px; border: 1px solid #c7d6e5; border-radius: 5px; background: white; color: #173b68; font: inherit; font-size: .74rem; }
 
 .monthly-list-card { margin-top: 16px; padding: 4px 14px; background: white; border: 1px solid #c9d8e7; border-radius: 8px; }
-.monthly-register-table { min-width: 980px; }
-.monthly-register-table th:nth-child(1), .monthly-register-table td:nth-child(1) { width: 15%; }
-.monthly-register-table th:nth-child(2), .monthly-register-table td:nth-child(2) { width: 17%; }
-.monthly-register-table th:nth-child(4), .monthly-register-table td:nth-child(4),
+.monthly-register-view { max-width: 1560px; }
+.monthly-register-view .monthly-table-wrap {
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+}
+.monthly-register-table { min-width: 1600px; }
+.monthly-register-table th { white-space: nowrap; }
+.monthly-register-table th:nth-child(1), .monthly-register-table td:nth-child(1) { width: 128px; }
+.monthly-register-table th:nth-child(2), .monthly-register-table td:nth-child(2) { width: 250px; }
+.monthly-register-table th:nth-child(3), .monthly-register-table td:nth-child(3) { width: 190px; }
+.monthly-register-table th:nth-child(4), .monthly-register-table td:nth-child(4) { width: 110px; }
 .monthly-register-table th:nth-child(5), .monthly-register-table td:nth-child(5),
-.monthly-register-table th:nth-child(6), .monthly-register-table td:nth-child(6) { width: 8%; text-align: right; }
+.monthly-register-table th:nth-child(6), .monthly-register-table td:nth-child(6),
+.monthly-register-table th:nth-child(7), .monthly-register-table td:nth-child(7) { width: 86px; text-align: right; }
+.monthly-register-table th:nth-child(8), .monthly-register-table td:nth-child(8) { width: 190px; }
+.monthly-register-table th:nth-child(9), .monthly-register-table td:nth-child(9) { width: 170px; }
+.monthly-register-table th:nth-child(10), .monthly-register-table td:nth-child(10) { width: 135px; }
+.monthly-register-table th:nth-child(11), .monthly-register-table td:nth-child(11) { width: 120px; }
+.monthly-register-table th:nth-child(n + 4), .monthly-register-table td:nth-child(n + 4) { white-space: nowrap; }
+.monthly-register-table td:nth-child(5),
+.monthly-register-table td:nth-child(6),
+.monthly-register-table td:nth-child(7),
+.monthly-register-table td:nth-child(11) { font-variant-numeric: tabular-nums; }
+.monthly-register-project,
+.monthly-register-client {
+  hyphens: none;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.monthly-register-primary,
+.monthly-register-client > span {
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.monthly-register-meta,
+.monthly-register-compact-text,
+.monthly-register-table td:nth-child(8) > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .monthly-row-action-cell { display: flex; align-items: center; gap: 6px; }
 .monthly-row-action-cell a { white-space: nowrap; }
 .monthly-register-table td { vertical-align: middle; }
-.monthly-register-table th:last-child, .monthly-register-table td:last-child { width: 15%; }
+.monthly-register-table th:last-child,
+.monthly-register-table td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  width: 94px;
+  background: white;
+  box-shadow: -1px 0 #e0e7ef;
+}
+.monthly-register-table th:last-child { z-index: 2; }
 .monthly-register-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .monthly-register-actions a, .monthly-register-actions button { color: #0d59a8; background: none; border: 0; padding: 0; font: inherit; font-size: .67rem; font-weight: 700; cursor: pointer; }
 .monthly-register-actions a:hover, .monthly-register-actions button:hover { text-decoration: underline; }
@@ -468,23 +492,6 @@
 
 /* -------------------------------- Workspace ------------------------------- */
 
-.monthly-ws-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; padding-top: 2px; }
-.monthly-ws-header h1 { margin: 0; color: #0d4384; font-size: 1.35rem; font-weight: 800; }
-.monthly-ws-header > div:first-child > span { display: flex; align-items: center; gap: 7px; margin-top: 5px; color: #71859d; font-size: .74rem; }
-.monthly-ws-header-actions { display: flex; gap: 8px; }
-
-.monthly-ws-nav { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 16px; padding: 4px; background: white; border: 1px solid #c9d8e7; border-radius: 8px; }
-.monthly-ws-nav button { padding: 8px 13px; border: 0; border-radius: 5px; background: transparent; color: #5b7290; font: inherit; font-size: .74rem; font-weight: 700; cursor: pointer; }
-.monthly-ws-nav button:hover { background: #eef4fa; }
-.monthly-ws-nav button.active { background: #0d59a8; color: white; }
-.monthly-ws-hint { margin: 9px 2px 0; color: #7b8da2; font-size: .72rem; }
-
-.monthly-ws-panel { margin-top: 12px; padding: 16px 18px; background: white; border: 1px solid #c9d8e7; border-radius: 8px; }
-.monthly-ws-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #e2eaf2; }
-.monthly-ws-panel-head > div:first-child { display: grid; gap: 3px; }
-.monthly-ws-panel-head b { color: #0d4384; font-size: .95rem; }
-.monthly-ws-panel-head span { color: #7b8da2; font-size: .72rem; }
-
 .monthly-ws-readout { display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 14px; padding: 10px 12px; border: 1px solid #dbe5ee; border-radius: 6px; background: #f7fafc; color: #7b8da2; font-size: .7rem; }
 .monthly-ws-readout span { display: flex; align-items: center; gap: 6px; }
 .monthly-ws-readout b { color: #17477d; font-size: .76rem; }
@@ -493,9 +500,9 @@
 .monthly-ws-grid label { display: grid; gap: 5px; min-width: 0; color: #5b718c; font-size: .66rem; font-weight: 700; }
 .monthly-ws-grid label.wide { grid-column: 1 / -1; }
 .monthly-ws-grid input, .monthly-ws-grid select { height: 36px; min-width: 0; padding: 0 9px; border: 1px solid #c6d6e5; border-radius: 5px; background: white; color: #173b68; font: inherit; font-size: .75rem; }
+.monthly-ws-grid input:disabled { background: #f0f4f8; color: #6d84a0; border-style: dashed; cursor: not-allowed; }
 .monthly-ws-plan-grid { margin-bottom: 12px; }
 .monthly-ws-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.monthly-ws-panel > .monthly-ws-actions { margin-top: 13px; }
 .monthly-ws-note { margin: 12px 0 0; color: #8494a7; font-size: .69rem; line-height: 1.5; }
 .monthly-ws-subhead { display: flex; align-items: center; gap: 8px; margin: 20px 0 9px; color: #0d4384; font-size: .74rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
 .monthly-ws-subhead svg { width: 15px; height: 15px; color: #5e79a0; }
@@ -544,10 +551,6 @@
 }
 
 @media (max-width: 800px) {
-  .monthly-app-bar { flex-wrap: wrap; gap: 8px; }
-  .monthly-app-bar > a:first-of-type { margin-left: 0; }
-  .monthly-chrome-button { font-size: .68rem; }
-  .monthly-project-selector { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .monthly-report-body { padding: 14px 14px 0; }
   .monthly-brand-row { flex-wrap: wrap; padding: 12px 14px; }
   .monthly-brand-row > img { width: 155px; height: 42px; }
@@ -567,8 +570,7 @@
   .monthly-section-title-row { flex-wrap: wrap; align-items: flex-start; }
   .monthly-section-title-row p { white-space: normal; }
   .monthly-sync-strip { flex-wrap: wrap; }
-  .monthly-list-header, .monthly-ws-header { flex-direction: column; align-items: flex-start; }
-  .monthly-ws-panel-head { flex-direction: column; }
+  .monthly-list-header { flex-direction: column; align-items: flex-start; }
 }
 
 @media (min-width: 640px) {
@@ -717,17 +719,15 @@
   }
 
   /* Application furniture is not part of the document. */
-  .monthly-app-chrome,
   .monthly-sync-strip,
   .monthly-preview-tools,
   .monthly-stage-actions,
   .monthly-report-actions,
-  .monthly-ws-nav,
-  .monthly-ws-header-actions,
   .monthly-ws-filters,
   .monthly-row-actions,
   .monthly-comment-editor,
-  .monthly-ws-panel-head button,
+  .monthly-workspace [data-slot="card-action"] button,
+  .monthly-workspace [data-slot="card-action"] a,
   .monthly-register-actions {
     display: none !important;
   }
@@ -820,7 +820,7 @@
   .monthly-info-field > b { font-size: 8pt; line-height: 1.2; }
   .monthly-info-field > small { font-size: 6pt; }
 
-  .monthly-kpi-row { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2mm; }
+  .monthly-kpi-row { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2mm; }
   .monthly-kpi { min-height: 0; padding: 2mm; border-radius: 1.2mm; gap: 1mm; }
   .monthly-kpi > span { font-size: 5.6pt; }
   .monthly-kpi b { font-size: 12pt; }
@@ -941,13 +941,155 @@
 .monthly-report-sheet.exec-document { width: min(100% - 32px, 1360px); }
 .exec-stage .monthly-preview-tools { width: min(100% - 32px, 1360px); }
 
+/*
+ * Executive UX — visual refinement pass. The live cockpit KEEPS the white
+ * formal report canvas (`.monthly-report-sheet`'s own white background,
+ * border and shadow, unchanged) rather than sitting transparent on the pale
+ * stage — that read as too flat and too empty. Strength comes from restoring
+ * that canvas plus the navy pill section headings (`.monthly-section-title-row`,
+ * reused by the new cockpit sections below), not from removing the sheet.
+ */
+
+/* ------------------------- Screen / print composition ---------------------- */
+
+/*
+ * The document is a HYBRID: screen renders the Executive Decision Cockpit,
+ * print renders the formal numbered report — same `model`, two compositions
+ * (`executive-cockpit.tsx` / `executive-document.tsx`). These two classes are
+ * the toggle. Plain, unlayered rules on purpose: Tailwind's `hidden`/`print:`
+ * utilities ship inside `@layer utilities`, and an unlayered custom rule
+ * ALWAYS outranks a layered one regardless of specificity or source order —
+ * so if any child of these wrappers also sets `display` via its own plain
+ * class (several already do: `.exec-kpi-row`, `.exec-attention-grid`,
+ * `.exec-kpi-card-grid`, …), a Tailwind utility on the wrapper would
+ * silently lose and both compositions would show at once. See the identical
+ * reasoning already documented for `.exec-project-card-grid`/`.exec-print-cards`.
+ */
+.exec-cockpit-only { display: block; }
+.exec-print-only { display: none; }
+
+/* --------------------------- Section number toggle -------------------------- */
+
+/*
+ * "N · " only means something beside the OTHER numbered sections, which are
+ * print-only. A shared section (Executive Summary, Project Executive Status,
+ * Full Project Data) would otherwise show a dangling "1 ·"/"4 ·"/"5 ·" on
+ * screen with no consistent numbering around it — some cockpit sections
+ * (Portfolio Position, What Changed, …) have no print counterpart to number
+ * against at all. Applies to every section, not just `.is-plain`, now that
+ * Executive Summary (accent, numbered "1" in print) is shared too.
+ */
+.monthly-section-title-row .exec-section-number { display: none; }
+
+/* ------------------------------ Cockpit summary ----------------------------- */
+
+.exec-cockpit-coverage { margin: 0 0 12px; color: #33506f; font-size: .8rem; font-weight: 600; }
+.exec-cockpit-note { margin: 8px 0 0; color: #6d84a0; font-size: .76rem; line-height: 1.5; }
+
+/*
+ * Dynamic Executive Cards — Portfolio Position. Modelled directly on
+ * `.monthly-kpi` (the print KPI tile), the OLD report's own bordered-card
+ * language, so the cockpit and the formal report read as one visual family.
+ * A tile with `onClick` renders as a real `<button>` (see `KpiCard` in
+ * `executive-cockpit.tsx`) and gets a hover/active treatment; an
+ * informational tile (no click) gets neither.
+ */
+.exec-kpi-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 10px; }
+.exec-kpi-card-grid + .exec-kpi-card-grid { margin-top: 10px; padding-top: 14px; border-top: 1px solid #d9e3ee; }
+.exec-kpi-card {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  min-height: 76px;
+  padding: 11px 13px;
+  border: 1px solid #c8d8e8;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+button.exec-kpi-card { cursor: pointer; transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease; }
+button.exec-kpi-card:hover { border-color: #9db8d4; box-shadow: 0 3px 10px rgb(19 47 79 / 8%); transform: translateY(-1px); }
+button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset: 2px; }
+.exec-kpi-card.is-active { border-color: #0d59a8; background: linear-gradient(180deg, #eaf2fb 0%, #dcebf9 100%); box-shadow: inset 0 0 0 1px #0d59a8; }
+.exec-kpi-card span { color: #667a91; font-size: .62rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.exec-kpi-card b { color: #0d4d99; font-size: 1.36rem; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.exec-kpi-card small { color: #8fa0b3; font-size: .62rem; line-height: 1.35; }
+.exec-kpi-card.tone-success b { color: #1f7a37; }
+.exec-kpi-card.tone-warning b { color: #b06a12; }
+.exec-kpi-card.tone-danger b { color: #a3333a; }
+
+/* ------------------------------ Attention lists ------------------------------ */
+
+.exec-cockpit-decision { margin-bottom: 12px; padding: 10px 12px; border: 1px solid #cad9e8; border-left: 4px solid #a3333a; border-radius: 6px; background: #fbfdff; }
+.exec-cockpit-group-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 20px; padding-top: 2px; }
+.exec-cockpit-group { min-width: 0; }
+.exec-cockpit-group-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; color: #33506f; font-size: .72rem; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.exec-cockpit-group-head small { min-width: 18px; padding: 1px 6px; border-radius: 999px; background: #eef3f9; color: #33506f; font-size: .62rem; font-weight: 800; text-align: center; }
+.exec-cockpit-decision .exec-cockpit-group-head { color: #8f2a31; font-size: .8rem; }
+.exec-cockpit-decision .exec-cockpit-group-head small { background: #f6dcde; color: #8f2a31; }
+
+.exec-cockpit-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.exec-cockpit-row {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: start;
+  gap: 5px 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color .12s ease;
+}
+.exec-cockpit-row:hover { background: #f0f5fa; }
+.exec-cockpit-row:focus-visible { outline: 2px solid #0d59a8; outline-offset: -2px; }
+.exec-cockpit-row-text { min-width: 0; color: #2c4a72; font-size: .78rem; line-height: 1.35; overflow-wrap: anywhere; }
+.exec-cockpit-row-meta { grid-column: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: #6d84a0; font-size: .68rem; }
+.exec-cockpit-row-meta b { color: #33506f; }
+.exec-cockpit-row-meta em { font-style: normal; color: #8494a7; }
+.exec-cockpit-decision .exec-cockpit-row {
+  grid-template-columns: max-content minmax(220px, 1fr) minmax(110px, .34fr) max-content minmax(90px, .28fr);
+  column-gap: 10px;
+  padding-block: 6px;
+}
+.exec-cockpit-decision .exec-cockpit-row-meta { display: contents; }
+.exec-cockpit-decision .exec-cockpit-project { grid-column: 3; }
+.exec-cockpit-decision .exec-cockpit-due { grid-column: 4; white-space: nowrap; }
+.exec-cockpit-decision .exec-cockpit-owner { grid-column: 5; min-width: 0; overflow-wrap: anywhere; }
+.exec-cockpit-critical { margin-bottom: 12px; padding: 8px 10px; border: 1px solid #dce6ef; border-radius: 6px; background: #fff; }
+.exec-cockpit-critical .exec-cockpit-group-head { margin-bottom: 4px; }
+.exec-cockpit-critical .exec-cockpit-row {
+  grid-template-columns: max-content minmax(220px, 1fr) minmax(110px, .34fr) max-content minmax(90px, .28fr);
+  column-gap: 10px;
+  padding-block: 5px;
+}
+.exec-cockpit-critical .exec-cockpit-row-meta { display: contents; }
+.exec-cockpit-critical .exec-cockpit-row-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.exec-cockpit-critical .exec-cockpit-project { grid-column: 3; }
+.exec-cockpit-critical .exec-cockpit-due { grid-column: 4; white-space: nowrap; }
+.exec-cockpit-critical .exec-cockpit-owner { grid-column: 5; min-width: 0; overflow-wrap: anywhere; }
+.exec-cockpit-more { margin: 4px 0 0 8px; color: #8494a7; font-size: .68rem; }
+.exec-cockpit-overflow { display: inline-flex; margin: 5px 0 0 8px; padding: 2px 0; border: 0; background: none; color: #315f91; font: inherit; font-size: .68rem; font-weight: 700; cursor: pointer; }
+.exec-cockpit-overflow:hover { color: #0d59a8; text-decoration: underline; }
+.exec-cockpit-overflow:focus-visible { outline: 2px solid #0d59a8; outline-offset: 2px; border-radius: 2px; }
+
 /* -------------------------------- Control bar ----------------------------- */
 
 .exec-control-bar { width: min(100% - 32px, 1360px); margin: 16px auto 0; padding: 16px 20px; background: linear-gradient(135deg, #0a3974 0%, #0d59a8 100%); border-radius: 8px; color: white; box-shadow: 0 8px 22px rgb(22 51 84 / 18%); }
 .exec-control-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 18px; align-items: start; }
 .exec-control-title { min-width: 0; }
 .exec-control-title p { margin: 0 0 4px; color: #b9d2ed; font-size: .62rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
-.exec-control-title h1 { margin: 0; font-size: 1.42rem; font-weight: 800; letter-spacing: .015em; text-transform: uppercase; line-height: 1.15; }
+/* Sized to stay on one line at normal desktop widths (~1280px and up, where
+   the two-column control bar squeezes the title column against the period/
+   actions cluster) rather than wrapping to "PROJECT PORTFOLIO EXECUTIVE" /
+   "REPORT". Still stacks cleanly if a narrower window forces a wrap. */
+.exec-control-title h1 { margin: 0; font-size: 1.22rem; font-weight: 800; letter-spacing: .008em; text-transform: uppercase; line-height: 1.18; }
 .exec-control-title span { display: block; margin-top: 5px; color: #c9dcf1; font-size: .74rem; }
 
 .exec-control-actions { display: flex; align-items: flex-end; gap: 10px; }
@@ -1070,7 +1212,7 @@
 /* ------------------------------- Register ---------------------------------- */
 
 /*
- * No min-width: the seven widths sum to 100%, so the table fits its container
+ * No min-width: the eight widths sum to 100%, so the table fits its container
  * and cannot force a scrollbar at ordinary desktop widths.
  */
 .exec-register-table { min-width: 0; width: 100%; table-layout: fixed; }
@@ -1101,20 +1243,27 @@
   border-bottom: 1px solid #e8eef5;
 }
 
-/* Period reads as a label; everything else is a figure, a state or a control. */
-.exec-register-table th:nth-child(1), .exec-register-table td:nth-child(1) { width: 18%; text-align: left; }
-.exec-register-table th:nth-child(2), .exec-register-table td:nth-child(2) { width: 13%; text-align: center; }
-.exec-register-table th:nth-child(3), .exec-register-table td:nth-child(3) { width: 11%; text-align: center; }
-.exec-register-table th:nth-child(4), .exec-register-table td:nth-child(4) { width: 17%; text-align: center; }
-.exec-register-table th:nth-child(5), .exec-register-table td:nth-child(5) { width: 15%; text-align: center; }
+/*
+ * Period reads as a label; everything else is a figure, a state or a
+ * control. Planning Integration 4B added Portfolio Health as its own column
+ * (distinct from Approved Monthly Basis) and a Planning provenance column.
+ */
+.exec-register-table th:nth-child(1), .exec-register-table td:nth-child(1) { width: 16%; text-align: left; }
+.exec-register-table th:nth-child(2), .exec-register-table td:nth-child(2) { width: 9%; text-align: center; }
+.exec-register-table th:nth-child(3), .exec-register-table td:nth-child(3) { width: 10%; text-align: center; }
+.exec-register-table th:nth-child(4), .exec-register-table td:nth-child(4) { width: 14%; text-align: center; }
+.exec-register-table th:nth-child(5), .exec-register-table td:nth-child(5) { width: 13%; text-align: center; }
 .exec-register-table th:nth-child(6), .exec-register-table td:nth-child(6) { width: 13%; text-align: center; }
-.exec-register-table th:nth-child(7), .exec-register-table td:nth-child(7) { width: 13%; text-align: center; }
+.exec-register-table th:nth-child(7), .exec-register-table td:nth-child(7) { width: 11%; text-align: center; }
+.exec-register-table th:nth-child(8), .exec-register-table td:nth-child(8) { width: 14%; text-align: center; }
 
-/* Counts, coverage and dates share one numeric treatment. */
+/* Counts and dates share one numeric treatment. Planning (6) and Portfolio
+   Health (5) carry a badge or a summary sentence, not a bare figure, so they
+   keep normal wrapping instead. */
 .exec-register-table td:nth-child(2),
 .exec-register-table td:nth-child(3),
 .exec-register-table td:nth-child(4),
-.exec-register-table td:nth-child(6) {
+.exec-register-table td:nth-child(7) {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   color: #33506f;
@@ -1123,6 +1272,25 @@
 
 /* A centred cell centres its badge, not just its text. */
 .exec-register-table td:nth-child(5) [data-slot="status-badge"] { margin: 0 auto; }
+
+/* The small subtitle under Reporting Period, Projects in View and Portfolio
+   Health — a second, subordinate fact, never the primary reading. */
+.exec-register-table td small {
+  display: block;
+  margin-top: 2px;
+  color: #8494a7;
+  font-size: .62rem;
+  font-weight: 500;
+  white-space: normal;
+}
+
+.exec-register-table td.exec-planning-cell {
+  font-size: .68rem;
+  font-weight: 500;
+  color: #33506f;
+  white-space: normal;
+  line-height: 1.35;
+}
 
 /*
  * Primary action and overflow menu read as one control group.
@@ -1185,6 +1353,24 @@
 }
 .exec-count-link { color: #0d59a8; font-weight: 700; font-variant-numeric: tabular-nums; }
 .exec-count-link:hover { text-decoration: underline; }
+
+/* A Health badge inside a table cell opens the Executive Project Brief.
+   Button reset so it reads as the StatusBadge it wraps, not as a button. */
+.exec-health-trigger { display: inline-flex; padding: 0; border: 0; background: none; cursor: pointer; }
+.exec-health-trigger:hover [data-slot="status-badge"] { filter: brightness(0.96); }
+.exec-health-trigger:focus-visible { outline: 2px solid #0d59a8; outline-offset: 2px; border-radius: 999px; }
+
+/* -------------------------- Full Project Data ------------------------------ */
+
+/* The cockpit is a single-project drill-down; the separate print mount keeps
+   the complete formal register without exposing an expand-all screen table. */
+.exec-fulldata-picker-row { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.exec-fulldata-picker { display: grid; gap: 5px; width: min(100%, 390px); color: #5b718c; font-size: .62rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.exec-fulldata-picker select { width: 100%; height: 36px; padding: 0 32px 0 10px; border: 1px solid #bdcfe0; border-radius: 5px; background: #fff; color: #173b68; font: inherit; font-size: .76rem; font-weight: 600; letter-spacing: normal; text-transform: none; }
+.exec-fulldata-picker select:focus-visible { outline: 2px solid #0d59a8; outline-offset: 2px; }
+.exec-fulldata-register-link { flex: none; padding-bottom: 8px; color: #0d59a8; font-size: .7rem; font-weight: 700; }
+.exec-fulldata-register-link:hover { text-decoration: underline; }
+.exec-fulldata-prompt { margin: 0; padding: 11px 12px; border: 1px dashed #d4e0eb; border-radius: 5px; color: #768ba2; font-size: .72rem; }
 
 /*
  * Headers WRAP at spaces; they never run on and they never break mid-word.
@@ -1312,14 +1498,37 @@
    one-line empty state instead of stretching to match its busiest neighbour. */
 .exec-attention-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: start; }
 .exec-attention-panel { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 11px 13px; border: 1px solid #cbd9e7; border-radius: 6px; background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%); }
+/* Decision-first: the Decisions Required panel leads the grid and carries a
+   stronger accent than its neighbours, so it reads first without shouting. */
+.exec-attention-panel.is-decision {
+  grid-column: 1 / -1;
+  border-color: #0d59a8;
+  border-left-width: 4px;
+  background: linear-gradient(180deg, #ffffff 0%, #f3f8fd 100%);
+}
+.exec-attention-panel.is-decision .monthly-mini-heading span { color: #0d4384; font-size: .82rem; }
 .exec-attention-panel .monthly-mini-heading small { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: #0d59a8; color: white; font-size: .58rem; font-weight: 800; text-align: center; }
 .exec-attention-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
-.exec-attention-list li { display: grid; gap: 3px; padding-bottom: 7px; border-bottom: 1px solid #e5ecf3; }
-.exec-attention-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.exec-attention-list li { display: grid; border-bottom: 1px solid #e5ecf3; }
+.exec-attention-list li:last-child { border-bottom: 0; }
+/* Each item opens that project's Executive Brief. Button reset so the row
+   still reads as plain text, not as a form control. */
+.exec-attention-trigger { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 7px; width: 100%; padding: 0 0 7px; border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.exec-attention-list li:last-child .exec-attention-trigger { padding-bottom: 0; }
+.exec-attention-trigger:hover .exec-attention-text { color: #0d59a8; }
+.exec-attention-trigger:focus-visible { outline: 2px solid #0d59a8; outline-offset: 2px; border-radius: 3px; }
 .exec-attention-text { color: #2c4a72; font-size: .72rem; line-height: 1.4; overflow-wrap: anywhere; }
-.exec-attention-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: #6d7f94; font-size: .62rem; }
-.exec-attention-meta b { color: #17477d; }
-.exec-attention-meta em { font-style: normal; color: #8494a7; }
+.exec-attention-project { grid-column: 2; color: #17477d; font-size: .62rem; }
+.exec-attention-due, .exec-attention-owner { grid-column: 2; color: #8494a7; font-size: .62rem; font-style: normal; }
+.exec-attention-panel.is-decision .exec-attention-trigger {
+  grid-template-columns: max-content minmax(190px, 1fr) minmax(110px, .34fr) max-content minmax(90px, .25fr);
+  align-items: start;
+  column-gap: 9px;
+  padding-block: 5px;
+}
+.exec-attention-panel.is-decision .exec-attention-project { grid-column: 3; }
+.exec-attention-panel.is-decision .exec-attention-due { grid-column: 4; white-space: nowrap; }
+.exec-attention-panel.is-decision .exec-attention-owner { grid-column: 5; min-width: 0; overflow-wrap: anywhere; }
 
 /* -------------------------------- Milestones ------------------------------- */
 
@@ -1330,6 +1539,24 @@
 .exec-milestone-table th:nth-child(4), .exec-milestone-table td:nth-child(4) { width: 15%; }
 .exec-milestone-table th:nth-child(5), .exec-milestone-table td:nth-child(5) { width: 12%; }
 .exec-milestone-table th:last-child, .exec-milestone-table td:last-child { width: 12%; }
+.exec-milestone-table.is-project-only th:nth-child(1), .exec-milestone-table.is-project-only td:nth-child(1) { width: 12%; }
+.exec-milestone-table.is-project-only th:nth-child(2), .exec-milestone-table.is-project-only td:nth-child(2) { width: auto; }
+.exec-milestone-table.is-project-only th:nth-child(3), .exec-milestone-table.is-project-only td:nth-child(3) { width: 16%; }
+.exec-milestone-table.is-project-only th:nth-child(4), .exec-milestone-table.is-project-only td:nth-child(4) { width: 14%; }
+.exec-milestone-table.is-project-only th:nth-child(5), .exec-milestone-table.is-project-only td:nth-child(5) { width: 14%; }
+.exec-milestone-table.is-project-only th:nth-child(6), .exec-milestone-table.is-project-only td:nth-child(6) { width: 14%; }
+.exec-milestone-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0 0 12px; border: 1px solid #d8e3ee; border-radius: 6px; background: #f8fafd; overflow: hidden; }
+.exec-milestone-summary > div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; padding: 9px 12px; border-right: 1px solid #e2eaf2; }
+.exec-milestone-summary > div:last-child { border-right: 0; }
+.exec-milestone-summary dt { color: #667a91; font-size: .6rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.exec-milestone-summary dd { margin: 0; color: #0d4d99; font-size: 1rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.exec-milestone-picker-row { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.exec-milestone-picker { display: grid; gap: 5px; width: min(100%, 390px); color: #5b718c; font-size: .62rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.exec-milestone-picker select { width: 100%; height: 36px; padding: 0 32px 0 10px; border: 1px solid #bdcfe0; border-radius: 5px; background: #fff; color: #173b68; font: inherit; font-size: .76rem; font-weight: 600; letter-spacing: normal; text-transform: none; }
+.exec-milestone-picker select:focus-visible { outline: 2px solid #0d59a8; outline-offset: 2px; }
+.exec-milestone-register-link { flex: none; padding-bottom: 8px; color: #0d59a8; font-size: .7rem; font-weight: 700; }
+.exec-milestone-register-link:hover { text-decoration: underline; }
+.exec-milestone-prompt { margin: 0; padding: 11px 12px; border: 1px dashed #d4e0eb; border-radius: 5px; color: #768ba2; font-size: .72rem; }
 
 /* --------------------------------- Snapshots ------------------------------- */
 
@@ -1349,6 +1576,10 @@
 .exec-snapshot > header small { display: block; margin-top: 2px; color: #7d8fa4; font-size: .64rem; }
 .exec-snapshot-basis { display: flex; align-items: center; gap: 7px; }
 .exec-snapshot-basis small { color: #8494a7; font-size: .62rem; }
+/* Planning Integration 3E — additive basis provenance, distinct from the
+   approval-status chip above (exec-snapshot-basis). */
+.exec-planning-note { margin: 0; color: #6d84a0; font-size: .6rem; line-height: 1.4; }
+.exec-planning-tag { display: inline-block; margin-left: 6px; color: #6d3fae; font-size: .6rem; font-weight: 700; }
 .exec-snapshot-figures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px 0; border-top: 1px solid #e5ecf3; border-bottom: 1px solid #e5ecf3; }
 .exec-snapshot-figures > div { display: grid; gap: 2px; }
 .exec-snapshot-figures span { color: #667a91; font-size: .57rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
@@ -1364,6 +1595,132 @@
 .exec-snapshot-move { display: grid; gap: 2px; margin-bottom: 4px; }
 .exec-snapshot-move small { color: #6d7f94; font-size: .62rem; }
 .exec-snapshot-link { margin-top: auto; padding-top: 8px; color: #0d59a8; font-size: .72rem; font-weight: 700; }
+
+/* Printed equivalent of the cards below — screen-hidden, print-only. Its own
+   complete layout (not a shared class with the interactive grid) so its
+   visibility never depends on CSS source order. See the print block for the
+   `display: grid !important` override. */
+.exec-print-cards { display: none; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+
+/* --------------------- Project Executive Status (cards) --------------------- */
+
+/*
+ * The primary project-browsing surface — Executive UX Slice 2. Every card
+ * opens the Executive Project Brief; a button reset keeps it reading as a
+ * card, not as a form control, while remaining a real, keyboard-reachable
+ * control (§27 — no interaction may require hover alone).
+ */
+.exec-project-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); align-items: stretch; gap: 10px; }
+.exec-project-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  padding: 11px 13px;
+  border: 1px solid #dde7f1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(19 47 79 / 4%);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease;
+}
+.exec-project-card:hover { border-color: #9db8d4; box-shadow: 0 4px 14px rgb(19 47 79 / 10%); transform: translateY(-1px); }
+.exec-project-card:focus-visible { outline: 2px solid #0d59a8; outline-offset: 2px; }
+.exec-project-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.exec-project-card-head > div { min-width: 0; }
+.exec-project-card-head b { display: block; color: #0d4384; font-size: .86rem; line-height: 1.25; overflow-wrap: anywhere; text-wrap: balance; }
+.exec-project-card-head small { display: block; margin-top: 2px; color: #7d8fa4; font-size: .64rem; }
+.exec-project-card-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; padding: 7px 0; border-top: 1px solid #e5ecf3; border-bottom: 1px solid #e5ecf3; }
+.exec-project-card-figures > div { display: grid; align-content: end; gap: 2px; min-width: 0; padding: 0 8px; border-right: 1px solid #edf2f7; }
+.exec-project-card-figures > div:first-child { padding-left: 0; }
+.exec-project-card-figures > div:last-child { padding-right: 0; border-right: 0; }
+.exec-project-card-figures span { color: #667a91; font-size: .56rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.exec-project-card-figures b { font-size: 1.02rem; }
+.exec-project-card-line { display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: baseline; gap: 7px; font-size: .7rem; color: #2c4a72; line-height: 1.35; }
+.exec-project-card-line > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.exec-project-card-line.is-exception > span:last-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.exec-project-card-label { color: #7386a0; font-size: .54rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.exec-project-card-decision {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: start;
+  gap: 7px;
+  margin-top: 1px;
+  padding-top: 7px;
+  border-top: 1px dashed #dfe7f0;
+  font-size: .7rem;
+  color: #2c4a72;
+  line-height: 1.4;
+}
+.exec-project-card-decision > span:last-child { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-width: 0; overflow: hidden; overflow-wrap: anywhere; }
+/* "View Executive Brief →" — a small, restrained affordance so a card's
+   clickability never depends on the reader noticing a hover effect alone. */
+.exec-project-card-cta { margin-top: auto; padding-top: 5px; color: #0d59a8; font-size: .68rem; font-weight: 700; opacity: .85; }
+.exec-project-card:hover .exec-project-card-cta,
+.exec-project-card:focus-visible .exec-project-card-cta { opacity: 1; text-decoration: underline; }
+
+/* A health tile in Portfolio Position narrowed this grid — screen only, a
+   Dynamic Executive Card filter, never a change to the printed record. */
+.exec-card-filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 7px 12px;
+  border: 1px solid #a9c7e6;
+  border-radius: 6px;
+  background: #eaf2fb;
+  color: #0d4384;
+  font-size: .74rem;
+  font-weight: 600;
+}
+.exec-card-filter-chip button { padding: 0; border: 0; background: none; color: #0d59a8; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.exec-project-card-filter-empty { margin: 0; padding: 16px; color: #8494a7; font-size: .78rem; text-align: center; }
+
+/* ---------------------------- Executive Project Brief ----------------------- */
+
+/*
+ * The Sheet/DetailDrawer shell (`components/shared/detail-drawer.tsx`) is
+ * reused for its mechanics only — open/close, focus trap, Escape, the wide
+ * responsive panel. Everything inside carries the Executive report's own
+ * navy/paper visual language (`.exec-tab-heading`, `StatusBadge`, the Slice 1
+ * funnel classes), deliberately distinct from a Dashboard drawer's generic
+ * muted styling.
+ */
+.exec-brief-title { color: #0d4384; font-weight: 800; }
+.exec-brief-section { padding: 14px 0; border-bottom: 1px solid #e3ecf4; }
+.exec-brief-section:first-of-type { padding-top: 0; }
+.exec-brief-section:last-of-type { border-bottom: 0; padding-bottom: 0; }
+.exec-brief-section .exec-tab-heading:first-child { margin-top: 0; }
+.exec-brief-summary { margin-top: 8px; }
+.exec-brief-decision-line { font-size: .82rem; }
+.exec-brief-basis-line { align-items: baseline; }
+.exec-brief-attention-row { display: grid; gap: 3px; font-size: .82rem; color: #163b68; margin-top: 8px; }
+.exec-brief-attention-row:first-child { margin-top: 0; }
+.exec-brief-subheading { margin: 12px 0 6px; color: #17477d; font-size: .64rem; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.exec-brief-milestone-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.exec-brief-milestone-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid #e5ecf3; font-size: .74rem; color: #2c4a72; }
+.exec-brief-milestone-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.exec-brief-milestone-list b { color: #0d4384; }
+
+/* The explicit "why this health" callout, shown only when a Health badge
+   itself was clicked. A card is appropriate here — it is a distinct,
+   self-contained explanation, not a repeated summary (§11). */
+.exec-brief-health-callout {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  margin-bottom: 4px;
+  border: 1px solid #cbd9e7;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f8fbfe 0%, #eef4fa 100%);
+}
+.exec-brief-health-callout p { margin: 0; color: #33506f; font-size: .74rem; line-height: 1.5; }
+.exec-brief-callout-concern b { color: #17477d; }
 .exec-snapshot-link:hover { text-decoration: underline; }
 
 /* ------------------------------ Approval block ----------------------------- */
@@ -1898,9 +2255,23 @@
 .exec-tab-panel .monthly-table-wrap, .exec-tab-panel table { max-width: 100%; }
 
 .exec-figure-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.exec-figure-row-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .exec-figure { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid #cbd9e7; border-radius: 6px; background: linear-gradient(180deg, #ffffff 0%, #f8fbfe 100%); }
 .exec-figure span { color: #667a91; font-size: .6rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
 .exec-figure b { color: #0d4d99; font-size: 1.24rem; }
+
+/* Overview funnel — Health / Performance / Exception / Impact / Decision.
+   Restrained sections, no boxed cards: a heading and a line, separated by
+   whitespace and a hairline, matching the rest of the tab. */
+.exec-funnel-block { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid #e3ecf4; }
+.exec-funnel-block:last-of-type { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+.exec-funnel-block .exec-tab-heading:first-child { margin-top: 0; }
+.exec-funnel-health-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.exec-funnel-health-line .exec-tab-note { margin: 0; }
+.exec-funnel-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; font-size: .82rem; color: #163b68; line-height: 1.5; }
+.exec-funnel-impact-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.exec-funnel-impact-row > div { display: grid; gap: 3px; font-size: .82rem; color: #163b68; }
+.exec-funnel-impact-label { color: #667a91; font-size: .6rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
 
 .exec-drilldown-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; }
 .exec-drilldown-foot span { color: #8494a7; font-size: .7rem; }
@@ -1910,6 +2281,21 @@
 @media (max-width: 1180px) {
   .exec-kpi-health { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .exec-attention-grid, .exec-snapshot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .exec-cockpit-decision .exec-cockpit-row,
+  .exec-cockpit-critical .exec-cockpit-row,
+  .exec-attention-panel.is-decision .exec-attention-trigger { grid-template-columns: max-content minmax(0, 1fr) minmax(100px, .34fr); }
+  .exec-cockpit-decision .exec-cockpit-project,
+  .exec-cockpit-critical .exec-cockpit-project,
+  .exec-attention-panel.is-decision .exec-attention-project { grid-column: 3; }
+  .exec-cockpit-decision .exec-cockpit-due,
+  .exec-cockpit-decision .exec-cockpit-owner,
+  .exec-cockpit-critical .exec-cockpit-due,
+  .exec-cockpit-critical .exec-cockpit-owner,
+  .exec-attention-panel.is-decision .exec-attention-due,
+  .exec-attention-panel.is-decision .exec-attention-owner { grid-column: 2 / -1; }
+  .exec-cockpit-critical .exec-cockpit-due { grid-column: 2; grid-row: 2; }
+  .exec-cockpit-critical .exec-cockpit-owner { grid-column: 3; grid-row: 2; }
+  .exec-milestone-summary { grid-template-columns: repeat(5, minmax(100px, 1fr)); overflow-x: auto; }
 }
 
 @media (max-width: 800px) {
@@ -1917,7 +2303,23 @@
   .exec-control-actions { align-items: stretch; flex-wrap: wrap; }
   .exec-filter-row select { max-width: none; flex-basis: 100%; }
   .exec-kpi-position, .exec-kpi-health, .exec-attention-grid, .exec-snapshot-grid,
-  .exec-figure-row, .exec-snapshot-figures { grid-template-columns: 1fr; }
+  .exec-figure-row, .exec-snapshot-figures, .exec-funnel-impact-row { grid-template-columns: 1fr; }
+  .exec-cockpit-decision .exec-cockpit-row,
+  .exec-cockpit-critical .exec-cockpit-row,
+  .exec-attention-panel.is-decision .exec-attention-trigger { grid-template-columns: max-content minmax(0, 1fr); }
+  .exec-cockpit-decision .exec-cockpit-project,
+  .exec-cockpit-decision .exec-cockpit-due,
+  .exec-cockpit-decision .exec-cockpit-owner,
+  .exec-cockpit-critical .exec-cockpit-project,
+  .exec-cockpit-critical .exec-cockpit-due,
+  .exec-cockpit-critical .exec-cockpit-owner,
+  .exec-attention-panel.is-decision .exec-attention-project,
+  .exec-attention-panel.is-decision .exec-attention-due,
+  .exec-attention-panel.is-decision .exec-attention-owner { grid-column: 2; }
+  .exec-cockpit-critical .exec-cockpit-due,
+  .exec-cockpit-critical .exec-cockpit-owner { grid-row: auto; }
+  .exec-milestone-picker-row, .exec-fulldata-picker-row { align-items: stretch; flex-direction: column; }
+  .exec-milestone-register-link, .exec-fulldata-register-link { padding-bottom: 0; }
   .exec-header-meta { flex-wrap: wrap; }
   .exec-drilldown-head { grid-template-columns: 1fr; }
   .exec-drilldown-status { justify-content: flex-start; }
@@ -2377,11 +2779,50 @@
   .exec-drilldown-head { grid-template-columns: minmax(0, 1fr) auto !important; }
   .exec-tab-panel { padding: 0; border: 0; }
   .exec-figure-row { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 2mm; }
+  .exec-figure-row-3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .exec-funnel-block { border-bottom: 0; padding-bottom: 0; margin-bottom: 2mm; }
   .exec-tab-table,
   .exec-risk-table,
   .exec-action-table,
   .exec-milestone-detail-table { min-width: 0 !important; font-size: 6.6pt; }
   .exec-tab-lead { margin-top: 3mm; }
+
+  /*
+   * Executive UX Slice 2 — Project Executive Status prints as the fuller
+   * Snapshot-style card (`.exec-print-cards`), not the interactive one.
+   * `!important` because these classes also set `display`
+   * outside this media query — see `executive-project-brief.tsx`'s note on
+   * why Tailwind's `print:`/`hidden` utilities are not used here instead.
+   */
+  .exec-project-card-grid { display: none !important; }
+  .exec-print-cards { display: grid !important; }
+
+  /*
+   * Executive UX final pass — the screen/print composition toggle. See the
+   * matching screen-side rules and the `!important` rationale beside
+   * `.exec-cockpit-only`/`.exec-print-only` (they also set `display` outside
+   * this media query, so a non-`!important` override here would lose).
+   */
+  .exec-cockpit-only { display: none !important; }
+  .exec-print-only { display: block !important; }
+  .exec-print-only.exec-footer { display: flex !important; }
+  .monthly-section-title-row .exec-section-number { display: inline !important; }
+
+  /* Screen-only filter affordance on Project Executive Status (Portfolio
+     Position's Dynamic Executive Cards) — print always shows every project. */
+  .exec-card-filter-chip,
+  .exec-project-card-filter-empty { display: none !important; }
+
+  /*
+   * Safety net: a Sheet/Dialog left open (the Executive Project Brief, or any
+   * other) must never appear on a printed page. Radix portals it to the end
+   * of <body>, outside `.exec-document`, so it is not reached by any rule
+   * above.
+   */
+  [data-slot="sheet-overlay"],
+  [data-slot="sheet-content"],
+  [data-slot="dialog-overlay"],
+  [data-slot="dialog-content"] { display: none !important; }
 }
 
 /* ==========================================================================
@@ -2542,7 +2983,54 @@
 .cal-monthcell.is-outside > b { color: var(--dash-muted); }
 .cal-monthcell.is-today > b { display: inline-flex; align-items: center; justify-content: center; width: 21px; height: 21px; border-radius: 999px; background: var(--dash-blue); color: var(--dash-on-blue); }
 .cal-monthcell-events { display: grid; gap: 3px; min-width: 0; }
-.cal-more { color: var(--dash-ink-soft); font-size: .6rem; }
+.cal-more { color: var(--dash-blue); font-size: .7rem; font-weight: 600; text-align: left; padding: 5px 3px; border-radius: 4px; }
+.cal-more:hover { text-decoration: underline; background: var(--dash-surface-2); }
+
+/* Calendar notes share category colors without adding event state. */
+.cal-note { display: grid; align-content: start; gap: 3px; width: 100%; min-width: 0; padding: 7px 8px; border-left: 3px solid currentColor; border-radius: 3px 7px 7px 3px; background: color-mix(in srgb, currentColor 7%, var(--dash-surface)); text-align: left; }
+.cal-note:hover { background: color-mix(in srgb, currentColor 13%, var(--dash-surface)); }
+.cal-note strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; color: var(--dash-ink); font-size: .73rem; line-height: 1.35; font-weight: 650; }
+.cal-note-project, .cal-note-meta, .cal-note-source { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dash-ink-soft); font-size: .62rem; line-height: 1.4; }
+.cal-note-source { font-size: .6rem; }
+.cal-date-button { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 30px; padding: 2px; border-radius: 5px; text-align: left; }
+.cal-date-button b { display: inline-grid; place-items: center; width: 26px; height: 26px; color: var(--dash-ink); font-size: .75rem; }
+.cal-date-button span { color: var(--dash-ink-soft); font-size: .62rem; }
+.cal-date-button:hover { background: var(--dash-surface-2); }
+.cal-monthcell.is-today .cal-date-button b { border-radius: 50%; background: var(--dash-blue); color: var(--dash-on-blue); }
+.cal-monthcell.is-outside .cal-date-button b { color: var(--dash-muted); }
+.cal-note:focus-visible, .cal-date-button:focus-visible, .cal-more:focus-visible, .cal-preview-date:focus-visible { outline: 2px solid var(--dash-blue); outline-offset: 2px; }
+.cal-monthgrid { overflow-x: auto; }
+.cal-monthgrid .cal-monthhead, .cal-monthgrid .cal-monthbody { min-width: 700px; }
+.cal-monthgrid .cal-monthbody { grid-auto-rows: minmax(124px, auto); }
+.cal-monthgrid .cal-monthcell { padding: 5px; }
+/* Day Agenda list — max 2 columns on desktop, 1 when narrower, with its own
+   internal scroll so a busy day never grows the modal past the viewport. */
+.cal-date-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  max-height: min(58vh, 520px);
+  padding: 4px;
+  overflow-y: auto;
+}
+@media (max-width: 700px) {
+  .cal-date-list { grid-template-columns: minmax(0, 1fr); }
+}
+.cal-agenda-detail { padding: 4px; }
+.cal-modal-detail .cal-drawer { max-height: none; border: 0; box-shadow: none; }
+.cal-modal-detail .cal-drawer-head { display: none; }
+.cal-modal-detail .cal-drawer-body { overflow: visible; }
+.cal-preview-notes { display: grid; gap: 6px; margin: 8px 0; padding: 0; list-style: none; }
+.cal-preview-date { margin-top: 10px; color: var(--dash-ink-soft); font-size: .7rem; text-align: left; }
+.cal-preview-error { color: var(--dash-red); font-size: .75rem; }
+.cal-filters { align-items: flex-end; min-width: 0; }
+@media (max-width: 600px) {
+  .cal-filters { width: 100%; }
+  .cal-filters label { flex: 1; min-width: 0; }
+  .cal-filters select { min-width: 0; max-width: 100%; width: 100%; }
+  .cal-nav { flex-wrap: wrap; }
+  .cal-modal-detail .cal-form-pair, .cal-modal-detail .cal-form-triple { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* Agenda */
 .cal-agenda { display: grid; gap: 10px; margin: 0; padding: 14px; list-style: none; }
@@ -2754,6 +3242,10 @@
   color: var(--dash-ink);
   border-bottom-color: var(--dash-edge);
 }
+.dark .monthly-list-card .monthly-register-table :is(th, td):last-child {
+  background: var(--dash-surface);
+  box-shadow: -1px 0 var(--dash-edge);
+}
 .dark .monthly-list-card .monthly-table td small { color: var(--dash-muted); }
 .dark .monthly-list-card .planned-value { color: var(--dash-blue); }
 .dark .monthly-list-card .actual-value { color: var(--dash-teal); }
@@ -2761,6 +3253,139 @@
 .dark .monthly-list-card .drive-cell { color: var(--dash-ink-soft); }
 /* Same scoping reason: `.monthly-link` also appears inside the document. */
 .dark .monthly-list-card .monthly-link { color: var(--dash-blue); }
+
+/* ==========================================================================
+   The EPROM report section band
+   --------------------------------------------------------------------------
+   The printed Weekly and Monthly reports open each section with a solid navy
+   band carrying a number and a reversed title — "1 · REPORT INFORMATION". That
+   band is the strongest thing in the original design and the reason a reader
+   can find their way around a dense report at a glance.
+
+   Reproduced literally on a screen full of stacked authoring panels it would
+   be the giant printable form again, so what carries over here is the
+   HIERARCHY rather than the band: a faint navy wash, a navy rule, a navy
+   title, and the section number. The band itself stays in Preview/Print.
+
+   Applied from a WRAPPER, not from each card, for two reasons. Most of
+   Weekly's sections are rendered by components this work may not modify
+   (distribution, departments, insights, sign-off) and they call `SectionCard`
+   directly — a wrapper reaches them without touching a line. And one rule set
+   for both tiers cannot drift the way a component's classes plus a stylesheet
+   would.
+
+   Selectors are pinned to SectionCard's own structure (Card > CardHeader >
+   CardTitle as direct children), so a card nested INSIDE a section's content
+   is neither restyled nor numbered.
+   ========================================================================== */
+
+.eprp-report-sections {
+  counter-reset: eprp-section;
+}
+
+.eprp-report-sections > * > [data-slot="section-card"] > [data-slot="card-header"],
+.eprp-report-sections > [data-slot="section-card"] > [data-slot="card-header"] {
+  background: color-mix(in oklab, var(--primary) 4.5%, transparent);
+  border-bottom-color: color-mix(in oklab, var(--primary) 20%, transparent);
+}
+
+.eprp-report-sections > * > [data-slot="section-card"] > [data-slot="card-header"] > [data-slot="card-title"],
+.eprp-report-sections > [data-slot="section-card"] > [data-slot="card-header"] > [data-slot="card-title"] {
+  color: var(--primary);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* Numbering is opt-in: a tier that renders one section per department, say,
+   has no sequence to number. */
+.eprp-report-sections[data-numbered] > * > [data-slot="section-card"],
+.eprp-report-sections[data-numbered] > [data-slot="section-card"] {
+  counter-increment: eprp-section;
+}
+
+.eprp-report-sections[data-numbered] > * > [data-slot="section-card"] > [data-slot="card-header"] > [data-slot="card-title"]::before,
+.eprp-report-sections[data-numbered] > [data-slot="section-card"] > [data-slot="card-header"] > [data-slot="card-title"]::before {
+  content: counter(eprp-section) " · ";
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  /* One step quieter than the title, so the number orders the sections
+     without competing with what they are called. */
+  color: color-mix(in oklab, var(--primary) 62%, transparent);
+}
+
+/*
+ * The report panel strip scrolls rather than wraps (see `ReportPanelNav`), so
+ * on platforms that reserve space for a scrollbar it would otherwise gain a
+ * permanent grey bar under nine tabs that usually fit. Thin, themed, and only
+ * on this strip.
+ */
+[data-slot="report-panel-nav"] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+[data-slot="report-panel-nav"]::-webkit-scrollbar { height: 6px; }
+[data-slot="report-panel-nav"]::-webkit-scrollbar-track { background: transparent; }
+[data-slot="report-panel-nav"]::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--border);
+}
+
+/*
+ * Monthly WORKSPACE panel interiors, dark theme.
+ *
+ * The workspace panel used to be `.monthly-ws-panel { background: white }` with
+ * no dark rule at all, so its whole interior was painted for a white card in
+ * both themes. It is now the shared `SectionCard`, which follows the theme —
+ * so the fields, readouts and sub-headings inside it need to follow too, or a
+ * white input lands on a dark card.
+ *
+ * Scoped to `.monthly-workspace` for the same reason the register block above
+ * is scoped to `.monthly-list-card`: these class names are shared with the
+ * printed document, and an unscoped rule would repaint the sheet. Light theme
+ * is deliberately untouched — the interiors there are already correct.
+ */
+.dark .monthly-workspace .monthly-ws-readout {
+  background: var(--dash-surface-2);
+  border-color: var(--dash-edge);
+  color: var(--dash-ink-soft);
+}
+.dark .monthly-workspace .monthly-ws-readout b { color: var(--dash-ink); }
+.dark .monthly-workspace .monthly-ws-grid label { color: var(--dash-ink-soft); }
+.dark .monthly-workspace .monthly-ws-grid input,
+.dark .monthly-workspace .monthly-ws-grid select,
+.dark .monthly-workspace .monthly-ws-textarea {
+  background: var(--dash-surface-2);
+  border-color: var(--dash-edge);
+  color: var(--dash-ink);
+}
+.dark .monthly-workspace .monthly-ws-textarea::placeholder { color: var(--dash-muted); }
+.dark .monthly-workspace .monthly-ws-note,
+.dark .monthly-workspace .monthly-item-facts,
+.dark .monthly-workspace .monthly-comment-check em { color: var(--dash-muted); }
+.dark .monthly-workspace .monthly-item-facts b { color: var(--dash-ink); }
+.dark .monthly-workspace .monthly-ws-subhead { color: var(--dash-navy); }
+.dark .monthly-workspace .monthly-ws-subhead svg { color: var(--dash-ink-soft); }
+.dark .monthly-workspace .monthly-ws-count {
+  background: var(--dash-surface-2);
+  color: var(--dash-blue);
+}
+.dark .monthly-workspace .monthly-ws-add,
+.dark .monthly-workspace .monthly-ws-filters button {
+  background: var(--dash-surface-2);
+  border-color: var(--dash-edge);
+  color: var(--dash-ink-soft);
+}
+.dark .monthly-workspace .monthly-ws-add:hover,
+.dark .monthly-workspace .monthly-ws-filters button:hover { background: var(--dash-surface); }
+.dark .monthly-workspace .monthly-table th {
+  color: var(--dash-ink-soft);
+  border-bottom-color: var(--dash-edge);
+}
+.dark .monthly-workspace .monthly-table td {
+  color: var(--dash-ink);
+  border-bottom-color: var(--dash-edge);
+}
+.dark .monthly-workspace .monthly-link { color: var(--dash-blue); }
 
 /* Register table */
 .dark .exec-register-table th {
@@ -3053,20 +3678,45 @@ html:has(.dash-stage) { --epr-rail: var(--dash-canvas); }
 
 .dash-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 13px; }
 
+/* Top-Level 5A1 correction: each card is now a real <button> opening a
+   quick-detail modal — width/alignment/cursor/focus are the only additions
+   over the original card styling below; the layout is unchanged. */
 .dash-kpi {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  width: 100%;
   min-height: 112px;
   padding: 15px 16px;
   border: 1px solid var(--dash-hairline);
   border-radius: var(--dash-round);
   background: var(--dash-surface);
   box-shadow: var(--dash-lift);
+  text-align: left;
+  cursor: pointer;
   transition: box-shadow .16s ease, transform .16s ease;
+  animation: dash-kpi-in .32s ease-out both;
+  animation-delay: var(--stagger, 0ms);
 }
+/* Final Micro-Polish — a short fade/translate stagger across the five
+   cards on entrance. `.dash-kpis` is keyed to the same signature the
+   figures themselves are computed from, so this replays once per relevant
+   filter/scope change and never loops. */
+.dash-kpi:nth-child(1) { --stagger: 0ms; }
+.dash-kpi:nth-child(2) { --stagger: 50ms; }
+.dash-kpi:nth-child(3) { --stagger: 100ms; }
+.dash-kpi:nth-child(4) { --stagger: 150ms; }
+.dash-kpi:nth-child(5) { --stagger: 200ms; }
 .dash-kpi:hover { box-shadow: var(--dash-lift-hover); transform: translateY(-1px); }
+.dash-kpi:focus-visible { outline: 2px solid var(--dash-blue); outline-offset: 2px; }
+/* Dashboard UX Part 1 — a restrained press feedback, not a hover effect:
+   a brief ~160ms scale on the click itself, capped low enough (1.015) that
+   it reads as acknowledgement, not a bounce. */
+.dash-kpi:active { transform: scale(1.015); transition: transform 160ms ease; }
+@media (prefers-reduced-motion: reduce) {
+  .dash-kpi, .dash-kpi:hover, .dash-kpi:active { transition: none; transform: none; }
+}
 
 .dash-kpi-text { display: grid; align-content: center; gap: 0; min-width: 0; }
 .dash-kpi-text > span { color: var(--dash-ink-soft); font-size: .72rem; font-weight: 600; }
@@ -3124,10 +3774,15 @@ html:has(.dash-stage) { --epr-rail: var(--dash-canvas); }
 .dash-kpi-flat { display: block; height: 2px; border-radius: 99px; background: var(--dash-surface-3); }
 
 /* Mark 5 — a STATE, so a status icon rather than a chart */
-.dash-kpi-status { display: grid; width: 54px; height: 54px; flex: none; place-items: center; border-radius: 50%; }
+.dash-kpi-status { display: grid; width: 54px; height: 54px; flex: none; place-items: center; border-radius: 50%; background: var(--dash-surface-2); }
 .dash-kpi-status svg { width: 23px; height: 23px; }
 .dash-kpi.is-danger .dash-kpi-status { background: var(--dash-tint-red); color: var(--dash-red); }
 .dash-kpi.is-clear .dash-kpi-status { background: var(--dash-tint-green); color: var(--dash-teal); }
+/* Dashboard UX Part 1 — Schedule Variance's mark simplified from a sparkline
+   to one semantic icon, reusing this same circle treatment. */
+.dash-kpi-status svg.is-success { color: var(--dash-teal); }
+.dash-kpi-status svg.is-warning { color: var(--dash-amber); }
+.dash-kpi-status svg.is-danger { color: var(--dash-red); }
 
 /* ------------------------------- Panel shell -------------------------------- */
 
@@ -3168,6 +3823,9 @@ html:has(.dash-stage) { --epr-rail: var(--dash-canvas); }
 }
 .dash-link { margin-left: auto; color: var(--dash-blue); font-size: .665rem; font-weight: 700; white-space: nowrap; }
 .dash-link:hover { text-decoration: underline; }
+/* Some "View All" controls open an in-page drawer instead of navigating —
+   same look, a <button> instead of an <a>. */
+button.dash-link { background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; line-height: inherit; }
 
 .dash-panel-body {
   display: flex;
@@ -3191,6 +3849,23 @@ html:has(.dash-stage) { --epr-rail: var(--dash-canvas); }
 .dash-note.is-clear { background: var(--dash-tint-green); color: var(--dash-teal); font-weight: 600; }
 
 .dash-plot { min-width: 0; }
+
+/* Planning Integration 3D — the Planned vs Actual Progress Curve's info strip. */
+.dash-planning-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--dash-hairline);
+  border-radius: 8px;
+  background: var(--dash-surface-2);
+}
+.dash-planning-figure dt { margin: 0; color: var(--dash-muted); font-size: .62rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.dash-planning-figure dd { margin: 2px 0 0; color: var(--dash-navy); font-size: .95rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dash-planning-figure.is-success dd { color: var(--dash-teal); }
+.dash-planning-figure.is-warning dd { color: var(--dash-amber); }
+.dash-planning-figure.is-danger dd { color: var(--dash-red); }
 .recharts-default-tooltip {
   border: 1px solid var(--dash-hairline) !important;
   border-radius: 9px;
@@ -3217,6 +3892,85 @@ span.dash-plotkey { cursor: default; }
 .dash-plotkey i { width: 16px; height: 2px; border-radius: 99px; background: var(--dash-chart-actual); }
 .dash-plotkey.is-planned i { height: 0; border-top: 2px dashed var(--dash-chart-planned); background: none; }
 .dash-plotkey[aria-pressed="false"] { opacity: .36; }
+
+/* ------------------------ Project Progress Comparison ----------------------- */
+/* Dashboard UX Part 1, item 5 — every visible project's Planned vs Actual
+   position, one dumbbell per row on a shared 0-100 scale. Never blended
+   into a single portfolio curve. */
+/* Final Micro-Polish: this panel's row count is data-driven (as few as one
+   project) and must never stretch to match its taller siblings' fixed
+   content (the donut, the radar) — `align-self` overrides the row's own
+   `align-items: stretch` for this one grid item, so it sizes to its own
+   rows instead of inheriting a tall sibling's height as blank space. The
+   shared `min-height: 286px` floor still applies, so a one-row panel still
+   reads as a real card, not a stub. */
+.dash-row-main > .dash-compare-panel { align-self: start; min-height: 0; }
+.dash-compare-panel .dash-panel-body { justify-content: flex-start; }
+/* A sensible ceiling once a portfolio has many rows — the row count itself
+   is already capped with a "+N more — Expand" footer, so this scroll is a
+   safety net for taller row content rather than the primary limit. */
+.dash-compare { display: grid; gap: 13px; margin: 0; padding: 2px 0; max-height: 320px; overflow-y: auto; list-style: none; }
+.dash-compare-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.dash-compare-name {
+  overflow: hidden;
+  color: var(--dash-ink);
+  font-size: .69rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-compare-variance { flex: none; font-size: .625rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dash-compare-variance.is-success { color: var(--dash-teal); }
+.dash-compare-variance.is-warning { color: var(--dash-amber); }
+.dash-compare-variance.is-danger { color: var(--dash-red); }
+.dash-compare-variance.is-default { color: var(--dash-muted); font-weight: 600; }
+.dash-compare-track { position: relative; height: 14px; margin-top: 6px; }
+.dash-compare-track::before {
+  content: "";
+  position: absolute;
+  inset: 50% 0 auto;
+  height: 3px;
+  border-radius: 99px;
+  background: var(--dash-surface-3);
+  transform: translateY(-50%);
+}
+.dash-compare-fill {
+  position: absolute;
+  top: 50%;
+  height: 3px;
+  border-radius: 99px;
+  opacity: .5;
+  transform: translateY(-50%);
+  animation: dash-compare-fill-in .5s ease-out both;
+  animation-delay: var(--row-stagger, 0ms);
+}
+.dash-compare-dot {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dash-chart-planned);
+  box-shadow: 0 0 0 2px var(--dash-surface);
+  transform: translate(-50%, -50%);
+  animation: dash-compare-in .5s ease-out both;
+  animation-delay: var(--row-stagger, 0ms);
+}
+.dash-compare-dot.is-planned { z-index: 1; }
+.dash-compare-dot.is-actual { z-index: 2; }
+.dash-compare-nodata { margin: 6px 0 0; color: var(--dash-muted); font-size: .625rem; font-style: italic; }
+.dash-compare-legend {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 4px;
+  padding-top: 9px;
+  border-top: 1px solid var(--dash-hairline);
+}
+.dash-compare-legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--dash-ink-soft); font-size: .625rem; font-weight: 600; }
+.dash-compare-legend i { width: 8px; height: 8px; border-radius: 50%; background: var(--dash-chart-actual); }
+.dash-compare-legend .is-planned i { background: var(--dash-chart-planned); }
+.dash-compare-more { margin: 8px 0 0; color: var(--dash-muted); font-size: .625rem; font-weight: 600; text-align: center; }
 
 /* --------------------------------- Donut ------------------------------------ */
 
@@ -3310,7 +4064,27 @@ span.dash-plotkey { cursor: default; }
   padding: 4px 0 2px;
   list-style: none;
 }
-.dash-bars li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 5px 10px; }
+.dash-bars > li,
+.dash-bar-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 5px 10px; }
+/* A row that opens a drawer rather than navigate is a <button> nested one
+   level inside <li> — reset the native chrome so it reads identically to a
+   non-interactive row. Milestone rows always use this; Progress by Project
+   rows do too once a Project Health drawer is available to open (5A1) — a
+   row with nothing to open stays a plain <li>. */
+.dash-bar-row {
+  width: 100%;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .14s ease;
+}
+.dash-bar-row:hover { background: var(--dash-surface-2); }
+.dash-bar-row:focus-visible { outline: 2px solid var(--dash-blue); outline-offset: 1px; }
 .dash-bar-name {
   overflow: hidden;
   color: var(--dash-ink);
@@ -3319,12 +4093,38 @@ span.dash-plotkey { cursor: default; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dash-bars > li > b { font-size: .625rem; font-weight: 700; white-space: nowrap; }
-.dash-bars > li > b.is-success { color: var(--dash-teal); }
-.dash-bars > li > b.is-warning { color: var(--dash-amber); }
-.dash-bars > li > b.is-danger { color: var(--dash-red); }
-.dash-bars > li > b.is-default { color: var(--dash-muted); }
-.dash-bars > li > small { grid-column: 1 / -1; overflow: hidden; color: var(--dash-muted); font-size: .585rem; text-overflow: ellipsis; white-space: nowrap; }
+.dash-bars b { font-size: .625rem; font-weight: 700; white-space: nowrap; }
+.dash-bars b.is-success { color: var(--dash-teal); }
+.dash-bars b.is-warning { color: var(--dash-amber); }
+.dash-bars b.is-danger { color: var(--dash-red); }
+.dash-bars b.is-default { color: var(--dash-muted); }
+.dash-bars small { grid-column: 1 / -1; overflow: hidden; color: var(--dash-muted); font-size: .585rem; text-overflow: ellipsis; white-space: nowrap; }
+
+/* All Projects mode stacks the stage label with a "+N" count in the same
+   top-right slot a lone stage label otherwise occupies. */
+.dash-bar-badges { display: grid; justify-items: end; gap: 2px; }
+.dash-bar-more { font-size: .58rem; font-weight: 700; color: var(--dash-muted); }
+
+/* The panel-level "N more" overflow line — Milestone Progress and
+   Milestones Upcoming both use it to open the Milestone Modal on whatever
+   this card could not fit. */
+.dash-more-footer {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 4px 0;
+  border: 0;
+  border-top: 1px dashed var(--dash-hairline);
+  background: none;
+  color: var(--dash-blue);
+  font: inherit;
+  font-size: .625rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.dash-more-footer:hover { text-decoration: underline; }
+.dash-more-footer:focus-visible { outline: 2px solid var(--dash-blue); outline-offset: 1px; }
 
 /* Three discrete segments, one per lifecycle stage. Deliberately NOT a
    percentage fill: the platform records a stage, not a completion figure. */
@@ -3357,7 +4157,8 @@ span.dash-plotkey { cursor: default; }
 
 .dash-items { display: grid; margin: 0; padding: 0; list-style: none; }
 .dash-items li + li { border-top: 1px solid var(--dash-hairline); }
-.dash-items a {
+.dash-items a,
+.dash-items button {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) auto;
   align-items: center;
@@ -3366,14 +4167,27 @@ span.dash-plotkey { cursor: default; }
   border-radius: 8px;
   transition: background .14s ease;
 }
-.dash-items a:hover { background: var(--dash-surface-2); }
+.dash-items a:hover,
+.dash-items button:hover { background: var(--dash-surface-2); }
+/* Milestone rows open a drawer rather than navigate, so they are <button>s —
+   reset the native chrome so a row reads identically either way. */
+.dash-items button {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
 .dash-item-icon { width: 15px; height: 15px; color: var(--dash-muted); }
 .dash-item-icon.is-info { color: var(--dash-blue); }
 .dash-item-icon.is-success { color: var(--dash-teal); }
 .dash-item-icon.is-warning { color: var(--dash-amber); }
 .dash-item-icon.is-danger { color: var(--dash-red); }
 .dash-item-icon.is-default { color: var(--dash-muted); }
-.dash-items a > span { display: grid; gap: 2px; min-width: 0; }
+.dash-items a > span,
+.dash-items button > span { display: grid; gap: 2px; min-width: 0; }
 .dash-items b {
   overflow: hidden;
   color: var(--dash-ink);
@@ -3512,7 +4326,8 @@ span.dash-plotkey { cursor: default; }
 .dash-cal-bar button:focus-visible,
 .dash-cal-cell:focus-visible,
 .dash-cal-agenda button:focus-visible,
-.dash-items a:focus-visible {
+.dash-items a:focus-visible,
+.dash-items button:focus-visible {
   outline: 2px solid var(--dash-blue);
   outline-offset: 2px;
 }
@@ -3520,6 +4335,14 @@ span.dash-plotkey { cursor: default; }
 @keyframes dash-grow { from { width: 0; } }
 @keyframes dash-rise { from { height: 0; } }
 @keyframes dash-fade { from { opacity: 0; transform: scaleX(.4); } }
+/* Final Micro-Polish — entrance motion, single-shot (no loop, no bounce).
+   The compare dot/fill keyframes restate their element's own static
+   `transform` (centering/vertical-centering) in the `from` state alongside
+   the scale, so the reveal never overrides that positioning — only `from`
+   is declared, so the implicit "to" is each element's own base transform. */
+@keyframes dash-kpi-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes dash-compare-in { from { opacity: 0; transform: translate(-50%, -50%) scale(.35); } }
+@keyframes dash-compare-fill-in { from { opacity: 0; transform: translateY(-50%) scaleX(.3); } }
 
 /* -------------------------------- Responsive -------------------------------- */
 
@@ -3560,9 +4383,312 @@ span.dash-plotkey { cursor: default; }
   .dash-ring-fill,
   .dash-kpi-columns i,
   .dash-bar-track i { animation: none !important; transition: none !important; opacity: 1 !important; transform: none !important; }
+  /* These two keep their own static positioning transform (dot centering,
+     fill vertical-centering) — `none` would misplace them, so each keeps
+     its real base transform while the reveal animation itself is cut. */
+  .dash-compare-dot,
+  .dash-compare-fill { animation: none !important; opacity: 1 !important; }
+  .dash-compare-dot { transform: translate(-50%, -50%) !important; }
+  .dash-compare-fill { transform: translateY(-50%) !important; }
 }
 
-/* ==========================================================================
+/* ---------------------- Calendar approved note refinement ----------------- */
+
+/* The paper note is the Calendar's one tactile element. Its type mapping is
+   shared by the full grid, date list and Dashboard preview. */
+.cal-note-type-mom,
+.cal-note-type-kom { --note-paper: #eee8fb; --note-accent: #7558bd; }
+.cal-note-type-meeting { --note-paper: #ddf4e9; --note-accent: #197f61; }
+.cal-note-type-milestone { --note-paper: #ddecfa; --note-accent: #2b72b8; }
+.cal-note-type-workshop { --note-paper: #fbe4d8; --note-accent: #ad5b3f; }
+.cal-note-type-client-meeting { --note-paper: #f8dfe5; --note-accent: #a94f68; }
+.cal-note-type-reminder,
+.cal-note-type-report-due { --note-paper: #faedba; --note-accent: #98700d; }
+
+.cal-note {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  align-content: center;
+  gap: 1px;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 5px 19px 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--note-accent) 14%, transparent);
+  border-left: 3px solid var(--note-accent);
+  border-radius: 3px 6px 6px 3px;
+  background:
+    linear-gradient(108deg, rgb(255 255 255 / 24%), transparent 42%),
+    var(--note-paper);
+  box-shadow: 0 1px 2px rgb(18 38 63 / 10%), 0 3px 6px rgb(18 38 63 / 6%);
+  color: var(--note-accent);
+  cursor: pointer;
+  text-align: left;
+  transition: box-shadow .16s ease, filter .16s ease, transform .16s ease;
+}
+.cal-note:hover {
+  filter: saturate(1.02);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 3px rgb(18 38 63 / 11%), 0 5px 8px rgb(18 38 63 / 8%);
+}
+.cal-note:active { transform: translateY(0); }
+.cal-note::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 0 5px 0 1px;
+  background: linear-gradient(225deg, var(--dash-surface) 48%, color-mix(in srgb, var(--note-accent) 20%, var(--note-paper)) 50%);
+}
+.cal-note strong {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #14263e;
+  font-size: .67rem;
+  font-weight: 750;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+.cal-note-meta,
+.cal-note-source {
+  min-width: 0;
+  overflow: hidden;
+  color: #41536b;
+  font-size: .575rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-note-source { display: none; color: #53647a; }
+.cal-monthbody { grid-auto-rows: 176px; }
+.cal-monthcell { gap: 1px; padding: 2px 4px; overflow: hidden; }
+.cal-date-button { min-height: 20px; padding: 0 2px; }
+.cal-date-button b { width: 20px; height: 20px; }
+.cal-monthcell-events { gap: 1px; }
+.cal-monthcell .cal-note,
+.cal-date-list .cal-note {
+  border-color: color-mix(in srgb, var(--note-accent) 10%, transparent);
+  border-left-color: var(--note-accent);
+  border-radius: 4px;
+  background:
+    linear-gradient(108deg, rgb(255 255 255 / 18%), transparent 42%),
+    repeating-linear-gradient(0deg, transparent 0 5px, rgb(18 38 63 / 1.2%) 6px),
+    var(--note-paper);
+  box-shadow: 0 2px 3px rgb(18 38 63 / 10%), 0 5px 9px rgb(18 38 63 / 6%);
+}
+.cal-monthcell .cal-note { min-height: 46px; padding: 5px 21px 5px 8px; }
+.cal-monthcell .cal-note strong { font-size: .67rem; }
+.cal-monthcell .cal-note-meta { font-size: .57rem; }
+.cal-monthcell .cal-more { padding: 0 3px; font-size: .58rem; line-height: 1; }
+
+.cal-monthcell .cal-note::after,
+.cal-date-list .cal-note::after {
+  width: 11px;
+  height: 11px;
+  background: linear-gradient(225deg, var(--dash-surface) 0 47%, color-mix(in srgb, var(--note-accent) 20%, var(--note-paper)) 50%);
+  box-shadow: -1px 1px 1px rgb(18 38 63 / 8%);
+}
+.cal-monthcell .cal-note::before,
+.cal-date-list .cal-note::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: 4px;
+  right: 14px;
+  width: 9px;
+  height: 12px;
+  background:
+    radial-gradient(circle at 38% 22%, rgb(255 255 255 / 92%) 0 7%, color-mix(in srgb, var(--note-accent) 38%, white) 10% 25%, var(--note-accent) 29% 53%, transparent 57%),
+    linear-gradient(90deg, transparent 43%, color-mix(in srgb, var(--note-accent) 65%, #4b5563) 45% 55%, transparent 57%) 50% 7px / 100% 5px no-repeat;
+  filter: drop-shadow(0 1px 1px rgb(18 38 63 / 28%));
+  transform: rotate(7deg);
+  transform-origin: 50% 25%;
+}
+
+.cal-preview-notes .cal-note { min-height: 40px; }
+
+/* Day Agenda cards — a plain grid layout (badge / title / project / time
+   each their own row), never the sticky-note's absolute-positioned corner
+   decoration, so a two-line title can never collide with anything else. */
+.cal-agenda-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "badge  title"
+    ".      project"
+    ".      time";
+  column-gap: 9px;
+  row-gap: 3px;
+  align-items: start;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--dash-edge);
+  border-radius: 8px;
+  background: var(--dash-surface);
+  text-align: left;
+  transition: border-color .12s ease, background .12s ease;
+}
+.cal-agenda-card:hover { border-color: var(--dash-blue); background: var(--dash-surface-2); }
+.cal-agenda-card:focus-visible { outline: 2px solid var(--dash-blue); outline-offset: 2px; }
+.cal-agenda-card-badge { grid-area: badge; justify-self: start; margin-top: 1px; white-space: nowrap; }
+.cal-agenda-card-title {
+  grid-area: title;
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--dash-navy);
+  font-size: .8rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.cal-agenda-card-project { grid-area: project; overflow: hidden; color: var(--dash-ink-soft); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
+.cal-agenda-card-time { grid-area: time; color: var(--dash-ink-soft); font-size: .65rem; }
+
+[data-slot="dialog-content"]:has(.cal-date-modal-body) {
+  width: min(1080px, calc(100vw - 32px));
+  height: auto;
+  max-height: min(78dvh, 720px);
+  max-width: 1080px;
+}
+[data-slot="dialog-content"]:has(.cal-date-modal-body) > div:nth-child(2) { flex: 0 1 auto; }
+.cal-date-modal-body { min-height: 0; }
+
+.dark .cal-note-type {
+  --note-paper: color-mix(in srgb, var(--note-accent) 20%, var(--dash-surface));
+}
+.dark .cal-note {
+  border-color: color-mix(in srgb, var(--note-accent) 36%, transparent);
+  border-left-color: var(--note-accent);
+  background:
+    linear-gradient(108deg, rgb(255 255 255 / 5%), transparent 42%),
+    var(--note-paper);
+}
+.dark .cal-note strong { color: var(--dash-ink); }
+.dark .cal-note-meta,
+.dark .cal-note-source { color: var(--dash-ink-soft); }
+
+.cal-detail-sheet {
+  z-index: 70;
+  width: min(470px, calc(100vw - 16px));
+  max-width: 470px;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.cal-detail-sheet .cal-drawer {
+  width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  border-radius: 12px 0 0 12px;
+  box-shadow: -12px 0 34px rgb(18 38 63 / 18%);
+}
+.cal-drawer {
+  max-height: calc(100dvh - 9rem);
+  border-radius: 12px;
+  box-shadow: 0 14px 38px rgb(18 38 63 / 14%);
+}
+.cal-drawer-head {
+  align-items: flex-start;
+  padding: 20px 21px 16px;
+  background: linear-gradient(180deg, var(--dash-surface) 0%, var(--dash-surface-2) 100%);
+}
+.cal-drawer-head > div { display: grid; gap: 4px; min-width: 0; }
+.cal-drawer-head h2 { margin: 3px 0 0; color: var(--dash-ink); font-size: 1.16rem; line-height: 1.25; }
+.cal-drawer-head p { margin: 0; color: var(--dash-ink-soft); font-size: .76rem; line-height: 1.4; }
+.cal-drawer-head button {
+  display: grid;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border-radius: 8px;
+}
+.cal-drawer-body { padding: 17px 21px 21px; }
+.cal-detail-chips { margin-bottom: 14px; }
+.cal-detail-summary {
+  display: grid;
+  gap: 1px;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--dash-blue) 10%, var(--dash-edge));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--dash-blue) 5%, var(--dash-surface));
+}
+.cal-detail-section { display: grid; gap: 1px; margin-top: 14px; padding: 10px 0; border-block: 1px solid var(--dash-edge); }
+.cal-detail-row { grid-template-columns: 19px 92px minmax(0, 1fr); gap: 9px; padding: 6px 0; }
+.cal-detail-icon { color: var(--dash-ink-soft); }
+.cal-detail-icon svg { width: 16px; height: 16px; stroke-width: 1.8; }
+.cal-detail-label { padding-top: 1px; font-size: .61rem; }
+.cal-detail-value { color: var(--dash-ink); font-size: .75rem; line-height: 1.45; }
+.cal-detail-block { margin-top: 17px; padding-top: 15px; border-top-color: var(--dash-edge); }
+.cal-attendee-list { gap: 7px; }
+.cal-attendee-list li { align-items: center; }
+.cal-attendee-avatar {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--dash-tint-blue);
+  color: var(--dash-blue);
+  font-size: .58rem;
+  font-style: normal;
+  font-weight: 800;
+}
+.cal-drawer-actions { padding-top: 4px; }
+.cal-drawer-actions > :last-child { margin-left: auto; }
+
+/* The preview uses miniature note tabs rather than an unrelated dot system. */
+.dash-cal-marks { gap: 4px; }
+.dash-cal-marks i {
+  position: relative;
+  width: 28px;
+  height: 17px;
+  border: 1px solid color-mix(in srgb, var(--note-accent) 15%, transparent);
+  border-left: 3px solid var(--note-accent);
+  border-radius: 2px 3px 3px 2px;
+  background:
+    linear-gradient(108deg, rgb(255 255 255 / 16%), transparent 48%),
+    var(--note-paper);
+  box-shadow: 0 1px 2px rgb(18 38 63 / 11%), 0 2px 4px rgb(18 38 63 / 5%);
+}
+.dash-cal-marks i::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 5px;
+  height: 5px;
+  border-radius: 0 3px 0 1px;
+  background: linear-gradient(225deg, var(--dash-surface) 0 47%, color-mix(in srgb, var(--note-accent) 18%, var(--note-paper)) 50%);
+  box-shadow: -1px 1px 1px rgb(18 38 63 / 6%);
+}
+.dash-cal-marks small { margin-left: -1px; color: var(--dash-ink-soft); font-size: .48rem; font-weight: 750; line-height: 1; }
+.dash-cal-key .cal-note-type { color: var(--note-accent); }
+
+@media (max-width: 700px) {
+  .cal-detail-sheet { width: min(100%, 470px); }
+  .cal-detail-sheet .cal-drawer { border-radius: 0; }
+  [data-slot="dialog-content"]:has(.cal-date-modal-body) { width: calc(100vw - 16px); max-height: 86dvh; }
+  .dash-cal-marks { gap: 3px; }
+  .dash-cal-marks i { width: 24px; height: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cal-note { transition: none; }
+  .cal-note:hover,
+  .cal-note:active { transform: none; }
+}
+
+/* ===========================================================================
    Weekly — Distribution & Follow-up.
 
    An operational control table, not a dashboard: dense rows, one department

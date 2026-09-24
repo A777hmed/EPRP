@@ -11,7 +11,6 @@ import {
   Eye,
   FileX,
   PenLine,
-  ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,7 +24,11 @@ import {
 import { REPORT_STATUS_META } from "@/lib/constants";
 import { formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import { weeklyWorkflow, type WorkflowStatus } from "@/config/workflows";
+import {
+  isPreparationTransition,
+  weeklyWorkflow,
+  type WorkflowStatus,
+} from "@/config/workflows";
 import { getProjectTypeById, useMasterData } from "@/features/master-data";
 import {
   ProjectReportingShell,
@@ -33,7 +36,18 @@ import {
   ReportTypeTabs,
 } from "@/features/projects/components/sections/project-reporting-shell";
 import { projectService } from "@/services/project-service";
+import {
+  planningRollupService,
+  type PlanningSnapshotRollup,
+} from "@/services/planning-rollup-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
+import {
+  fetchGlobalRegisterProjects,
+  fetchGlobalWeeklyReportDetail,
+  type GlobalRegisterProject,
+  type GlobalWeeklyReportDetail,
+} from "@/services/global-report-register";
+import { WeeklyReportCrossProjectView } from "./weekly-report-cross-project-view";
 import type {
   Contact,
   Department,
@@ -171,9 +185,13 @@ const GLOBAL_WEEKLY_LINKS: WeeklyReportLinks = {
 };
 
 /**
- * Preview and Edit have no project-scoped alias yet, so they intentionally
- * still fall back to the global routes rather than link to a page that
- * doesn't exist.
+ * Preview has no project-scoped alias yet, so it intentionally still falls
+ * back to the global route rather than link to a page that doesn't exist.
+ * Edit gained one in Top-Level Reporting 4A
+ * (`/projects/[projectId]/reports/weekly/[reportId]/edit`), added
+ * specifically so the global `/weekly-reports` register could be
+ * consolidated into a read-only view without leaving project-context users
+ * with no path to header-field editing.
  */
 function buildProjectWeeklyLinks(projectId: string): WeeklyReportLinks {
   return {
@@ -181,7 +199,7 @@ function buildProjectWeeklyLinks(projectId: string): WeeklyReportLinks {
     workspace: (reportId) =>
       `/projects/${projectId}/reports/weekly/${reportId}/workspace`,
     preview: (reportId) => `/weekly-reports/${reportId}/preview`,
-    edit: (reportId) => `/weekly-reports/${reportId}/edit`,
+    edit: (reportId) => `/projects/${projectId}/reports/weekly/${reportId}/edit`,
     list: `/projects/${projectId}/reporting?tab=weekly`,
   };
 }
@@ -207,6 +225,15 @@ export function WeeklyReportDetailView({
   const [activities, setActivities] = React.useState<WeeklyActivity[]>([]);
   const [entries, setEntries] = React.useState<WeeklyEntry[]>([]);
   const [planItems, setPlanItems] = React.useState<WeeklyPlanItem[]>([]);
+  /**
+   * The rollup for `report.planningSnapshotId` (Planning Integration 3B).
+   * `null` means "no pinned snapshot" (the fallback path) — distinct from
+   * `undefined`, which means "not resolved yet", so the summary never
+   * flashes fallback figures while this is still loading.
+   */
+  const [planningRollup, setPlanningRollup] = React.useState<
+    PlanningSnapshotRollup | null | undefined
+  >(undefined);
   const [previousRaw, setPreviousRaw] = React.useState<{
     report: WeeklyReport;
     submissions: WeeklySubmission[];
@@ -223,6 +250,21 @@ export function WeeklyReportDetailView({
   const [archiveOpen, setArchiveOpen] = React.useState(false);
   const [pendingStatus, setPendingStatus] = React.useState<string | null>(null);
   const [reloadKey, setReloadKey] = React.useState(0);
+  /**
+   * The read-only cross-project fallback (Access & Visibility hotfix, R6).
+   * `undefined` = not attempted yet / still loading, `null` = attempted and
+   * genuinely unavailable (denied or does not exist — the two are not
+   * distinguished, same as ordinary RLS), an object = the report is
+   * approved+ and this viewer may see its published content. Only ever
+   * attempted in "detail" mode, after the ordinary `getById()` fetch below
+   * has already come back empty — never in "workspace" mode, which implies
+   * editing and has nothing to offer a viewer with no ordinary access.
+   */
+  const [crossProjectDetail, setCrossProjectDetail] = React.useState<
+    GlobalWeeklyReportDetail | null | undefined
+  >(undefined);
+  const [crossProjectProject, setCrossProjectProject] =
+    React.useState<GlobalRegisterProject | null>(null);
 
   /*
    * Master-data names for the project-level sections. Resolved here, beside
@@ -280,7 +322,10 @@ export function WeeklyReportDetailView({
       setActivities([]);
       setEntries([]);
       setPlanItems([]);
+      setPlanningRollup(undefined);
       setPreviousRaw(null);
+      setCrossProjectDetail(undefined);
+      setCrossProjectProject(null);
 
       try {
         const r = await weeklyReportService.getById(reportId);
@@ -288,6 +333,32 @@ export function WeeklyReportDetailView({
         setReport(r);
         if (!r) {
           setProjectLoadState("ready");
+          if (mode !== "detail") {
+            setCrossProjectDetail(null);
+            return;
+          }
+          /*
+           * Ordinary (assignment-gated) access came back empty. Before
+           * declaring the report not found, try the narrow, read-only
+           * fallback — it only ever returns a row when the report is
+           * approved+ (see `global_weekly_report_detail()`), so a Draft on
+           * a project this viewer cannot reach still resolves to `null`
+           * here, same as today.
+           */
+          try {
+            const fallback = await fetchGlobalWeeklyReportDetail(reportId);
+            if (cancelled) return;
+            setCrossProjectDetail(fallback);
+            if (fallback) {
+              const directory = await fetchGlobalRegisterProjects();
+              if (cancelled) return;
+              setCrossProjectProject(
+                directory.find((p) => p.id === fallback.projectId) ?? null
+              );
+            }
+          } catch {
+            if (!cancelled) setCrossProjectDetail(null);
+          }
           return;
         }
 
@@ -296,8 +367,12 @@ export function WeeklyReportDetailView({
          * scope are critical; optional planning/history data must never keep
          * them in a permanent loading state if one additive table is missing
          * or temporarily unavailable.
+         *
+         * The rollup is fetched by the report's PINNED snapshot id, never
+         * re-resolved by project/period — an existing report must always
+         * read what it was pinned to, not "the latest" (3B).
          */
-        const [subs, proj, acts, rows, plans, reports] =
+        const [subs, proj, acts, rows, plans, reports, rollup] =
           await Promise.allSettled([
             weeklyReportService.listSubmissions(r.id),
             projectService.getProjectById(r.projectId),
@@ -305,6 +380,9 @@ export function WeeklyReportDetailView({
             weeklyReportService.listEntries(r.id),
             weeklyReportService.listPlanItems(r.id),
             weeklyReportService.list(),
+            r.planningSnapshotId
+              ? planningRollupService.computeSnapshotRollup(r.planningSnapshotId)
+              : Promise.resolve(null),
           ]);
         if (cancelled) return;
 
@@ -312,6 +390,7 @@ export function WeeklyReportDetailView({
         setActivities(acts.status === "fulfilled" ? acts.value : []);
         setEntries(rows.status === "fulfilled" ? rows.value : []);
         setPlanItems(plans.status === "fulfilled" ? plans.value : []);
+        setPlanningRollup(rollup.status === "fulfilled" ? rollup.value : null);
 
         if (proj.status === "fulfilled") {
           setProject(proj.value);
@@ -369,7 +448,7 @@ export function WeeklyReportDetailView({
     return () => {
       cancelled = true;
     };
-  }, [reportId, reloadKey]);
+  }, [reportId, reloadKey, mode]);
 
   /*
    * Mock data has no login, so nothing can identify a viewer. Rather than
@@ -404,8 +483,8 @@ export function WeeklyReportDetailView({
     if (serverEditability && serverReportStatus === report.status) {
       return serverEditability;
     }
-    return weeklyEditability(scope, report.status);
-  }, [scope, report, serverEditability, serverReportStatus]);
+    return weeklyEditability(scope, report.status, project?.status);
+  }, [scope, report, serverEditability, serverReportStatus, project?.status]);
 
   /*
    * A scope is only ever valid for the project it was resolved against, so a
@@ -415,8 +494,15 @@ export function WeeklyReportDetailView({
   const workspace = React.useMemo(() => {
     if (!report || !project || !scope) return null;
     if (!belongsToScopeProject(scope, project.id)) return null;
-    return buildWeeklyWorkspace(project, report, submissions, scope, entries);
-  }, [report, project, scope, submissions, entries]);
+    return buildWeeklyWorkspace(
+      project,
+      report,
+      submissions,
+      scope,
+      entries,
+      planningRollup
+    );
+  }, [report, project, scope, submissions, entries, planningRollup]);
 
   const previous = React.useMemo<PreviousWeeklyData | null>(() => {
     if (!previousRaw || !project || !scope) return null;
@@ -439,6 +525,11 @@ export function WeeklyReportDetailView({
     if (!scope || !workspace) return "Access unresolved";
     if (scope.capability === "all_projects" || scope.capability === "project") {
       return "Full project workspace";
+    }
+    if (scope.capability === "portfolio_read") {
+      return scope.portfolioReadTier === "published"
+        ? "Published Portfolio Read (read-only)"
+        : "Full Portfolio Read (read-only)";
     }
     return workspace.departments
       .map((department) => {
@@ -487,6 +578,18 @@ export function WeeklyReportDetailView({
   }
 
   if (report === null) {
+    if (!reportLoadError && crossProjectDetail === undefined) {
+      return <LoadingState variant="page" label="Loading weekly report…" />;
+    }
+    if (crossProjectDetail) {
+      return (
+        <WeeklyReportCrossProjectView
+          detail={crossProjectDetail}
+          project={crossProjectProject}
+          links={links}
+        />
+      );
+    }
     return (
       <EmptyState
         icon={FileX}
@@ -503,6 +606,18 @@ export function WeeklyReportDetailView({
     );
   }
 
+  /*
+   * Archived is historical/read-only PROJECT-WIDE, not only for the content
+   * `editability` already governs. Duplicate (creates a new report against
+   * this project), the lifecycle transition buttons, and Archive are all
+   * mutations `editability.canEdit` never gated in the first place — they
+   * are independent of report content and were deliberately kept reachable
+   * through a closed report's own `finalized`/`locked` status (see
+   * `weeklyEditability`'s header comment). An archived PROJECT is a
+   * different, stronger fact: nothing on it should mutate, so it is checked
+   * directly here rather than folded into `editability`.
+   */
+  const projectArchived = project?.status === "archived";
   const received = countReceived(submissions);
 
   /*
@@ -585,7 +700,18 @@ export function WeeklyReportDetailView({
         ) : undefined
       }
     >
-    <div className="space-y-6">
+    {/*
+      `eprp-report-sections` gives every section card below the EPROM band and
+      its number, including the ones rendered by the distribution, departments,
+      insights and sign-off components — none of which is touched. Numbering is
+      a CSS counter over what is actually on screen, so a section withheld from
+      this viewer leaves no hole in the sequence.
+
+      `space-y-4` rather than `space-y-6`: Monthly already used 4, and the two
+      tiers scrolling at different rhythms was one of the things that made them
+      read as separate products.
+    */}
+    <div className="eprp-report-sections space-y-4" data-numbered>
       <WeeklyWorkspaceHeader
         report={report}
         project={project}
@@ -643,7 +769,8 @@ export function WeeklyReportDetailView({
             {mode === "detail" &&
               isEditableReport(report) &&
               editability.canEdit &&
-              scope?.canConsolidate && (
+              scope?.canConsolidate &&
+              !projectArchived && (
               <Button variant="outline" asChild>
                 <Link href={links.edit(report.id)}>
                   <PenLine data-icon="inline-start" aria-hidden="true" />
@@ -662,7 +789,7 @@ export function WeeklyReportDetailView({
               Control / Report Coordinator), and it is already resolved on the
               server and passed into this view — no second lookup, no new rule.
             */}
-            {mode === "detail" && scope?.canConsolidate && (
+            {mode === "detail" && scope?.canConsolidate && !projectArchived && (
               <Button
                 variant="outline"
                 onClick={async () => {
@@ -675,9 +802,17 @@ export function WeeklyReportDetailView({
                 Duplicate
               </Button>
             )}
+            {/*
+              Archive requires can_manage_project_operations() as of Phase A2
+              — a Report Coordinator prepares/consolidates but never archives.
+              scope.canControlReportLifecycle is that predicate's mirror.
+              `!projectArchived`: an archived project's reports are historical
+              — no further lifecycle mutation, archiving included.
+            */}
             {mode === "detail" &&
-              scope?.canConsolidate &&
-              report.status !== "archived" && (
+              scope?.canControlReportLifecycle &&
+              report.status !== "archived" &&
+              !projectArchived && (
                 <Button variant="destructive" onClick={() => setArchiveOpen(true)}>
                   <Archive data-icon="inline-start" aria-hidden="true" />
                   Archive
@@ -687,16 +822,14 @@ export function WeeklyReportDetailView({
         }
       />
 
-      {/* Why this report is read-only, said once and up front. */}
-      {mode === "workspace" && !editability.canEdit && editability.reason && (
-        <p
-          role="status"
-          className="flex items-start gap-2 rounded-lg border border-warning/25 bg-warning/10 px-4 py-3 text-sm text-warning"
-        >
-          <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          {editability.reason}
-        </p>
-      )}
+      {/*
+        Why this report is read-only is now stated by the workspace's own
+        access strip (`ReportViewerStrip`), immediately above this point and in
+        the same warning colour. It used to be repeated here because the strip
+        was buried inside the full document header, several hundred pixels up;
+        with the compact header the two sat one under the other saying the same
+        sentence twice.
+      */}
 
       {/*
         The report reads top to bottom the way a printed one does: what the
@@ -719,19 +852,41 @@ export function WeeklyReportDetailView({
               {workspace.markedForMonthly === 1 ? "" : "s"} marked for Monthly
             </span>
           )}
-          {scope?.canConsolidate && allowedTransitions.map((to) => (
-            <Button
-              key={to}
-              size="sm"
-              variant={
-                to === "rejected" || to === "returned" ? "outline" : "default"
-              }
-              disabled={pendingStatus !== null}
-              onClick={() => changeStatus(to)}
-            >
-              Move to {REPORT_STATUS_META[to as ReportStatus].label}
-            </Button>
-          ))}
+          {/*
+            Per-target gating, not one blanket scope.canConsolidate: a
+            preparation transition (e.g. collecting -> under_review) stays
+            open to the Report Coordinator, while a whole-report ruling
+            (approve / return / reject / finalize / lock) requires
+            scope.canControlReportLifecycle — Project Control / Planning, or
+            a global authority. isPreparationTransition() mirrors
+            public.report_preparation_transition() exactly; the two must be
+            changed together.
+          */}
+          {allowedTransitions
+            .filter(
+              (to) =>
+                !projectArchived &&
+                (isPreparationTransition(
+                  "weekly",
+                  report.status as WorkflowStatus,
+                  to as WorkflowStatus
+                )
+                  ? scope?.canConsolidate
+                  : scope?.canControlReportLifecycle)
+            )
+            .map((to) => (
+              <Button
+                key={to}
+                size="sm"
+                variant={
+                  to === "rejected" || to === "returned" ? "outline" : "default"
+                }
+                disabled={pendingStatus !== null}
+                onClick={() => changeStatus(to)}
+              >
+                Move to {REPORT_STATUS_META[to as ReportStatus].label}
+              </Button>
+            ))}
         </div>
       </div>
 
@@ -802,14 +957,14 @@ export function WeeklyReportDetailView({
           workspace={workspace}
           canEdit={mode === "workspace" && editability.canEdit}
           /*
-             Who may accept a department's work. The Department Manager is the
-             business owner of that decision (`05` §1.2); `canConsolidate` rides
-             alongside so an administrator can still unblock a stuck report, and
-             is not the normal path. Both halves come straight off the scope
+             Who may accept a department's work: the assigned Department
+             Manager of THAT department, and nobody else — no Project
+             Control / Planning or global override, per Phase A2's
+             department-verdict correction and the matching
+             weekly_submissions_update policy. Read straight off the scope
              already resolved on the server — no second lookup, no new rule.
           */
           verdictAuthority={{
-            canConsolidate: Boolean(scope?.canConsolidate),
             managedDepartmentIds: scope?.managedDepartmentIds ?? [],
           }}
           viewerContactId={scope?.contactId}

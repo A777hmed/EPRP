@@ -15,6 +15,7 @@ import {
   Network,
   Paperclip,
   Users,
+  Workflow,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -41,6 +42,7 @@ export type ProjectSectionId =
   | "systems"
   | "disciplines"
   | "contacts"
+  | "planning"
   | "kpis"
   | "milestones"
   | "deliverables"
@@ -112,6 +114,14 @@ export const projectSections: ProjectSection[] = [
     icon: Contact,
     group: "Master Data",
     description: "People linked to this project through its departments.",
+  },
+  {
+    id: "planning",
+    label: "Planning & Control",
+    icon: Workflow,
+    group: "Monitoring",
+    description:
+      "The project's planning register and the Published Planning Snapshot Weekly and Monthly report against.",
   },
   {
     id: "kpis",

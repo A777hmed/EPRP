@@ -5,6 +5,7 @@ import type {
   Discipline,
   JobTitle,
   MasterRecordBase,
+  PortfolioGroup,
   ProjectPhase,
   ProjectType,
   System,
@@ -15,6 +16,7 @@ import type {
  * Phase 5A: client, project type, phase, contact.
  * Phase 5B: department, system, discipline.
  * Collaboration Phase C1: job title.
+ * Planning Slice 1: portfolio group.
  */
 export type MasterKind =
   | "client"
@@ -24,7 +26,8 @@ export type MasterKind =
   | "department"
   | "system"
   | "discipline"
-  | "jobTitle";
+  | "jobTitle"
+  | "portfolioGroup";
 
 export interface MasterRecordMap {
   client: Client;
@@ -35,6 +38,7 @@ export interface MasterRecordMap {
   system: System;
   discipline: Discipline;
   jobTitle: JobTitle;
+  portfolioGroup: PortfolioGroup;
 }
 
 export interface MasterFieldConfig {

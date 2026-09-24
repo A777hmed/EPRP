@@ -38,6 +38,7 @@ import { monthlyReportService } from "@/services/monthly-report-service";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
 import { milestoneService } from "@/services/milestone-service";
+import { planningRollupService, type PlanningSnapshotRollup } from "@/services/planning-rollup-service";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type {
   Client,
@@ -53,6 +54,7 @@ import type {
 } from "@/types";
 import {
   MONTHLY_BASIS_META,
+  NOT_APPLICABLE,
   NOT_RECORDED,
   NO_MOVEMENT,
   availableMonths,
@@ -60,12 +62,16 @@ import {
   buildMilestones,
   bySeverity,
   changesSinceMonthly,
+  isOverdueMilestone,
   monthLabelOf,
   monthlyStatusLabel,
   nameOf,
+  nextDueMilestone,
+  openActionSummary,
   openItems,
-  readHealth,
+  readExecutiveHealth,
   selectOfficialMonthly,
+  executiveFiguresFor,
   type MilestoneRow,
   type MonthlySelection,
   type MovementItem,
@@ -109,6 +115,12 @@ interface ProjectDetail {
   month: string;
   /** Governed Master Milestone current state, read-only — see `milestone-state.ts`. */
   milestoneStates: MilestoneState[];
+  /**
+   * The rollup for `selection.report`'s OWN pinned `planningSnapshotId`
+   * (3E) — read by immutable id, never re-resolved. `undefined` when the
+   * selected Monthly has no pin (or none exists).
+   */
+  planningRollup?: PlanningSnapshotRollup | null;
 }
 
 function useProjectDetail(projectId: string, scope: ExecutiveScopeInput, requestedMonth?: string) {
@@ -131,12 +143,18 @@ function useProjectDetail(projectId: string, scope: ExecutiveScopeInput, request
         ]);
         if (cancelled) return;
 
-        const milestoneStates = deriveMilestoneStates(milestoneRegister.milestones, milestoneRegister.updates);
-
         if (!project) {
           setDetail(null);
           return;
         }
+
+        // This panel is the CURRENT governed position. Archived projects keep
+        // their Monthly history below, but do not contribute a live milestone
+        // position to Executive management scope.
+        const milestoneStates =
+          project.status === "archived"
+            ? []
+            : deriveMilestoneStates(milestoneRegister.milestones, milestoneRegister.updates);
 
         // The same access predicate the portfolio applies. A project outside
         // the viewer's reach is refused here too, rather than being reachable
@@ -183,11 +201,14 @@ function useProjectDetail(projectId: string, scope: ExecutiveScopeInput, request
           ? weeklies.filter((weekly) => weekly.periodStart.slice(0, 7) > month).slice(0, MOVEMENT_WEEK_LIMIT)
           : [];
 
-        const [comments, monthlyPlans, entryPairs, planPairs] = await Promise.all([
+        const [comments, monthlyPlans, entryPairs, planPairs, planningRollup] = await Promise.all([
           selection.report ? monthlyReportService.listComments(selection.report.id) : Promise.resolve([]),
           selection.report ? monthlyReportService.listPlanItems(selection.report.id) : Promise.resolve([]),
           Promise.all(laterWeeklies.map(async (w) => [w.id, await weeklyReportService.listEntries(w.id)] as const)),
           Promise.all(laterWeeklies.map(async (w) => [w.id, await weeklyReportService.listPlanItems(w.id)] as const)),
+          selection.report?.planningSnapshotId
+            ? planningRollupService.computeSnapshotRollup(selection.report.planningSnapshotId).catch(() => null)
+            : Promise.resolve(null),
         ]);
         if (cancelled) return;
 
@@ -204,6 +225,7 @@ function useProjectDetail(projectId: string, scope: ExecutiveScopeInput, request
           plansByWeekly: new Map(planPairs),
           month,
           milestoneStates,
+          planningRollup,
         });
       } catch (error) {
         if (cancelled) return;
@@ -461,7 +483,7 @@ function MasterMilestoneProgress({ states }: { states: MilestoneState[] }) {
   return (
     <>
       <div className="exec-tab-lead">
-        <h2 className="exec-tab-heading">Master Milestone Progress</h2>
+        <h2 className="exec-tab-heading">Current Master Milestone Position</h2>
         <span>Governed position, as approved by Project Control.</span>
       </div>
       {states.length ? (
@@ -533,8 +555,12 @@ export function ExecutiveProjectDrilldown({
   requestedTab?: string;
 }) {
   const scope = React.useMemo<ExecutiveScopeInput>(
-    () => ({ contactId: viewer.contactId, isAdmin: viewer.isAdmin }),
-    [viewer.contactId, viewer.isAdmin]
+    () => ({
+      contactId: viewer.contactId,
+      isAdmin: viewer.isAdmin,
+      portfolioReadTier: viewer.portfolioReadTier,
+    }),
+    [viewer.contactId, viewer.isAdmin, viewer.portfolioReadTier]
   );
   const { loading, detail } = useProjectDetail(projectId, scope, requestedMonth);
   /* Preparation authority is PROJECT-SCOPED. It was `viewer.allowed`, which is
@@ -679,15 +705,37 @@ export function ExecutiveProjectDrilldown({
       .filter(({ entry }) => entry.entryType === "action" || entry.entryType === "decision")
       .map((pair, index) => weeklyRow(pair, "AW", index));
 
+    const risks = openItems(attention, "risk").sort(bySeverity);
+    const decisions = openItems(attention, "decision").sort(bySeverity);
+    const clientActions = openItems(attention, "client_action").sort(bySeverity);
+    const nextMilestone = nextDueMilestone(milestones, today);
+    const openActions = openActionSummary({
+      comments: detail.comments,
+      laterWeeklies: detail.laterWeeklies,
+      entriesByWeekly: detail.entriesByWeekly,
+      today,
+    });
+
     return {
       project: detail.project,
       projectName,
       clientName: nameOf(detail.project.clientId, clients as NamedRecord[], NOT_RECORDED),
-      reading: readHealth(detail.selection.report),
+      reading: readExecutiveHealth(detail.selection),
+      figures:
+        detail.selection.basis === "approved"
+          ? executiveFiguresFor(detail.selection.report, detail.planningRollup)
+          : undefined,
       attention,
-      risks: openItems(attention, "risk").sort(bySeverity),
-      decisions: openItems(attention, "decision").sort(bySeverity),
-      clientActions: openItems(attention, "client_action").sort(bySeverity),
+      risks,
+      decisions,
+      clientActions,
+      // Main Concern is risks/issues only — the same disjoint mapping the
+      // portfolio's own Key Concern uses (`use-executive-portfolio.ts`), so
+      // one source item never surfaces as both Exception and Decision.
+      keyConcern: risks[0],
+      nextMilestone,
+      nextMilestoneOverdue: isOverdueMilestone(nextMilestone, today),
+      openActions,
       achievements: attention.filter((item) => item.kind === "achievement"),
       movement,
       milestones,
@@ -768,18 +816,117 @@ export function ExecutiveProjectDrilldown({
       <div className="exec-tab-panel">
         {tab === "overview" && (
           <>
-            <div className="exec-figure-row">
-              <Figure label="Planned" value={monthly ? `${monthly.plannedProgress.toFixed(1)}%` : NOT_RECORDED} className="planned-value" />
-              <Figure label="Actual" value={monthly ? `${monthly.actualProgress.toFixed(1)}%` : NOT_RECORDED} className="actual-value" />
-              <Figure
-                label="Variance"
-                value={monthly ? `${monthly.scheduleVariance > 0 ? "+" : ""}${monthly.scheduleVariance.toFixed(1)}%` : NOT_RECORDED}
-                className="variance-value"
-              />
-              <Figure label="SPI" value={monthly ? monthly.spi.toFixed(2) : NOT_RECORDED} />
-            </div>
+            {/*
+              Executive funnel: Health → Performance → Exception → Impact →
+              Decision. Each section reads one existing governed/computed
+              field — nothing here is a new calculation, and no Planning
+              snapshot is resolved beyond what `model.figures` already
+              carries (Executive Slice 1).
+            */}
+            <section className="exec-funnel-block">
+              <h2 className="exec-tab-heading">Health</h2>
+              <div className="exec-funnel-health-line">
+                <StatusBadge tone={model.reading.tone}>{model.reading.label}</StatusBadge>
+                <span className="exec-tab-note">{model.reading.basis} {basis.note}</span>
+              </div>
+            </section>
 
-            <p className="exec-tab-note">{model.reading.basis} {basis.note}</p>
+            <section className="exec-funnel-block">
+              <h2 className="exec-tab-heading">Performance</h2>
+              <div className="exec-figure-row exec-figure-row-3">
+                <Figure label="Planned" value={model.figures ? `${model.figures.planned.toFixed(1)}%` : NOT_APPLICABLE} className="planned-value" />
+                <Figure label="Actual" value={model.figures ? `${model.figures.actual.toFixed(1)}%` : NOT_APPLICABLE} className="actual-value" />
+                <Figure
+                  label="Variance"
+                  value={
+                    model.figures && model.figures.variance !== null
+                      ? `${model.figures.variance > 0 ? "+" : ""}${model.figures.variance.toFixed(1)}%`
+                      : NOT_APPLICABLE
+                  }
+                  className="variance-value"
+                />
+              </div>
+              {/*
+                Secondary provenance line — technical detail, deliberately
+                quieter than the headline figures above it. SPI is EV/PV from
+                the Monthly's OWN pinned snapshot when Planning-backed — never
+                the Actual%/Planned% ratio `monthly.spi` (the Monthly's stored
+                fallback column) would give. Unavailable EV/PV or PV <= 0
+                reads N/A, never a fabricated ratio.
+              */}
+              {monthly && (
+                <p className="exec-tab-note exec-planning-note">
+                  <StatusBadge tone={model.figures?.planningBacked ? "info" : "neutral"}>
+                    {model.figures?.planningBacked ? "Planning-backed" : "Manual / Monthly fallback"}
+                  </StatusBadge>{" "}
+                  SPI {model.figures ? (model.figures.spi === null ? "N/A" : model.figures.spi.toFixed(2)) : NOT_RECORDED}
+                  {model.figures?.planningBacked && (
+                    <>
+                      {" · "}Coverage{" "}
+                      {typeof model.figures.coveragePercent === "number"
+                        ? `${model.figures.coveragePercent.toFixed(0)}%`
+                        : "—"}
+                      {" · "}Snapshot v{model.figures.snapshotVersion}
+                      {model.figures.dataDate ? ` · Data Date ${model.figures.dataDate}` : ""}
+                    </>
+                  )}
+                </p>
+              )}
+            </section>
+
+            <section className="exec-funnel-block">
+              <h2 className="exec-tab-heading">Exception</h2>
+              {model.keyConcern ? (
+                <div className="exec-funnel-line">
+                  <StatusBadge tone={model.keyConcern.priorityTone}>{model.keyConcern.priorityLabel}</StatusBadge>
+                  <span>{model.keyConcern.text}</span>
+                </div>
+              ) : (
+                <EmptyTabState text="No open risks or issues recorded." />
+              )}
+            </section>
+
+            <section className="exec-funnel-block">
+              <h2 className="exec-tab-heading">Impact</h2>
+              <div className="exec-funnel-impact-row">
+                <div>
+                  <span className="exec-funnel-impact-label">Next Milestone</span>
+                  {model.nextMilestone ? (
+                    <span>
+                      {model.nextMilestone.title}
+                      {model.nextMilestone.date ? ` · ${format(parseISO(model.nextMilestone.date), "dd MMM yyyy")}` : ""}
+                      {model.nextMilestoneOverdue && <span className="exec-flag exec-flag-overdue">Overdue</span>}
+                    </span>
+                  ) : (
+                    <span className="muted">No upcoming milestone recorded.</span>
+                  )}
+                </div>
+                <div>
+                  <span className="exec-funnel-impact-label">Open Actions</span>
+                  <span>
+                    {model.openActions.total} open
+                    {model.openActions.overdue > 0 ? `, ${model.openActions.overdue} overdue` : ""}
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            <section className="exec-funnel-block">
+              <h2 className="exec-tab-heading">Decision</h2>
+              {model.decisions[0] ? (
+                <div className="exec-funnel-line">
+                  <StatusBadge tone={model.decisions[0].priorityTone}>Decision Required</StatusBadge>
+                  <span>{model.decisions[0].text}</span>
+                </div>
+              ) : model.clientActions[0] ? (
+                <div className="exec-funnel-line">
+                  <StatusBadge tone={model.clientActions[0].priorityTone}>Client Action</StatusBadge>
+                  <span>{model.clientActions[0].text}</span>
+                </div>
+              ) : (
+                <EmptyTabState text="No decision required at this time." />
+              )}
+            </section>
 
             <h2 className="exec-tab-heading">Monthly baseline</h2>
             {monthly ? (
