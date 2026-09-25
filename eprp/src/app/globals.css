@@ -701,6 +701,182 @@
   }
 
   /* ======================================================================
+     Weekly Progress Report — A4 portrait finish.
+
+     Every rule is scoped to `.weekly-print-document`, which only the Weekly
+     preview renders. Same break policy as the other tiers: small units stay
+     whole, long sections flow, headings never end a page alone.
+     ====================================================================== */
+
+  /* Screen type and spacing scale down to document size in one place. */
+  .weekly-print-document {
+    --spacing: 0.18rem;
+    --text-sm: 8.8pt;
+    --text-sm--line-height: 1.42;
+    --text-xs: 7.4pt;
+    --text-xs--line-height: 1.38;
+    --text-lg: 12.5pt;
+    --text-xl: 13.5pt;
+    orphans: 3;
+    widows: 3;
+  }
+
+  .weekly-print-document .text-\[0\.6875rem\] { font-size: 6.6pt; }
+  .weekly-print-document .text-\[0\.625rem\] { font-size: 6.2pt; }
+
+  /* Masthead facts wrap on paper instead of being clipped with an ellipsis. */
+  .weekly-print-document .weekly-doc-facts {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 2.2mm 5mm !important;
+  }
+
+  .weekly-print-document .weekly-doc-facts dd {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    overflow-wrap: anywhere;
+  }
+
+  .weekly-print-document .weekly-doc-header {
+    break-inside: avoid;
+  }
+
+  /* Section headings: formal, and always kept with what follows. */
+  .weekly-print-document .weekly-section-title {
+    padding-bottom: 1mm;
+    border-bottom: 0.35mm solid #0b3f7c;
+    color: #0b3f7c;
+    font-size: 9.6pt;
+    letter-spacing: 0.01em;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .weekly-print-document .weekly-summary-box {
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+
+  /* List sections flow; an item never splits, and neither the first nor the
+     last item is left alone on a sheet.
+
+     Every keep-with-next below is limited to elements that have a next
+     sibling: a `break-after: avoid` on a LAST child propagates to its parent,
+     and from there would forbid the break after the whole section. */
+  .weekly-print-document .weekly-list-item {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .weekly-print-document .weekly-list-item:first-child:not(:last-child),
+  .weekly-print-document .weekly-list-item:nth-last-child(2) {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* Major activities: number · title · progress/status on one line. */
+  .weekly-print-document .weekly-activity-row {
+    display: grid !important;
+    grid-template-columns: 5mm minmax(0, 1fr) auto;
+    column-gap: 2mm;
+    align-items: baseline;
+  }
+
+  .weekly-print-document .weekly-activity-row + p {
+    padding-left: 7mm;
+  }
+
+  /* Department heading never ends a sheet and never splits. */
+  .weekly-print-document .weekly-department-heading {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* A long scope item continues across the page boundary (its frame repeats);
+     a compact one stays whole. Either way its identity grid stays with the
+     first block after it. */
+  .weekly-print-document .weekly-scope-item {
+    margin-bottom: 0;
+    break-inside: auto;
+    page-break-inside: auto;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+
+  .weekly-print-document .weekly-scope-item--compact {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .weekly-print-document .weekly-scope-header {
+    break-inside: avoid;
+  }
+
+  .weekly-print-document .weekly-scope-header:not(:last-child) {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .weekly-print-document .weekly-updates-title {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* Comment rows can be tall, so the table may start with one row (the title
+     and column heads stay with it); the last row never stands alone. */
+  .weekly-print-document .weekly-updates-table tbody tr:nth-last-child(2),
+  .weekly-print-document .weekly-project-control-table tbody tr:first-child:not(:last-child),
+  .weekly-print-document .weekly-project-control-table tbody tr:nth-last-child(2) {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .weekly-print-document .weekly-project-control-table td:nth-child(2) {
+    white-space: nowrap !important;
+  }
+
+  /* Sign-off: one row per role group, a signature line per signatory. It
+     never stands alone on the last sheet: when it would, the list section
+     before it moves with it. Limited to a preceding LIST — Chrome does not
+     pull table rows forward for this, and would split the sign-off instead. */
+  .weekly-print-document .weekly-section:has(.weekly-list-item) + .weekly-section:has(.weekly-signoff-grid) {
+    break-before: avoid;
+    page-break-before: avoid;
+  }
+
+  .weekly-print-document .weekly-signoff-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 2mm 6mm !important;
+    padding: 2.4mm 4mm;
+    border: 0.3mm solid #d4dce7;
+    border-radius: 1.5mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .weekly-print-document .weekly-signoff-cell {
+    align-content: start;
+  }
+
+  .weekly-print-document .weekly-signoff-cell dd {
+    gap: 2.5mm;
+  }
+
+  .weekly-print-document .weekly-signature-line {
+    width: 88%;
+    margin-top: 4.5mm;
+    border-top: 0.3mm solid #7d8aa0;
+  }
+
+  .weekly-print-document .weekly-signature-line::after {
+    content: "Signature / Date";
+    display: block;
+    padding-top: 0.6mm;
+    color: #7d8aa0;
+    font-size: 6pt;
+  }
+
+  /* ======================================================================
      Monthly Progress Report — A4 portrait.
 
      Page-break policy, deliberately: sections break FREELY, small units do

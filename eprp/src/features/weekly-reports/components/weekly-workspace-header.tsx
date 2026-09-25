@@ -36,6 +36,9 @@ function Logo({ src, alt }: { src?: string; alt: string }) {
       width={180}
       height={64}
       unoptimized
+      // Eager: a lazy image below the fold may not have loaded when the
+      // browser snapshots the page for print.
+      loading="eager"
       className="h-12 w-auto max-w-44 object-contain"
     />
   );
@@ -87,12 +90,14 @@ function WeeklyDocumentHeader({
   const qrTarget = qrHref ?? `/weekly-reports/${report.id}`;
   const qrValue = origin ? new URL(qrTarget, origin).toString() : qrTarget;
 
-  const clientLogo = project?.branding.clientLogoRef ?? client?.logoRef;
-  const clientLabel = client?.shortName ?? client?.name ?? "Client";
+  // `||`, not `??`: an empty project override must fall through to the
+  // client's own logo, and an empty short name to the registered name.
+  const clientLogo = project?.branding?.clientLogoRef || client?.logoRef || undefined;
+  const clientLabel = client?.shortName || client?.name || "Client not recorded";
   const title = "Weekly Project Progress Report";
 
   return (
-    <header className="overflow-hidden rounded-xl border bg-card shadow-sm print:rounded-none print:border-0 print:shadow-none">
+    <header className="weekly-doc-header overflow-hidden rounded-xl border bg-card shadow-sm print:rounded-none print:border-0 print:shadow-none">
       <div className="flex flex-wrap items-center justify-between gap-5 px-5 py-4 print:px-0 print:pt-0">
         <Logo src={siteConfig.logo.full} alt="EPROM" />
 
@@ -135,7 +140,7 @@ function WeeklyDocumentHeader({
       </div>
 
       <div className="space-y-4 p-5 print:px-0 print:pb-3">
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
+        <dl className="weekly-doc-facts grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
           <Fact label="Project">
             {project ? (
               <Link href={`/projects/${project.id}`} className="hover:underline" title={project.name}>
