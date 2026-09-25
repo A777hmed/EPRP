@@ -153,20 +153,37 @@ function useOrigin(): string {
 }
 
 function DocumentHeader({ report, project, client }: { report: MonthlyReport; project: Project | null; client?: Client }) {
-  const clientLogo = project?.branding.clientLogoRef ?? client?.logoRef;
+  // `||`, not `??`: an empty project override ("") means "not set" and must
+  // fall back to the client's own configured logo rather than hide it.
+  const clientLogo = project?.branding?.clientLogoRef || client?.logoRef || undefined;
   const origin = useOrigin();
   const qrValue = `${origin}/monthly-reports/${report.id}`;
 
+  /*
+   * `loading="eager"` on both marks: next/image lazy-loads by default, and a
+   * lazy image outside the viewport when the user prints (a long report
+   * scrolled to the end) can be missing from the PDF.
+   */
   return (
     <header className="monthly-report-header monthly-print-header">
       <div className="monthly-brand-row">
         {/* Dimensions hold the asset's true 445:120 ratio; CSS sizes it. */}
-        <Image src={siteConfig.logo.full} alt="EPROM" width={222} height={60} unoptimized />
+        <Image src={siteConfig.logo.full} alt="EPROM" width={222} height={60} unoptimized loading="eager" />
         <div className="monthly-header-right">
           {clientLogo ? (
-            <Image src={clientLogo} alt={`${client?.name ?? "Client"} logo`} width={150} height={54} unoptimized className="monthly-client-logo" />
+            <Image
+              src={clientLogo}
+              alt={`${client?.name ?? "Client"} logo`}
+              width={150}
+              height={54}
+              unoptimized
+              loading="eager"
+              className="monthly-client-logo"
+            />
           ) : (
-            <span className="monthly-client-placeholder">{client?.shortName ?? client?.name ?? NOT_RECORDED}</span>
+            // No configured logo: the client's short name, else its registered
+            // name — never a substituted mark.
+            <span className="monthly-client-placeholder">{client?.shortName || client?.name || NOT_RECORDED}</span>
           )}
           {project?.branding.includeQrCode !== false && (
             <div className="monthly-qr-panel">
@@ -671,6 +688,46 @@ function ApprovalBlock({ report, project, contacts }: MonthlyReportBundle) {
   );
 }
 
+/* ------------------------------- Print page ---------------------------------- */
+
+/** Quote for a CSS string, and neutralise `<` so no text can close <style>. */
+function cssString(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/</g, "\\3C ").replace(/[\r\n]+/g, " ")}"`;
+}
+
+/**
+ * A4 portrait page furniture for the Monthly document only.
+ *
+ * Mounted WITH the document (never globally), so Weekly keeps the shared
+ * `@page` rule in globals.css and Executive keeps its own landscape page.
+ * `@page` margin boxes are the print-safe way to repeat content per sheet —
+ * a running identity header on every sheet after the first (the first carries
+ * the full masthead), and a formal footer with "Page N of M" on every sheet.
+ * Chromium 131+ renders them; an engine without margin-box support leaves the
+ * margin blank, and the in-flow footer band still closes the document.
+ */
+function MonthlyPrintPage({ report, project, footerText }: { report: MonthlyReport; project: Project | null; footerText: string }) {
+  const projectLabel = project?.name || project?.code || "Monthly Project Progress Report";
+  const box = "font-size: 6.4pt; color: #5b7290; letter-spacing: .02em;";
+
+  return (
+    <style>{`@media print {
+      @page {
+        size: A4 portrait;
+        margin: 12mm 12mm 13mm;
+        @top-left { content: ${cssString(`${projectLabel} · Monthly Project Progress Report`)}; ${box} font-weight: 700; color: #0d4384; vertical-align: bottom; padding-bottom: 2.5mm; }
+        @top-right { content: ${cssString(`Doc. No. ${report.reportNumber} · ${getMonthLabel(report.reportingMonth)}`)}; ${box} vertical-align: bottom; padding-bottom: 2.5mm; }
+        @bottom-left { content: ${cssString(`EPROM · ${footerText}`)}; ${box} vertical-align: top; padding-top: 2.5mm; }
+        @bottom-right { content: "Page " counter(page) " of " counter(pages); ${box} font-weight: 700; color: #0d4384; vertical-align: top; padding-top: 2.5mm; }
+      }
+      @page :first {
+        @top-left { content: none; }
+        @top-right { content: none; }
+      }
+    }`}</style>
+  );
+}
+
 /* --------------------------------- Document -------------------------------- */
 
 export function MonthlyReportDocument(bundle: MonthlyReportBundle) {
@@ -690,7 +747,11 @@ export function MonthlyReportDocument(bundle: MonthlyReportBundle) {
   });
 
   return (
-    <article className="monthly-report-sheet monthly-print-document">
+    // `monthly-doc` scopes Monthly-only print rules: the Executive document
+    // reuses `monthly-report-sheet` / `monthly-print-document` and must not
+    // pick them up.
+    <article className="monthly-report-sheet monthly-print-document monthly-doc">
+      <MonthlyPrintPage report={report} project={project} footerText={footerText} />
       <DocumentHeader report={report} project={project} client={client} />
       <div className="monthly-report-body">
         <ReportInformation {...bundle} />

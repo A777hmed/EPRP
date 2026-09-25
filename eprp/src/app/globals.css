@@ -920,6 +920,98 @@
 }
 
 /* ==========================================================================
+   Monthly Progress Report — A4 portrait finish (print only).
+
+   Scoped to `.monthly-doc`, a class ONLY the Monthly document carries. The
+   Executive document reuses `.monthly-report-sheet` / `.monthly-print-document`
+   and the rules above, and must not pick up anything in this block. The page
+   box, running header and "Page N of M" footer are `@page` margin boxes
+   emitted by `MonthlyPrintPage` (`monthly-report-document.tsx`).
+   ========================================================================== */
+@media print {
+  .monthly-doc { orphans: 3; widows: 3; }
+
+  /*
+     Key Highlights. A4 portrait is ~794px, so the 800px screen breakpoint is
+     ACTIVE while printing and its grid PLACEMENT rules (pill in column 2, text
+     spanning the full row) survived the print column template — every item
+     printed as four stacked lines. Placement is reset so each item is one row:
+     week | category | text | priority.
+  */
+  .monthly-doc .monthly-highlight-row {
+    grid-template-columns: 9mm 32mm minmax(0, 1fr) 17mm !important;
+    align-items: start;
+  }
+  .monthly-doc .monthly-highlight-row > * { grid-column: auto !important; }
+  .monthly-doc .monthly-highlight-row .monthly-pill,
+  .monthly-doc .monthly-table-actions .monthly-pill {
+    /* A long category ("Client Action / Pending Approval") wraps inside its
+       own column instead of running into the next one. */
+    max-width: 100%;
+    white-space: normal;
+    line-height: 1.25;
+  }
+  .monthly-doc .monthly-highlight-row [data-slot="status-badge"] { justify-self: end; }
+
+  /* Column widths sized to content, per table (each sums to 100%). */
+  .monthly-doc .monthly-table-scope th:nth-child(1), .monthly-doc .monthly-table-scope td:nth-child(1) { width: 17%; }
+  .monthly-doc .monthly-table-scope th:nth-child(2), .monthly-doc .monthly-table-scope td:nth-child(2) { width: 14%; }
+  .monthly-doc .monthly-table-scope th:nth-child(3), .monthly-doc .monthly-table-scope td:nth-child(3) { width: 13%; }
+  .monthly-doc .monthly-table-scope th:nth-child(4), .monthly-doc .monthly-table-scope td:nth-child(4) { width: 9%; }
+  .monthly-doc .monthly-table-scope th:nth-child(5), .monthly-doc .monthly-table-scope td:nth-child(5) { width: 33%; }
+  .monthly-doc .monthly-table-scope th:nth-child(6), .monthly-doc .monthly-table-scope td:nth-child(6) { width: 14%; }
+
+  .monthly-doc .monthly-table-milestones th:nth-child(1), .monthly-doc .monthly-table-milestones td:nth-child(1) { width: 9%; }
+  .monthly-doc .monthly-table-milestones th:nth-child(2), .monthly-doc .monthly-table-milestones td:nth-child(2) { width: 35%; }
+  .monthly-doc .monthly-table-milestones th:nth-child(3), .monthly-doc .monthly-table-milestones td:nth-child(3) { width: 15%; }
+  .monthly-doc .monthly-table-milestones th:nth-child(4), .monthly-doc .monthly-table-milestones td:nth-child(4) { width: 11%; }
+  .monthly-doc .monthly-table-milestones th:nth-child(5), .monthly-doc .monthly-table-milestones td:nth-child(5) { width: 15%; }
+  .monthly-doc .monthly-table-milestones th:nth-child(6), .monthly-doc .monthly-table-milestones td:nth-child(6) { width: 15%; }
+
+  .monthly-doc .monthly-table-actions th:nth-child(1), .monthly-doc .monthly-table-actions td:nth-child(1) { width: 9%; }
+  .monthly-doc .monthly-table-actions th:nth-child(2), .monthly-doc .monthly-table-actions td:nth-child(2) { width: 17%; }
+  .monthly-doc .monthly-table-actions th:nth-child(3), .monthly-doc .monthly-table-actions td:nth-child(3) { width: 34%; }
+  .monthly-doc .monthly-table-actions th:nth-child(4), .monthly-doc .monthly-table-actions td:nth-child(4) { width: 16%; }
+  .monthly-doc .monthly-table-actions th:nth-child(5), .monthly-doc .monthly-table-actions td:nth-child(5) { width: 12%; }
+  .monthly-doc .monthly-table-actions th:nth-child(6), .monthly-doc .monthly-table-actions td:nth-child(6) { width: 12%; }
+
+  /* Dates and figures never split across lines. */
+  .monthly-doc .monthly-table-milestones td:nth-child(5),
+  .monthly-doc .monthly-table-milestones td:nth-child(6),
+  .monthly-doc .monthly-table-actions td:nth-child(5),
+  .monthly-doc .monthly-table-weekly td:nth-child(2) { white-space: nowrap !important; }
+
+  /*
+     Tables: rows never split (above) and never orphan — the first two rows
+     stay with the heading and column labels, and the last two stay together,
+     so a table never ends a page with a lone header row or starts one with a
+     lone final row. Column labels repeat on continuation pages (thead).
+  */
+  .monthly-doc .monthly-table tbody tr:first-child,
+  .monthly-doc .monthly-table tbody tr:nth-last-child(2) { break-after: avoid; page-break-after: avoid; }
+  /* Same rule for the list-style sections (highlights, plan items). */
+  .monthly-doc .monthly-highlight-row:first-child,
+  .monthly-doc .monthly-highlight-row:nth-last-child(2),
+  .monthly-doc .monthly-milestone:first-child,
+  .monthly-doc .monthly-milestone:nth-last-child(2) { break-after: avoid; page-break-after: avoid; }
+
+  /*
+     Next Month Outlook panels: a short panel stays whole (existing rule), but
+     a long plan list must be able to continue rather than push the whole
+     two-panel section to a new page. The panel heading stays with its first
+     item; individual plan items never split (existing rule).
+  */
+  .monthly-doc .monthly-outlook-panel { break-inside: auto; page-break-inside: auto; }
+  .monthly-doc .monthly-outlook-panel .monthly-mini-heading { break-after: avoid; page-break-after: avoid; }
+
+  /* A long narrative continues across pages with its frame redrawn. */
+  .monthly-doc .monthly-executive-summary {
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+}
+
+/* ==========================================================================
    Project Portfolio Executive Report
 
    The Executive document deliberately opts into the Monthly document CSS
