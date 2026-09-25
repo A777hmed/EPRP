@@ -1601,6 +1601,7 @@ button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset:
    visibility never depends on CSS source order. See the print block for the
    `display: grid !important` override. */
 .exec-print-cards { display: none; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.exec-print-cards-table { display: none; }
 
 /* --------------------- Project Executive Status (cards) --------------------- */
 
@@ -2583,139 +2584,115 @@ button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset:
   .exec-snapshot-basis small { font-size: 5.6pt; }
 
   /* ====================================================================
-     PAGE 4 — the Executive Approval sheet.
+     Executive Report Sign-off — a compact closing section.
 
-     A DELIBERATE page, not a remainder. `break-before: page` is correct here
-     precisely because the block is designed to own a sheet: previously it was
-     whatever fell off the bottom of page 3, which produced an ~85% empty page
-     that read as an accident. Measured evidence for that decision: page 3 left
-     15–17mm free while this block needs ~50mm, so it could never share the page
-     without shrinking signature space to ~4mm per box.
-
-     The sheet is composed to fill itself honestly — identity band at the top,
-     signature columns in the optical centre, standing note beneath — rather
-     than by inflating type. `min-height` reserves the page minus the footer, so
-     the footer lands at the bottom of the sheet instead of floating mid-page.
+     It follows Executive Notes and shares that page when it fits. It is
+     kept whole (`break-inside: avoid`) because it is small — roughly 60mm —
+     so it moves to the next page only when fewer than that remain. It no
+     longer forces its own sheet or stretches to fill one: the earlier
+     full-page version left most of the final sheet as empty signature boxes.
      ==================================================================== */
   .exec-signoff-section {
-    display: flex !important;
-    flex-direction: column;
-    /* 192mm page box − 9mm footer (7mm + 2mm margin) − a little tolerance. */
-    min-height: 180mm;
-    margin-top: 0;
-    padding-top: 2mm;
-    break-before: page;
-    page-break-before: always;
+    display: block !important;
+    margin-top: 3mm;
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
-  /* What is being signed, restated so a loose sheet identifies itself. */
+  /* What is being signed, so the sign-off identifies the document on its own. */
   .exec-signoff-doc {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
     gap: 3mm;
-    margin: 4mm 0 0;
-    padding: 3mm 3.5mm;
+    margin: 0;
+    padding: 1.4mm 3mm;
     border: 0.3mm solid #cbd9e7;
-    border-radius: 1.5mm;
+    border-radius: 1.2mm;
     background: #f7fafc !important;
   }
-  .exec-signoff-doc > div { display: grid; gap: 1mm; min-width: 0; }
-  .exec-signoff-doc dt {
+  /* Label and value on one line: the strip is a reference line, not a panel. */
+  .exec-signoff-doc > div { display: flex; align-items: baseline; gap: 1.5mm; min-width: 0; }
+  .exec-signoff-doc dt,
+  .exec-signoff-scope dt {
     color: #6a7f99;
-    font-size: 5.6pt;
+    font-size: 5.4pt;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: .07em;
   }
-  .exec-signoff-doc dd { margin: 0; color: #17477d; font-size: 8pt; font-weight: 600; }
+  .exec-signoff-doc dd { margin: 0; color: #17477d; font-size: 7.4pt; font-weight: 600; }
 
-  /*
-     The signature columns sit in the optical centre of the sheet.
-     `margin: auto 0` inside the flex column distributes the leftover space
-     above and below rather than leaving it all at the bottom — which is what
-     made the old page read as leftover content.
-  */
+  /* Which preparer covered which projects — only when there is more than one. */
+  .exec-signoff-scope { display: grid; gap: 0.8mm; margin: 2mm 0 0; padding: 0 1mm; }
+  .exec-signoff-scope dd { margin: 0; color: #4d6480; font-size: 6.2pt; line-height: 1.45; }
+  .exec-signoff-scope dd b { color: #17477d; }
+
   .exec-signoff-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr) !important;
-    gap: 5mm;
-    margin: auto 0;
-    padding: 6mm 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 4mm;
+    margin: 3mm 0;
   }
-  /*
-     The box absorbs the sheet's spare height rather than leaving it as a void.
-     That is not padding for its own sake: the blank area between the printed
-     name and the signature rule IS the space somebody signs in, so a taller box
-     is a more usable box. The name sits at the top, the rules at the bottom,
-     and the writing space in between grows with the page.
-  */
   .exec-signoff {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    align-content: start;
     gap: 2mm;
-    min-height: 74mm;
-    padding: 4mm;
+    min-width: 0;
+    padding: 2.5mm 3mm 3mm;
     border: 0.3mm solid #c9d8e7;
-    border-radius: 1.5mm;
+    border-radius: 1.2mm;
     background: #ffffff !important;
     break-inside: avoid;
   }
   .exec-signoff > b {
-    padding-bottom: 1.5mm;
+    padding-bottom: 1.2mm;
     border-bottom: 0.4mm solid #0d4384;
     color: #0d4384;
-    font-size: 7pt;
+    font-size: 6.8pt;
     text-transform: uppercase;
     letter-spacing: .08em;
   }
-  .exec-signoff span { min-height: 4.5mm; color: #17477d; font-size: 9pt; font-weight: 700; }
-  .exec-signoff em { min-height: 4mm; color: #5b7290; font-size: 7pt; font-style: normal; }
 
-  /*
-     A ruled line the reader actually writes on.
-     The label sits UNDER its rule, so the space above it is blank writing
-     space rather than a caption competing with the ink.
-  */
-  .exec-signoff small,
-  .exec-signoff .exec-sign-rule {
-    display: block;
-    margin-top: 5mm;
-    padding-top: 1.2mm;
-    border-top: 0.3mm solid #a9bdd3;
+  /* Name · Position · Signature · Date, two per row. Printed values sit on
+     the line; blank fields are a ruled line with the label beneath, so the
+     sheet can be completed by hand. */
+  .exec-sign-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 2.5mm 4mm;
+    margin: 0;
+  }
+  .exec-sign-fields + .exec-sign-fields { padding-top: 2mm; border-top: 0.2mm dashed #dbe4ee; }
+  .exec-sign-fields > div { display: flex; flex-direction: column-reverse; gap: 0.6mm; min-width: 0; }
+  .exec-sign-fields dt {
     color: #7d8fa4;
-    font-size: 5.8pt;
-    font-style: normal;
+    font-size: 5.4pt;
     text-transform: uppercase;
     letter-spacing: .06em;
   }
-  /* Name and Job Title rules on an unassigned role need the same writing room. */
-  .exec-signoff em.exec-sign-rule,
-  .exec-signoff i.exec-sign-rule { min-height: 0; margin-top: 6mm; }
-
-  /* Prepared By can carry several people; each gets its own signature line. */
-  .exec-signoff-prepared { grid-row: span 1; }
-  .exec-preparer { display: flex; flex-direction: column; gap: 1mm; flex: 1 1 auto; }
-  /* Pushes Signature and Date to the foot of the box, leaving the space above
-     them clear for the actual signature. */
-  .exec-preparer small:first-of-type { margin-top: auto; }
-  .exec-preparer + .exec-preparer {
-    margin-top: 3mm;
-    padding-top: 3mm;
-    border-top: 0.2mm dashed #dbe4ee;
+  .exec-sign-fields dd {
+    min-height: 4.2mm;
+    margin: 0;
+    padding-bottom: 0.6mm;
+    border-bottom: 0.3mm solid #a9bdd3;
+    color: #17477d;
+    font-size: 7.4pt;
+    font-weight: 600;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
   }
-  .exec-preparer i { color: #8494a7; font-size: 6pt; font-style: normal; }
-  .exec-preparer-gap { display: block; margin-top: 2mm; color: #b0343c; font-size: 6pt; font-style: normal; }
+  /* Signature and Date need writing room above the rule. */
+  .exec-sign-fields .is-hand dd { min-height: 7mm; }
+  .exec-preparer-gap { color: #b0343c; font-size: 6pt; font-style: normal; }
 
   .exec-signoff-note {
     margin: 0;
-    padding: 2.5mm 3mm;
+    padding: 1.8mm 3mm;
     border-left: 0.8mm solid #0d4384;
     background: #f7fafc !important;
     color: #4d6480;
-    font-size: 6.4pt;
-    line-height: 1.5;
+    font-size: 6.2pt;
+    line-height: 1.45;
   }
 
   /* Executive Notes print as content; their editor is not part of the document. */
@@ -2812,6 +2789,359 @@ button.exec-kpi-card:focus-visible { outline: 2px solid #0d59a8; outline-offset:
      Position's Dynamic Executive Cards) — print always shows every project. */
   .exec-card-filter-chip,
   .exec-project-card-filter-empty { display: none !important; }
+
+  /* ======================================================================
+     Executive document finish — A4 landscape.
+
+     Scoped to `.exec-document`, so Weekly and Monthly print exactly as before.
+     Running header/footer and "Page N of M" are `@page` margin boxes emitted
+     by `ExecutivePrintPage` (`executive-document.tsx`), not in-flow blocks.
+
+     NOTE: A4 landscape is ~1047px wide, so the 1180px screen breakpoint is
+     ACTIVE while printing; rules below that restore a wide layout do so on
+     purpose and sit after those breakpoints in source order.
+     ====================================================================== */
+
+  .exec-document { orphans: 3; widows: 3; }
+  .exec-document h2,
+  .exec-document h3 { break-after: avoid; page-break-after: avoid; }
+
+  /* Masthead — EPROM left, document facts centre, client mark right. */
+  .exec-masthead .monthly-brand-row { align-items: center; gap: 5mm; padding: 0 0 3mm; }
+  .exec-masthead .monthly-brand-row > img { flex: none; }
+  .exec-masthead .exec-header-meta { flex: 1 1 auto; justify-content: flex-end; }
+  .exec-masthead .exec-header-meta > div { flex: 0 1 36mm; display: grid; gap: 0.6mm; }
+  .exec-masthead .exec-header-meta b { line-height: 1.25; overflow-wrap: anywhere; }
+  .exec-client-mark {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 13mm;
+    padding-left: 4mm;
+    border-left: 0.3mm solid #cbd9e7;
+  }
+  .exec-client-mark .monthly-client-logo { width: auto; height: auto; max-width: 34mm; max-height: 12mm; object-fit: contain; }
+  .exec-masthead .monthly-title-band {
+    min-height: 14mm;
+    padding: 2.5mm 5mm;
+    border-bottom: 0.8mm solid #0d59a8;
+    background: #0d4384 !important;
+  }
+  .exec-masthead .monthly-title-band h1 { font-size: 14pt; letter-spacing: .02em; }
+  .exec-masthead .monthly-title-band p { font-size: 6.6pt; letter-spacing: .12em; }
+  .exec-classification { flex: none; padding: 1.2mm 2.5mm; border: 0.3mm solid rgb(255 255 255 / 55%); border-radius: 1mm; }
+
+  /* Section headings: the note may wrap, never collide with the title. */
+  .exec-document .monthly-section { margin-bottom: 4mm; }
+  .exec-document .monthly-section-title-row { align-items: flex-end; gap: 4mm; }
+  .exec-document .monthly-section-title-row h2 { flex: 1 1 auto; min-width: 0; font-size: 8pt; }
+  .exec-document .monthly-section-title-row p {
+    flex: 0 1 45%;
+    min-width: 0;
+    white-space: normal;
+    text-align: right;
+    font-size: 6.2pt;
+    line-height: 1.35;
+  }
+
+  /* Badges shrink to their cell instead of overrunning the neighbour. */
+  .exec-document [data-slot="status-badge"] {
+    max-width: 100%;
+    white-space: normal !important;
+    line-height: 1.25;
+    text-align: center;
+  }
+
+  /*
+     Line clamps OFF on paper. The screen clamps (`display: -webkit-box` +
+     `overflow: hidden`) meet the shared print rule that forces
+     `overflow: visible`, so the box kept its two-line height while the text
+     painted past it — over the line below. Paper shows the whole sentence.
+  */
+  .exec-document .exec-snapshot > header b,
+  .exec-document .exec-snapshot-lines dd,
+  .exec-document .exec-status-table td:nth-child(7) > :first-child,
+  .exec-document .exec-status-table .exec-movement small,
+  .exec-document .exec-status-table .exec-movement-none {
+    display: block;
+    -webkit-line-clamp: unset;
+    line-clamp: none;
+  }
+
+  /* One KPI health row whatever the tile count (a restricted-draft tile
+     makes eight, which used to wrap one orphan tile onto a second row). */
+  .exec-document .exec-kpi-health {
+    grid-template-columns: none !important;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+  }
+  .exec-document .monthly-kpi > span { line-height: 1.25; }
+
+  /*
+     Management Attention — one table per list, any volume.
+
+     Every item prints (no cap). A non-empty list is a <table>, so:
+       · its <thead> — list title, count and column labels — repeats on every
+         page the list continues onto;
+       · each row (one decision, risk or action) is kept whole;
+       · the list itself is NOT kept together. Keeping a 5-row list whole
+         pushed the entire section to page 2 whenever the masthead grew by a
+         few millimetres, leaving page 1 half empty. Instead it starts right
+         after Portfolio Position and continues where the page ends;
+       · no orphans: the first two rows stay together (a heading never ends a
+         page with one row under it) and so do the last two (a list never
+         ends with a single row alone on the next page). A list of 2–3 rows
+         therefore moves as a unit when it must.
+     Empty lists shrink to a one-line notice and sit together at the end.
+  */
+  .exec-document .exec-attention-grid {
+    display: flex !important;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 2.5mm !important;
+  }
+  .exec-document .exec-attention-panel {
+    flex: 1 1 100%;
+    min-width: 0;
+    gap: 1mm;
+    padding: 2mm 3mm;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+  .exec-attention-table tbody tr:first-child,
+  .exec-attention-table tbody tr:nth-last-child(2) { break-after: avoid; page-break-after: avoid; }
+  .exec-document .exec-attention-panel.is-empty { flex: 1 1 50mm; order: 10; padding-block: 1.6mm; break-inside: avoid; }
+  .exec-document .exec-attention-panel.is-empty .monthly-empty-row { padding: 0; border: 0; background: none !important; font-size: 6.4pt; }
+
+  .exec-attention-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .exec-attention-table thead { display: table-header-group; }
+  .exec-document .exec-attention-table th,
+  .exec-document .exec-attention-table td {
+    padding: 1.2mm 1.5mm !important;
+    border: 0;
+    border-bottom: 0.2mm solid #e5ecf3;
+    text-align: left;
+    vertical-align: middle;
+  }
+  .exec-att-col-severity { width: 18mm; }
+  .exec-att-col-project { width: 62mm; }
+  .exec-att-col-due { width: 27mm; }
+  .exec-att-col-owner { width: 32mm; }
+  .exec-document .exec-attention-table .exec-attention-title-row th { padding: 0 0 1.2mm !important; border-bottom: 0; }
+  .exec-document .exec-attention-table .exec-attention-labels th {
+    padding-block: 0.8mm !important;
+    border-bottom: 0.3mm solid #cbd9e7;
+    background: #f4f7fb !important;
+    color: #6a7f99;
+    font-size: 5.6pt;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .exec-attention-table tbody tr { break-inside: avoid; page-break-inside: avoid; }
+  .exec-attention-table tbody tr:last-child td { border-bottom: 0; }
+  .exec-attention-restricted { margin: 0.6mm 0 0; color: #8a5a12; font-size: 6pt; font-weight: 500; }
+  .exec-document .exec-attention-text { color: #2c4a72; font-size: 7pt; line-height: 1.4; overflow-wrap: anywhere; }
+  .exec-document .exec-attention-project { color: #17477d; font-size: 6.4pt; font-weight: 700; overflow-wrap: anywhere; }
+  .exec-document .exec-attention-due { color: #8494a7; font-size: 6.4pt; white-space: nowrap; }
+  .exec-document .exec-attention-due.exec-overdue { color: #b0343c; font-weight: 700; }
+  .exec-document .exec-attention-owner { color: #8494a7; font-size: 6.4pt; overflow-wrap: anywhere; }
+
+  /* A client with no configured logo prints as its name — never a stand-in mark. */
+  .exec-client-name {
+    display: inline-block;
+    color: #17477d;
+    font-size: 7pt;
+    font-weight: 700;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+  .exec-client-mark .exec-client-name { max-width: 40mm; font-size: 8pt; text-align: center; }
+
+  /*
+     Multi-client scope: one compact, right-aligned list under a small label —
+     logos where configured, otherwise the name as plain text that wraps. No
+     per-client boxes. Its height stays within the EPROM logo's, so it never
+     makes the masthead taller than the single-client version.
+  */
+  .exec-client-scope {
+    flex: 0 1 70mm;
+    min-width: 40mm;
+    display: grid;
+    align-content: center;
+    gap: 1mm;
+    padding-left: 4mm;
+    border-left: 0.3mm solid #cbd9e7;
+  }
+  .exec-client-scope > span {
+    color: #6a7f99;
+    font-size: 5.4pt;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+  }
+  /* One client per line (two columns beyond three clients): a wrapped long
+     name stays with its own entry instead of running into the next. */
+  .exec-client-scope ul {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.9mm 4mm;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .exec-client-scope ul.is-many { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .exec-client-scope li { display: flex; align-items: center; min-width: 0; }
+  .exec-client-scope img { width: auto; height: 6.5mm; max-width: 22mm; object-fit: contain; }
+  .exec-client-scope .exec-client-name { font-size: 6.6pt; }
+
+  /* Project Executive Status: three even cards per row, sized to content. */
+  .exec-document .exec-print-cards { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 3mm; }
+  .exec-document .exec-snapshot { min-height: 0; }
+  .exec-document .exec-snapshot > header > div { flex: 1 1 auto; min-width: 0; }
+  .exec-document .exec-snapshot > header [data-slot="status-badge"] { flex: none; max-width: 45%; }
+  .exec-document .exec-snapshot-lines > div { grid-template-columns: 22mm minmax(0, 1fr); gap: 2mm; }
+  .exec-document .exec-planning-note { font-size: 5.8pt; }
+
+  /*
+     Continuation heading. The cards print as rows of a one-column table
+     (`executive-project-brief.tsx`) whose <thead> Chrome repeats on each page
+     the table spans. The FIRST instance must not duplicate the section title
+     directly above it, so the table is pulled up by the thead's height and the
+     title row — positioned, opaque — paints over it. Repeats on later pages
+     have nothing above them and show as "4 · Project Executive Status
+     (continued)". Each <tr> is one row of cards and is never split.
+  */
+  .exec-cards-section .monthly-section-title-row {
+    position: relative;
+    z-index: 1;
+    margin-bottom: 0 !important;
+    padding-bottom: 2.5mm;
+    background: #ffffff !important;
+  }
+  .exec-document .exec-print-cards-table {
+    display: table !important;
+    width: 100%;
+    margin-top: -6mm;
+    border-collapse: collapse;
+    table-layout: fixed;
+    break-inside: auto;
+  }
+  .exec-document .exec-print-cards-table th,
+  .exec-document .exec-print-cards-table td {
+    padding: 0 !important;
+    border: 0 !important;
+    background: none !important;
+    text-align: left;
+    font-weight: inherit;
+  }
+  .exec-document .exec-print-cards-table thead th { height: 6mm; vertical-align: top; }
+  .exec-continued {
+    display: block;
+    color: #0d4384;
+    font-size: 7pt;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  .exec-continued em { color: #7d8fa4; font-style: normal; font-weight: 600; text-transform: none; letter-spacing: 0; }
+  .exec-document .exec-print-cards-table tbody tr { break-inside: avoid; page-break-inside: avoid; }
+  .exec-document .exec-print-cards-table tbody td { padding-bottom: 3mm !important; }
+
+  /* Full Project Data: the same content with less vertical padding per row. */
+  .exec-document .exec-status-table td { padding: 1.3mm 1.6mm !important; }
+  .exec-document .exec-status-table .exec-row-primary > td { padding-bottom: 0.6mm !important; }
+  .exec-document .exec-status-table .exec-row-secondary > td { padding: 0 1.6mm 1.2mm !important; }
+  .exec-document .exec-secondary-grid { padding: 1mm 2mm; }
+  /* Basis badge and "Planning vN" share one line instead of stacking — the
+     project cell is what sets each row's height. */
+  .exec-document .exec-status-table .exec-basis-chip { display: inline-flex; margin-top: 0.6mm; vertical-align: middle; }
+  .exec-document .exec-status-table .exec-planning-tag { display: inline-block; margin: 0.6mm 0 0 1.5mm; vertical-align: middle; font-size: 5.8pt; }
+  /* Key Concern: label on its own line, then the concern text with its
+     priority/status badges following inline — one line saved per project,
+     nothing removed. */
+  .exec-document .exec-status-table .exec-detail { display: block !important; }
+  .exec-document .exec-status-table .exec-detail > b { display: block; margin-bottom: 0.6mm; }
+  .exec-document .exec-status-table .exec-detail > p { display: inline; margin: 0; }
+  .exec-document .exec-status-table .exec-detail-chips {
+    display: inline-flex !important;
+    margin-left: 2mm;
+    vertical-align: middle;
+  }
+
+  /* Tables: a header band that reads as one when it repeats on a new page. */
+  .exec-document .monthly-table thead th {
+    background: #eef3f9 !important;
+    color: #0d4384;
+    border-bottom: 0.4mm solid #9fb6cf !important;
+  }
+  .exec-document .monthly-table td { line-height: 1.35; }
+  .exec-document .monthly-table td small { display: block; margin-top: 0.5mm; }
+
+  /* Governed Master Milestones — seven columns, summing to 100%. */
+  .exec-document .exec-governed-table th:nth-child(1), .exec-document .exec-governed-table td:nth-child(1) { width: 17%; }
+  .exec-document .exec-governed-table th:nth-child(2), .exec-document .exec-governed-table td:nth-child(2) { width: 9%; }
+  .exec-document .exec-governed-table th:nth-child(3), .exec-document .exec-governed-table td:nth-child(3) { width: 30%; }
+  .exec-document .exec-governed-table th:nth-child(4), .exec-document .exec-governed-table td:nth-child(4) { width: 13%; }
+  .exec-document .exec-governed-table th:nth-child(5), .exec-document .exec-governed-table td:nth-child(5) { width: 9%; }
+  .exec-document .exec-governed-table th:nth-child(6), .exec-document .exec-governed-table td:nth-child(6) { width: 11%; }
+  .exec-document .exec-governed-table th:nth-child(7), .exec-document .exec-governed-table td:nth-child(7) { width: 11%; }
+
+  /* Upcoming Plan Items — six columns, summing to 100% (set on <col>: the
+     first table row is the full-width continuation heading, and with fixed
+     layout the browser takes column widths from the first row). */
+  /* The shared `.exec-milestone-table` screen rules size cells by position;
+     here they would size the full-width continuation cell as column 1 and
+     fight the <col> widths, so cell widths are released to the colgroup. */
+  .exec-document .exec-plan-table th,
+  .exec-document .exec-plan-table td { width: auto !important; }
+  .exec-plan-col-date { width: 9%; }
+  .exec-plan-col-project { width: 18%; }
+  .exec-plan-col-item { width: 37%; }
+  .exec-plan-col-owner { width: 14%; }
+  .exec-plan-col-status { width: 12%; }
+  .exec-plan-col-source { width: 10%; }
+
+  /*
+     Upcoming Plan Items pagination (see `MilestoneTimeline`).
+     · Short list (`is-compact`): heading and every row stay together, so a
+       5-item list never splits 1 + 4 across pages — it moves whole instead.
+     · Long list: rows flow; the first two and last two rows stay together; the
+       repeated <thead> carries "7 · Upcoming Plan Items (continued)" plus the
+       column labels. Its first instance is pulled up under the section title,
+       which paints over it — same technique as Project Executive Status.
+  */
+  .exec-document .exec-plan-section.is-compact .monthly-section { break-inside: avoid; page-break-inside: avoid; }
+  .exec-plan-section .monthly-section-title-row {
+    position: relative;
+    z-index: 1;
+    margin-bottom: 0 !important;
+    padding-bottom: 2mm;
+    background: #ffffff !important;
+  }
+  .exec-document .exec-plan-section .monthly-table-wrap { margin-top: -6mm; }
+  .exec-document .exec-plan-table .exec-plan-continued-row th {
+    height: 6mm;
+    padding: 0 0 1.5mm !important;
+    border: 0 !important;
+    background: none !important;
+    vertical-align: bottom;
+    text-align: left;
+  }
+  .exec-document .exec-plan-table tbody tr:first-child,
+  .exec-document .exec-plan-table tbody tr:nth-last-child(2) { break-after: avoid; page-break-after: avoid; }
+
+  /* Dates and figures never split across lines. */
+  .exec-document .exec-governed-table td:nth-child(6),
+  .exec-document .exec-governed-table td:nth-child(7),
+  .exec-document .exec-plan-table td:nth-child(1) {
+    white-space: nowrap !important;
+    font-variant-numeric: tabular-nums;
+  }
+  .exec-document .exec-plan-table .monthly-pill { white-space: normal; }
 
   /*
    * Safety net: a Sheet/Dialog left open (the Executive Project Brief, or any

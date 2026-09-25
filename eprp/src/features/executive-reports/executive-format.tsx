@@ -36,6 +36,14 @@ export function shortDate(value: string | undefined): string {
  */
 export const BASIS_BADGE_CLASS = "px-1.5 py-0 text-[0.62rem] leading-4";
 
+/**
+ * Shown in place of operational detail (concerns, decisions, plan items,
+ * movement) for a project the viewer may see only at portfolio level
+ * (`row.detailAvailable === false`). That detail is never loaded for them, so
+ * "None reported" would state an absence nobody has checked.
+ */
+export const RESTRICTED_DETAIL = "Restricted at your access level";
+
 export function EmptyRow({ children }: { children: React.ReactNode }) {
   return <div className="monthly-empty-row">{children}</div>;
 }

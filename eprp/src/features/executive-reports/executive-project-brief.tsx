@@ -33,7 +33,7 @@ import {
   type ExecHealth,
   type ProjectExecutiveRow,
 } from "./executive-data";
-import { BASIS_BADGE_CLASS, EmptyRow, ReportSection, pct, shortDate, signed } from "./executive-format";
+import { BASIS_BADGE_CLASS, EmptyRow, RESTRICTED_DETAIL, ReportSection, pct, shortDate, signed } from "./executive-format";
 
 /** Which part of the brief a click opened it for. `"health"` shows the
     explicit health callout at the top; `"overview"` opens on the brief as a
@@ -155,6 +155,11 @@ function PrintProjectCard({ row, month }: { row: ProjectExecutiveRow; month: str
   const achievement = [...row.achievements].sort(bySeverity)[0];
   const concern = row.keyConcern;
   const decision = row.decisions[0];
+  // Restricted projects never load operational detail, so an empty field is
+  // "not visible to you", not "none" — say which.
+  const none = (text: string) => (
+    <span className="muted">{row.detailAvailable === false ? RESTRICTED_DETAIL : text}</span>
+  );
 
   return (
     <article className="exec-snapshot">
@@ -201,7 +206,7 @@ function PrintProjectCard({ row, month }: { row: ProjectExecutiveRow; month: str
       <dl className="exec-snapshot-lines">
         <div>
           <dt>Major achievement</dt>
-          <dd>{achievement?.text ?? <span className="muted">None reported</span>}</dd>
+          <dd>{achievement?.text ?? none("None reported")}</dd>
         </div>
         <div>
           <dt>Main concern</dt>
@@ -215,13 +220,13 @@ function PrintProjectCard({ row, month }: { row: ProjectExecutiveRow; month: str
                 </span>
               </>
             ) : (
-              <span className="muted">No key concern reported</span>
+              none("No key concern reported")
             )}
           </dd>
         </div>
         <div>
           <dt>Decision required</dt>
-          <dd>{decision?.text ?? <span className="muted">None required</span>}</dd>
+          <dd>{decision?.text ?? none("None required")}</dd>
         </div>
         <div>
           <dt>Next plan item</dt>
@@ -231,7 +236,7 @@ function PrintProjectCard({ row, month }: { row: ProjectExecutiveRow; month: str
                 {row.nextMilestone.title} <small>({shortDate(row.nextMilestone.date)})</small>
               </>
             ) : (
-              <span className="muted">No upcoming plan item recorded</span>
+              none("No upcoming plan item recorded")
             )}
           </dd>
         </div>
@@ -244,7 +249,7 @@ function PrintProjectCard({ row, month }: { row: ProjectExecutiveRow; month: str
                 <small>{row.movement[0].text}</small>
               </span>
             ) : (
-              <span className="muted">{NO_MOVEMENT}</span>
+              none(NO_MOVEMENT)
             )}
           </dd>
         </div>
@@ -280,7 +285,7 @@ export const ExecutiveProjectCardsSection = React.forwardRef<
   const filtered = healthFilter?.length ? ordered.filter((row) => healthFilter.includes(row.reading.health)) : ordered;
 
   return (
-    <div ref={ref}>
+    <div ref={ref} className="exec-cards-section">
     <ReportSection
       number={sectionNumber}
       title="Project Executive Status"
@@ -318,12 +323,40 @@ export const ExecutiveProjectCardsSection = React.forwardRef<
           )}
           {/* Printed equivalent — always the FULL set, unfiltered. A click
               cannot survive on paper, so print gets the fuller snapshot card
-              instead of the interactive one. */}
-          <div className="exec-print-cards">
-            {ordered.map((row) => (
-              <PrintProjectCard key={row.project.id} row={row} month={month} />
-            ))}
-          </div>
+              instead of the interactive one.
+
+              Laid out as a one-column TABLE of card rows so the section can
+              carry a continuation heading: Chrome repeats a <thead> on every
+              page a table spans. The first instance sits under the section's
+              own title row (see `.exec-print-cards-table` in globals.css), so
+              only the repeats show — as "… (continued)" on the next page.
+              Each <tr> is one row of three cards and never splits. */}
+          <table className="exec-print-cards-table">
+            <thead>
+              <tr>
+                <th>
+                  <span className="exec-continued">
+                    {sectionNumber} · Project Executive Status <em>(continued)</em>
+                  </span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: Math.ceil(ordered.length / 3) }, (_, index) => ordered.slice(index * 3, index * 3 + 3)).map(
+                (chunk) => (
+                  <tr key={chunk[0].project.id}>
+                    <td>
+                      <div className="exec-print-cards">
+                        {chunk.map((row) => (
+                          <PrintProjectCard key={row.project.id} row={row} month={month} />
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              )}
+            </tbody>
+          </table>
         </>
       ) : (
         <EmptyRow>No projects are available for this reporting period.</EmptyRow>

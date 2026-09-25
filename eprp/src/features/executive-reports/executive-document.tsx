@@ -49,7 +49,7 @@ import {
   type PreparedBy,
   type ProjectExecutiveRow,
 } from "./executive-data";
-import { BASIS_BADGE_CLASS, EmptyRow, ReportSection, pct, shortDate, signed } from "./executive-format";
+import { BASIS_BADGE_CLASS, EmptyRow, RESTRICTED_DETAIL, ReportSection, pct, shortDate, signed } from "./executive-format";
 import { ExecutiveProjectBrief, ExecutiveProjectCardsSection, type BriefFocus, type OpenBrief } from "./executive-project-brief";
 import { CockpitAnalytics, CockpitAttention, CockpitNotes, CockpitSummary, WhatChangedSection } from "./executive-cockpit";
 import {
@@ -98,6 +98,33 @@ export interface ExecutiveDocumentModel {
   acceptedSummary?: string;
   /** Absent on the print stage, which offers no authoring controls. */
   onAcceptSummary?: (text: string) => void;
+  /** Masthead identity for the printed document. Optional: absent, the
+      masthead falls back to the EPROM-only header. */
+  identity?: ExecutiveDocumentIdentity;
+}
+
+/**
+ * What the printed masthead may state about the document itself — only facts
+ * that already exist. There is no Executive report number or revision in the
+ * data model, so none is shown or invented; the stored record's lifecycle
+ * status and classification are the available document reference.
+ */
+export interface ExecutiveDocumentIdentity {
+  /** Stored record's lifecycle label; absent when no record has been saved. */
+  statusLabel?: string;
+  /** Stored record title, when the author set one. */
+  title?: string;
+  /** Stored record classification, when the author set one. */
+  classification?: string;
+  /** Set only when EVERY project in scope shares one client. */
+  client?: { name: string; logoRef?: string };
+  /**
+   * Multi-client scope only: every client in scope, with its configured logo
+   * when one exists. Presented as "Clients in scope" — never as the
+   * document's owner. A client without a logo prints as its configured
+   * short name, else its registered name.
+   */
+  clients?: { name: string; shortName?: string; logoRef?: string }[];
 }
 
 /* -------------------------------- Primitives ------------------------------- */
@@ -112,21 +139,39 @@ function actionsHref(row: ProjectExecutiveRow, month: string): string {
 /**
  * The masthead.
  *
- * No client logo: a portfolio spans clients, and showing one project's client
- * would misrepresent the document. No QR code either — `03` §19.1 requires a QR
- * to resolve to a specific report AND revision, and this increment persists no
- * Executive record, so there is no revision for it to point at. A QR onto a
- * live view would promise traceability the platform cannot honour.
+ * One client in scope → that client's mark beside EPROM's. Several clients →
+ * a small, labelled "Clients in scope" strip, so no single client reads as the
+ * document's owner. Only configured logos print; a client without one prints
+ * as its name — a logo is never substituted or guessed.
+ *
+ * No QR code — `03` §19.1 requires a QR to resolve to a specific
+ * report AND revision, and the Executive record carries no revision for it to
+ * point at. A QR onto a live view would promise traceability the platform
+ * cannot honour.
  */
 function DocumentHeader({ model }: { model: ExecutiveDocumentModel }) {
+  const identity = model.identity;
+  const client = identity?.client;
+  const scopeClients = client ? [] : (identity?.clients ?? []);
+
+  /*
+   * `loading="eager"` is REQUIRED on every masthead image. The masthead is
+   * print-only (`display: none` on screen), and next/image lazy-loads by
+   * default — a lazy image that is never on screen is never fetched, so it
+   * printed as an empty box. That is why the EPROM logo went missing on paper.
+   */
   return (
-    <header className="monthly-report-header monthly-print-header">
+    <header className="monthly-report-header monthly-print-header exec-masthead">
       <div className="monthly-brand-row">
-        <Image src={siteConfig.logo.full} alt="EPROM" width={222} height={60} unoptimized />
+        <Image src={siteConfig.logo.full} alt="EPROM" width={222} height={60} unoptimized loading="eager" />
         <div className="exec-header-meta">
           <div>
             <span>Reporting Period</span>
             <b>{model.monthLabel}</b>
+          </div>
+          <div>
+            <span>Document Status</span>
+            <b>{identity?.statusLabel ?? "Not yet saved"}</b>
           </div>
           <div>
             <span>Last Updated</span>
@@ -137,12 +182,73 @@ function DocumentHeader({ model }: { model: ExecutiveDocumentModel }) {
             <b>{shortDate(model.today)}</b>
           </div>
         </div>
+        {client && (
+          <div className="exec-client-mark">
+            {client.logoRef ? (
+              <Image
+                src={client.logoRef}
+                alt={`${client.name} logo`}
+                width={150}
+                height={54}
+                unoptimized
+                loading="eager"
+                className="monthly-client-logo"
+              />
+            ) : (
+              // No logo configured: the name, never a substituted mark.
+              <span className="exec-client-name">{client.name}</span>
+            )}
+          </div>
+        )}
+        {scopeClients.length > 0 && (
+          /*
+            One compact, right-aligned list — logos where configured, otherwise
+            the client's short name (or registered name) as plain text that
+            wraps. No per-client boxes: three boxed names beside the meta tiles
+            made the masthead taller and pushed Management Attention off page 1.
+            The full registered name stays in the tooltip and in the report
+            body (Full Project Data, project cards).
+          */
+          <div className="exec-client-scope">
+            <span>Clients in scope</span>
+            <ul className={scopeClients.length > 3 ? "is-many" : undefined}>
+              {scopeClients.map((entry) => (
+                <li key={entry.name}>
+                  {entry.logoRef ? (
+                    <Image
+                      src={entry.logoRef}
+                      alt={`${entry.name} logo`}
+                      title={entry.name}
+                      width={120}
+                      height={40}
+                      unoptimized
+                      loading="eager"
+                    />
+                  ) : (
+                    <span className="exec-client-name" title={entry.name}>
+                      {entry.shortName || entry.name}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
       <div className="monthly-title-band">
         <div>
-          <p>Executive Reporting</p>
-          <h1>Project Portfolio Executive Report</h1>
+          <p>
+            Executive Reporting · {model.monthLabel}
+            {client ? ` · ${client.name}` : ""}
+          </p>
+          <h1>{identity?.title || "Project Portfolio Executive Report"}</h1>
         </div>
+        {identity?.classification && (
+          <div className="exec-title-note exec-classification">
+            <span>Classification</span>
+            <b>{identity.classification}</b>
+          </div>
+        )}
         {/*
           Never a static claim. A period with no approved Monthly at all must
           not headline "Approved Monthly Reports" — that is the exact
@@ -215,6 +321,7 @@ interface KpiSpec {
 function KpiStrip({ model }: { model: ExecutiveDocumentModel }) {
   const { aggregate } = model;
   const noBasis = aggregate.noApprovedBasis;
+  const restricted = aggregate.restrictedDetailProjects;
 
   const position: KpiSpec[] = [
     // The live Executive scope has already excluded archived projects, so this
@@ -266,8 +373,20 @@ function KpiStrip({ model }: { model: ExecutiveDocumentModel }) {
     ...(aggregate.restrictedDraftHealth > 0
       ? [{ label: "Draft Status Restricted", value: String(aggregate.restrictedDraftHealth), recorded: true }]
       : []),
-    { label: "Open Executive Decisions", value: String(aggregate.openDecisions), recorded: true },
-    { label: "Client Pending Actions", value: String(aggregate.clientPendingActions), recorded: true },
+    // Same rule as the screen cockpit: when some projects' detail is withheld
+    // from this viewer, a count of what IS visible is not the portfolio figure.
+    {
+      label: "Open Executive Decisions",
+      value: restricted ? "—" : String(aggregate.openDecisions),
+      recorded: true,
+      note: restricted ? `Details restricted for ${restricted} project(s)` : undefined,
+    },
+    {
+      label: "Client Pending Actions",
+      value: restricted ? "—" : String(aggregate.clientPendingActions),
+      recorded: true,
+      note: restricted ? "Partial visibility" : undefined,
+    },
   ];
 
   return (
@@ -319,7 +438,7 @@ function Tile({ kpi }: { kpi: KpiSpec }) {
 
 function MovementCell({ row }: { row: ProjectExecutiveRow }) {
   if (row.movement.length === 0) {
-    return <p className="exec-movement-none">{NO_MOVEMENT}</p>;
+    return <p className="exec-movement-none">{row.detailAvailable === false ? RESTRICTED_DETAIL : NO_MOVEMENT}</p>;
   }
   return (
     <div className="exec-movement-list">
@@ -479,7 +598,7 @@ function ProjectStatusTable({
                           </small>
                         </>
                       ) : (
-                        <span className="muted">Not recorded</span>
+                        <span className="muted">{row.detailAvailable === false ? RESTRICTED_DETAIL : "Not recorded"}</span>
                       )}
                     </td>
                     <td className="exec-actions-col">
@@ -519,7 +638,7 @@ function ProjectStatusTable({
                               </span>
                             </>
                           ) : (
-                            <p className="muted">No key concern reported</p>
+                            <p className="muted">{row.detailAvailable === false ? RESTRICTED_DETAIL : "No key concern reported"}</p>
                           )}
                           {/*
                             Decisions are deliberately NOT repeated here.
@@ -553,91 +672,150 @@ function ProjectStatusTable({
 
 /* ----------------------- 3 · Management attention -------------------------- */
 
+/**
+ * One printed Management Attention list.
+ *
+ * EVERY item prints — no cap. The count badge states the total, so printing
+ * fewer rows than it claims would silently drop items from the record.
+ *
+ * A non-empty list is a TABLE so it paginates like one: Chrome repeats the
+ * <thead> (list title + column labels) on every page the list spans, and each
+ * row is kept whole (`.exec-attention-table` in globals.css). The list flows
+ * across pages with no single-row orphan at either end.
+ *
+ * Print-only (the section mounts inside `.exec-print-only`), so rows carry no
+ * click handler — the screen cockpit has its own interactive version.
+ */
 function AttentionList({
   title,
   items,
   emptyText,
+  restrictedCount,
   showDue = false,
-  onOpenBrief,
   prominent = false,
 }: {
   title: string;
   items: AttentionItem[];
   emptyText: string;
+  /** Projects whose operational detail this viewer cannot read. */
+  restrictedCount: number;
   showDue?: boolean;
-  onOpenBrief: OpenBrief;
-  /** The Decisions Required panel leads the grid and carries a stronger
+  /** The Decisions Required panel leads the section and carries a stronger
       accent — decision-first, per the Executive UX brief. */
   prominent?: boolean;
 }) {
-  return (
-    <div className={prominent ? "exec-attention-panel is-decision" : "exec-attention-panel"}>
-      <div className="monthly-mini-heading">
-        <span>{title}</span>
-        {items.length > 0 && <small>{items.length}</small>}
+  const size = items.length === 0 ? "is-empty" : "is-listed";
+  // Same wording as the screen cockpit: an empty list is not evidence of
+  // "none" when some projects' detail is withheld from this viewer.
+  const restrictedNote = restrictedCount > 0
+    ? `Partial view: details are restricted for ${restrictedCount} project${restrictedCount === 1 ? "" : "s"}.`
+    : undefined;
+
+  if (items.length === 0) {
+    return (
+      <div className={`exec-attention-panel${prominent ? " is-decision" : ""} ${size}`}>
+        <div className="monthly-mini-heading">
+          <span>{title}</span>
+        </div>
+        <EmptyRow>
+          {restrictedCount > 0
+            ? `None visible. Details are restricted for ${restrictedCount} project${restrictedCount === 1 ? "" : "s"}; no conclusion can be drawn for the full portfolio.`
+            : emptyText}
+        </EmptyRow>
       </div>
-      {items.length ? (
-        <ul className="exec-attention-list">
-          {items.slice(0, 5).map((item) => (
-            <li key={item.id}>
-              <button type="button" className="exec-attention-trigger" onClick={() => onOpenBrief(item.projectId)}>
-                <span className="exec-attention-severity">
-                  <StatusBadge tone={item.priorityTone}>{item.priorityLabel}</StatusBadge>
-                </span>
-                <span className="exec-attention-text">{item.text}</span>
-                <b className="exec-attention-project">{item.projectName}</b>
-                {showDue && item.dueDate && (
-                  <em className={`exec-attention-due${item.overdue ? " exec-overdue" : ""}`}>
-                    {item.overdue ? "Overdue " : "Due "}
-                    {shortDate(item.dueDate)}
-                  </em>
-                )}
-                {item.ownerName && <em className="exec-attention-owner">{item.ownerName}</em>}
-              </button>
-            </li>
+    );
+  }
+
+  return (
+    <div className={`exec-attention-panel${prominent ? " is-decision" : ""} ${size}`}>
+      <table className="exec-attention-table">
+        {/* Explicit widths: with fixed layout the browser sizes columns from
+            the FIRST row, which here is the full-width title cell. */}
+        <colgroup>
+          <col className="exec-att-col-severity" />
+          <col />
+          <col className="exec-att-col-project" />
+          <col className="exec-att-col-due" />
+          <col className="exec-att-col-owner" />
+        </colgroup>
+        <thead>
+          <tr className="exec-attention-title-row">
+            <th colSpan={5}>
+              <div className="monthly-mini-heading">
+                <span>{title}</span>
+                <small>{items.length}</small>
+              </div>
+              {restrictedNote && <p className="exec-attention-restricted">{restrictedNote}</p>}
+            </th>
+          </tr>
+          <tr className="exec-attention-labels">
+            <th>Severity</th>
+            <th>Item</th>
+            <th>Project</th>
+            <th>{showDue ? "Due" : ""}</th>
+            <th>Owner</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.id}>
+              <td>
+                <StatusBadge tone={item.priorityTone}>{item.priorityLabel}</StatusBadge>
+              </td>
+              <td className="exec-attention-text">{item.text}</td>
+              <td className="exec-attention-project">{item.projectName}</td>
+              <td className={`exec-attention-due${item.overdue ? " exec-overdue" : ""}`}>
+                {showDue && item.dueDate ? `${item.overdue ? "Overdue" : "Due"} ${shortDate(item.dueDate)}` : ""}
+              </td>
+              <td className="exec-attention-owner">{item.ownerName ?? ""}</td>
+            </tr>
           ))}
-        </ul>
-      ) : (
-        <EmptyRow>{emptyText}</EmptyRow>
-      )}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-function ManagementAttention({ model, onOpenBrief }: { model: ExecutiveDocumentModel; onOpenBrief: OpenBrief }) {
+function ManagementAttention({ model }: { model: ExecutiveDocumentModel }) {
   const { decisions, risks, clientActions, overdue } = buildManagementAttention(model.rows);
+  const restrictedCount = model.aggregate.restrictedDetailProjects;
 
   return (
     <ReportSection number={3} title="Management Attention" note="Ranked by severity, then by due date.">
       {/*
-        Decision-first: Decisions Required leads the grid, not Top Risks, so
-        what leadership must act on is the first thing read — and it carries
-        its own accent (`.is-decision`) rather than sitting as one panel among
-        five identical ones.
+        Decision-first: Decisions Required leads, not Top Risks, so what
+        leadership must act on is the first thing read — and it carries its own
+        accent (`.is-decision`).
       */}
       <div className="exec-attention-grid">
         <AttentionList
           title="Decisions Required"
           items={decisions}
           emptyText="No decisions awaiting management."
+          restrictedCount={restrictedCount}
           showDue
-          onOpenBrief={onOpenBrief}
           prominent
         />
         <AttentionList
           title="Critical Risks / Issues"
           items={risks}
           emptyText="No open risks or issues recorded."
-          onOpenBrief={onOpenBrief}
+          restrictedCount={restrictedCount}
         />
         <AttentionList
           title="Client Dependencies"
           items={clientActions}
           emptyText="No open client dependencies."
+          restrictedCount={restrictedCount}
           showDue
-          onOpenBrief={onOpenBrief}
         />
-        <AttentionList title="Overdue Actions" items={overdue} emptyText="No overdue actions." showDue onOpenBrief={onOpenBrief} />
+        <AttentionList
+          title="Overdue Actions"
+          items={overdue}
+          emptyText="No overdue actions."
+          restrictedCount={restrictedCount}
+          showDue
+        />
       </div>
     </ReportSection>
   );
@@ -689,7 +867,7 @@ function GovernedMilestoneStatus({
 
   const milestoneTable = (visibleRows: typeof rows, includeProject: boolean) => (
     <div className="monthly-table-wrap">
-      <table className={`monthly-table exec-milestone-table${includeProject ? "" : " is-project-only"}`}>
+      <table className={`monthly-table exec-milestone-table exec-governed-table${includeProject ? "" : " is-project-only"}`}>
         <thead>
           <tr>
             {includeProject && <th>Project</th>}
@@ -787,10 +965,24 @@ function GovernedMilestoneStatus({
   );
 }
 
+/**
+ * Upcoming Plan Items paginate as a table, never splitting a row:
+ *   · a short list (up to COMPACT_PLAN_ROWS) is kept together — if it cannot
+ *     fit under its heading it moves to the next page whole, heading included;
+ *   · a longer list flows, with the first two and last two rows kept together
+ *     (no single orphaned row at either end), and its <thead> — column labels
+ *     plus a "(continued)" heading — repeats on every continuation page. The
+ *     first instance of that heading sits under the section title (see
+ *     `.exec-plan-section` in globals.css), so only the repeats show.
+ */
+const COMPACT_PLAN_ROWS = 8;
+
 function MilestoneTimeline({ model }: { model: ExecutiveDocumentModel }) {
   const upcoming = upcomingMilestones(model.milestones, model.today);
+  const compact = upcoming.length <= COMPACT_PLAN_ROWS;
 
   return (
+    <div className={`exec-plan-section${compact ? " is-compact" : ""}`}>
     <ReportSection
       number={7}
       title="Upcoming Plan Items"
@@ -798,8 +990,25 @@ function MilestoneTimeline({ model }: { model: ExecutiveDocumentModel }) {
     >
       {upcoming.length ? (
         <div className="monthly-table-wrap">
-          <table className="monthly-table exec-milestone-table">
+          <table className="monthly-table exec-milestone-table exec-plan-table">
+            {/* Explicit widths: with fixed layout the browser sizes columns
+                from the FIRST row, which is the full-width continuation row. */}
+            <colgroup>
+              <col className="exec-plan-col-date" />
+              <col className="exec-plan-col-project" />
+              <col className="exec-plan-col-item" />
+              <col className="exec-plan-col-owner" />
+              <col className="exec-plan-col-status" />
+              <col className="exec-plan-col-source" />
+            </colgroup>
             <thead>
+              <tr className="exec-plan-continued-row">
+                <th colSpan={6}>
+                  <span className="exec-continued">
+                    7 · Upcoming Plan Items <em>(continued)</em>
+                  </span>
+                </th>
+              </tr>
               <tr>
                 <th>Date</th>
                 <th>Project</th>
@@ -834,6 +1043,7 @@ function MilestoneTimeline({ model }: { model: ExecutiveDocumentModel }) {
         <EmptyRow>No dated plan items are recorded ahead of today in Monthly or Weekly plans.</EmptyRow>
       )}
     </ReportSection>
+    </div>
   );
 }
 
@@ -894,39 +1104,45 @@ function SignatureColumn({
     <div className={`exec-signoff exec-signoff-${role}`}>
       <b>{SIGNATORY_ROLE_LABEL[role]}</b>
 
-      {people.length ? (
-        people.map((person) => (
-          <div className="exec-preparer" key={person.id}>
-            <span>{person.name}</span>
-            <em>{person.title || " "}</em>
-            {/* Which projects this person actually prepared, so a multi-project
-                report attributes each part correctly. */}
-            {role === "prepared" && person.projects?.length ? (
-              <i>{person.projects.join(", ")}</i>
-            ) : null}
-            <small className="exec-sign-rule">Signature</small>
-            <small className="exec-sign-rule">Date</small>
+      {/*
+        Name · Position · Signature · Date for every person. Unassigned fields
+        print as blank rules so the sheet can be completed by hand. A
+        preparer's project list is NOT repeated inside the box — it prints once,
+        beneath the document strip, and only when more than one preparer shares
+        the report (see `PrintSignOff`).
+      */}
+      {(people.length ? people : [undefined]).map((person, index) => (
+        <dl className="exec-sign-fields" key={person?.id ?? `blank-${index}`}>
+          <div>
+            <dt>Name</dt>
+            <dd>{person?.name ?? ""}</dd>
           </div>
-        ))
-      ) : (
-        <div className="exec-preparer">
-          {/* Name and title rules are drawn so the sheet can be completed by
-              hand without anybody having to guess what belongs on each line. */}
-          <span className="exec-signoff-blank">{placeholder ?? " "}</span>
-          <em className="exec-sign-rule">Name</em>
-          <i className="exec-sign-rule">Job Title / Position</i>
-          <small className="exec-sign-rule">Signature</small>
-          <small className="exec-sign-rule">Date</small>
-        </div>
-      )}
+          <div>
+            <dt>Position</dt>
+            <dd>{person?.title ?? ""}</dd>
+          </div>
+          <div className="is-hand">
+            <dt>Signature</dt>
+            <dd />
+          </div>
+          <div className="is-hand">
+            <dt>Date</dt>
+            <dd />
+          </div>
+        </dl>
+      ))}
 
-      {people.length > 0 && placeholder && <i className="exec-preparer-gap">{placeholder}</i>}
+      {placeholder && <i className="exec-preparer-gap">{placeholder}</i>}
     </div>
   );
 }
 
 function PrintSignOff({ model }: { model: ExecutiveDocumentModel }) {
   const projectCount = model.rows.length;
+  // Per-preparer attribution matters only when the report is shared between
+  // preparers; a single preparer covers every project listed in the report.
+  const preparers = model.signatories.prepared.people.filter((person) => person.projects?.length);
+  const showScope = model.signatories.prepared.people.length > 1 && preparers.length > 0;
 
   return (
     <section className="exec-signoff-section">
@@ -947,7 +1163,7 @@ function PrintSignOff({ model }: { model: ExecutiveDocumentModel }) {
       <dl className="exec-signoff-doc">
         <div>
           <dt>Report</dt>
-          <dd>Project Portfolio Executive Report</dd>
+          <dd>{model.identity?.title || "Project Portfolio Executive Report"}</dd>
         </div>
         <div>
           <dt>Reporting Period</dt>
@@ -964,6 +1180,17 @@ function PrintSignOff({ model }: { model: ExecutiveDocumentModel }) {
           <dd>{shortDate(model.today)}</dd>
         </div>
       </dl>
+
+      {showScope && (
+        <dl className="exec-signoff-scope">
+          <dt>Preparation scope</dt>
+          {preparers.map((person) => (
+            <dd key={person.id}>
+              <b>{person.name}</b> — {person.projects?.join(", ")}
+            </dd>
+          ))}
+        </dl>
+      )}
 
       <div className="exec-signoff-grid">
         {SIGNATORY_ROLES.map((role) => (
@@ -1012,11 +1239,40 @@ function PrintSignOff({ model }: { model: ExecutiveDocumentModel }) {
  *
  * `height: auto` on html/body stops the viewport-height rules resolving against
  * the page box and claiming an extra sheet.
+ *
+ * Running header, footer and page numbers are `@page` margin boxes, drawn by
+ * the browser into the page margin on EVERY sheet — the only print-safe way to
+ * repeat content per page without the trailing-blank-sheet problem of
+ * `position: fixed` (see the `.exec-footer` note in `globals.css`). Chromium
+ * 131+ renders them; an engine without margin-box support simply leaves the
+ * margin empty; the masthead and sign-off still identify the document.
+ * The first sheet carries the full masthead, so its running header is blank.
  */
-function ExecutivePrintPage() {
+function cssString(value: string): string {
+  // Quote for a CSS string, and neutralise `<` so no text can close <style>.
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/</g, "\\3C ").replace(/[\r\n]+/g, " ")}"`;
+}
+
+function ExecutivePrintPage({ model }: { model: ExecutiveDocumentModel }) {
+  const title = model.identity?.title || "Project Portfolio Executive Report";
+  const classification = model.identity?.classification;
+  const runningRight = [model.monthLabel, classification].filter(Boolean).join(" · ");
+  const box = "font-size: 6.4pt; color: #5b7290; letter-spacing: .02em;";
+
   return (
     <style>{`@media print {
-      @page { size: A4 landscape; margin: 9mm 10mm; }
+      @page {
+        size: A4 landscape;
+        margin: 11mm 10mm 12mm;
+        @top-left { content: ${cssString(`EPROM · ${title}`)}; ${box} font-weight: 700; color: #0d4384; vertical-align: bottom; padding-bottom: 2.5mm; }
+        @top-right { content: ${cssString(runningRight)}; ${box} vertical-align: bottom; padding-bottom: 2.5mm; }
+        @bottom-left { content: ${cssString(`EPROM Progress Report · Live derived view · not a controlled document`)}; ${box} vertical-align: top; padding-top: 2.5mm; }
+        @bottom-right { content: "Page " counter(page) " of " counter(pages); ${box} font-weight: 700; color: #0d4384; vertical-align: top; padding-top: 2.5mm; }
+      }
+      @page :first {
+        @top-left { content: none; }
+        @top-right { content: none; }
+      }
       html, body { height: auto !important; min-height: 0 !important; }
     }`}</style>
   );
@@ -1114,7 +1370,7 @@ export function ExecutiveDocument({ model }: { model: ExecutiveDocumentModel }) 
 
   return (
     <article className="monthly-report-sheet monthly-print-document exec-document">
-      <ExecutivePrintPage />
+      <ExecutivePrintPage model={model} />
 
       <div className="exec-print-only">
         <DocumentHeader model={model} />
@@ -1145,7 +1401,7 @@ export function ExecutiveDocument({ model }: { model: ExecutiveDocumentModel }) 
         </div>
 
         <div className="exec-print-only">
-          <ManagementAttention model={model} onOpenBrief={openBrief} />
+          <ManagementAttention model={model} />
         </div>
         <div className="exec-cockpit-only">
           <CockpitAttention ref={attentionRef} rows={model.rows} onOpenBrief={openBrief} />
@@ -1217,18 +1473,12 @@ export function ExecutiveDocument({ model }: { model: ExecutiveDocumentModel }) 
         </div>
       </div>
 
-      <footer className="monthly-report-footer exec-footer exec-print-only">
-        <b>EPROM — Project Portfolio Executive Report</b>
-        <span>{model.monthLabel}</span>
-        {/*
-          No page number: Chrome does not implement `@page` margin boxes, so CSS
-          cannot count pages. The only source of page numbers in a Chrome print
-          is the browser's own header/footer, which would also stamp the URL and
-          date into the margin — explicitly unwanted. The footer below repeats on
-          every page instead, so a loose sheet still identifies itself.
-        */}
-        <span>Live derived view · not a controlled document</span>
-      </footer>
+      {/*
+        No in-flow closing band. Title, period, provenance ("Live derived view ·
+        not a controlled document") and "Page N of M" print on EVERY sheet via
+        the `@page` margin boxes in `ExecutivePrintPage`; a trailing band
+        repeated them once more and could spill onto a near-empty final page.
+      */}
 
       <ExecutiveProjectBrief
         row={briefRow}
