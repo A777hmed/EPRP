@@ -75,7 +75,7 @@ async function linkDepartment(
     ...project.departments,
     { departmentId, leadName: "", reportingRequired: true, systems: [] },
   ];
-  await projectService.updateProject(project.id, { departments: next });
+  await projectService.updateProject(project.id, { departments: next }, project.updatedAt);
   return true;
 }
 
@@ -110,7 +110,7 @@ async function linkSystem(
         }
       : candidate
   );
-  await projectService.updateProject(project.id, { departments: next });
+  await projectService.updateProject(project.id, { departments: next }, project.updatedAt);
   return true;
 }
 
@@ -138,7 +138,7 @@ async function linkDiscipline(
     ...links,
     { disciplineId, departmentId, systemId },
   ];
-  await projectService.updateProject(project.id, { disciplines: next });
+  await projectService.updateProject(project.id, { disciplines: next }, project.updatedAt);
   return true;
 }
 
@@ -168,6 +168,6 @@ async function linkContact(
     ...team,
     { contactId, departmentId, systemId, disciplineId },
   ];
-  await projectService.updateProject(project.id, { team: next });
+  await projectService.updateProject(project.id, { team: next }, project.updatedAt);
   return true;
 }

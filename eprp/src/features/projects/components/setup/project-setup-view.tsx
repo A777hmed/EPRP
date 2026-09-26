@@ -25,6 +25,13 @@ import {
   type ProjectWorkflowStepId,
 } from "@/config/project-workflow";
 import { projectService } from "@/services/project-service";
+import { saveProjectSetupRelation } from "@/services/project-setup-save";
+import {
+  isSetupDraftDirty,
+  reconcileSetupSave,
+  relationForSetupStep,
+  type SetupRelation,
+} from "../../setup-save";
 import {
   emptyProjectFormValues,
   formValuesToProjectInfoUpdate,
@@ -259,9 +266,10 @@ function SetupShell({
   // Edits accumulate here and are written on save, so a half-finished step
   // never lands in the database.
   const [draft, setDraft] = React.useState<Project | null>(project);
+  const [savedBaseline, setSavedBaseline] = React.useState<Project | null>(project);
   const [saving, setSaving] = React.useState(false);
 
-  const current = draft ?? project;
+  const current = draft ?? savedBaseline;
   const terms = useHierarchyTerms(current);
   const definition = localizeProjectWorkflowStep(
     getProjectWorkflowStep(step),
@@ -280,7 +288,32 @@ function SetupShell({
     currentStep: step,
     returnTo: projectWorkflowHref(project?.id, step),
   };
-  const dirty = draft !== project && draft !== null;
+  const dirty = Boolean(draft && savedBaseline && isSetupDraftDirty(draft, savedBaseline));
+
+  const acceptInfoSaved = (updated: Project) => {
+    const previousBaseline = savedBaseline;
+    setSavedBaseline(updated);
+    setDraft((latest) =>
+      latest && previousBaseline
+        ? reconcileSetupSave(previousBaseline, previousBaseline, latest, updated, [])
+        : updated
+    );
+    onInfoSaved(updated);
+  };
+
+  const acceptStepSaved = (
+    submitted: Project,
+    saved: Project,
+    relation: SetupRelation
+  ) => {
+    if (!savedBaseline) return;
+    const previousBaseline = savedBaseline;
+    setSavedBaseline(saved);
+    setDraft((latest) =>
+      latest ? reconcileSetupSave(previousBaseline, submitted, latest, saved, relation) : saved
+    );
+    onInfoSaved(saved);
+  };
 
   const applyDraft = (patch: Partial<Project>) =>
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -315,9 +348,9 @@ function SetupShell({
         // can never replace scope owned by Steps 2-5.
         const updated = await projectService.updateProject(
           project.id,
-          formValuesToProjectInfoUpdate(values)
+          formValuesToProjectInfoUpdate(values), savedBaseline?.updatedAt ?? project.updatedAt
         );
-        onInfoSaved(updated);
+        acceptInfoSaved(updated);
         toast.success("Project info saved");
         router.push(projectWorkflowHref(project.id, "departments"));
       } else {
@@ -349,8 +382,8 @@ function SetupShell({
             notes: position.notes?.trim() || undefined,
             sortOrder: index,
           })),
-      });
-      onInfoSaved(updated);
+      }, savedBaseline?.updatedAt ?? project.updatedAt);
+      acceptInfoSaved(updated);
       // Hand back the stored rows so the form adopts their ids.
       return (updated.positions ?? []).map((position) => ({
         id: position.id ?? "",
@@ -364,11 +397,11 @@ function SetupShell({
       if (project) {
         const updated = await projectService.updateProject(
           project.id,
-          formValuesToProjectInfoUpdate(values)
+          formValuesToProjectInfoUpdate(values), savedBaseline?.updatedAt ?? project.updatedAt
         );
         // Refresh the stepper immediately — otherwise it keeps showing the
         // pre-save completion count until the page is left and reopened.
-        onInfoSaved(updated);
+        acceptInfoSaved(updated);
         // ProjectForm's own handleSaveDraft already toasts "Draft saved" on
         // success; toasting again here just doubled it.
       } else {
@@ -404,15 +437,14 @@ function SetupShell({
             router.push(project ? `/projects/${project.id}` : "/projects")
           }
         />
-        {/* Scope management, available once the project exists. Keyed on
-            `updatedAt` so a save re-seeds its draft from the reloaded record
-            instead of holding stale rows. */}
+        {/* Preserve the editor across saves; it reconciles the new baseline
+            while retaining unrelated and in-flight edits. */}
         {project && (
           <ProjectInfoWorkspace
-            key={project.updatedAt}
+            key={project.id}
             project={project}
             context={context}
-            onSaved={onInfoSaved}
+            onSaved={acceptInfoSaved}
           />
         )}
       </div>
@@ -421,7 +453,7 @@ function SetupShell({
 
   /* --------------------- Steps 2-6 need a saved project -------------------- */
 
-  if (!project || !current) {
+  if (!savedBaseline || !current) {
     return (
       <div className="space-y-6">
         {header}
@@ -444,14 +476,14 @@ function SetupShell({
 
   return (
     <LoadedSteps
-      project={project}
+      project={savedBaseline}
       current={current}
       step={step}
       initialDisciplineId={initialDisciplineId}
       dirty={dirty}
       saving={saving}
       setSaving={setSaving}
-      setDraft={setDraft}
+      onSaved={acceptStepSaved}
       applyDraft={applyDraft}
       context={context}
       header={header}
@@ -469,7 +501,7 @@ function LoadedSteps({
   dirty,
   saving,
   setSaving,
-  setDraft,
+  onSaved,
   applyDraft,
   context,
   header,
@@ -483,7 +515,7 @@ function LoadedSteps({
   dirty: boolean;
   saving: boolean;
   setSaving: (value: boolean) => void;
-  setDraft: React.Dispatch<React.SetStateAction<Project | null>>;
+  onSaved: (submitted: Project, saved: Project, relation: SetupRelation) => void;
   applyDraft: (patch: Partial<Project>) => void;
   context: ProjectLinkContext;
   header: React.ReactNode;
@@ -495,16 +527,11 @@ function LoadedSteps({
   // react as the user edits rather than only after a save.
   const workflow = useProjectWorkflow(current);
   const status = workflow.byId[step];
+  const latestDraft = React.useRef(current);
+  React.useEffect(() => { latestDraft.current = current; }, [current]);
 
-  /*
-   * Every step's Save writes the whole scope, team included, so the reporting
-   * lines are checked here rather than only on the Contacts step.
-   *
-   * Only an *edited* team is blocked. Data saved before these rules existed can
-   * be invalid, and refusing every save would lock the user out of unrelated
-   * work on departments or systems — while still never letting a new invalid
-   * assignment be written.
-   */
+  /* Only an edited team is validated here; older saved assignments may be
+   * imperfect without blocking an unrelated setup step. */
   const teamEdited = current.team !== project.team;
   /*
    * Two Department Managers in one department blocks EVERY save, edited team
@@ -518,6 +545,15 @@ function LoadedSteps({
     : duplicateManagerIssues(current);
 
   const save = async (): Promise<boolean> => {
+    const relation = relationForSetupStep(step);
+    if (!relation) {
+      if (dirty) toast.error("Save edits on their own setup step before continuing.");
+      return !dirty;
+    }
+    if (JSON.stringify(current[relation]) === JSON.stringify(project[relation])) {
+      if (dirty) toast.error("Save edits on their own setup step before continuing.");
+      return !dirty;
+    }
     if (assignmentIssues.length > 0) {
       // Name the department and say what is actually wrong. The old message
       // gave a count and left the user to find the problem themselves.
@@ -534,35 +570,13 @@ function LoadedSteps({
     }
     setSaving(true);
     try {
-      /*
-       * NOT LOADED IS NOT EMPTY.
-       *
-       * This previously sent `team: current.team ?? []`. When the team had not
-       * hydrated — or had been read back empty while the assignment columns
-       * were still missing — that coerced "unknown" into "empty", and
-       * `replaceTeam` deletes every team row before inserting, so an empty
-       * array wipes the project's team. That is how PSM-001 lost its members
-       * while its five project-responsibility rows survived (the delete is
-       * scoped to the team role).
-       *
-       * `updateProject` uses key-presence semantics, so omitting a key leaves
-       * that relation untouched. Only send a relation we actually hold.
-       */
-      const payload: Parameters<typeof projectService.updateProject>[1] = {
-        departments: current.departments,
-      };
-      if (current.disciplines !== undefined) {
-        payload.disciplines = current.disciplines;
-      }
-      if (current.team !== undefined) payload.team = current.team;
-      if (current.delegations !== undefined) {
-        payload.delegations = current.delegations;
-      }
-
-      const saved = await projectService.updateProject(project.id, payload);
-      setDraft(saved);
+      const saved = await saveProjectSetupRelation(project, relation, current[relation]);
+      onSaved(current, saved, relation);
       toast.success(`${getLocalizedProjectWorkflowStep(step, workflow.terms).label} saved`);
-      return true;
+      // Stay on the editor if unrelated edits or edits during this save remain.
+      return !isSetupDraftDirty(
+        reconcileSetupSave(project, current, latestDraft.current, saved, relation), saved
+      );
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Could not save this step"

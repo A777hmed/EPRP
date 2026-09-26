@@ -27,6 +27,7 @@ import type {
 // [reporting-perf] TEMPORARY diagnostic import — remove with src/lib/perf-temp.ts
 import { startTimer, timed } from "@/lib/perf-temp";
 import type { ProjectService } from "./project-service";
+import { collectSetupRelations, confirmSetupSave } from "@/features/projects/setup-save";
 import {
   ReplacePersonError,
   type ReplacePersonInput,
@@ -86,10 +87,6 @@ const RESPONSIBILITY_COLUMNS = [
   "client_representative_id",
   "project_sponsor_id",
 ] as const;
-
-function responsibilityUpdateRequested(input: Partial<ProjectInput>): boolean {
-  return RESPONSIBILITY_ROLES.some(({ key }) => key in input);
-}
 
 function withoutResponsibilityColumns(
   columns: Record<string, unknown>
@@ -514,7 +511,11 @@ async function replaceDepartments(
   departments: DepartmentAssignment[]
 ): Promise<void> {
   const sb = client();
-  await sb.from("project_departments").delete().eq("project_id", projectId);
+  const { error: deleteError } = await sb
+    .from("project_departments")
+    .delete()
+    .eq("project_id", projectId);
+  if (deleteError) throw new Error(deleteError.message);
   if (departments.length === 0) return;
   const rows = departments.map((d) => ({
     project_id: projectId,
@@ -633,7 +634,11 @@ async function replaceDisciplineLinks(
   links: ProjectDisciplineLink[]
 ): Promise<void> {
   const sb = client();
-  await sb.from("project_disciplines").delete().eq("project_id", projectId);
+  const { error: deleteError } = await sb
+    .from("project_disciplines")
+    .delete()
+    .eq("project_id", projectId);
+  if (deleteError) throw new Error(deleteError.message);
   if (links.length === 0) return;
   const { error } = await sb.from("project_disciplines").insert(
     links.map((link) => ({
@@ -1015,6 +1020,14 @@ async function loadProjectById(id: string): Promise<Project | null> {
     timed("getProjectById.positions", () => fetchProjectPositionRows([row.id])),
   ]);
   doneGroup();
+  // Parent and relation reads use separate HTTP requests. Refuse a mixed
+  // snapshot if another writer committed while the relations were loading.
+  const { data: finalVersion, error: versionError } = await client()
+    .from("projects").select("updated_at").eq("id", id).maybeSingle();
+  if (versionError) throw new Error(versionError.message);
+  if (!finalVersion || finalVersion.updated_at !== row.updated_at) {
+    throw new Error("Project changed while loading. Reload before saving.");
+  }
   doneTotal();
   return rowToProject(
     row,
@@ -1025,6 +1038,11 @@ async function loadProjectById(id: string): Promise<Project | null> {
     siteRows.get(row.id) ?? [],
     positionRows.get(row.id) ?? []
   );
+}
+
+/** A post-write confirmation must bypass the shared in-flight read cache. */
+export function readProjectByIdFresh(id: string): Promise<Project | null> {
+  return loadProjectById(id);
 }
 
 /**
@@ -1138,54 +1156,21 @@ export const supabaseProjectService: ProjectService = {
     return created;
   },
 
-  async updateProject(id, input) {
-    const columns = flattenProject(input);
-    const updatesResponsibilities = responsibilityUpdateRequested(input);
-
-    // Add backing membership before the fixed column can reference it. Old
-    // memberships are pruned only after the project row no longer needs them.
-    if (updatesResponsibilities) {
-      await ensureResponsibilityContacts(id, input);
+  async updateProject(id, input, expectedUpdatedAt) {
+    if (!expectedUpdatedAt) {
+      throw new Error("Reload before saving: the loaded project version is required.");
     }
-
-    // A relation-only update maps to zero columns; skip the no-op UPDATE
-    // rather than issuing an empty PATCH.
-    if (Object.keys(columns).length > 0) {
-      const { error } = await client()
-        .from("projects")
-        .update(columns)
-        .eq("id", id);
+    const relations = collectSetupRelations(input);
+    return confirmSetupSave(async () => {
+      const { data, error } = await client().rpc("save_project_setup_patch", {
+        p_project: id,
+        p_expected_updated_at: expectedUpdatedAt,
+        p_columns: flattenProject(input),
+        p_relations: relations,
+      });
       if (error) throw new Error(error.message);
-    }
-
-    if (updatesResponsibilities) {
-      await pruneResponsibilityContacts(id, input);
-    }
-
-    // Each relation is replaced only when the caller explicitly supplied it.
-    // `in` rather than truthiness so an intentional `[]` (clear them all,
-    // from that relation's own step) is honoured instead of ignored.
-    if ("departments" in input && input.departments) {
-      await replaceDepartments(id, input.departments);
-    }
-    if ("disciplines" in input && input.disciplines) {
-      await replaceDisciplineLinks(id, input.disciplines);
-    }
-    if ("team" in input && input.team) {
-      await replaceTeam(id, input.team);
-    }
-    if ("delegations" in input && input.delegations) {
-      await replaceDelegations(id, input.delegations);
-    }
-    if ("positions" in input && input.positions) {
-      await replaceProjectPositions(id, input.positions);
-    }
-    if ("sites" in input && input.sites) {
-      await replaceProjectSites(id, input.sites);
-    }
-    const updated = await loadProjectById(id);
-    if (!updated) throw new Error(`Project ${id} not found`);
-    return updated;
+      return typeof data === "string" ? data : "";
+    }, () => loadProjectById(id));
   },
 
   async duplicateProject(id) {

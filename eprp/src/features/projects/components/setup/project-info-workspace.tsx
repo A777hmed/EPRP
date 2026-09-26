@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { projectWorkflowHref } from "@/config/project-workflow";
 import { projectService, type AssignmentSupport } from "@/services/project-service";
 import type { Project } from "@/types";
+import { reconcileSetupSave } from "../../setup-save";
 import {
   activeDelegations,
   compareTeamDisplayOrder,
@@ -107,6 +108,14 @@ export function ProjectInfoWorkspace({
   const [saving, setSaving] = React.useState<"structure" | "team" | null>(null);
   const [open, setOpen] = React.useState<SectionId | null>(null);
   const [support, setSupport] = React.useState<AssignmentSupport | null>(null);
+  const baseline = React.useRef(project);
+
+  React.useEffect(() => {
+    if (baseline.current === project) return;
+    const previous = baseline.current;
+    baseline.current = project;
+    setDraft((latest) => reconcileSetupSave(previous, previous, latest, project, []));
+  }, [project]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -183,7 +192,12 @@ export function ProjectInfoWorkspace({
           return false;
         }
       }
-      const updated = await projectService.updateProject(project.id, payload);
+      const updated = await projectService.updateProject(project.id, payload, project.updatedAt);
+      baseline.current = updated;
+      setDraft((latest) => reconcileSetupSave(
+        project, draft, latest, updated,
+        scope === "structure" ? ["departments", "disciplines"] : ["team", "delegations"]
+      ));
       onSaved(updated);
       toast.success(
         scope === "structure" ? "Project scope saved" : "Assignments saved"

@@ -110,7 +110,7 @@ export function ProjectFormView({ projectId }: ProjectFormViewProps) {
       // replace project scope owned by the setup wizard steps.
       await projectService.updateProject(
         project.id,
-        formValuesToProjectInfoUpdate(values)
+        formValuesToProjectInfoUpdate(values), project.updatedAt
       );
       router.push(`/projects/${project.id}`);
     } else {
@@ -124,10 +124,11 @@ export function ProjectFormView({ projectId }: ProjectFormViewProps) {
   const handleSaveDraft = async (values: ProjectFormValues) => {
     if (isEdit && project) {
       // Keep the chosen status when the project already exists.
-      await projectService.updateProject(
+      const updated = await projectService.updateProject(
         project.id,
-        formValuesToProjectInfoUpdate(values)
+        formValuesToProjectInfoUpdate(values), project.updatedAt
       );
+      setProject(updated);
     } else {
       const created = await projectService.createProject(
         formValuesToProjectInput(values, { asDraft: true })
@@ -156,7 +157,7 @@ export function ProjectFormView({ projectId }: ProjectFormViewProps) {
           notes: position.notes?.trim() || undefined,
           sortOrder: index,
         })),
-    });
+    }, project.updatedAt);
     setProject(updated);
     // Hand back the stored rows so the form adopts their ids.
     return (updated.positions ?? []).map((position) => ({
