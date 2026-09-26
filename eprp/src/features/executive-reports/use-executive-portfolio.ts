@@ -57,7 +57,7 @@ import {
   type NamedRecord,
   type ProjectExecutiveRow,
 } from "./executive-data";
-import { canAccessProject, type ExecutiveScopeInput } from "./executive-scope";
+import { canAccessProject, canReadStoredExecutiveSummary, type ExecutiveScopeInput } from "./executive-scope";
 
 import { executiveNoteService, type ExecutiveNote, type NotesAvailability } from "./executive-notes";
 import { executiveRecordService, type ExecutiveReportRecord } from "./executive-record";
@@ -321,12 +321,16 @@ export function useExecutivePortfolio(
    * Executive record can never change a reported number.
    */
   const [record, setRecord] = React.useState<ExecutiveReportRecord | null>(null);
+  // The stored, manually authored summary is portfolio-wide text: only
+  // full-portfolio authority asks for it. Everyone else never requests it and
+  // reads the access-scoped auto-drafted narrative instead.
+  const includeSummary = canReadStoredExecutiveSummary(scope);
 
   React.useEffect(() => {
     if (!month) return;
     let cancelled = false;
     executiveRecordService
-      .getByMonth(month)
+      .getByMonth(month, { includeSummary })
       .then((next) => {
         if (!cancelled) setRecord(next);
       })
@@ -336,7 +340,7 @@ export function useExecutivePortfolio(
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, includeSummary]);
 
   /** Applied after an in-report save, so the document shows what was stored. */
   const applyRecord = React.useCallback((next: ExecutiveReportRecord) => {

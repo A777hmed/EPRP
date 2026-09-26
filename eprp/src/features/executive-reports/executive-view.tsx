@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState } from "@/components/shared";
 import { useMasterData } from "@/features/master-data";
 import { isProjectConsolidator } from "@/features/projects/assignment-rules";
-import type { Project, ProjectType } from "@/types";
+import type { Client, Project, ProjectType } from "@/types";
 import {
   EXEC_HEALTH_META,
   EXEC_HEALTH_ORDER,
@@ -38,7 +38,12 @@ import {
 import { ExecutiveEditPanel } from "./executive-edit-panel";
 import { resolveSignatories, type SignatorySnapshot } from "./executive-signatories";
 import { buildExecutivePanels } from "./executive-panels";
-import { ExecutiveDocument, type ExecutiveDocumentModel } from "./executive-document";
+import {
+  ExecutiveDocument,
+  type ExecutiveDocumentIdentity,
+  type ExecutiveDocumentModel,
+} from "./executive-document";
+import { EXECUTIVE_STATUS_LABEL, type ExecutiveReportRecord } from "./executive-record";
 import { emptyPortfolioReason, type ExecutiveScopeInput } from "./executive-scope";
 import type { PortfolioReadTier } from "@/features/auth/portfolio-read";
 import { useExecutivePortfolio } from "./use-executive-portfolio";
@@ -132,6 +137,56 @@ function applyFilters(rows: ProjectExecutiveRow[], filters: FilterState): Projec
 }
 
 /* ------------------------------- View model -------------------------------- */
+
+function resolveDocumentIdentity(
+  rows: ProjectExecutiveRow[],
+  clients: Client[],
+  record: ExecutiveReportRecord | null
+): ExecutiveDocumentIdentity {
+  // One client in scope → that client's branding. Several → a labelled strip
+  // of every client, each as its configured logo or else its name (see
+  // `DocumentHeader`). Logo precedence follows the Monthly masthead (project
+  // override, else client master); overrides are used only when the projects
+  // that set one agree on it.
+  const byClient = new Map<string, ProjectExecutiveRow[]>();
+  // Projects without a recorded client (a directory shell can carry an empty
+  // clientId) are not attributed to any client.
+  for (const row of rows.filter((entry) => entry.project.clientId)) {
+    byClient.set(row.project.clientId, [...(byClient.get(row.project.clientId) ?? []), row]);
+  }
+  const resolved = [...byClient.values()].map((clientRows) => {
+    const master = clients.find((entry) => entry.id === clientRows[0].project.clientId);
+    // Configured project-level client logos for this client, ignoring projects
+    // that set none. Used only when they agree — conflicting logos fall back
+    // to the client master record rather than picking one arbitrarily.
+    // `branding` is optional in practice: a project the viewer reaches only
+    // through the narrow global directory is a presentation shell with no
+    // branding at all (`use-executive-portfolio.ts`), so it must not be
+    // dereferenced blindly.
+    const overrides = new Set(
+      clientRows.map((row) => row.project.branding?.clientLogoRef).filter((ref): ref is string => Boolean(ref))
+    );
+    const sharedOverride = overrides.size === 1 ? [...overrides][0] : "";
+    return {
+      name: master?.name ?? clientRows[0].clientName,
+      // Configured short name / acronym, used where space is tight.
+      shortName: master?.shortName?.trim() || undefined,
+      logoRef: sharedOverride || master?.logoRef || undefined,
+    };
+  });
+
+  // Every client in scope, each with its configured logo when there is one.
+  // A client without a logo is kept (it prints as its name) — never dropped,
+  // never given a guessed or substituted mark.
+  const multi = resolved.length > 1;
+  return {
+    statusLabel: record ? EXECUTIVE_STATUS_LABEL[record.status] : undefined,
+    title: record?.title?.trim() || undefined,
+    classification: record?.confidentiality?.trim() || undefined,
+    client: resolved.length === 1 ? resolved[0] : undefined,
+    clients: multi ? resolved : undefined,
+  };
+}
 
 /**
  * Compose the document model from the loaded portfolio and the on-screen
@@ -245,6 +300,7 @@ function useDocumentModel(
        * edit mode, so the real gate has to live here.
        */
       onAcceptSummary: viewer.canManagePortfolio ? authoring?.onAcceptSummary : undefined,
+      identity: resolveDocumentIdentity(filtered, portfolio.clients, portfolio.record),
     };
 
     return { model, filtered, preparedBy };

@@ -1054,6 +1054,71 @@ export function riskPriorityCounts(rows: ProjectExecutiveRow[]): Record<Priority
   return counts;
 }
 
+/* ----------------------- Restricted operational detail --------------------- */
+
+/**
+ * How much of the portfolio's operational detail this viewer can read.
+ *
+ * Risks, decisions, actions, plan items and governed milestones are loaded
+ * only for projects the viewer holds detail access to (`detailProjectIds` in
+ * `use-executive-portfolio.ts`). For every other project those collections are
+ * EMPTY because they were never read — not because nothing exists — so an
+ * empty list or a zero count over them must never be presented as "none".
+ * Register figures (progress, health, lifecycle) are unaffected: they are
+ * permitted portfolio aggregates and keep their existing wording.
+ */
+export interface DetailVisibility {
+  /** Projects in view whose operational detail was loaded. */
+  visible: number;
+  /** Projects in view whose operational detail is withheld from this viewer. */
+  restricted: number;
+}
+
+export function detailVisibility(rows: Pick<ProjectExecutiveRow, "detailAvailable">[]): DetailVisibility {
+  const restricted = rows.filter((row) => row.detailAvailable === false).length;
+  return { visible: rows.length - restricted, restricted };
+}
+
+function projectCount(count: number): string {
+  return `${count} project${count === 1 ? "" : "s"}`;
+}
+
+/**
+ * Empty-state wording that distinguishes "none recorded" from "not visible".
+ *
+ * With nothing restricted the caller's own wording is returned unchanged, so a
+ * full-access (Admin) document reads exactly as before. The hidden projects
+ * are only ever COUNTED — never named, and nothing about their content is
+ * implied either way.
+ */
+export function restrictedEmptyText(
+  visibility: DetailVisibility,
+  wording: {
+    /** Unrestricted empty state, returned as-is when nothing is restricted. */
+    fallback: string;
+    /** What is withheld, as a sentence subject — e.g. "Risk detail". */
+    subject: string;
+    /** "None" clause for the visible projects — e.g. "No open risks are recorded". */
+    noneVisible: string;
+  }
+): string {
+  const { visible, restricted } = visibility;
+  if (restricted === 0) return wording.fallback;
+  if (visible === 0) {
+    return `${wording.subject} is restricted at your access level for ${
+      restricted === 1 ? "the 1 project" : `all ${restricted} projects`
+    } in view; no conclusion can be drawn for the portfolio.`;
+  }
+  return `${wording.noneVisible} for the ${projectCount(visible)} visible at your access level. ` +
+    `${wording.subject} is restricted for ${projectCount(restricted)}.`;
+}
+
+/** A one-line qualifier for content that IS shown but covers only part of the portfolio. */
+export function restrictedPartialNote(visibility: DetailVisibility, subject: string): string | undefined {
+  if (visibility.restricted === 0) return undefined;
+  return `Visible projects only — ${subject} is restricted for ${projectCount(visibility.restricted)} at your access level.`;
+}
+
 /** Project lifecycle status counts — master-data state, not reporting health. */
 export function projectStatusCounts(rows: ProjectExecutiveRow[]): Map<string, number> {
   const counts = new Map<string, number>();
@@ -1148,10 +1213,27 @@ export function draftExecutiveNarrative(input: {
     ...rows.flatMap((row) => row.risks),
     ...rows.flatMap((row) => row.clientActions),
   ].sort(bySeverity)[0];
+  /*
+   * Decisions, risks and client actions exist only for projects whose detail
+   * this viewer may read. With any project withheld, the concern is the
+   * principal one among the VISIBLE projects — never a portfolio claim — and
+   * the restriction is stated once, counted, never named or characterised.
+   */
+  const restricted = aggregate.restrictedDetailProjects;
   if (principal) {
     sentences.push(
-      `The principal management concern is ${principal.text.replace(/\.$/, "")}` +
+      `The principal management concern${restricted ? " among the projects visible at this access level" : ""} is ` +
+        `${principal.text.replace(/\.$/, "")}` +
         (count > 1 ? ` (${principal.projectName}).` : ".")
+    );
+  }
+  if (restricted) {
+    sentences.push(
+      restricted >= count
+        ? `Operational detail — risks, decisions, actions and plans — is restricted at this access level for ` +
+            `${count === 1 ? "the project" : `all ${count} projects`} in view, so no management-attention conclusion can be drawn.`
+        : `Operational detail — risks, decisions, actions and plans — is restricted at this access level for ` +
+            `${restricted} of ${count} projects; management-attention content reflects the visible projects only.`
     );
   }
 

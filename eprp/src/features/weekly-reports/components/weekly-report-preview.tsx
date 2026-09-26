@@ -33,7 +33,12 @@ import type {
   WeeklyReport,
   WeeklySubmission,
 } from "@/types";
-import { belongsToScopeProject, resolveWeeklyScope, type WeeklyScope } from "../scope";
+import {
+  belongsToScopeProject,
+  resolveWeeklyScope,
+  weeklyDepartments,
+  type WeeklyScope,
+} from "../scope";
 import {
   buildWeeklyWorkspace,
   type DepartmentSection,
@@ -70,20 +75,26 @@ function SignoffCell({
    */
   const rendered = people?.length
     ? people.map((person) => (
-        <span key={person.id} className="block">
+        <span key={person.id} className="weekly-signatory block">
           <span className="font-medium">{person.name}</span>
           {person.title && (
             <span className="block text-xs text-muted-foreground">{person.title}</span>
           )}
+          <span aria-hidden="true" className="weekly-signature-line hidden print:block" />
         </span>
       ))
     : null;
 
   return (
-    <div className="grid gap-1">
+    <div className="weekly-signoff-cell grid gap-1">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="grid gap-1.5 text-sm">
-        {rendered ?? <span>{legacyName ?? "Not recorded"}</span>}
+        {rendered ?? (
+          <span className="weekly-signatory block">
+            <span>{legacyName ?? "Not recorded"}</span>
+            <span aria-hidden="true" className="weekly-signature-line hidden print:block" />
+          </span>
+        )}
       </dd>
     </div>
   );
@@ -108,8 +119,12 @@ function Section({
   breakable?: boolean;
 }) {
   return (
-    <section className={breakable ? undefined : "break-inside-avoid"}>
-      <h2 className="mb-2 text-sm font-semibold">{title}</h2>
+    <section
+      className={
+        breakable ? "weekly-section" : "weekly-section break-inside-avoid"
+      }
+    >
+      <h2 className="weekly-section-title mb-2 text-sm font-semibold">{title}</h2>
       {children}
     </section>
   );
@@ -158,9 +173,21 @@ function ScopeItemBlock({
     { label: "Delay / Constraint", value: submission?.delayConstraint },
     { label: "Next Week Plan", value: submission?.nextWeekPlan },
   ].filter(({ value }) => Boolean(value));
+  /*
+   * Print keeps a reasonably sized item on one sheet but lets a long one
+   * continue: forcing a block taller than the space left onto the next sheet
+   * is what leaves half-empty pages. Characters of narrative and comment text
+   * stand in for height, so no layout pass is needed.
+   */
+  const textLength =
+    narratives.reduce((sum, { value }) => sum + (value?.length ?? 0), 0) +
+    row.entries.reduce((sum, entry) => sum + entry.description.length + 60, 0);
+  const compact = textLength <= 900 && row.entries.length <= 3;
 
   return (
-    <article className="weekly-scope-item break-inside-avoid rounded-lg border bg-background p-3">
+    <article
+      className={`weekly-scope-item${compact ? " weekly-scope-item--compact" : ""} break-inside-avoid rounded-lg border bg-background p-3`}
+    >
       <dl className="weekly-scope-header grid grid-cols-2 gap-px overflow-hidden rounded-md border bg-border">
         <div className="min-w-0 bg-card p-2">
           <dt className="text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
@@ -235,8 +262,8 @@ function ScopeItemBlock({
       )}
 
       {row.entries.length > 0 && (
-        <div className="mt-3">
-          <h5 className="mb-1.5 text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">
+        <div className="weekly-updates mt-3">
+          <h5 className="weekly-updates-title mb-1.5 text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">
             Weekly Comments / Updates
           </h5>
           <table className="weekly-updates-table w-full table-fixed border-collapse text-left text-xs">
@@ -288,6 +315,68 @@ function ScopeItemBlock({
         </div>
       )}
     </article>
+  );
+}
+
+function cssString(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/</g, "\\3C ").replace(/[\r\n]+/g, " ")}"`;
+}
+
+/**
+ * A4 portrait page furniture for the Weekly document only.
+ *
+ * Mounted with the preview, so the shared `@page` rule in globals.css stays
+ * the default everywhere else. `@page` margin boxes repeat per sheet: a
+ * running identity line on every sheet after the first (the first carries the
+ * full masthead) and "Page N of M" on every sheet. Only recorded values are
+ * printed — a missing document number or footer line is left out, never
+ * invented. Chromium 131+ renders margin boxes; older engines leave the
+ * margin blank and the document itself is unaffected.
+ */
+function WeeklyPrintPage({
+  report,
+  project,
+}: {
+  report: WeeklyReport;
+  project: Project | null;
+}) {
+  // One line in the page margin: the short name when one is configured,
+  // otherwise the full name, clipped rather than wrapped over the margin.
+  const projectLabel =
+    project?.shortName?.trim() || project?.name || project?.code || "";
+  const identity = [
+    projectLabel.length > 64 ? `${projectLabel.slice(0, 63).trimEnd()}…` : projectLabel,
+    "Weekly Project Progress Report",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const reference = [
+    report.reportNumber ? `Doc. No. ${report.reportNumber}` : undefined,
+    `Week ${report.weekNumber}`,
+    REPORT_STATUS_META[report.status]?.label,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const footer = ["EPROM", project?.branding?.reportFooterText?.trim()]
+    .filter(Boolean)
+    .join(" · ");
+  const box = "font-size: 6.6pt; color: #5b7290; letter-spacing: .02em;";
+
+  return (
+    <style>{`@media print {
+      @page {
+        size: A4 portrait;
+        margin: 12mm 12mm 13mm;
+        @top-left { content: ${cssString(identity)}; ${box} font-weight: 700; color: #0b3f7c; vertical-align: bottom; padding-bottom: 2.5mm; }
+        @top-right { content: ${cssString(reference)}; ${box} vertical-align: bottom; padding-bottom: 2.5mm; }
+        @bottom-left { content: ${cssString(footer)}; ${box} vertical-align: top; padding-top: 2.5mm; }
+        @bottom-right { content: "Page " counter(page) " of " counter(pages); ${box} font-weight: 700; color: #0b3f7c; vertical-align: top; padding-top: 2.5mm; }
+      }
+      @page :first {
+        @top-left { content: none; }
+        @top-right { content: none; }
+      }
+    }`}</style>
   );
 }
 
@@ -540,6 +629,12 @@ export function WeeklyReportPreview({
               Manager: {manager}
             </p>
           )}
+          {!section.seesWholeDepartment && (
+            <p className="basis-full text-xs text-muted-foreground">
+              Restricted view — only the {terms.pluralLower} within your
+              access are shown.
+            </p>
+          )}
         </header>
 
         {section.overallUpdate?.summary && (
@@ -601,6 +696,7 @@ export function WeeklyReportPreview({
 
       {/* A4-style document */}
       <article className="weekly-print-document mx-auto max-w-[210mm] space-y-6 rounded-xl bg-card p-6 ring-1 ring-foreground/10 sm:p-10 print:ring-0">
+        <WeeklyPrintPage report={report} project={project} />
         <WeeklyWorkspaceHeader
           report={report}
           project={project}
@@ -672,8 +768,8 @@ export function WeeklyReportPreview({
           )}
         </Section>
 
-        <Section title="Executive Summary">
-          <div className="rounded-lg border p-4">
+        <Section title="Executive Summary" breakable>
+          <div className="weekly-summary-box rounded-lg border p-4">
             {report.summary ? (
               <p className="text-sm whitespace-pre-wrap text-pretty">
                 {report.summary}
@@ -686,7 +782,7 @@ export function WeeklyReportPreview({
           </div>
         </Section>
 
-        <Section title="Major Activities Completed">
+        <Section title="Major Activities Completed" breakable>
           {activities.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No major activities recorded for this week.
@@ -698,9 +794,9 @@ export function WeeklyReportPreview({
                 .map((activity, index) => (
                   <li
                     key={activity.id}
-                    className="break-inside-avoid border-b border-dashed pb-2 last:border-0"
+                    className="weekly-list-item break-inside-avoid border-b border-dashed pb-2 last:border-0"
                   >
-                    <div className="flex flex-wrap items-baseline gap-x-2">
+                    <div className="weekly-activity-row flex flex-wrap items-baseline gap-x-2">
                       <span className="text-xs tabular-nums text-muted-foreground">
                         {index + 1}.
                       </span>
@@ -749,16 +845,27 @@ export function WeeklyReportPreview({
             </p>
           ) : (
             <div className="space-y-6">
+              {/*
+                A scoped copy must not read as the whole report. What is out
+                of scope is stated as restricted, never shown as "missing".
+              */}
+              {project &&
+                workspace.departments.length <
+                  weeklyDepartments(project).length && (
+                  <p className="weekly-scope-note rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                    {`Restricted view: this copy shows ${workspace.departments.length} of ${weeklyDepartments(project).length} departments — those within your access. Other departments' input is not included, not missing.`}
+                  </p>
+                )}
               {workspace.departments.map(departmentBlock)}
             </div>
           )}
         </Section>
 
         {workspace && workspace.criticalItems.length > 0 && (
-          <Section title="Critical Issues / Risks">
+          <Section title="Critical Issues / Risks" breakable>
             <ul className="space-y-1.5">
               {workspace.criticalItems.map((entry) => (
-                <li key={entry.id} className="break-inside-avoid text-pretty">
+                <li key={entry.id} className="weekly-list-item break-inside-avoid text-pretty">
                   <span className="text-sm">{entry.description}</span>
                   <Meta
                     items={[
@@ -775,10 +882,10 @@ export function WeeklyReportPreview({
         )}
 
         {workspace && workspace.decisionItems.length > 0 && (
-          <Section title="Required Decisions / Management Support">
+          <Section title="Required Decisions / Management Support" breakable>
             <ul className="space-y-1.5">
               {workspace.decisionItems.map((entry) => (
-                <li key={entry.id} className="break-inside-avoid text-pretty">
+                <li key={entry.id} className="weekly-list-item break-inside-avoid text-pretty">
                   <span className="text-sm">{entry.description}</span>
                   <Meta
                     items={[
@@ -795,10 +902,10 @@ export function WeeklyReportPreview({
         )}
 
         {workspace && workspace.actionItems.length > 0 && (
-          <Section title="Key Actions">
+          <Section title="Key Actions" breakable>
             <ul className="space-y-1.5">
               {workspace.actionItems.map((entry) => (
-                <li key={entry.id} className="break-inside-avoid text-pretty">
+                <li key={entry.id} className="weekly-list-item break-inside-avoid text-pretty">
                   <span className="text-sm">{entry.description}</span>
                   <Meta
                     items={[
@@ -816,10 +923,10 @@ export function WeeklyReportPreview({
         )}
 
         {workspace && workspace.commentItems.length > 0 && (
-          <Section title="Key Comments">
+          <Section title="Key Comments" breakable>
             <ul className="space-y-1.5">
               {workspace.commentItems.map((entry) => (
-                <li key={entry.id} className="break-inside-avoid text-pretty">
+                <li key={entry.id} className="weekly-list-item break-inside-avoid text-pretty">
                   <span className="text-sm">{entry.description}</span>
                   <Meta
                     items={[
@@ -898,10 +1005,10 @@ export function WeeklyReportPreview({
         )}
 
         {workspace && reachableWeeklyUpdates(workspace).some((entry) => entry.includeInMonthly) && (
-          <Section title="Monthly-Flagged Important Items">
+          <Section title="Monthly-Flagged Important Items" breakable>
             <ul className="space-y-2">
               {reachableWeeklyUpdates(workspace).filter((entry) => entry.includeInMonthly).map((entry) => (
-                <li key={entry.id} className="break-inside-avoid border-b border-dashed pb-2 text-sm last:border-0">
+                <li key={entry.id} className="weekly-list-item break-inside-avoid border-b border-dashed pb-2 text-sm last:border-0">
                   <span className="font-medium">{weeklyCommentLabel(entry)}: </span>{entry.description}
                   <Meta items={[names.department(entry.departmentId)?.name, names.system(entry.systemId)?.name, names.scopeItem(entry.disciplineId)?.name, personName(entry.createdByContactId)]} />
                 </li>
@@ -911,7 +1018,7 @@ export function WeeklyReportPreview({
         )}
 
         <Section title="Report Information">
-          <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <dl className="weekly-signoff-grid grid grid-cols-2 gap-4 sm:grid-cols-4">
             {/*
               Sign-off prints from the SNAPSHOT saved in the workspace, falling
               back to the legacy contact-id columns for reports saved before the

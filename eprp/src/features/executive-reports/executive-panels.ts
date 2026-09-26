@@ -22,11 +22,15 @@ import {
   PRIORITY_ORDER_DESC,
   VARIANCE_BUCKET_META,
   VARIANCE_BUCKET_ORDER,
+  detailVisibility,
   isApprovedMonthly,
   monthLabelOf,
   projectStatusCounts,
+  restrictedEmptyText,
+  restrictedPartialNote,
   riskPriorityCounts,
   varianceDistribution,
+  type DetailVisibility,
   type ExecHealth,
   type PortfolioAggregate,
   type ProjectExecutiveRow,
@@ -164,7 +168,15 @@ export type ExecPanel =
    */
   | (PanelBase & {
       kind: "exception";
-      items: { label: string; value: number; color: string; hint?: string }[];
+      items: {
+        label: string;
+        value: number;
+        color: string;
+        hint?: string;
+        /** Shown instead of `value` — "—" where a zero would claim "none"
+            over projects whose detail this viewer cannot read. */
+        display?: string;
+      }[];
       total: number;
     })
   /** A figure, where a chart would say less. */
@@ -359,7 +371,7 @@ export function buildExecutivePanels(input: ExecutiveAnalyticsInput): ExecPanel[
     // Row 3 — where management attention goes.
     actualProgress(approved, note),
     behindPlan(approved, note),
-    attentionRanking(aggregate),
+    attentionRanking(aggregate, detailVisibility(rows)),
     // Row 4 (folded into Row 3 by `assignSpans` when alone) — the governed
     // register's own position, read-only.
     milestoneStatusDistribution(rows),
@@ -543,12 +555,20 @@ function topRisksByPriority(rows: ProjectExecutiveRow[]): ExecPanel {
     color: PRIORITY_COLOR[priority],
   })).filter((bar) => bar.value > 0);
 
+  // Risks are operational detail: withheld projects contribute nothing here
+  // because they were never read, which is not the same as "no risks".
+  const visibility = detailVisibility(rows);
+
   if (bars.length === 0) {
     return {
       kind: "empty",
       id: "risk-priority",
       title: "Top Risks by Priority",
-      text: "No open risks recorded across the portfolio.",
+      text: restrictedEmptyText(visibility, {
+        fallback: "No open risks recorded across the portfolio.",
+        subject: "Risk detail",
+        noneVisible: "No open risks are recorded",
+      }),
     };
   }
 
@@ -560,6 +580,7 @@ function topRisksByPriority(rows: ProjectExecutiveRow[]): ExecPanel {
     rows: bars,
     maxValue: Math.max(...bars.map((bar) => bar.value)),
     suffix: "",
+    note: restrictedPartialNote(visibility, "risk detail"),
   };
 }
 
@@ -677,22 +698,32 @@ function behindPlan(rows: ProjectExecutiveRow[], note?: string): ExecPanel {
  * checked and found clear — a disappearing row is indistinguishable from a
  * category nobody measured.
  */
-function attentionRanking(aggregate: PortfolioAggregate): ExecPanel {
-  const items = [
+function attentionRanking(aggregate: PortfolioAggregate, visibility: DetailVisibility): ExecPanel {
+  const counted = [
     { label: "Decisions Required", value: aggregate.openDecisions, color: EXEC_PALETTE.redDeep },
     { label: "Overdue Actions", value: aggregate.overdueActions, color: EXEC_PALETTE.red },
     { label: "Open Risks", value: aggregate.openRisks, color: EXEC_PALETTE.amber },
     { label: "Client Dependencies", value: aggregate.clientPendingActions, color: EXEC_PALETTE.navy },
     { label: "Open Actions", value: aggregate.openActionsTotal, color: EXEC_PALETTE.slate },
   ];
+  /*
+   * These counts cover only projects whose detail was loaded. With any project
+   * withheld, a visible count stays (it is true of the visible projects, and the
+   * note says so), but a zero becomes "—": over withheld projects "0" would
+   * assert that nothing is open, which this viewer cannot know.
+   */
+  const partial = visibility.restricted > 0;
+  const items = counted.map((item) => (partial && item.value === 0 ? { ...item, display: "—" } : item));
 
   return {
     kind: "exception",
     id: "attention",
     title: "Management Attention",
-    subtitle: "Open exceptions across the portfolio",
+    subtitle: partial ? "Open exceptions across the visible projects" : "Open exceptions across the portfolio",
     items,
+    // Visible items only — the screen cockpit hides the panel when this is 0.
     total: items.reduce((sum, item) => sum + item.value, 0),
+    note: restrictedPartialNote(visibility, "operational detail"),
   };
 }
 
@@ -710,13 +741,19 @@ function attentionRanking(aggregate: PortfolioAggregate): ExecPanel {
  */
 function milestoneStatusDistribution(rows: ProjectExecutiveRow[]): ExecPanel {
   const states = rows.flatMap((row) => row.milestoneStates);
+  // The governed register is read only for projects with detail access.
+  const visibility = detailVisibility(rows);
 
   if (states.length === 0) {
     return {
       kind: "empty",
       id: "milestone-status",
       title: "Current Master Milestone Position",
-      text: "No active Master Milestones are recorded for the visible projects.",
+      text: restrictedEmptyText(visibility, {
+        fallback: "No active Master Milestones are recorded for the visible projects.",
+        subject: "Master Milestone detail",
+        noneVisible: "No active Master Milestones are recorded",
+      }),
     };
   }
 
@@ -750,5 +787,6 @@ function milestoneStatusDistribution(rows: ProjectExecutiveRow[]): ExecPanel {
     slices,
     total: states.length,
     totalLabel: "Total Milestones",
+    note: restrictedPartialNote(visibility, "Master Milestone detail"),
   };
 }
