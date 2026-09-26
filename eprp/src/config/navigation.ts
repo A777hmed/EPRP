@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Bell,
   Building2,
   CalendarClock,
   CalendarDays,
@@ -63,9 +64,8 @@ export interface NavSection {
  * above them as the Control Center.
  *
  * EVERY ITEM RESOLVES TO A REAL ROUTE. The visual reference also shows
- * Notifications and Reports Archive; neither exists in this platform (no route,
- * no table), so neither is listed. A nav entry that leads nowhere is worse than
- * an absent one — it advertises a capability the product does not have.
+ * Reports Archive is not listed until its route exists. Notifications now has
+ * a frontend route with an honest empty state until delivery is connected.
  *
  * "Programs & Studies" is likewise NOT listed beside Disciplines. Which of the
  * two a project uses is a property of its project type (PSM/PSAIM projects use
@@ -81,6 +81,12 @@ export const mainNavigation: NavSection[] = [
         href: "/dashboard",
         icon: LayoutDashboard,
         description: "Control Center — portfolio KPIs, analytics and calendar",
+      },
+      {
+        title: "Notifications",
+        href: "/notifications",
+        icon: Bell,
+        description: "Personal updates and notification history",
       },
     ],
   },

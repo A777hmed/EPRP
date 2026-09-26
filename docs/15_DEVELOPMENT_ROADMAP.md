@@ -35,7 +35,7 @@ and a lifecycle transition correctly refused).
 | 4 | Weekly Workspace UI | ⚠️ Partial (~95%) — final Weekly UX, multiple authored updates, insights, plans and print delivered; attachments/history outstanding |
 | 5 | Weekly data and department submission | ⚠️ Partial — department ownership now enforced in the UI |
 | 6 | Comments and collaboration | ⚠️ Partial |
-| 7 | Workflow, permissions, notifications | ❌ Config only, nothing enforced |
+| 7 | Workflow, permissions, notifications | ⚠️ Notification frontend (owner-approved Phase 7A) implemented 2026-09-27; disconnected empty default, explicit development adapter, tab-only preferences. Backend/delivery and PostgreSQL acceptance remain pending. See `09_NOTIFICATION_ENGINE.md`. |
 | 8 | Excel exchange | ❌ Not started |
 | 9 | Monthly Reports | ⚠️ Partial — schema, RLS, service and full Monthly UX (register, create, document, workspace, analytics, A4 print) delivered; see note |
 | 10 | Executive reporting | ✅ Delivered — live derived Portfolio Executive view, drill-down, A4 landscape output, persisted `executive_reports` record, in-report Edit Mode and snapshot-based signatories |

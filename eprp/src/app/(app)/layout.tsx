@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { NotificationProvider } from "@/features/notifications/provider";
 
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import {
@@ -42,6 +43,7 @@ export default function AppLayout({
   children: React.ReactNode;
 }>) {
   return (
+    <NotificationProvider>
     <SidebarProvider defaultOpen={true}>
       <RouteSidebarSync />
       <AppSidebar
@@ -61,5 +63,6 @@ export default function AppLayout({
         </main>
       </SidebarInset>
     </SidebarProvider>
+    </NotificationProvider>
   );
 }
