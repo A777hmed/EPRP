@@ -95,10 +95,20 @@ alter default privileges in schema public
 
 begin;
 
+-- TOKEN COLUMNS
+--   The Auth service (GoTrue) reads confirmation_token, recovery_token,
+--   email_change_token_new and email_change as NON-NULL strings. They are
+--   nullable in the table, so a direct insert that omits them leaves NULL — and
+--   ONE such row makes GoTrue's GET /admin/users fail for EVERY caller with
+--   "Scan error ... converting NULL to string is unsupported" (HTTP 500). That
+--   breaks Studio's Authentication > Users page and EPRP's Link Existing
+--   Account. They are written as '' here, exactly what GoTrue itself writes.
+
 -- Admin identity ------------------------------------------------------------
 insert into auth.users (
   instance_id, id, aud, role, email,
   encrypted_password, email_confirmed_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
   raw_app_meta_data, raw_user_meta_data,
   created_at, updated_at
 )
@@ -107,6 +117,7 @@ values (
   '00000000-0000-4000-a000-0000000000a1',
   'authenticated', 'authenticated', 'p0test.admin@example.invalid',
   'NOT-A-VALID-HASH-LOCAL-FIXTURE-ONLY', now(),
+  '', '', '', '',
   '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
   now(), now()
 )
@@ -116,6 +127,7 @@ on conflict (id) do nothing;
 insert into auth.users (
   instance_id, id, aud, role, email,
   encrypted_password, email_confirmed_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
   raw_app_meta_data, raw_user_meta_data,
   created_at, updated_at
 )
@@ -124,10 +136,24 @@ values (
   '00000000-0000-4000-a000-0000000000b2',
   'authenticated', 'authenticated', 'p0test@example.invalid',
   'NOT-A-VALID-HASH-LOCAL-FIXTURE-ONLY', now(),
+  '', '', '', '',
   '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
   now(), now()
 )
 on conflict (id) do nothing;
+
+-- Repair fixture rows created by an EARLIER version of this script, which left
+-- the token columns NULL (`on conflict do nothing` above would keep them).
+-- Scoped to these two fixture ids and to NULL values only; nothing else changes.
+update auth.users set
+  confirmation_token     = coalesce(confirmation_token, ''),
+  recovery_token         = coalesce(recovery_token, ''),
+  email_change_token_new = coalesce(email_change_token_new, ''),
+  email_change           = coalesce(email_change, '')
+where id in ('00000000-0000-4000-a000-0000000000a1',
+             '00000000-0000-4000-a000-0000000000b2')
+  and (confirmation_token is null or recovery_token is null
+       or email_change_token_new is null or email_change is null);
 
 -- The admin PROFILE. Created here rather than in 01 because several migrations
 -- check for it, and because the admin is environment setup, not test data.
@@ -144,15 +170,23 @@ on conflict (id) do nothing;
 commit;
 
 do $report$
-declare u integer; p integer;
+declare u integer; p integer; n integer;
 begin
   select count(*) into u from auth.users
    where id in ('00000000-0000-4000-a000-0000000000a1',
                 '00000000-0000-4000-a000-0000000000b2');
   select count(*) into p from public.profiles where role = 'system_admin' and active;
+  select count(*) into n from auth.users
+   where id in ('00000000-0000-4000-a000-0000000000a1',
+                '00000000-0000-4000-a000-0000000000b2')
+     and (confirmation_token is null or recovery_token is null
+          or email_change_token_new is null or email_change is null);
 
   if u <> 2 then
     raise exception 'Expected 2 test identities, found %.', u;
+  end if;
+  if n <> 0 then
+    raise exception 'Test identities still hold NULL token columns (% row(s)); the Auth admin API would fail.', n;
   end if;
 
   raise notice 'Local test identities ready: 2 auth users, % active system_admin profile(s).', p;
