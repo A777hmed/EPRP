@@ -53,7 +53,8 @@ export interface ProjectService {
   ): Promise<Project>;
   updateProject(
     id: string,
-    input: Partial<Omit<Project, "id" | "createdAt" | "updatedAt">>
+    input: Partial<Omit<Project, "id" | "createdAt" | "updatedAt">>,
+    expectedUpdatedAt: string
   ): Promise<Project>;
   duplicateProject(id: string): Promise<Project>;
   archiveProject(id: string): Promise<Project>;
@@ -154,11 +155,14 @@ const mockProjectService: ProjectService = {
     return clone(project);
   },
 
-  async updateProject(id, input) {
+  async updateProject(id, input, expectedUpdatedAt) {
     await delay();
     const existing = store.get(id);
     if (!existing) {
       throw new Error(`Project ${id} not found`);
+    }
+    if (existing.updatedAt !== expectedUpdatedAt) {
+      throw new Error("Project Setup changed since this page loaded. Reload before saving.");
     }
     const updated: Project = {
       ...existing,
@@ -193,7 +197,9 @@ const mockProjectService: ProjectService = {
 
   async archiveProject(id) {
     await delay();
-    return mockProjectService.updateProject(id, { status: "archived" });
+    const existing = store.get(id);
+    if (!existing) throw new Error(`Project ${id} not found`);
+    return mockProjectService.updateProject(id, { status: "archived" }, existing.updatedAt);
   },
 
   async getAssignmentSupport() {
