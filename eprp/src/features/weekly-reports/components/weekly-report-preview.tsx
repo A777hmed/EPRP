@@ -424,7 +424,7 @@ export function WeeklyReportPreview({
     null
   );
   /**
-   * Distinguishes "genuinely does not exist" from "exists and is approved+,
+   * Distinguishes "genuinely does not exist" from "exists and is finalized or locked,
    * but this viewer has no ordinary project access" (Access & Visibility
    * hotfix, R6). The print/PDF preview needs full department-level content
    * (submissions, activities, entries) this hotfix does not expose

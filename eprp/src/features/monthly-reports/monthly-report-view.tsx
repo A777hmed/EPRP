@@ -216,8 +216,8 @@ export function MonthlyReportView({
    * (assignment-gated) access came back empty — never for the editing
    * workspace, which has its own separate call to `useMonthlyBundle()` and
    * never reaches this component. `undefined` = not attempted / loading,
-   * `null` = attempted and genuinely unavailable, an object = approved+ and
-   * readable. See `MonthlyReportCrossProjectView` for why this deliberately
+   * `null` = attempted and genuinely unavailable, an object = finalized or
+   * locked and readable. See `MonthlyReportCrossProjectView` for why this deliberately
    * does not try to render the full department-level document.
    */
   const [crossProjectDetail, setCrossProjectDetail] = React.useState<

@@ -209,9 +209,11 @@ export function useExecutivePortfolio(
           } as Project));
         const permitted = new Set(fullProjects.keys());
 
-        // The register exposes metadata, not recorded health. For approved
-        // reports read the existing guarded summary RPC; never load cross-
-        // project draft narratives or department-level content.
+        // The register exposes metadata, not recorded health. For approved-
+        // or-later reports try the existing guarded summary RPC; it returns
+        // the narrative only with project access or once finalized/locked,
+        // and otherwise null, leaving the register metadata below. Never load
+        // cross-project draft narratives or department-level content.
         const nextMonthlies = await Promise.all(registerMonthlies.map(async (row) => {
           const basic = globalMonthlyRowToReport(row);
           if (!(["approved", "finalized", "locked"].includes(row.status) || permitted.has(row.projectId))) {

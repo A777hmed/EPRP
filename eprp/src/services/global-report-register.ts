@@ -127,7 +127,8 @@ export async function fetchGlobalRegisterProjects(): Promise<GlobalRegisterProje
 /** Exactly the columns `global_weekly_report_register()` returns — register
  *  METADATA only. No narrative (`summary`), no signatories, no contact id
  *  except `preparedByContactId`. Content for one specific report comes from
- *  `fetchGlobalWeeklyReportDetail()`, gated to approved+. */
+ *  `fetchGlobalWeeklyReportDetail()`: at any status with project access,
+ *  otherwise only once finalized or locked. */
 export interface GlobalWeeklyRegisterRow {
   id: string;
   projectId: string;
@@ -265,11 +266,13 @@ export async function fetchGlobalMonthlyReportRegister(): Promise<GlobalMonthlyR
   return ((data ?? []) as GlobalMonthlyRegisterRowShape[]).map(rowToMonthlyRegisterRow);
 }
 
-/* ======================= Report-level approved+ detail ======================= */
+/* ================== Report-level detail (published narratives) ================== */
 
 /** Exactly the columns `global_weekly_report_detail()` returns — the
- *  report's own header/KPI/narrative content, readable once it is
- *  approved+ (or the caller already has ordinary project access).
+ *  report's own header/KPI/narrative content, readable at any status by a
+ *  caller with project access (assignment, Project Control, global authority
+ *  or Full portfolio read), and by everyone else only once it is finalized or
+ *  locked — never at "approved" alone (20260927000001).
  *  Department-level content is NOT included — see the migration header. */
 export interface GlobalWeeklyReportDetail {
   id: string;
@@ -350,7 +353,7 @@ export function rowToWeeklyDetail(row: GlobalWeeklyReportDetailRow): GlobalWeekl
 
 /**
  * One Weekly report's header/KPI/narrative content — `null` when neither
- * the caller has ordinary project access nor the report is approved+
+ * the caller has project access nor the report is finalized or locked
  * (mirrors `global_weekly_report_detail()`'s own gate exactly; a refusal
  * here is not distinguishable from "does not exist", by design — same as
  * ordinary RLS).

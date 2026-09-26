@@ -255,7 +255,7 @@ export function WeeklyReportDetailView({
    * `undefined` = not attempted yet / still loading, `null` = attempted and
    * genuinely unavailable (denied or does not exist — the two are not
    * distinguished, same as ordinary RLS), an object = the report is
-   * approved+ and this viewer may see its published content. Only ever
+   * finalized or locked and this viewer may see its published content. Only ever
    * attempted in "detail" mode, after the ordinary `getById()` fetch below
    * has already come back empty — never in "workspace" mode, which implies
    * editing and has nothing to offer a viewer with no ordinary access.
@@ -341,9 +341,9 @@ export function WeeklyReportDetailView({
            * Ordinary (assignment-gated) access came back empty. Before
            * declaring the report not found, try the narrow, read-only
            * fallback — it only ever returns a row when the report is
-           * approved+ (see `global_weekly_report_detail()`), so a Draft on
-           * a project this viewer cannot reach still resolves to `null`
-           * here, same as today.
+           * finalized or locked (see `global_weekly_report_detail()`), so a
+           * Draft or an approved-only report on a project this viewer cannot
+           * reach resolves to `null` here.
            */
           try {
             const fallback = await fetchGlobalWeeklyReportDetail(reportId);
