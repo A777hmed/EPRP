@@ -139,15 +139,23 @@ export function ExecutiveEditPanel(props: ExecutiveEditPanelProps) {
     try {
       // Created on FIRST SAVE, not on opening the editor — looking at a period
       // should not litter the register with empty records.
-      const target = record ?? (await executiveRecordService.ensure(month));
-      const next = await executiveRecordService.update(target.id, {
-        executiveSummary: summary.trim() ? summary.trim() : null,
-        signatories: snapshot,
-        // Only ever sent when the control is rendered, i.e. `canManagePortfolio`
-        // — an unauthorized viewer's `status` state never leaves "draft"'s
-        // seed because the field that would change it does not exist for them.
-        ...(props.canManagePortfolio ? { status } : {}),
-      });
+      // The saved record is re-read with its stored summary only for portfolio
+      // managers (system_admin / project_control_admin), a subset of the
+      // full-portfolio authority `executive_report_summary()` admits.
+      const readOptions = { includeSummary: props.canManagePortfolio };
+      const target = record ?? (await executiveRecordService.ensure(month, readOptions));
+      const next = await executiveRecordService.update(
+        target.id,
+        {
+          executiveSummary: summary.trim() ? summary.trim() : null,
+          signatories: snapshot,
+          // Only ever sent when the control is rendered, i.e. `canManagePortfolio`
+          // — an unauthorized viewer's `status` state never leaves "draft"'s
+          // seed because the field that would change it does not exist for them.
+          ...(props.canManagePortfolio ? { status } : {}),
+        },
+        readOptions
+      );
       props.onSaved(next);
       toast.success("Executive Report saved. No Weekly or Monthly record was changed.");
       props.onClose();

@@ -158,7 +158,7 @@ function PanelBody({ panel }: { panel: ExecPanel }) {
             <li key={item.label} className={item.value === 0 ? "is-clear" : undefined}>
               <i style={{ background: item.value === 0 ? undefined : item.color }} />
               <span>{item.label}</span>
-              <b style={item.value === 0 ? undefined : { color: item.color }}>{item.value}</b>
+              <b style={item.value === 0 ? undefined : { color: item.color }}>{item.display ?? item.value}</b>
             </li>
           ))}
         </ul>

@@ -56,6 +56,29 @@ export interface ExecutiveScopeInput {
 }
 
 /**
+ * May this viewer read the STORED, manually authored Executive Summary?
+ *
+ * The stored summary is portfolio-wide free text written by someone with full
+ * access, so it can describe any project — including ones this viewer cannot
+ * read. Only full-portfolio authority may receive it:
+ *
+ *   isAdmin ................... `public.executive_can_manage()`
+ *                               (system_admin or project_control_admin)
+ *   portfolioReadTier "full" .. `public.has_full_portfolio_read()`
+ *
+ * Exactly the predicate of `public.executive_summary_readable()`. Published-
+ * tier readers and project-assigned users are NOT included: they receive the
+ * access-scoped auto-generated summary instead. This gate only decides what the
+ * app ASKS for; the database function is the boundary that decides what it
+ * RETURNS.
+ */
+export function canReadStoredExecutiveSummary(
+  scope: Pick<ExecutiveScopeInput, "isAdmin" | "portfolioReadTier">
+): boolean {
+  return scope.isAdmin || scope.portfolioReadTier === "full";
+}
+
+/**
  * Whether one project is within the viewer's reach.
  *
  * A plain OR of independent conditions, so adding the portfolio-read branch

@@ -41,6 +41,9 @@ import {
   NOT_REPORTED,
   NO_MOVEMENT,
   buildManagementAttention,
+  detailVisibility,
+  restrictedEmptyText,
+  restrictedPartialNote,
   upcomingMilestones,
   type AttentionItem,
   type ExecHealth,
@@ -864,6 +867,10 @@ function GovernedMilestoneStatus({
   const selectedRows = selectedProject
     ? selectedProject.milestoneStates.map((state) => ({ row: selectedProject, state }))
     : [];
+  // The governed register is read only for projects with detail access; for
+  // the rest an empty list means "not visible to you", never "none recorded".
+  const visibility = detailVisibility(model.rows);
+  const partialNote = rows.length ? restrictedPartialNote(visibility, "Master Milestone detail") : undefined;
 
   const milestoneTable = (visibleRows: typeof rows, includeProject: boolean) => (
     <div className="monthly-table-wrap">
@@ -921,7 +928,10 @@ function GovernedMilestoneStatus({
         <h2>
           <span>Current Master Milestone Position</span>
         </h2>
-        <p>Governed current position, as approved by Project Control.</p>
+        <p>
+          Governed current position, as approved by Project Control.
+          {partialNote && <> {partialNote}</>}
+        </p>
       </div>
       {rows.length && compact ? (
         <>
@@ -950,7 +960,11 @@ function GovernedMilestoneStatus({
           </div>
           {selectedProject ? (
             selectedRows.length ? milestoneTable(selectedRows, false) : (
-              <EmptyRow>No active Master Milestones are recorded for {selectedProject.projectName}.</EmptyRow>
+              <EmptyRow>
+                {selectedProject.detailAvailable === false
+                  ? `Master Milestone detail for ${selectedProject.projectName} is ${RESTRICTED_DETAIL.toLowerCase()}.`
+                  : `No active Master Milestones are recorded for ${selectedProject.projectName}.`}
+              </EmptyRow>
             )
           ) : (
             <p className="exec-milestone-prompt">Select a project to view its governed milestones.</p>
@@ -959,7 +973,13 @@ function GovernedMilestoneStatus({
       ) : rows.length ? (
         milestoneTable(rows, true)
       ) : (
-        <EmptyRow>No active Master Milestones are recorded for the visible projects.</EmptyRow>
+        <EmptyRow>
+          {restrictedEmptyText(visibility, {
+            fallback: "No active Master Milestones are recorded for the visible projects.",
+            subject: "Master Milestone detail",
+            noneVisible: "No active Master Milestones are recorded",
+          })}
+        </EmptyRow>
       )}
     </section>
   );
@@ -980,13 +1000,19 @@ const COMPACT_PLAN_ROWS = 8;
 function MilestoneTimeline({ model }: { model: ExecutiveDocumentModel }) {
   const upcoming = upcomingMilestones(model.milestones, model.today);
   const compact = upcoming.length <= COMPACT_PLAN_ROWS;
+  // Monthly and Weekly plan items are loaded only for projects with detail
+  // access, so an empty or short list says nothing about withheld projects.
+  const visibility = detailVisibility(model.rows);
+  const baseNote =
+    "Free-text planning entries from Monthly and Weekly plan items — not part of the governed Master Milestone register above.";
+  const partialNote = upcoming.length ? restrictedPartialNote(visibility, "plan detail") : undefined;
 
   return (
     <div className={`exec-plan-section${compact ? " is-compact" : ""}`}>
     <ReportSection
       number={7}
       title="Upcoming Plan Items"
-      note="Free-text planning entries from Monthly and Weekly plan items — not part of the governed Master Milestone register above."
+      note={partialNote ? `${baseNote} ${partialNote}` : baseNote}
     >
       {upcoming.length ? (
         <div className="monthly-table-wrap">
@@ -1040,7 +1066,13 @@ function MilestoneTimeline({ model }: { model: ExecutiveDocumentModel }) {
           </table>
         </div>
       ) : (
-        <EmptyRow>No dated plan items are recorded ahead of today in Monthly or Weekly plans.</EmptyRow>
+        <EmptyRow>
+          {restrictedEmptyText(visibility, {
+            fallback: "No dated plan items are recorded ahead of today in Monthly or Weekly plans.",
+            subject: "Plan detail",
+            noneVisible: "No dated plan items are recorded ahead of today",
+          })}
+        </EmptyRow>
       )}
     </ReportSection>
     </div>

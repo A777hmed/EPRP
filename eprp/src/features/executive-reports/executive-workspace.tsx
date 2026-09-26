@@ -43,7 +43,7 @@ import {
   type ExecutiveReportStatus,
 } from "./executive-record";
 import { useExecutivePortfolio } from "./use-executive-portfolio";
-import type { ExecutiveScopeInput } from "./executive-scope";
+import { canReadStoredExecutiveSummary, type ExecutiveScopeInput } from "./executive-scope";
 import { buildExecutivePanels } from "./executive-panels";
 import type { ExecutiveDocumentModel } from "./executive-document";
 import { pct, signed } from "./executive-format";
@@ -93,7 +93,7 @@ export function ExecutiveWorkspaceView(props: ExecutiveViewerProps) {
     if (!month) return;
     let cancelled = false;
     executiveRecordService
-      .getByMonth(month)
+      .getByMonth(month, { includeSummary: canReadStoredExecutiveSummary(scope) })
       .then((next) => {
         if (cancelled) return;
         setRecord(next);
@@ -109,7 +109,7 @@ export function ExecutiveWorkspaceView(props: ExecutiveViewerProps) {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, scope]);
 
   const rows = React.useMemo(() => [...portfolio.rows].sort(byAttention), [portfolio.rows]);
   const aggregate = React.useMemo(() => aggregatePortfolio(rows), [rows]);
@@ -195,14 +195,22 @@ export function ExecutiveWorkspaceView(props: ExecutiveViewerProps) {
     if (!month) return;
     setSaving(true);
     try {
-      const target = record ?? (await executiveRecordService.ensure(month));
-      const next = await executiveRecordService.update(target.id, {
-        // Empty means "fall back to the auto-drafted narrative" rather than
-        // storing a blank summary.
-        executiveSummary: summary.trim() ? summary.trim() : null,
-        signatories,
-        status,
-      });
+      // Saving is reachable only by `canManagePortfolio` (see the gate
+      // below), which implies full-portfolio authority — the flag is still
+      // derived, never assumed.
+      const readOptions = { includeSummary: canReadStoredExecutiveSummary(scope) };
+      const target = record ?? (await executiveRecordService.ensure(month, readOptions));
+      const next = await executiveRecordService.update(
+        target.id,
+        {
+          // Empty means "fall back to the auto-drafted narrative" rather than
+          // storing a blank summary.
+          executiveSummary: summary.trim() ? summary.trim() : null,
+          signatories,
+          status,
+        },
+        readOptions
+      );
       setRecord(next);
       toast.success("Executive Report saved. No Weekly or Monthly record was changed.");
     } catch (error) {
