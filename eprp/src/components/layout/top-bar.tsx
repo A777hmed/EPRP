@@ -1,5 +1,6 @@
 import { Suspense } from "react";
-import { Bell, ChevronDown, Mail, Search } from "lucide-react";
+import { NotificationBell } from "@/features/notifications/notification-center";
+import { ChevronDown, Mail, Search } from "lucide-react";
 
 import { SignOutMenuItem } from "@/features/auth/components/sign-out-menu-item";
 import { getCurrentUserIdentity } from "@/features/auth/profile";
@@ -87,8 +88,8 @@ function AuthenticatedUserMenuSkeleton() {
 
 /**
  * Global top bar: sidebar toggle, breadcrumbs, and the global action
- * cluster (search, notifications, profile). Search and notifications are
- * placeholders wired up in later phases.
+ * cluster (search, notifications, profile). Search is
+ * a placeholder; notifications use the shared frontend service.
  */
 export function TopBar() {
   return (
@@ -124,18 +125,7 @@ export function TopBar() {
           <Mail aria-hidden="true" />
         </Button>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative"
-          aria-label="Notifications"
-        >
-          <Bell aria-hidden="true" />
-          <span
-            aria-hidden="true"
-            className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-destructive"
-          />
-        </Button>
+        <NotificationBell />
 
         <Suspense fallback={<AuthenticatedUserMenuSkeleton />}>
           <AuthenticatedUserMenu />

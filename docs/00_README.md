@@ -43,7 +43,7 @@ One numbered sequence. One authoritative document per topic. No duplicate prefix
 | 06 | `06_DATABASE_SCHEMA.md` | The concrete schema | ⬜ Not yet written |
 | 07 | `07_UI_UX_GUIDELINES.md` | Interface standards and patterns | ⬜ Not yet written |
 | 08 | `08_DASHBOARD_ARCHITECTURE.md` | Company, Portfolio, Project, Department, Personal and Chairman dashboards | ✅ Written |
-| 09 | `09_NOTIFICATION_ENGINE.md` | Notification Center — events and delivery | ⬜ Not yet written |
+| 09 | `09_NOTIFICATION_ENGINE.md` | Notification Center — frontend scope and backend contract | ⚠️ Frontend implemented; backend pending |
 | 10 | `10_MEETING_AND_CALENDAR.md` | Meeting Center and Calendar | ⬜ Not yet written |
 | 11 | `11_STORAGE_AND_DOCUMENTS.md` | Report Center, Knowledge Center, Drive Archive | ⬜ Not yet written |
 | 12 | `12_REPORT_GENERATION.md` | Executive Report composition and A4 output | ✅ Written |
