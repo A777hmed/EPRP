@@ -42,7 +42,6 @@ import {
   MILESTONE_PAYMENT_STATUS_META,
   MILESTONE_STATUS_META,
   MILESTONE_TYPE_META,
-  PRIORITY_META,
 } from "@/lib/constants";
 import { milestoneService } from "@/services/milestone-service";
 import type {
@@ -713,13 +712,6 @@ function MilestoneRow({
       <TableCell>
         <div className="flex items-center gap-2">
           <span className="font-medium">{milestone.name}</span>
-          <StatusBadge
-            tone={PRIORITY_META[milestone.priority].tone}
-            hideDot
-            className="text-[10px]"
-          >
-            {PRIORITY_META[milestone.priority].label}
-          </StatusBadge>
           {state.pending.length > 0 && (
             <StatusBadge tone="warning" className="text-[10px]">
               {state.pending.length} awaiting approval

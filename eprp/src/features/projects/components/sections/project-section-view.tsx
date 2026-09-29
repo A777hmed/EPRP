@@ -554,7 +554,7 @@ function KpiSection({
   return (
     <ProjectSectionLayout
       stats={stats}
-      title="Progress"
+      title="Project Progress"
       description="Planned versus actual completion for this project."
       quickActions={
         <>

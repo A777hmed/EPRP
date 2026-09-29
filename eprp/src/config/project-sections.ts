@@ -125,7 +125,7 @@ export const projectSections: ProjectSection[] = [
   },
   {
     id: "kpis",
-    label: "KPIs",
+    label: "Project Progress",
     icon: Gauge,
     group: "Monitoring",
     description: "Baseline progress and schedule performance.",

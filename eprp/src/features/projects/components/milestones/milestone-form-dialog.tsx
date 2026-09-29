@@ -23,56 +23,23 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { MILESTONE_TYPE_META, PRIORITY_META } from "@/lib/constants";
+import { MILESTONE_TYPE_META } from "@/lib/constants";
 import {
   milestoneService,
   type MilestoneInput,
 } from "@/services/milestone-service";
 import type {
   MasterMilestone,
-  MilestonePriority,
   MilestoneType,
 } from "@/types";
 import type { MilestoneScopeOptions } from "./scope-options";
+import { milestoneFormInput } from "./milestone-form-input";
 
-const PRIORITIES: MilestonePriority[] = ["low", "medium", "high", "critical"];
 
 const TYPES: MilestoneType[] = ["technical", "contractual", "commercial"];
 
 /** The Select primitive cannot hold an empty value, so "none" stands in. */
 const NONE = "none";
-
-/** Numbers are held as typed text so a half-entered value is not coerced. */
-const numberText = (value: number | undefined) =>
-  value === undefined ? "" : String(value);
-
-function toInput(milestone?: MasterMilestone): MilestoneInput {
-  return {
-    code: milestone?.code ?? "",
-    name: milestone?.name ?? "",
-    description: milestone?.description ?? "",
-    departmentId: milestone?.departmentId ?? "",
-    systemId: milestone?.systemId ?? "",
-    disciplineId: milestone?.disciplineId ?? "",
-    baselineDate: milestone?.baselineDate ?? "",
-    priority: milestone?.priority ?? "medium",
-    ownerContactId: milestone?.ownerContactId ?? "",
-
-    type: milestone?.type ?? "technical",
-    category: milestone?.category ?? "",
-    plannedDate: milestone?.plannedDate ?? "",
-    weightPercent: numberText(milestone?.weightPercent),
-    plannedProgressPercent: numberText(milestone?.plannedProgressPercent),
-    predecessorMilestoneId: milestone?.predecessorMilestoneId ?? "",
-    clientApprovalRequired: milestone?.clientApprovalRequired ?? false,
-    notes: milestone?.notes ?? "",
-
-    paymentPercent: numberText(milestone?.paymentPercent),
-    paymentAmount: numberText(milestone?.paymentAmount),
-    paymentDueDate: milestone?.paymentDueDate ?? "",
-    isAdvancePayment: milestone?.isAdvancePayment ?? false,
-  };
-}
 
 /** 0–100, or blank. Blank means "not stated" and is always allowed. */
 function percentValid(value: number | string | undefined): boolean {
@@ -116,7 +83,7 @@ export function MilestoneFormDialog({
   onSaved: () => void;
 }) {
   const [form, setForm] = React.useState<MilestoneInput>(() =>
-    toInput(milestone)
+    milestoneFormInput(milestone)
   );
   const [saving, setSaving] = React.useState(false);
 
@@ -204,27 +171,6 @@ export function MilestoneFormDialog({
               placeholder="M-01"
             />
           </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="milestone-priority">Priority / criticality</Label>
-            <Select
-              value={form.priority}
-              onValueChange={(value) =>
-                set("priority", value as MilestonePriority)
-              }
-            >
-              <SelectTrigger id="milestone-priority">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PRIORITIES.map((priority) => (
-                  <SelectItem key={priority} value={priority}>
-                    {PRIORITY_META[priority].label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           <div className="grid gap-1.5">
             <Label htmlFor="milestone-type">Milestone type</Label>
             <Select

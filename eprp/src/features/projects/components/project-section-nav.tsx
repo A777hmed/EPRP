@@ -21,7 +21,7 @@ export const projectSections: ProjectSection[] = [
   { id: "departments", label: "Departments" },
   { id: "disciplines", label: "Disciplines" },
   { id: "systems", label: "Systems" },
-  { id: "kpis", label: "KPIs" },
+  { id: "kpis", label: "Project Progress" },
   { id: "weekly-reports", label: "Weekly Reports" },
   { id: "monthly-reports", label: "Monthly Reports" },
   { id: "documents", label: "Documents" },

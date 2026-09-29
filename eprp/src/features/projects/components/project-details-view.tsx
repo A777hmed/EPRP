@@ -589,7 +589,7 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
 
           <Section id="kpis">
             <SectionCard
-              title="KPIs"
+              title="Project Progress"
               description="Baseline progress and schedule performance."
             >
               <ProgressComparison
