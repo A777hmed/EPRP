@@ -110,6 +110,7 @@ export type ProjectTypeCorrectionErrorReason =
   | "stale"
   | "not_classified"
   | "same_type"
+  | "structure_exists"
   | "failed";
 
 /**
@@ -129,6 +130,8 @@ export const PROJECT_TYPE_CORRECTION_MESSAGES: Record<ProjectTypeCorrectionError
   stale: "The project changed since this page loaded. Reload, then correct it again.",
   not_classified: "This project is not classified yet. Classify it from Project Setup instead.",
   same_type: "The project already has this Project Type.",
+  structure_exists:
+    "Archive this project's structure units before changing it to a PSM Project.",
   failed: "The Project Type could not be corrected. No changes were made.",
 };
 
@@ -145,6 +148,7 @@ const TAG_REASON: Record<string, ProjectTypeCorrectionErrorReason> = {
   STALE: "stale",
   NOT_CLASSIFIED: "not_classified",
   SAME_TYPE: "same_type",
+  STRUCTURE_EXISTS: "structure_exists",
 };
 
 export class ProjectTypeCorrectionError extends Error {
