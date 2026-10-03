@@ -265,6 +265,19 @@ export function localizeProjectSection(
   };
 }
 
+/** The route that creates a project — the project does not exist yet. */
+export const NEW_PROJECT_ROUTE = "/projects/new";
+
+/**
+ * True on the new-project setup route. Deliberately separate from
+ * {@link activeProjectId}, which keeps meaning "a real, saved project": the
+ * new-project shell shows setup navigation without any project id.
+ */
+export function isNewProjectRoute(pathname: string): boolean {
+  return pathname === NEW_PROJECT_ROUTE || pathname === `${NEW_PROJECT_ROUTE}/`;
+}
+
+/** A real saved project's id from the URL; never "new". */
 export function activeProjectId(pathname: string): string | undefined {
   const match = /^\/projects\/([^/]+)/.exec(pathname);
   const id = match?.[1];

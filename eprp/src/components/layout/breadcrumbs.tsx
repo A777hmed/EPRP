@@ -21,8 +21,9 @@ import {
 } from "@/config/project-sections";
 import { siteConfig } from "@/config/site";
 import type { HierarchyTerms } from "@/config/project-terminology";
-import { useHierarchyTermsByProjectId } from "@/features/projects/use-hierarchy-terms";
-import { listProjectsSync } from "@/services/project-service";
+import { useHierarchyTerms } from "@/features/projects/use-hierarchy-terms";
+import { useProjectById } from "@/features/projects/use-project-by-id";
+import type { Project } from "@/types";
 
 /** A single crumb; the last one in the list renders as the current page. */
 interface Crumb {
@@ -37,14 +38,12 @@ interface Crumb {
  */
 function projectCrumbs(
   pathname: string,
-  terms: HierarchyTerms
+  terms: HierarchyTerms,
+  project: Project | null
 ): Crumb[] | null {
   const projectId = activeProjectId(pathname);
   if (!projectId) return null;
 
-  const project = listProjectsSync().find(
-    (candidate) => candidate.id === projectId
-  );
   const crumbs: Crumb[] = [{ label: "Projects", href: "/projects" }];
 
   // Never the raw id: fall back to a generic label while the store is
@@ -75,8 +74,9 @@ function projectCrumbs(
  */
 export function Breadcrumbs() {
   const pathname = usePathname();
-  const terms = useHierarchyTermsByProjectId(activeProjectId(pathname));
-  const projectTrail = projectCrumbs(pathname, terms);
+  const project = useProjectById(activeProjectId(pathname));
+  const terms = useHierarchyTerms(project);
+  const projectTrail = projectCrumbs(pathname, terms, project);
   const item = projectTrail ? null : findNavItem(pathname);
 
   if (!projectTrail && !item) return null;

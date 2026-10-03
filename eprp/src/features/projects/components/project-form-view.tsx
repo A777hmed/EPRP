@@ -18,6 +18,12 @@ import {
 } from "@/features/projects/schemas/project-form";
 import { useProjectAuthority } from "@/features/projects/use-project-authority";
 import { ProjectForm } from "./project-form";
+import type {
+  ClassifyProjectInput,
+  CorrectProjectTypeTarget,
+} from "./project-classification";
+import { canCorrectProjectType } from "../classification";
+import { useCurrentIdentity } from "@/features/auth/use-current-identity";
 
 export interface ProjectFormViewProps {
   /** When set, the view loads that project and saves edits to it. */
@@ -38,6 +44,7 @@ export function ProjectFormView({ projectId }: ProjectFormViewProps) {
   const [usedCodes, setUsedCodes] = React.useState<string[] | null>(null);
   // Unconditional — hooks cannot sit behind the early returns below.
   const authority = useProjectAuthority(project ?? null);
+  const identity = useCurrentIdentity();
 
   React.useEffect(() => {
     projectService.getUsedCodes(projectId).then(setUsedCodes);
@@ -117,7 +124,8 @@ export function ProjectFormView({ projectId }: ProjectFormViewProps) {
       const created = await projectService.createProject(
         formValuesToProjectInput(values)
       );
-      router.push(`/projects/${created.id}`);
+      // Replace: Back must not return to an empty create form (2C.1b).
+      router.replace(`/projects/${created.id}`);
     }
   };
 
@@ -168,6 +176,32 @@ export function ProjectFormView({ projectId }: ProjectFormViewProps) {
     }));
   };
 
+  /*
+   * One-time classification of a legacy project (Phase 2C.1), saved on its
+   * own; the database locks the family from then on.
+   */
+  const handleClassify = async (input: ClassifyProjectInput) => {
+    if (!project) throw new Error("The project must exist before it is classified.");
+    const updated = await projectService.updateProject(project.id, input, project.updatedAt);
+    setProject(updated);
+    return updated;
+  };
+
+  /*
+   * System Admin only: the exceptional, audited Project Type correction.
+   * Goes through the correction RPC alone — never a project update.
+   */
+  const handleCorrectProjectType = async (target: CorrectProjectTypeTarget) => {
+    if (!project) throw new Error("The project must exist before it is corrected.");
+    const corrected = await projectService.correctProjectType({
+      projectId: project.id,
+      expectedUpdatedAt: project.updatedAt,
+      ...target,
+    });
+    setProject(corrected);
+    return corrected;
+  };
+
   const handleCancel = () => {
     router.push(isEdit && project ? `/projects/${project.id}` : "/projects");
   };
@@ -196,6 +230,14 @@ export function ProjectFormView({ projectId }: ProjectFormViewProps) {
         onSubmit={handleSubmit}
         onSaveDraft={handleSaveDraft}
         onSavePositions={project ? handleSavePositions : undefined}
+        onClassify={
+          isEdit && project && !project.structureFamily ? handleClassify : undefined
+        }
+        onCorrectProjectType={
+          isEdit && canCorrectProjectType(identity, project)
+            ? handleCorrectProjectType
+            : undefined
+        }
         onCancel={handleCancel}
       />
     </div>

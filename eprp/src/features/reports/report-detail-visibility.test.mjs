@@ -123,7 +123,13 @@ test("the new migration holds the LATEST definition of both detail functions, an
   for (const name of FUNCTIONS) assert.equal(latest(name).file, NEW_FILE, name);
   const index = FILES.indexOf(NEW_FILE);
   assert.ok(index > FILES.indexOf("20260926000003_project_setup_writer_serialization.sql"));
-  assert.equal(index, FILES.length - 1, "no later migration redefines them");
+  // Later, unrelated migrations may exist (e.g. 2C.1 classification); none
+  // of them may redefine the detail functions.
+  for (const later of FILES.slice(index + 1)) {
+    for (const name of FUNCTIONS) {
+      assert.ok(!read(later).includes(`function public.${name}(`), `${later} redefines ${name}`);
+    }
+  }
 });
 
 test("signatures and result columns are unchanged from the original definitions", () => {

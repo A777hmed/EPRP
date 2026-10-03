@@ -10,6 +10,19 @@ import {
   type ReplacePersonUnit,
 } from "./replace-person";
 import { supabaseProjectService } from "./supabase-project-service";
+import {
+  applyProjectTypeCorrection,
+  ProjectTypeCorrectionError,
+  type ClassificationCorrection,
+  type CorrectProjectTypeInput,
+} from "./classification-correction";
+
+export type {
+  ClassificationCorrection,
+  CorrectProjectTypeInput,
+  ProjectTypeCorrectionErrorReason,
+} from "./classification-correction";
+export { ProjectTypeCorrectionError } from "./classification-correction";
 
 // Re-exported so existing imports of these from "@/services/project-service"
 // keep working unchanged. The canonical definitions live in "./replace-person"
@@ -73,6 +86,15 @@ export interface ProjectService {
    * (Supabase-backed) validation and history behaviour this mirrors.
    */
   replacePerson(input: ReplacePersonInput): Promise<ReplacePersonResult>;
+  /**
+   * System Admin "Correct Project Type" (Phase 2C.1) — the only way to change
+   * a locked PSM / Other choice. Calls the audited correction function and
+   * nothing else; never a direct project update. Throws
+   * {@link ProjectTypeCorrectionError} with safe wording on any refusal.
+   */
+  correctProjectType(input: CorrectProjectTypeInput): Promise<Project>;
+  /** Immutable correction history for one project, newest first. */
+  listClassificationCorrections(projectId: string): Promise<ClassificationCorrection[]>;
 }
 
 /** Deep-clone so callers can't mutate the store. */
@@ -118,6 +140,9 @@ interface MockReplacePersonHistoryEntry {
 
 const replacePersonHistory: MockReplacePersonHistoryEntry[] = [];
 let replacePersonHistorySequence = 0;
+
+/** In-memory Project Type correction history (mock backend only). */
+const classificationCorrections: ClassificationCorrection[] = [];
 
 /**
  * Synchronous snapshot of the project store — mock-phase only, used by the
@@ -193,6 +218,32 @@ const mockProjectService: ProjectService = {
     };
     store.set(copy.id, copy);
     return clone(copy);
+  },
+
+  /*
+   * Mirrors correct_project_structure_family() for the in-memory backend. It
+   * has no signed-in identity, so the System Admin check is the database's
+   * alone; every classification rule it can check without master data is
+   * applied identically.
+   */
+  async correctProjectType(input) {
+    await delay();
+    if (!input.reason.trim()) throw new ProjectTypeCorrectionError("reason_required");
+    const existing = store.get(input.projectId);
+    if (!existing) throw new ProjectTypeCorrectionError("not_found");
+    const { classification, entry } = applyProjectTypeCorrection(existing, input, nowIso());
+    classificationCorrections.unshift({
+      id: `correction-${classificationCorrections.length + 1}`,
+      ...entry,
+    });
+    const corrected: Project = { ...existing, ...classification, updatedAt: nowIso() };
+    store.set(corrected.id, corrected);
+    return clone(corrected);
+  },
+
+  async listClassificationCorrections(projectId) {
+    await delay();
+    return clone(classificationCorrections.filter((entry) => entry.projectId === projectId));
   },
 
   async archiveProject(id) {

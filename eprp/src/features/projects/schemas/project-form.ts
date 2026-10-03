@@ -2,6 +2,11 @@ import { z } from "zod";
 
 import type { Project } from "@/types";
 import { PROJECT_LIFECYCLE_META } from "@/lib/constants";
+import {
+  classificationIssues,
+  classificationSaveFields,
+  type ClassificationRuleOptions,
+} from "../classification";
 
 /**
  * Project form schemas (Phase 5A validation update).
@@ -92,6 +97,10 @@ function createBaseSchema() {
     purchaseOrderNumber: optionalText,
     description: z.string().trim().max(2000).optional().or(z.literal("")),
     projectTypeId: z.string().optional().or(z.literal("")),
+    /** Phase 2C.1 — PSM / Other; "" = not chosen (legacy or new, before Continue). */
+    structureFamily: z.enum(["psm", "other"]).or(z.literal("")),
+    /** Custom category name for a category with `allowsCustomName`. */
+    projectCategoryDetail: optionalText,
 
     // 2 — Dates (all optional here; the final schema enforces which are required)
     contractStartDate: optionalIsoDate,
@@ -307,9 +316,8 @@ function addFinalIssues(values: BaseValues, ctx: z.RefinementCtx): void {
     if (!present) ctx.addIssue({ code: "custom", path, message });
   };
 
-  // Basic information
+  // Basic information (Project Category: see addClassificationIssues)
   require(["clientId"], !!values.clientId, "Select a client");
-  require(["projectTypeId"], !!values.projectTypeId, "Select a project type");
   require(
     ["description"],
     !!values.description?.trim(),
@@ -439,20 +447,51 @@ function addFinalIssues(values: BaseValues, ctx: z.RefinementCtx): void {
   // no way to fix, since it no longer edits them inline.
 }
 
-/* ------------------------------ Entry points ------------------------------ */
+/**
+ * Classification rules (Phase 2C.1). They run on drafts too: the database
+ * refuses an Other project without a category, or a custom-name category
+ * without its name, whatever the project's status.
+ */
+function addClassificationIssues(
+  values: BaseValues,
+  ctx: z.RefinementCtx,
+  options: ClassificationRuleOptions
+): void {
+  for (const issue of classificationIssues(values, options)) {
+    ctx.addIssue({ code: "custom", path: [issue.path], message: issue.message });
+  }
+}
+
+/** Classification context the form knows and the schema cannot. */
+export interface ProjectSchemaOptions {
+  /** Ids of Project Categories whose `allowsCustomName` is set. */
+  customNameCategoryIds?: readonly string[];
+  /** A new project must choose PSM / Other before saving. */
+  requireStructureFamily?: boolean;
+}
 
 /** Save Draft: name + code only, plus format checks on anything filled. */
-export function createProjectDraftSchema(usedCodes: string[]) {
+export function createProjectDraftSchema(
+  usedCodes: string[],
+  options: ProjectSchemaOptions = {}
+) {
   const addFormatIssues = createFormatIssues(usedCodes);
-  return createBaseSchema().superRefine(addFormatIssues);
+  return createBaseSchema().superRefine((values, ctx) => {
+    addFormatIssues(values, ctx);
+    addClassificationIssues(values, ctx, options);
+  });
 }
 
 /** Create Project / Save Changes: every mandatory and conditional rule. */
-export function createProjectFinalSchema(usedCodes: string[]) {
+export function createProjectFinalSchema(
+  usedCodes: string[],
+  options: ProjectSchemaOptions = {}
+) {
   const addFormatIssues = createFormatIssues(usedCodes);
   return createBaseSchema().superRefine((values, ctx) => {
     addFormatIssues(values, ctx);
     addFinalIssues(values, ctx);
+    addClassificationIssues(values, ctx, { ...options, final: true });
   });
 }
 
@@ -471,6 +510,8 @@ export function emptyProjectFormValues(): ProjectFormValues {
     purchaseOrderNumber: "",
     description: "",
     projectTypeId: "",
+    structureFamily: "",
+    projectCategoryDetail: "",
     contractStartDate: "",
     plannedStartDate: "",
     actualStartDate: "",
@@ -544,6 +585,8 @@ export function projectToFormValues(project: Project): ProjectFormValues {
     purchaseOrderNumber: project.purchaseOrderNumber ?? "",
     description: project.description ?? "",
     projectTypeId: project.projectTypeId ?? "",
+    structureFamily: project.structureFamily ?? "",
+    projectCategoryDetail: project.projectCategoryDetail ?? "",
     contractStartDate: project.contractStartDate ?? "",
     plannedStartDate: project.plannedStartDate,
     actualStartDate: project.actualStartDate ?? "",
@@ -645,12 +688,16 @@ export function formValuesToProjectInfoUpdate(
   values: ProjectFormValues,
   options: { asDraft?: boolean } = {}
 ): ProjectInfoUpdate {
-  const { departments: _departments, ...info } = formValuesToProjectInput(
-    values,
-    options
-  );
+  const {
+    departments: _departments,
+    structureFamily: _structureFamily,
+    ...info
+  } = formValuesToProjectInput(values, options);
   void _departments;
-  return info;
+  // Locked once the project exists: an ordinary save never carries the
+  // family. A legacy project is classified once through its own action.
+  void _structureFamily;
+  return { ...info, ...classificationSaveFields(values, "update") };
 }
 
 /** Map validated form values to the service input shape. */
@@ -663,7 +710,7 @@ export function formValuesToProjectInput(
     code: values.code.toUpperCase(),
     shortName: blankToUndefined(values.shortName),
     description: blankToUndefined(values.description),
-    projectTypeId: blankToUndefined(values.projectTypeId),
+    ...classificationSaveFields(values, "create"),
     clientId: values.clientId,
     contractNumber: blankToUndefined(values.contractNumber),
     purchaseOrderNumber: blankToUndefined(values.purchaseOrderNumber),

@@ -15,13 +15,20 @@ import {
   SectionCard,
 } from "@/components/shared";
 import {
-  getLocalizedProjectWorkflowStep,
+  findSetupStep,
+  firstSaveHref,
   getProjectWorkflowStep,
   localizeProjectWorkflowStep,
   nextStepId,
+  previousStepId,
   projectStepIndex,
   projectWorkflowHref,
-  projectWorkflowSteps,
+  resolveSetupSteps,
+  setupFlowFor,
+  setupStepLabel,
+  STRUCTURE_PLACEHOLDER_MESSAGE,
+  type ProjectStepStatus,
+  type ProjectWorkflowStep,
   type ProjectWorkflowStepId,
 } from "@/config/project-workflow";
 import { projectService } from "@/services/project-service";
@@ -48,7 +55,12 @@ import { useHierarchyTerms } from "../../use-hierarchy-terms";
 import { useProjectAuthority } from "../../use-project-authority";
 import { useProjectWorkflow } from "../../use-project-workflow";
 import { ProjectForm } from "../project-form";
-import { ProjectWorkflowNav } from "../project-workflow-nav";
+import type {
+  ClassifyProjectInput,
+  CorrectProjectTypeTarget,
+} from "../project-classification";
+import { canCorrectProjectType } from "../../classification";
+import { DraftWorkflowNav, ProjectWorkflowNav } from "../project-workflow-nav";
 import { ProjectInfoWorkspace } from "./project-info-workspace";
 import { SetupChecklist } from "./setup-checklist";
 import { SetupStepContacts } from "./setup-step-contacts";
@@ -263,6 +275,8 @@ function SetupShell({
   onInfoSaved: (updated: Project) => void;
 }) {
   const router = useRouter();
+  // Presentation only: who may be offered "Correct Project Type".
+  const identity = useCurrentIdentity();
   // Edits accumulate here and are written on save, so a half-finished step
   // never lands in the database.
   const [draft, setDraft] = React.useState<Project | null>(project);
@@ -271,13 +285,24 @@ function SetupShell({
 
   const current = draft ?? savedBaseline;
   const terms = useHierarchyTerms(current);
-  const definition = localizeProjectWorkflowStep(
-    getProjectWorkflowStep(step),
-    terms
+  // This project's own setup steps (Phase 2C.1b): PSM, Other or legacy, in
+  // the project's wording. A new project's steps follow the type chosen in
+  // the form, which the draft tracker resolves from the live values.
+  const structureFamily = current?.structureFamily;
+  const saved = Boolean(project);
+  const steps = React.useMemo(
+    () =>
+      resolveSetupSteps({ structureFamily, saved }).map((candidate) =>
+        localizeProjectWorkflowStep(candidate, terms)
+      ),
+    [structureFamily, saved, terms]
   );
-  const index = projectStepIndex(step);
-  const next = nextStepId(step);
-  const previous = projectWorkflowSteps[index - 1];
+  const inFlow = projectStepIndex(step, steps) >= 0;
+  const definition =
+    findSetupStep(steps, step) ??
+    localizeProjectWorkflowStep(getProjectWorkflowStep(step), terms);
+  const next = nextStepId(step, steps);
+  const previous = previousStepId(step, steps);
 
   // The trail handed to every linked record on this step. Steps that add a
   // child record narrow `sourceType`/`parentId` further before using it.
@@ -320,11 +345,8 @@ function SetupShell({
 
   const header = (
     <PageHeader
-      eyebrow={
-        project
-          ? `${project.code} · Step ${index + 1} of ${projectWorkflowSteps.length}`
-          : `Step ${index + 1} of ${projectWorkflowSteps.length}`
-      }
+      // Progress lives in the workflow tracker below, not in a step counter.
+      eyebrow={project ? project.code : "New Project · Not saved yet"}
       title={definition.label}
       description={definition.description}
       actions={
@@ -352,13 +374,17 @@ function SetupShell({
         );
         acceptInfoSaved(updated);
         toast.success("Project info saved");
-        router.push(projectWorkflowHref(project.id, "departments"));
+        // The next step of THIS project's setup — Departments for PSM and
+        // legacy, the Structure placeholder for Other.
+        router.push(projectWorkflowHref(project.id, next ?? "info"));
       } else {
         const created = await projectService.createProject(
           formValuesToProjectInput(values)
         );
         toast.success(`${created.code} created`);
-        router.push(projectWorkflowHref(created.id, "departments"));
+        // Replace, not push: Back must never return to an empty
+        // /projects/new now that the project exists.
+        router.replace(firstSaveHref(created.id, values.structureFamily, "create"));
       }
     };
 
@@ -393,6 +419,37 @@ function SetupShell({
       }));
     };
 
+    /*
+     * One-time classification of a legacy project (Phase 2C.1). Saved on its
+     * own, so nothing else on the form is submitted with it; the database
+     * locks the family from then on.
+     */
+    const handleClassify = async (input: ClassifyProjectInput) => {
+      if (!project) throw new Error("The project must exist before it is classified.");
+      const updated = await projectService.updateProject(
+        project.id,
+        input,
+        savedBaseline?.updatedAt ?? project.updatedAt
+      );
+      acceptInfoSaved(updated);
+      return updated;
+    };
+
+    /*
+     * System Admin only: the exceptional, audited Project Type correction.
+     * Goes through the correction RPC alone — never a project update.
+     */
+    const handleCorrectProjectType = async (target: CorrectProjectTypeTarget) => {
+      if (!project) throw new Error("The project must exist before it is corrected.");
+      const corrected = await projectService.correctProjectType({
+        projectId: project.id,
+        expectedUpdatedAt: savedBaseline?.updatedAt ?? project.updatedAt,
+        ...target,
+      });
+      acceptInfoSaved(corrected);
+      return corrected;
+    };
+
     const handleSaveDraft = async (values: ProjectFormValues) => {
       if (project) {
         const updated = await projectService.updateProject(
@@ -408,8 +465,9 @@ function SetupShell({
         const created = await projectService.createProject(
           formValuesToProjectInput(values, { asDraft: true })
         );
-        // Keep editing the stored draft so the id carries forward.
-        router.replace(projectWorkflowHref(created.id, "info"));
+        // Keep editing the stored draft so the id carries forward; replace so
+        // Back never returns to an empty /projects/new.
+        router.replace(firstSaveHref(created.id, values.structureFamily, "draft"));
       }
     };
 
@@ -418,6 +476,13 @@ function SetupShell({
         {header}
         {project && <ProjectWorkflowNav project={project} activeStep={step} />}
         <ProjectForm
+          // New project: the tracker is driven by the live form values and
+          // stays visible on the Project Type screen as well.
+          renderHeader={
+            project
+              ? undefined
+              : (values) => <DraftWorkflowNav draft={formValuesToProjectInput(values)} />
+          }
           projectId={project?.id}
           project={project}
           // The wizard's own step trail, so Linked Scope returns here rather
@@ -433,13 +498,21 @@ function SetupShell({
           onSubmit={handleSubmit}
           onSaveDraft={handleSaveDraft}
           onSavePositions={project ? handleSavePositions : undefined}
+          onClassify={
+            savedBaseline && !savedBaseline.structureFamily ? handleClassify : undefined
+          }
+          onCorrectProjectType={
+            canCorrectProjectType(identity, savedBaseline) ? handleCorrectProjectType : undefined
+          }
           onCancel={() =>
             router.push(project ? `/projects/${project.id}` : "/projects")
           }
         />
         {/* Preserve the editor across saves; it reconciles the new baseline
-            while retaining unrelated and in-flight edits. */}
-        {project && (
+            while retaining unrelated and in-flight edits. Not for an Other
+            project: its structure is not Departments → Systems, and is
+            configured in the next setup phase. */}
+        {project && setupFlowFor({ structureFamily, saved }) !== "other" && (
           <ProjectInfoWorkspace
             key={project.id}
             project={project}
@@ -474,10 +547,38 @@ function SetupShell({
     );
   }
 
+  // A step this project's setup does not have — e.g. /setup/systems on an
+  // Other project, which never uses the Departments → Systems structure.
+  if (!inFlow) {
+    const first = steps[0];
+    return (
+      <div className="space-y-6">
+        {header}
+        <ProjectWorkflowNav project={current} />
+        <SectionCard title="Not part of this project's setup">
+          <EmptyState
+            icon={Lock}
+            title={`${definition.label} is not used by this project`}
+            description="This project's Project Type has its own setup steps. Continue from the workflow above."
+            action={
+              <Button asChild>
+                <Link href={projectWorkflowHref(savedBaseline.id, first.id)}>
+                  Go to {first.label}
+                </Link>
+              </Button>
+            }
+            className="py-8"
+          />
+        </SectionCard>
+      </div>
+    );
+  }
+
   return (
     <LoadedSteps
       project={savedBaseline}
       current={current}
+      steps={steps}
       step={step}
       initialDisciplineId={initialDisciplineId}
       dirty={dirty}
@@ -487,7 +588,7 @@ function SetupShell({
       applyDraft={applyDraft}
       context={context}
       header={header}
-      previousStep={previous?.id}
+      previousStep={previous}
       nextStep={next}
     />
   );
@@ -496,6 +597,7 @@ function SetupShell({
 function LoadedSteps({
   project,
   current,
+  steps,
   step,
   initialDisciplineId,
   dirty,
@@ -510,6 +612,8 @@ function LoadedSteps({
 }: {
   project: Project;
   current: Project;
+  /** This project's resolved setup steps, in its wording. */
+  steps: ProjectWorkflowStep[];
   step: ProjectWorkflowStepId;
   initialDisciplineId?: string;
   dirty: boolean;
@@ -526,7 +630,10 @@ function LoadedSteps({
   // Progress is measured against the draft, so the checklist and the stepper
   // react as the user edits rather than only after a save.
   const workflow = useProjectWorkflow(current);
-  const status = workflow.byId[step];
+  // Present for every step the caller routes here: unknown steps are
+  // refused before LoadedSteps is reached (see `inFlow`).
+  const status = workflow.byId[step] as ProjectStepStatus;
+  const stepLabel = (id: ProjectWorkflowStepId) => setupStepLabel(steps, id);
   const latestDraft = React.useRef(current);
   React.useEffect(() => { latestDraft.current = current; }, [current]);
 
@@ -572,7 +679,7 @@ function LoadedSteps({
     try {
       const saved = await saveProjectSetupRelation(project, relation, current[relation]);
       onSaved(current, saved, relation);
-      toast.success(`${getLocalizedProjectWorkflowStep(step, workflow.terms).label} saved`);
+      toast.success(`${stepLabel(step)} saved`);
       // Stay on the editor if unrelated edits or edits during this save remain.
       return !isSetupDraftDirty(
         reconcileSetupSave(project, current, latestDraft.current, saved, relation), saved
@@ -597,9 +704,39 @@ function LoadedSteps({
     router.push(`/projects/${project.id}`);
   };
 
+  // The Other "Project Structure" placeholder: shown in the workflow, but its
+  // capability arrives in the next setup phase — nothing to edit or save.
+  if (!status.available) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <ProjectWorkflowNav project={current} activeStep={step} />
+        <SectionCard title={stepLabel(step)}>
+          <EmptyState
+            icon={Lock}
+            title="Not available yet"
+            description={STRUCTURE_PLACEHOLDER_MESSAGE}
+            action={
+              previousStep ? (
+                <Button variant="outline" asChild>
+                  <Link href={projectWorkflowHref(project.id, previousStep)}>
+                    <ArrowLeft data-icon="inline-start" aria-hidden="true" />
+                    Back to {stepLabel(previousStep)}
+                  </Link>
+                </Button>
+              ) : undefined
+            }
+            className="py-8"
+          />
+        </SectionCard>
+      </div>
+    );
+  }
+
   // A locked step is unreachable until everything before it is done.
   if (!status.unlocked) {
-    const blocker = getLocalizedProjectWorkflowStep(status.blockedBy ?? "info", workflow.terms);
+    const blockerId = status.blockedBy ?? "info";
+    const blockerAvailable = workflow.byId[blockerId]?.available !== false;
     return (
       <div className="space-y-6">
         {header}
@@ -607,14 +744,20 @@ function LoadedSteps({
         <SectionCard title="Step locked">
           <EmptyState
             icon={Lock}
-            title={`Complete ${blocker.label} first`}
-            description={`${
-              getLocalizedProjectWorkflowStep(step, workflow.terms).label
-            } unlocks once every earlier step is finished.`}
+            title={
+              blockerAvailable
+                ? `Complete ${stepLabel(blockerId)} first`
+                : `${stepLabel(blockerId)} comes first`
+            }
+            description={
+              blockerAvailable
+                ? `${stepLabel(step)} unlocks once every earlier step is finished.`
+                : `${stepLabel(step)} unlocks after ${stepLabel(blockerId)}. ${STRUCTURE_PLACEHOLDER_MESSAGE}`
+            }
             action={
               <Button asChild>
-                <Link href={projectWorkflowHref(project.id, blocker.id)}>
-                  Go to {blocker.label}
+                <Link href={projectWorkflowHref(project.id, blockerId)}>
+                  Go to {stepLabel(blockerId)}
                 </Link>
               </Button>
             }
@@ -689,6 +832,7 @@ function LoadedSteps({
           disciplines={workflow.disciplines}
           departmentName={workflow.departmentName}
           terms={workflow.terms}
+          steps={steps}
         />
       )}
 

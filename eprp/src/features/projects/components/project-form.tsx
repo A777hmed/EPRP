@@ -22,6 +22,7 @@ import {
   useWatch,
   type Control,
   type FieldPath,
+  type Resolver,
   type SubmitErrorHandler,
 } from "react-hook-form";
 import { toast } from "sonner";
@@ -97,6 +98,29 @@ import { ProjectFormSection } from "./project-form-section";
 import { ProjectScopeSummary } from "./project-scope-summary";
 import { LogoUploadField } from "./logo-upload-field";
 import { GovernedPerformancePanel } from "./governed-performance-panel";
+import {
+  clearNewProjectDraft,
+  setNewProjectDraft,
+} from "@/features/projects/new-project-draft-store";
+import {
+  ClassificationSummaryBar,
+  ClassifyProjectDialog,
+  CorrectProjectTypeDialog,
+  FirstSaveLockDialog,
+  ProjectCategoryFields,
+  ProjectClassificationStep,
+  useCustomNameCategoryIds,
+  type ClassifyProjectInput,
+  type CorrectProjectTypeTarget,
+} from "./project-classification";
+import {
+  classificationFormValues,
+  firstSaveGate,
+  type FirstSaveGateState,
+  classificationSummary,
+  projectCategoryLabel,
+  type ClassificationValues,
+} from "@/features/projects/classification";
 
 /* ------------------------- Local field shorthands ------------------------- */
 
@@ -913,6 +937,11 @@ function PersonField({
                   const previousValue =
                     typeof field.value === "string" ? field.value : "";
                   field.onChange(value);
+                  // The form validates on blur, and a role's editor can close
+                  // before the picker blurs again — so re-validate here, or a
+                  // "required" error raised while the role was empty outlives
+                  // the selection and keeps the section at "Has Errors".
+                  field.onBlur();
                   onValueChange?.(value, previousValue);
                 }}
                 onBlur={field.onBlur}
@@ -1077,6 +1106,22 @@ export interface ProjectFormProps {
   onSavePositions?: (
     positions: ProjectFormValues["additionalPositions"]
   ) => Promise<ProjectFormValues["additionalPositions"]>;
+  /**
+   * One-time classification of a legacy (unclassified) project, saved on its
+   * own. Omit it and the "Classify Project" action is not offered.
+   */
+  onClassify?: (input: ClassifyProjectInput) => Promise<Project>;
+  /**
+   * System Admin only: the exceptional, audited correction of a locked
+   * Project Type. Omit it and "Correct Project Type" is not offered.
+   */
+  onCorrectProjectType?: (target: CorrectProjectTypeTarget) => Promise<Project>;
+  /**
+   * Rendered above the form AND above the Project Type screen, from the live
+   * values — the setup shell's workflow tracker for a new project, so it
+   * stays visible while the type is being chosen.
+   */
+  renderHeader?: (values: ProjectFormValues) => React.ReactNode;
   onCancel: () => void;
 }
 
@@ -1095,23 +1140,112 @@ export function ProjectForm({
   onSubmit,
   onSaveDraft,
   onSavePositions,
+  onClassify,
+  onCorrectProjectType,
+  renderHeader,
   onCancel,
 }: ProjectFormProps) {
+  const isNewProject = !projectId;
+  const customNameCategoryIds = useCustomNameCategoryIds();
+  const schemaOptions = React.useMemo(
+    () => ({ customNameCategoryIds, requireStructureFamily: isNewProject }),
+    [customNameCategoryIds, isNewProject]
+  );
   const finalSchema = React.useMemo(
-    () => createProjectFinalSchema(usedCodes),
-    [usedCodes]
+    () => createProjectFinalSchema(usedCodes, schemaOptions),
+    [usedCodes, schemaOptions]
   );
   const draftSchema = React.useMemo(
-    () => createProjectDraftSchema(usedCodes),
-    [usedCodes]
+    () => createProjectDraftSchema(usedCodes, schemaOptions),
+    [usedCodes, schemaOptions]
+  );
+
+  // The final schema depends on master data that loads after mount (which
+  // categories require a custom name), so the resolver reads the latest one.
+  const finalSchemaRef = React.useRef(finalSchema);
+  React.useEffect(() => {
+    finalSchemaRef.current = finalSchema;
+  }, [finalSchema]);
+  const resolver = React.useCallback<Resolver<ProjectFormValues>>(
+    (values, context, options) => zodResolver(finalSchemaRef.current)(values, context, options),
+    []
   );
 
   const form = useForm<ProjectFormValues>({
-    resolver: zodResolver(finalSchema),
+    resolver,
     defaultValues: initialValues,
     mode: "onBlur",
   });
   const { control, getValues, handleSubmit, formState, setValue } = form;
+
+  /*
+   * Classification (Phase 2C.1). A new project starts on the PSM / Other
+   * screen; Continue only reveals Project Information — same form state,
+   * nothing written. Change returns to it until the first successful save,
+   * after which the project has an id and the family is locked.
+   */
+  const [classificationPhase, setClassificationPhase] = React.useState<
+    "classify" | "details"
+  >(isNewProject && !initialValues.structureFamily ? "classify" : "details");
+  const [classifyOpen, setClassifyOpen] = React.useState(false);
+  const [structureFamily, classifiedCategoryId, categoryDetail] = useWatch({
+    control,
+    name: ["structureFamily", "projectTypeId", "projectCategoryDetail"],
+  });
+  const classification: ClassificationValues = {
+    structureFamily,
+    projectTypeId: classifiedCategoryId,
+    projectCategoryDetail: categoryDetail,
+  };
+  const setClassification = (next: ClassificationValues) => {
+    const options = { shouldDirty: true, shouldValidate: formState.isSubmitted };
+    setValue("structureFamily", next.structureFamily ?? "", options);
+    setValue("projectTypeId", next.projectTypeId ?? "", options);
+    setValue("projectCategoryDetail", next.projectCategoryDetail ?? "", options);
+  };
+  const { records: categoryRecords } = useMasterData("projectType");
+  const selectedCategory = categoryRecords.find(
+    (record) => record.id === classifiedCategoryId
+  );
+  const summaryText = classificationSummary(
+    structureFamily,
+    projectCategoryLabel({ projectCategoryDetail: categoryDetail }, selectedCategory)
+  );
+  const classificationErrors = {
+    structureFamily: formState.errors.structureFamily?.message,
+    projectTypeId: formState.errors.projectTypeId?.message,
+    projectCategoryDetail: formState.errors.projectCategoryDetail?.message,
+  };
+  const [correctOpen, setCorrectOpen] = React.useState(false);
+  /**
+   * Adopt a saved classification as the form's baseline, not as edits — so a
+   * corrected PSM project keeps no stale category in the form.
+   */
+  const adoptClassification = (updated: Project) => {
+    const saved = classificationFormValues(updated);
+    form.resetField("structureFamily", { defaultValue: saved.structureFamily });
+    form.resetField("projectTypeId", { defaultValue: saved.projectTypeId });
+    form.resetField("projectCategoryDetail", { defaultValue: saved.projectCategoryDetail });
+  };
+  const handleClassify = async (input: ClassifyProjectInput) => {
+    if (!onClassify) return;
+    adoptClassification(await onClassify(input));
+  };
+  const handleCorrectProjectType = async (target: CorrectProjectTypeTarget) => {
+    if (!onCorrectProjectType) return;
+    adoptClassification(await onCorrectProjectType(target));
+  };
+
+  // The new-project setup sidebar lives in the layout, outside this form:
+  // tell it which Project Type is chosen so it shows that type's steps.
+  React.useEffect(() => {
+    if (!isNewProject) return;
+    setNewProjectDraft({ structureFamily: structureFamily || undefined });
+  }, [isNewProject, structureFamily]);
+  React.useEffect(() => {
+    if (!isNewProject) return;
+    return () => clearNewProjectDraft();
+  }, [isNewProject]);
 
   // Planning Onboarding Mode lives in project_planning_settings, a separate
   // table this form does not otherwise touch — see PlanningOnboardingModeField
@@ -1316,7 +1450,16 @@ export function ProjectForm({
   const hasUnsavedWork = formState.isDirty || masterTouched;
 
 
-  const onValid = async (values: ProjectFormValues) => {
+  /*
+   * First save locks the Project Type (Phase 2C.1b). A new project's first
+   * Create or Save Draft is held for an explicit confirmation; every later
+   * save — and every save of an existing project — goes straight through.
+   */
+  const [firstSave, setFirstSave] = React.useState<FirstSaveGateState>({});
+  const [pendingValues, setPendingValues] = React.useState<ProjectFormValues | null>(null);
+  const [savingConfirmed, setSavingConfirmed] = React.useState(false);
+
+  const performSubmit = async (values: ProjectFormValues) => {
     setSummary(null);
     await onSubmit(values);
     // Best-effort: Planning configuration is supplementary to the project
@@ -1333,6 +1476,13 @@ export function ProjectForm({
         );
       }
     }
+  };
+
+  const onValid = async (values: ProjectFormValues) => {
+    const next = firstSaveGate(firstSave, { type: "request", intent: "submit", isNewProject });
+    setFirstSave(next.state);
+    if (next.effect.kind === "save") await performSubmit(values);
+    else setPendingValues(values);
   };
 
   const onInvalid: SubmitErrorHandler<ProjectFormValues> = (rhfErrors) => {
@@ -1371,6 +1521,14 @@ export function ProjectForm({
       if (errors[0]) focusField(errors[0].fieldName);
       return;
     }
+    const next = firstSaveGate(firstSave, { type: "request", intent: "draft", isNewProject });
+    setFirstSave(next.state);
+    if (next.effect.kind === "save") await performSaveDraft(values);
+    else setPendingValues(values);
+  };
+
+  const performSaveDraft = async (values: ProjectFormValues) => {
+    if (!onSaveDraft) return;
     try {
       setSavingDraft(true);
       await onSaveDraft(values);
@@ -1378,6 +1536,36 @@ export function ProjectForm({
       form.reset(values);
     } finally {
       setSavingDraft(false);
+    }
+  };
+
+  const resolveFirstSave = async (
+    event: { type: "change-type" } | { type: "confirm" } | { type: "dismiss" }
+  ) => {
+    const next = firstSaveGate(firstSave, event);
+    setFirstSave(next.state);
+    const values = pendingValues;
+    if (next.effect.kind === "classify") {
+      setPendingValues(null);
+      setClassificationPhase("classify");
+      return;
+    }
+    if (next.effect.kind !== "save" || !values) {
+      setPendingValues(null);
+      return;
+    }
+    setPendingValues(null);
+    if (next.effect.intent === "draft") {
+      await performSaveDraft(values);
+      return;
+    }
+    setSavingConfirmed(true);
+    try {
+      await performSubmit(values);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The project could not be saved.");
+    } finally {
+      setSavingConfirmed(false);
     }
   };
 
@@ -1389,8 +1577,38 @@ export function ProjectForm({
     }
   };
 
+  if (classificationPhase === "classify") {
+    return (
+      <div className="space-y-6">
+        {renderHeader?.(watchedValues)}
+        <ProjectClassificationStep
+          value={classification}
+          onChange={setClassification}
+          onContinue={() => setClassificationPhase("details")}
+          onCancel={handleCancel}
+        />
+        <ConfirmDialog
+          open={discardOpen}
+          onOpenChange={setDiscardOpen}
+          title="Discard unsaved changes?"
+          description="Your edits to this project have not been saved and will be lost."
+          confirmLabel="Discard changes"
+          destructive
+          onConfirm={onCancel}
+        />
+      </div>
+    );
+  }
+
+  const classificationState: "new" | "locked" | "legacy" = isNewProject
+    ? "new"
+    : structureFamily
+      ? "locked"
+      : "legacy";
+
   return (
     <form onSubmit={handleSubmit(onValid, onInvalid)} noValidate className="space-y-6">
+      {renderHeader?.(watchedValues)}
       <p className="text-sm text-muted-foreground">
         Fields marked with{" "}
         <span className="font-semibold text-destructive" aria-hidden="true">
@@ -1407,6 +1625,24 @@ export function ProjectForm({
         description="Identity and contract references."
         status={sectionStatuses[1]}
       >
+        <div className="space-y-4 sm:col-span-2">
+          <ClassificationSummaryBar
+            summary={summaryText}
+            state={classificationState}
+            onChange={
+              isNewProject ? () => setClassificationPhase("classify") : undefined
+            }
+            onClassify={onClassify ? () => setClassifyOpen(true) : undefined}
+            onCorrect={onCorrectProjectType ? () => setCorrectOpen(true) : undefined}
+          />
+          {classificationState === "locked" && structureFamily === "other" && (
+            <ProjectCategoryFields
+              value={classification}
+              onChange={setClassification}
+              errors={classificationErrors}
+            />
+          )}
+        </div>
         <TextField control={control} name="name" label="Project Name" required placeholder="e.g. Plant Systems Asset Integrity Management" />
         <TextField control={control} name="code" label="Project Code" required placeholder="e.g. PRJ-001, PSAIM-001, EPROM-2026-001" description="Uppercase letters, numbers, and dashes. Must be unique." />
         <TextField control={control} name="shortName" label="Project Short Name" optional placeholder="e.g. PSAIM – SOPC" />
@@ -1414,7 +1650,11 @@ export function ProjectForm({
         <ClientShortNameField clientId={watchedValues.clientId ?? ""} onMutated={markMasterTouched} />
         <TextField control={control} name="contractNumber" label="Contract Number" optional placeholder="e.g. SOPC-CN-2025-114" />
         <TextField control={control} name="purchaseOrderNumber" label="Purchase Order Number" optional placeholder="e.g. PO-88231" />
-        <ManagedSelectField control={control} name="projectTypeId" label="Project Type" required kind="projectType" placeholder="Search or select project type…" onMutated={markMasterTouched} />
+        {classificationState === "legacy" && (
+          // Unclassified (legacy) project: the category keeps its existing
+          // field and rule until the one-time classification above is made.
+          <ManagedSelectField control={control} name="projectTypeId" label="Project Category" required kind="projectType" placeholder="Search or select project category…" onMutated={markMasterTouched} />
+        )}
         <TextareaField control={control} name="description" label="Project Description" required placeholder="Scope, objectives, and context for this project…" />
       </ProjectFormSection>
 
@@ -1648,7 +1888,7 @@ export function ProjectForm({
             type="button"
             variant="secondary"
             onClick={handleSaveDraft}
-            disabled={savingDraft || formState.isSubmitting}
+            disabled={savingDraft || formState.isSubmitting || savingConfirmed}
           >
             {savingDraft ? (
               <Loader2
@@ -1664,9 +1904,9 @@ export function ProjectForm({
         )}
         <Button
           type="submit"
-          disabled={formState.isSubmitting || savingDraft}
+          disabled={formState.isSubmitting || savingDraft || savingConfirmed}
         >
-          {formState.isSubmitting && (
+          {(formState.isSubmitting || savingConfirmed) && (
             <Loader2
               data-icon="inline-start"
               className="animate-spin motion-reduce:animate-none"
@@ -1686,6 +1926,29 @@ export function ProjectForm({
         destructive
         onConfirm={onCancel}
       />
+      <FirstSaveLockDialog
+        open={Boolean(firstSave.pending)}
+        family={structureFamily || undefined}
+        onChangeType={() => void resolveFirstSave({ type: "change-type" })}
+        onConfirm={() => void resolveFirstSave({ type: "confirm" })}
+        onDismiss={() => void resolveFirstSave({ type: "dismiss" })}
+      />
+      {onClassify && (
+        <ClassifyProjectDialog
+          open={classifyOpen}
+          onOpenChange={setClassifyOpen}
+          onClassify={handleClassify}
+        />
+      )}
+      {onCorrectProjectType && structureFamily && (
+        <CorrectProjectTypeDialog
+          open={correctOpen}
+          onOpenChange={setCorrectOpen}
+          currentFamily={structureFamily}
+          currentLabel={summaryText}
+          onCorrect={handleCorrectProjectType}
+        />
+      )}
     </form>
   );
 }

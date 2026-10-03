@@ -45,7 +45,7 @@ export interface MasterFieldConfig {
   /** Property key on the record. */
   key: string;
   label: string;
-  type: "text" | "email" | "tel" | "textarea" | "number" | "reference";
+  type: "text" | "email" | "tel" | "textarea" | "number" | "reference" | "boolean";
   required?: boolean;
   placeholder?: string;
   /** Helper text under the control, for fields whose scope needs explaining. */

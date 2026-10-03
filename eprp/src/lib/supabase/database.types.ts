@@ -32,6 +32,8 @@ export interface ProjectTypeRow extends Timestamps {
   name: string;
   code: string | null;
   description: string | null;
+  /** Phase 2C.1 — the category accepts a project-specific custom name. */
+  allows_custom_name: boolean;
 }
 
 export interface ProjectPhaseRow extends Timestamps {
@@ -94,6 +96,10 @@ export interface ProjectRow extends Timestamps {
   short_name: string | null;
   description: string | null;
   project_type_id: string | null;
+  /** Phase 2C.1 — 'psm' | 'other'; NULL = legacy, unclassified. */
+  structure_family: string | null;
+  /** Phase 2C.1 — custom category name, Other projects only. */
+  project_category_detail: string | null;
   client_id: string;
   contract_number: string | null;
   purchase_order_number: string | null;

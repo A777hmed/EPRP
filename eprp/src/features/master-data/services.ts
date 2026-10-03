@@ -10,6 +10,7 @@ import type {
   ProjectType,
   System,
 } from "@/types";
+import { duplicateFieldOf } from "./duplicates";
 import {
   mockClients,
   mockContacts,
@@ -79,19 +80,12 @@ function createMasterDataService<T extends MasterRecordBase>({
     input: { name?: string; code?: string },
     excludeId?: string
   ) => {
-    const records = [...store.values()].filter((r) => r.id !== excludeId);
-    if (
-      input.name &&
-      records.some((r) => r.name.toLowerCase() === input.name!.toLowerCase())
-    ) {
+    // Same normalized rule as the Supabase service (see ./duplicates).
+    const field = duplicateFieldOf(input, store.values(), excludeId);
+    if (field === "name") {
       throw new DuplicateRecordError("name", "This name already exists");
     }
-    if (
-      input.code &&
-      records.some(
-        (r) => r.code && r.code.toLowerCase() === input.code!.toLowerCase()
-      )
-    ) {
+    if (field === "code") {
       throw new DuplicateRecordError("code", "This code already exists");
     }
   };
@@ -581,13 +575,27 @@ export const MASTER_KIND_CONFIG: Record<MasterKind, MasterKindConfig> = {
   },
   projectType: {
     kind: "projectType",
-    singular: "Project Type",
-    plural: "Project Types",
+    // Shown as Project Category (Phase 2C.1); the kind, table and column keep
+    // their project_types / project_type_id names.
+    singular: "Project Category",
+    plural: "Project Categories",
     fields: [
-      { key: "name", label: "Type Name", type: "text", required: true },
-      { key: "code", label: "Type Code", type: "text" },
+      { key: "name", label: "Category Name", type: "text", required: true },
+      // Required: the code tells same-named categories apart, and decides
+      // whether a category is PSM / PSAIM-family.
+      { key: "code", label: "Category Code", type: "text", required: true },
       { key: "description", label: "Description", type: "textarea" },
+      {
+        key: "allowsCustomName",
+        label: "Allows custom name",
+        type: "boolean",
+        description:
+          "Other projects choosing this category must specify their own category name (e.g. an \"Other\" category).",
+      },
     ],
+    // The code under each option, so same-named categories (e.g. two
+    // "Inspection Program" rows) can be told apart when choosing.
+    optionSublabel: (record) => record.code?.trim() || undefined,
   },
   projectPhase: {
     kind: "projectPhase",

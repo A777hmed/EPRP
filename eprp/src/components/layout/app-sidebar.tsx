@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useCurrentIdentity } from "@/features/auth/use-current-identity";
 import { mainNavigation } from "@/config/navigation";
-import { activeProjectId } from "@/config/project-sections";
+import { activeProjectId, isNewProjectRoute } from "@/config/project-sections";
 import { siteConfig } from "@/config/site";
 import { ProjectContextNav } from "./project-nav-group";
 
@@ -63,7 +63,10 @@ const HIDDEN_INSIDE_PROJECT = new Set([
  */
 export function RouteSidebarSync() {
   const pathname = usePathname();
-  const insideProject = Boolean(activeProjectId(pathname));
+  // /projects/new counts as inside a project: the setup column is shown there
+  // too, so the first save does not change the layout around it.
+  const insideProject =
+    Boolean(activeProjectId(pathname)) || isNewProjectRoute(pathname);
   const { setOpen } = useSidebar();
   const previousRef = React.useRef<boolean | null>(null);
 
@@ -212,7 +215,7 @@ export function AppSidebar({ welcome }: AppSidebarProps) {
          * (`ProjectContextSidebar`); on mobile there is no room for a second
          * column, so the same content is appended here, inside this sheet.
          */}
-        {isMobile && projectId && (
+        {isMobile && (projectId || isNewProjectRoute(pathname)) && (
           <SidebarGroup>
             <SidebarGroupContent>
               <ProjectContextNav pathname={pathname} />

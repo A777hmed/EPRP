@@ -8,6 +8,7 @@ import {
   type CanDeleteResult,
   type MasterDataService,
 } from "./types";
+import { duplicateFieldOf } from "./duplicates";
 
 /**
  * Supabase-backed master-data service (Phase 5C).
@@ -197,20 +198,17 @@ export function createSupabaseMasterDataService<T extends MasterRecordBase>(
     input: Partial<T>,
     excludeId?: string
   ): Promise<void> => {
-    const matches = (a: string | undefined, b: string | undefined) =>
-      Boolean(a) && Boolean(b) && a!.trim().toLowerCase() === b!.trim().toLowerCase();
-
     if (!("name" in input) && !("code" in input)) return;
     await ensureLoaded();
 
-    for (const record of cache.values()) {
-      if (record.id === excludeId) continue;
-      if ("name" in input && matches(input.name, record.name)) {
-        throw new DuplicateRecordError("name", "This name already exists");
-      }
-      if ("code" in input && matches(input.code, record.code)) {
-        throw new DuplicateRecordError("code", "This code already exists");
-      }
+    // One normalized rule shared with the in-memory service (see ./duplicates):
+    // trimmed, inner whitespace collapsed, case-insensitive.
+    const field = duplicateFieldOf(input, cache.values(), excludeId);
+    if (field === "name") {
+      throw new DuplicateRecordError("name", "This name already exists");
+    }
+    if (field === "code") {
+      throw new DuplicateRecordError("code", "This code already exists");
     }
   };
 

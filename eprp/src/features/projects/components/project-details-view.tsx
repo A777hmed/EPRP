@@ -37,6 +37,8 @@ import { formatVariance, projectSpi, projectVariance } from "../utils";
 import { ProgressComparison } from "./progress-comparison";
 import { ProjectSummaryHeader } from "./project-summary-header";
 import { useHierarchyTerms } from "../use-hierarchy-terms";
+import { classificationSummary, projectCategoryLabel } from "../classification";
+import { ProjectTypeCorrections } from "./project-type-corrections";
 import { useProjectAuthority } from "../use-project-authority";
 import { ProjectWorkflowNav } from "./project-workflow-nav";
 import {
@@ -295,8 +297,14 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
                   <ConfigRow label="Client" value={client?.name ?? "—"} />
                   <ConfigRow
                     label="Project type"
-                    value={projectType?.name ?? "—"}
+                    value={classificationSummary(project.structureFamily, undefined)}
                   />
+                  {project.structureFamily !== "psm" && (
+                    <ConfigRow
+                      label="Project category"
+                      value={projectCategoryLabel(project, projectType) ?? "—"}
+                    />
+                  )}
                   <ConfigRow label="Current phase" value={phase?.name ?? "—"} />
                   <ConfigRow
                     label="Planned start"
@@ -397,6 +405,13 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
                   />
                 </dl>
               </SectionCard>
+            </div>
+            <div className="mt-4">
+              <ProjectTypeCorrections
+                project={project}
+                canViewHistory={authority.canManageOperations}
+                onCorrected={setProject}
+              />
             </div>
           </Section>
 

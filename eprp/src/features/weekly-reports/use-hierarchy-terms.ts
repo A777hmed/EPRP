@@ -4,7 +4,7 @@ import * as React from "react";
 
 import {
   DEFAULT_HIERARCHY_TERMS,
-  hierarchyTermsFor,
+  hierarchyTermsForProject,
   type HierarchyTerms,
 } from "@/config/project-terminology";
 import { useMasterData } from "@/features/master-data";
@@ -30,12 +30,15 @@ export function useHierarchyTerms(
   const { records } = useMasterData("projectType");
   // Read out first: the memo depends on the id, not on the whole project.
   const projectTypeId = project?.projectTypeId;
+  const structureFamily = project?.structureFamily;
 
   return React.useMemo(() => {
+    // An explicit PSM / Other choice wins over the project-type inference.
+    if (structureFamily) return hierarchyTermsForProject({ structureFamily }, null);
     if (!projectTypeId) return DEFAULT_HIERARCHY_TERMS;
     const type = (records as ProjectType[]).find(
       (record) => record.id === projectTypeId
     );
-    return hierarchyTermsFor(type);
-  }, [projectTypeId, records]);
+    return hierarchyTermsForProject(null, type);
+  }, [projectTypeId, structureFamily, records]);
 }

@@ -12,6 +12,7 @@ import type {
   ProjectPosition,
   ProjectSite,
   ProjectTeamMember,
+  StructureFamily,
   Weekday,
 } from "@/types";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -33,6 +34,13 @@ import {
   type ReplacePersonInput,
   type ReplacePersonResult,
 } from "./replace-person";
+import {
+  correctionRpcArgs,
+  mapProjectTypeCorrectionError,
+  ProjectTypeCorrectionError,
+  rowToClassificationCorrection,
+  type ClassificationCorrectionRow,
+} from "./classification-correction";
 
 /**
  * Supabase-backed project service (Phase 5C). Maps the nested Project model
@@ -143,6 +151,8 @@ function flattenProject(
   set("short_name", "shortName", input.shortName ?? null);
   set("description", "description", input.description ?? null);
   set("project_type_id", "projectTypeId", input.projectTypeId ?? null);
+  set("structure_family", "structureFamily", input.structureFamily ?? null);
+  set("project_category_detail", "projectCategoryDetail", input.projectCategoryDetail ?? null);
   set("client_id", "clientId", input.clientId);
   set("contract_number", "contractNumber", input.contractNumber ?? null);
   set("purchase_order_number", "purchaseOrderNumber", input.purchaseOrderNumber ?? null);
@@ -165,6 +175,7 @@ function flattenProject(
   set("planned_progress", "plannedProgress", input.plannedProgress);
   set("actual_progress", "actualProgress", input.actualProgress);
   set("current_phase_id", "currentPhaseId", input.currentPhaseId ?? null);
+  set("portfolio_group_id", "portfolioGroupId", input.portfolioGroupId ?? null);
   set("priority", "priority", input.priority);
 
   // The nested groups carry their own presence guard: the key is either
@@ -244,6 +255,8 @@ export function rowToProject(
     shortName: row.short_name ?? undefined,
     description: row.description ?? undefined,
     projectTypeId: row.project_type_id ?? undefined,
+    structureFamily: (row.structure_family ?? undefined) as StructureFamily | undefined,
+    projectCategoryDetail: row.project_category_detail ?? undefined,
     clientId: row.client_id,
     contractNumber: row.contract_number ?? undefined,
     purchaseOrderNumber: row.purchase_order_number ?? undefined,
@@ -1191,6 +1204,37 @@ export const supabaseProjectService: ProjectService = {
       name: `${source.name} (Copy)`,
       status: "planning",
     });
+  },
+
+  /*
+   * The audited System Admin correction — the RPC is the only write. The
+   * database checks authority, reason, target rules and version, writes the
+   * audit row, then updates the project, all in one transaction.
+   */
+  async correctProjectType(input) {
+    if (!input.reason.trim()) throw new ProjectTypeCorrectionError("reason_required");
+    const { error } = await client().rpc(
+      "correct_project_structure_family",
+      correctionRpcArgs(input)
+    );
+    if (error) throw mapProjectTypeCorrectionError(error);
+    const corrected = await loadProjectById(input.projectId);
+    if (!corrected) throw new ProjectTypeCorrectionError("not_found");
+    return corrected;
+  },
+
+  async listClassificationCorrections(projectId) {
+    const { data, error } = await client()
+      .from("project_classification_corrections")
+      .select("*")
+      .eq("project_id", projectId)
+      .order("corrected_at", { ascending: false });
+    if (error) {
+      // Before 20261001000001 is applied there is simply no history yet.
+      if (isMissingTable(error)) return [];
+      throw new Error("The Project Type correction history could not be loaded.");
+    }
+    return ((data ?? []) as ClassificationCorrectionRow[]).map(rowToClassificationCorrection);
   },
 
   async archiveProject(id) {

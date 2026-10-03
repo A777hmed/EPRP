@@ -3,10 +3,10 @@
 import * as React from "react";
 
 import { useMasterData } from "@/features/master-data/use-master-data";
-import { projectService } from "@/services/project-service";
+import { useProjectById } from "./use-project-by-id";
 import {
   DEFAULT_HIERARCHY_TERMS,
-  hierarchyTermsFor,
+  hierarchyTermsForProject,
   type HierarchyTerms,
 } from "@/config/project-terminology";
 import type { Project, ProjectType } from "@/types";
@@ -25,14 +25,17 @@ export function useHierarchyTerms(
   // Hoisted so the memo depends on the id itself rather than the whole
   // project — a new project object with the same type must not recompute.
   const projectTypeId = project?.projectTypeId;
+  const structureFamily = project?.structureFamily;
 
   return React.useMemo(() => {
+    // An explicit PSM / Other choice wins over the project-type inference.
+    if (structureFamily) return hierarchyTermsForProject({ structureFamily }, null);
     if (!projectTypeId) return DEFAULT_HIERARCHY_TERMS;
     const type = (records as ProjectType[]).find(
       (candidate) => candidate.id === projectTypeId
     );
-    return hierarchyTermsFor(type);
-  }, [projectTypeId, records]);
+    return hierarchyTermsForProject(null, type);
+  }, [projectTypeId, structureFamily, records]);
 }
 
 /**
@@ -45,28 +48,5 @@ export function useHierarchyTerms(
 export function useHierarchyTermsByProjectId(
   projectId: string | undefined
 ): HierarchyTerms {
-  const [loaded, setLoaded] = React.useState<Project | null>(null);
-
-  React.useEffect(() => {
-    if (!projectId) return;
-    let cancelled = false;
-    projectService
-      .getProjectById(projectId)
-      .then((result) => {
-        if (!cancelled) setLoaded(result);
-      })
-      // A label is not worth surfacing an error for — keep the default.
-      .catch(() => {
-        if (!cancelled) setLoaded(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId]);
-
-  // Derived rather than stored, so a result left over from a previous project
-  // (or from before the id cleared) can never label the current one.
-  const project = projectId && loaded?.id === projectId ? loaded : null;
-
-  return useHierarchyTerms(project);
+  return useHierarchyTerms(useProjectById(projectId));
 }

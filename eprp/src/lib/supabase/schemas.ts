@@ -35,6 +35,7 @@ export const projectTypeRowSchema = z.object({
   name: z.string(),
   code: nstr,
   description: nstr,
+  allows_custom_name: z.boolean().optional(),
 });
 
 export const projectPhaseRowSchema = z.object({

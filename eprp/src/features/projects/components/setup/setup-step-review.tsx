@@ -9,8 +9,11 @@ import { EmptyState, SectionCard, StatusBadge } from "@/components/shared";
 import {
   allMissing,
   getLocalizedProjectWorkflowStep,
+  setupStepLabel,
   projectWorkflowHref,
   type ProjectStepStatus,
+  type ProjectWorkflowStep,
+  type ProjectWorkflowStepId,
 } from "@/config/project-workflow";
 import { useMasterData } from "@/features/master-data";
 import { ASSIGNMENT_ROLE_META } from "@/lib/constants";
@@ -34,6 +37,8 @@ export interface SetupStepReviewProps {
   contacts: Contact[];
   disciplines: Discipline[];
   departmentName: (id: string) => string;
+  /** This project's resolved setup steps, for labels in its own wording. */
+  steps?: ProjectWorkflowStep[];
 }
 
 function Summary({ label, value }: { label: string; value: React.ReactNode }) {
@@ -58,8 +63,11 @@ export function SetupStepReview({
   disciplines,
   departmentName,
   terms,
+  steps,
 }: SetupStepReviewProps) {
   const missing = allMissing(statuses);
+  const stepLabel = (id: ProjectWorkflowStepId) =>
+    steps ? setupStepLabel(steps, id) : getLocalizedProjectWorkflowStep(id, terms).label;
   const today = new Date().toISOString().slice(0, 10);
   const links = project.disciplines ?? [];
   const team = project.team ?? [];
@@ -134,7 +142,7 @@ export function SetupStepReview({
                 </span>
                 <Button variant="outline" size="sm" asChild>
                   <Link href={projectWorkflowHref(project.id, item.step)}>
-                    Fix in {getLocalizedProjectWorkflowStep(item.step, terms).label}
+                    Fix in {stepLabel(item.step)}
                   </Link>
                 </Button>
               </li>
@@ -151,7 +159,7 @@ export function SetupStepReview({
             <Button variant="outline" size="sm" asChild>
               <Link href={projectWorkflowHref(project.id, "disciplines")}>
                 Fix in{" "}
-                {getLocalizedProjectWorkflowStep("disciplines", terms).label}
+                {stepLabel("disciplines")}
               </Link>
             </Button>
           }

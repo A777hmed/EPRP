@@ -17,7 +17,9 @@ export const FIELD_LABELS: Record<string, string> = {
   contractNumber: "Contract Number",
   purchaseOrderNumber: "Purchase Order Number",
   description: "Project Description",
-  projectTypeId: "Project Type",
+  structureFamily: "Project Type",
+  projectTypeId: "Project Category",
+  projectCategoryDetail: "Specify Category",
   contractStartDate: "Contract Start Date",
   plannedStartDate: "Planned Start Date",
   actualStartDate: "Actual Start Date",
@@ -69,6 +71,7 @@ export type SectionId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 const SECTION_OF_FIELD: Record<string, SectionId> = {
   name: 1, code: 1, shortName: 1, clientId: 1, contractNumber: 1,
   purchaseOrderNumber: 1, description: 1, projectTypeId: 1,
+  structureFamily: 1, projectCategoryDetail: 1,
   contractStartDate: 2, plannedStartDate: 2, actualStartDate: 2,
   plannedFinishDate: 2, forecastFinishDate: 2, actualFinishDate: 2,
   projectManagerId: 3, projectControlManagerId: 3, clientRepresentativeId: 3,

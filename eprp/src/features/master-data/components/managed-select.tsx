@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import type { MasterRecordBase } from "@/types";
 import { MASTER_KIND_CONFIG } from "../services";
 import type { MasterKind } from "../types";
+import type { MasterCreateGuard } from "../save-guard";
 import { useMasterData } from "../use-master-data";
 import { MasterDataDialog } from "./master-data-dialog";
 
@@ -71,6 +72,30 @@ export interface ManagedSelectProps {
   /** Hide a selected record when it no longer matches `filter`. */
   enforceFilter?: boolean;
   disabled?: boolean;
+  /**
+   * Offer "+ Add new" and the Manage surface. Off for pickers that must only
+   * choose from the curated master list (e.g. the Project Category of an
+   * Other project), where master data is maintained in Global Administration.
+   */
+  allowManage?: boolean;
+  /** Wording for the inline add action; defaults to "Add new <kind>". */
+  addLabel?: string;
+  /** Wording for the manage action; defaults to "Manage <kinds>…". */
+  manageLabel?: string;
+  /**
+   * Fires after a record is created from the inline dialog. `selected` is
+   * false when the new record does not pass `filter`, so it was created but
+   * could not be chosen here — the caller can say why.
+   */
+  onRecordCreated?: (record: MasterRecordBase, selected: boolean) => void;
+  /** Also show the option sublabel (e.g. the code) beside the chosen value. */
+  showSublabelInTrigger?: boolean;
+  /**
+   * Refuses an inline create before anything is written, for a rule this
+   * field's context owns (see ../save-guard). Applies to adds made from here,
+   * including from the Manage surface; edits are never blocked.
+   */
+  createGuard?: MasterCreateGuard;
 }
 
 /**
@@ -100,6 +125,12 @@ export function ManagedSelect({
   searchPlaceholder,
   enforceFilter = false,
   disabled = false,
+  allowManage = true,
+  addLabel,
+  manageLabel,
+  onRecordCreated,
+  showSublabelInTrigger = false,
+  createGuard,
 }: ManagedSelectProps) {
   const config = MASTER_KIND_CONFIG[kind];
   const { records, activeRecords } = useMasterData(kind);
@@ -168,7 +199,14 @@ export function ManagedSelect({
                 !selected && "text-muted-foreground"
               )}
             >
-              <span className="truncate">{triggerLabel}</span>
+              <span className="truncate">
+                {triggerLabel}
+                {showSublabelInTrigger && selectedAllowed && config.optionSublabel?.(selected) && (
+                  <span className="ml-1.5 text-xs text-muted-foreground">
+                    {config.optionSublabel(selected)}
+                  </span>
+                )}
+              </span>
               <ChevronsUpDown
                 className="ml-1 size-4 shrink-0 opacity-50"
                 aria-hidden="true"
@@ -248,28 +286,32 @@ export function ManagedSelect({
                     );
                   })}
                 </CommandGroup>
-                <CommandSeparator />
-                <CommandGroup>
-                  <CommandItem
-                    value="__add_new__"
-                    onSelect={() => openDialog("create", query.trim())}
-                  >
-                    <Plus className="size-4" aria-hidden="true" />
-                    Add new {config.singular.toLowerCase()}
-                    {query.trim() && (
-                      <span className="text-muted-foreground">
-                        “{query.trim()}”
-                      </span>
-                    )}
-                  </CommandItem>
-                  <CommandItem
-                    value="__manage__"
-                    onSelect={() => openDialog("list")}
-                  >
-                    <Settings2 className="size-4" aria-hidden="true" />
-                    Manage {config.plural.toLowerCase()}…
-                  </CommandItem>
-                </CommandGroup>
+                {allowManage && (
+                  <>
+                    <CommandSeparator />
+                    <CommandGroup>
+                      <CommandItem
+                        value="__add_new__"
+                        onSelect={() => openDialog("create", query.trim())}
+                      >
+                        <Plus className="size-4" aria-hidden="true" />
+                        {addLabel ?? `Add new ${config.singular.toLowerCase()}`}
+                        {query.trim() && (
+                          <span className="text-muted-foreground">
+                            “{query.trim()}”
+                          </span>
+                        )}
+                      </CommandItem>
+                      <CommandItem
+                        value="__manage__"
+                        onSelect={() => openDialog("list")}
+                      >
+                        <Settings2 className="size-4" aria-hidden="true" />
+                        {manageLabel ?? `Manage ${config.plural.toLowerCase()}…`}
+                      </CommandItem>
+                    </CommandGroup>
+                  </>
+                )}
               </CommandList>
             </Command>
           </PopoverContent>
@@ -283,29 +325,36 @@ export function ManagedSelect({
           />
         )}
 
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          disabled={disabled}
-          aria-label={`Manage ${config.plural.toLowerCase()}`}
-          onClick={() => openDialog("list")}
-        >
-          <Settings2 aria-hidden="true" />
-        </Button>
+        {allowManage && (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            disabled={disabled}
+            aria-label={manageLabel ?? `Manage ${config.plural.toLowerCase()}`}
+            onClick={() => openDialog("list")}
+          >
+            <Settings2 aria-hidden="true" />
+          </Button>
+        )}
       </div>
 
-      <MasterDataDialog
-        kind={kind}
-        open={dialog.open}
-        onOpenChange={(o) => setDialog((prev) => ({ ...prev, open: o }))}
-        initialMode={dialog.mode}
-        initialName={dialog.initialName}
-        onCreated={(record) => {
-          if (!filter || filter(record)) onChange(record.id);
-        }}
-        onMutated={onMutated}
-      />
+      {allowManage && (
+        <MasterDataDialog
+          kind={kind}
+          open={dialog.open}
+          onOpenChange={(o) => setDialog((prev) => ({ ...prev, open: o }))}
+          initialMode={dialog.mode}
+          initialName={dialog.initialName}
+          onCreated={(record) => {
+            const selectable = !filter || filter(record);
+            if (selectable) onChange(record.id);
+            onRecordCreated?.(record, selectable);
+          }}
+          onMutated={onMutated}
+          createGuard={createGuard}
+        />
+      )}
     </>
   );
 }

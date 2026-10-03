@@ -5,9 +5,12 @@ import * as React from "react";
 import { useMasterData } from "@/features/master-data";
 import {
   evaluateProjectWorkflow,
+  localizeProjectWorkflowStep,
   projectWorkflowPercent,
   nextIncompleteStep,
+  resolveSetupSteps,
   type ProjectStepStatus,
+  type ProjectWorkflowStep,
   type ProjectWorkflowStepId,
 } from "@/config/project-workflow";
 import type { HierarchyTerms } from "@/config/project-terminology";
@@ -21,8 +24,11 @@ import type {
 import { useHierarchyTerms } from "./use-hierarchy-terms";
 
 export interface ProjectWorkflowState {
+  /** This project's own setup steps, in order, already in its wording. */
+  steps: ProjectWorkflowStep[];
   statuses: ProjectStepStatus[];
-  byId: Record<ProjectWorkflowStepId, ProjectStepStatus>;
+  /** Statuses by step id — only for the steps this project has. */
+  byId: Partial<Record<ProjectWorkflowStepId, ProjectStepStatus>>;
   /** Hierarchy wording for this project — display only. */
   terms: HierarchyTerms;
   /** Overall completion across all steps, 0–100. */
@@ -61,26 +67,39 @@ export function useProjectWorkflow(project: Project): ProjectWorkflowState {
 
   const terms = useHierarchyTerms(project);
 
+  // Resolved by Project Type, then put in the project's hierarchy wording —
+  // a legacy PSAIM-coded project still reads "Programs & Studies".
+  const structureFamily = project.structureFamily;
+  const steps = React.useMemo(
+    () =>
+      resolveSetupSteps({ structureFamily, saved: true }).map((step) =>
+        localizeProjectWorkflowStep(step, terms)
+      ),
+    [structureFamily, terms]
+  );
+
   const statuses = React.useMemo(
     () =>
       evaluateProjectWorkflow(
         project,
         { systems, disciplines, contacts },
         departmentName,
-        terms
+        terms,
+        steps
       ),
-    [project, systems, disciplines, contacts, departmentName, terms]
+    [project, systems, disciplines, contacts, departmentName, terms, steps]
   );
 
   const byId = React.useMemo(
     () =>
       Object.fromEntries(
         statuses.map((status) => [status.id, status])
-      ) as Record<ProjectWorkflowStepId, ProjectStepStatus>,
+      ) as Partial<Record<ProjectWorkflowStepId, ProjectStepStatus>>,
     [statuses]
   );
 
   return {
+    steps,
     statuses,
     byId,
     terms,

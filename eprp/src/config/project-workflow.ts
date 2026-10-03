@@ -4,26 +4,37 @@ import type {
   Project,
   ProjectDisciplineLink,
   ProjectTeamMember,
+  StructureFamily,
   System,
 } from "@/types";
 import {
   DEFAULT_HIERARCHY_TERMS,
   type HierarchyTerms,
 } from "./project-terminology";
+import { isClassificationComplete } from "@/features/projects/classification";
 
 /**
  * The guided project setup wizard.
  *
- * Project Info → Departments → Systems → Disciplines → Contacts →
- * Project Team Summary → Review.
- * Each step depends on the one before it: you cannot scope systems before
- * departments exist, or disciplines before systems. Nothing here is a stored
- * status — every step's state is derived from the saved project, so it stays
- * correct however the data was edited afterwards.
+ * Which steps a project has depends on its Project Type (Phase 2C.1b) —
+ * see {@link resolveSetupSteps}:
+ *
+ *   Legacy (unclassified): Project Info → Departments → Systems → Disciplines
+ *     → Contacts → Project Team Summary → Review   (unchanged)
+ *   PSM:   Project Type & Information → Departments → Systems → Programs &
+ *     Studies → Contacts → Project Team & Responsibilities → Review
+ *   Other: Project Type & Information → Project Structure → Contacts →
+ *     Project Team & Responsibilities → Review
+ *
+ * Each step depends on the one before it. Nothing here is a stored status —
+ * every step's state is derived from the project, so it stays correct however
+ * the data was edited afterwards.
  */
 
 export type ProjectWorkflowStepId =
   | "info"
+  /** Other projects only — placeholder until configurable structure exists. */
+  | "structure"
   | "departments"
   | "systems"
   | "disciplines"
@@ -31,11 +42,53 @@ export type ProjectWorkflowStepId =
   | "team"
   | "review";
 
+/**
+ * Where a step sits in the setup, so later capabilities have a defined slot
+ * rather than forcing another shell redesign: Project Parties and
+ * Organization Chart join the "people" group (before and after Project Team
+ * & Responsibilities); configurable Other levels replace the "structure"
+ * placeholder.
+ */
+export type SetupStepGroup = "identity" | "structure" | "people" | "confirm";
+
 export interface ProjectWorkflowStep {
   id: ProjectWorkflowStepId;
   label: string;
   description: string;
+  group?: SetupStepGroup;
+  /**
+   * False for a step that is shown but cannot be worked on yet because its
+   * capability does not exist (the Other "Project Structure" placeholder).
+   */
+  available?: boolean;
 }
+
+/**
+ * Which setup a project follows. `unclassified` is a new, unsaved project
+ * whose Project Type has not been chosen yet.
+ */
+export type SetupFlow = "legacy" | "psm" | "other" | "unclassified";
+
+export interface SetupContext {
+  structureFamily?: StructureFamily | "";
+  /** Whether the project exists yet (has an id). */
+  saved: boolean;
+  // Later (Phase 2C.1c): the Other project's configured structure levels,
+  // which will expand the "structure" slot into one step per level.
+}
+
+export function setupFlowFor(context: SetupContext): SetupFlow {
+  if (context.structureFamily === "psm") return "psm";
+  if (context.structureFamily === "other") return "other";
+  return context.saved ? "legacy" : "unclassified";
+}
+
+/** Shown wherever the Other structure placeholder is explained. */
+export const STRUCTURE_PLACEHOLDER_MESSAGE =
+  "Structure configuration will be available in the next setup phase.";
+
+/** "Available after first save" — the lock reason for steps of an unsaved project. */
+export const NEEDS_SAVED_PROJECT_MESSAGE = "Available after first save";
 
 export const projectWorkflowSteps: ProjectWorkflowStep[] = [
   {
@@ -83,15 +136,168 @@ export const projectWorkflowSteps: ProjectWorkflowStep[] = [
 
 const stepIds = projectWorkflowSteps.map((step) => step.id);
 
+/* --------------------------- Step resolver (2C.1b) ------------------------- */
+
+const LEGACY_GROUP: Record<ProjectWorkflowStepId, SetupStepGroup> = {
+  info: "identity",
+  structure: "structure",
+  departments: "structure",
+  systems: "structure",
+  disciplines: "structure",
+  contacts: "people",
+  team: "people",
+  review: "confirm",
+};
+
+const legacyStep = (id: ProjectWorkflowStepId): ProjectWorkflowStep => ({
+  ...(projectWorkflowSteps.find((step) => step.id === id) as ProjectWorkflowStep),
+  group: LEGACY_GROUP[id],
+});
+
+/** Step 1 for every classified (or classifying) project. */
+const TYPE_AND_INFO_STEP: ProjectWorkflowStep = {
+  id: "info",
+  label: "Project Type & Information",
+  description:
+    "Project Type, identity, client, schedule, and the manager accountable for delivery.",
+  group: "identity",
+};
+
+const RESPONSIBILITIES_STEP: ProjectWorkflowStep = {
+  id: "team",
+  label: "Project Team & Responsibilities",
+  description: "Every participant on the project and the responsibilities they hold.",
+  group: "people",
+};
+
+const PROGRAMS_AND_STUDIES_STEP: ProjectWorkflowStep = {
+  id: "disciplines",
+  label: "Programs & Studies",
+  description: "Programs & Studies, linked to the systems and departments they cover.",
+  group: "structure",
+};
+
+/** Other projects: shown, never worked on, until configurable structure exists. */
+const STRUCTURE_PLACEHOLDER_STEP: ProjectWorkflowStep = {
+  id: "structure",
+  label: "Project Structure",
+  description: STRUCTURE_PLACEHOLDER_MESSAGE,
+  group: "structure",
+  available: false,
+};
+
+/**
+ * The setup steps for a project, in order.
+ *
+ * - Legacy (saved, unclassified): exactly today's seven steps.
+ * - PSM: Departments → Systems → Programs & Studies, the fixed PSM structure.
+ * - Other: a "Project Structure" placeholder instead of any structure steps —
+ *   an Other project never falls back to Departments → Systems → Disciplines.
+ * - A new project with no type chosen yet: step 1 only; the rest appear once
+ *   PSM or Other is chosen.
+ */
+export function resolveSetupSteps(context: SetupContext): ProjectWorkflowStep[] {
+  switch (setupFlowFor(context)) {
+    case "legacy":
+      return projectWorkflowSteps.map((step) => legacyStep(step.id));
+    case "psm":
+      return [
+        TYPE_AND_INFO_STEP,
+        legacyStep("departments"),
+        legacyStep("systems"),
+        PROGRAMS_AND_STUDIES_STEP,
+        legacyStep("contacts"),
+        RESPONSIBILITIES_STEP,
+        legacyStep("review"),
+      ];
+    case "other":
+      return [
+        TYPE_AND_INFO_STEP,
+        STRUCTURE_PLACEHOLDER_STEP,
+        legacyStep("contacts"),
+        RESPONSIBILITIES_STEP,
+        legacyStep("review"),
+      ];
+    case "unclassified":
+      return [TYPE_AND_INFO_STEP];
+  }
+}
+
+/** The step definition within a resolved list, if the project has that step. */
+export function findSetupStep(
+  steps: ProjectWorkflowStep[],
+  id: ProjectWorkflowStepId
+): ProjectWorkflowStep | undefined {
+  return steps.find((step) => step.id === id);
+}
+
+/** A step's label within a resolved list, falling back to its default label. */
+export function setupStepLabel(
+  steps: ProjectWorkflowStep[],
+  id: ProjectWorkflowStepId
+): string {
+  return findSetupStep(steps, id)?.label ?? getProjectWorkflowStep(id).label;
+}
+
+/**
+ * Where the first successful save lands. Create continues to the next step of
+ * the chosen flow; Save Draft keeps editing step 1. Used with
+ * `router.replace`, so Back never returns to an empty /projects/new.
+ */
+export function firstSaveHref(
+  projectId: string,
+  structureFamily: StructureFamily | "" | undefined,
+  intent: "create" | "draft"
+): string {
+  if (intent === "draft") return projectWorkflowHref(projectId, "info");
+  const steps = resolveSetupSteps({ structureFamily, saved: true });
+  return projectWorkflowHref(projectId, nextStepId("info", steps) ?? "info");
+}
+
+export interface NewProjectNavItem {
+  id: ProjectWorkflowStepId;
+  label: string;
+  /** Only step 1 has one, and it is /projects/new — never a project URL. */
+  href?: string;
+  active: boolean;
+  /** Why the item is disabled, when it is. */
+  disabledReason?: string;
+}
+
+/**
+ * The new-project setup sidebar: the chosen Project Type's steps, with step 1
+ * live at /projects/new and every later step visible but disabled. No item
+ * links to a saved-project route — there is no project id yet.
+ */
+export function newProjectSetupNavItems(
+  structureFamily: StructureFamily | "" | undefined
+): NewProjectNavItem[] {
+  return resolveSetupSteps({ structureFamily, saved: false }).map((step, index) =>
+    index === 0
+      ? { id: step.id, label: step.label, href: "/projects/new", active: true }
+      : {
+          id: step.id,
+          label: step.label,
+          active: false,
+          disabledReason: NEEDS_SAVED_PROJECT_MESSAGE,
+        }
+  );
+}
+
+/** Every step id any flow can route to — for URL validation. */
+const ALL_STEP_IDS: ProjectWorkflowStepId[] = [...stepIds, "structure"];
+
 export function isProjectWorkflowStep(
   value: string
 ): value is ProjectWorkflowStepId {
-  return (stepIds as string[]).includes(value);
+  return (ALL_STEP_IDS as string[]).includes(value);
 }
 
+/** The default definition of a step (legacy wording; the placeholder for "structure"). */
 export function getProjectWorkflowStep(
   id: ProjectWorkflowStepId
 ): ProjectWorkflowStep {
+  if (id === "structure") return STRUCTURE_PLACEHOLDER_STEP;
   const step = projectWorkflowSteps.find((candidate) => candidate.id === id);
   if (!step) throw new Error(`Unknown project workflow step: ${id}`);
   return step;
@@ -149,14 +355,30 @@ export function projectWorkflowHref(
   return `/projects/${projectId}/setup/${step}`;
 }
 
-export function projectStepIndex(id: ProjectWorkflowStepId): number {
-  return stepIds.indexOf(id);
+/** Position within a step list (the legacy list unless one is given). */
+export function projectStepIndex(
+  id: ProjectWorkflowStepId,
+  steps: ProjectWorkflowStep[] = projectWorkflowSteps
+): number {
+  return steps.findIndex((step) => step.id === id);
 }
 
+/** The step after `id` within a step list (the legacy list unless one is given). */
 export function nextStepId(
-  id: ProjectWorkflowStepId
+  id: ProjectWorkflowStepId,
+  steps: ProjectWorkflowStep[] = projectWorkflowSteps
 ): ProjectWorkflowStepId | undefined {
-  return stepIds[projectStepIndex(id) + 1];
+  const index = projectStepIndex(id, steps);
+  return index < 0 ? undefined : steps[index + 1]?.id;
+}
+
+/** The step before `id` within a step list. */
+export function previousStepId(
+  id: ProjectWorkflowStepId,
+  steps: ProjectWorkflowStep[] = projectWorkflowSteps
+): ProjectWorkflowStepId | undefined {
+  const index = projectStepIndex(id, steps);
+  return index <= 0 ? undefined : steps[index - 1]?.id;
 }
 
 /* ------------------------------ Completion ------------------------------- */
@@ -186,6 +408,18 @@ export interface ProjectStepStatus {
   blockedBy?: ProjectWorkflowStepId;
   /** Labels of the failed checks — the "missing required data" list. */
   missing: string[];
+  /**
+   * False for a step whose capability does not exist yet (the Other
+   * "Project Structure" placeholder). Shown, never worked on.
+   */
+  available: boolean;
+  /**
+   * Why the step cannot be opened, when it cannot:
+   * - `earlier-step`: an earlier step is incomplete (see `blockedBy`);
+   * - `unsaved`: the project has not been saved yet;
+   * - `next-phase`: the capability arrives in a later setup phase.
+   */
+  lockReason?: "earlier-step" | "unsaved" | "next-phase";
 }
 
 /** Master data the workflow is evaluated against. */
@@ -199,12 +433,27 @@ function check(label: string, passed: boolean, hint?: string): WorkflowCheck {
   return { label, passed, hint };
 }
 
-function infoChecks(project: Project): WorkflowCheck[] {
+/** What the Project Info checks read — a saved project or live form values. */
+export type InfoCheckInput = Pick<
+  Project,
+  | "code"
+  | "name"
+  | "clientId"
+  | "structureFamily"
+  | "projectTypeId"
+  | "currentPhaseId"
+  | "plannedStartDate"
+  | "plannedFinishDate"
+  | "projectManagerId"
+>;
+
+function infoChecks(project: InfoCheckInput): WorkflowCheck[] {
   return [
     check("Project code", Boolean(project.code)),
     check("Project name", Boolean(project.name)),
     check("Client selected", Boolean(project.clientId)),
-    check("Project type selected", Boolean(project.projectTypeId)),
+    // PSM: the family alone; Other: family + category; legacy: a type chosen.
+    check("Project type selected", isClassificationComplete(project)),
     check("Current phase selected", Boolean(project.currentPhaseId)),
     check("Planned start date", Boolean(project.plannedStartDate)),
     check("Planned finish date", Boolean(project.plannedFinishDate)),
@@ -269,7 +518,8 @@ function disciplineChecks(
 
 function contactChecks(
   project: Project,
-  departmentName: (id: string) => string
+  departmentName: (id: string) => string,
+  flow: SetupFlow
 ): WorkflowCheck[] {
   const team = project.team ?? [];
   const base = [
@@ -279,6 +529,14 @@ function contactChecks(
       "Set the reporting coordinator on the Project Info step."
     ),
   ];
+  // An Other project's contacts are scoped by its configured structure, which
+  // does not exist yet — never by the PSM/legacy department checks.
+  if (flow === "other") {
+    return [
+      ...base,
+      check("Project structure configured", false, STRUCTURE_PLACEHOLDER_MESSAGE),
+    ];
+  }
   if (project.departments.length === 0) {
     return [...base, check("Assign departments first", false)];
   }
@@ -328,12 +586,17 @@ function teamChecks(project: Project): WorkflowCheck[] {
   ];
 }
 
-function reviewChecks(earlier: ProjectStepStatus[]): WorkflowCheck[] {
+function reviewChecks(
+  earlier: ProjectStepStatus[],
+  steps: ProjectWorkflowStep[]
+): WorkflowCheck[] {
   return earlier.map((status) =>
     check(
-      `${getProjectWorkflowStep(status.id).label} complete`,
+      `${setupStepLabel(steps, status.id)} complete`,
       status.complete,
-      `${status.missing.length} item(s) outstanding.`
+      status.available
+        ? `${status.missing.length} item(s) outstanding.`
+        : STRUCTURE_PLACEHOLDER_MESSAGE
     )
   );
 }
@@ -344,35 +607,55 @@ function reviewChecks(earlier: ProjectStepStatus[]): WorkflowCheck[] {
  * Returned in workflow order. A step is unlocked when all earlier steps are
  * complete, which is what enforces the dependency chain.
  */
+function buildStatus(
+  id: ProjectWorkflowStepId,
+  checks: WorkflowCheck[],
+  previousComplete: boolean,
+  blocker: ProjectWorkflowStepId | undefined,
+  available: boolean
+): ProjectStepStatus {
+  const passedCount = checks.filter((item) => item.passed).length;
+  const total = checks.length;
+  return {
+    id,
+    checks,
+    passedCount,
+    total,
+    percent: total === 0 ? 0 : Math.round((passedCount / total) * 100),
+    complete: total > 0 && passedCount === total,
+    unlocked: previousComplete,
+    blockedBy: previousComplete ? undefined : blocker,
+    missing: checks.filter((item) => !item.passed).map((item) => item.label),
+    available,
+    lockReason: !available
+      ? "next-phase"
+      : previousComplete
+        ? undefined
+        : "earlier-step",
+  };
+}
+
+/**
+ * Evaluate every step against the current project and master data.
+ *
+ * Returned in workflow order. A step is unlocked when all earlier steps are
+ * complete, which is what enforces the dependency chain. The steps are the
+ * project's own resolved setup (see {@link resolveSetupSteps}); a legacy
+ * project resolves to exactly the original seven.
+ */
 export function evaluateProjectWorkflow(
   project: Project,
   data: WorkflowMasterData,
   departmentName: (id: string) => string = (id) => id,
   /** Display wording only — never changes which checks run or their outcome. */
-  terms: HierarchyTerms = DEFAULT_HIERARCHY_TERMS
+  terms: HierarchyTerms = DEFAULT_HIERARCHY_TERMS,
+  steps: ProjectWorkflowStep[] = resolveSetupSteps({
+    structureFamily: project.structureFamily,
+    saved: true,
+  })
 ): ProjectStepStatus[] {
   void data; // Reserved: all checks now read project-scoped links.
-
-  const build = (
-    id: ProjectWorkflowStepId,
-    checks: WorkflowCheck[],
-    previousComplete: boolean,
-    blocker: ProjectWorkflowStepId | undefined
-  ): ProjectStepStatus => {
-    const passedCount = checks.filter((item) => item.passed).length;
-    const total = checks.length;
-    return {
-      id,
-      checks,
-      passedCount,
-      total,
-      percent: total === 0 ? 0 : Math.round((passedCount / total) * 100),
-      complete: total > 0 && passedCount === total,
-      unlocked: previousComplete,
-      blockedBy: previousComplete ? undefined : blocker,
-      missing: checks.filter((item) => !item.passed).map((item) => item.label),
-    };
-  };
+  const flow = setupFlowFor({ structureFamily: project.structureFamily, saved: true });
 
   const ordered: ProjectStepStatus[] = [];
   let previousComplete = true;
@@ -382,6 +665,9 @@ export function evaluateProjectWorkflow(
     switch (id) {
       case "info":
         return infoChecks(project);
+      case "structure":
+        // Placeholder: nothing can be checked until the capability exists.
+        return [];
       case "departments":
         return departmentChecks(project);
       case "systems":
@@ -389,20 +675,21 @@ export function evaluateProjectWorkflow(
       case "disciplines":
         return disciplineChecks(project, departmentName, terms);
       case "contacts":
-        return contactChecks(project, departmentName);
+        return contactChecks(project, departmentName, flow);
       case "team":
         return teamChecks(project);
       case "review":
-        return reviewChecks(ordered);
+        return reviewChecks(ordered, steps);
     }
   };
 
-  for (const step of projectWorkflowSteps) {
-    const status = build(
+  for (const step of steps) {
+    const status = buildStatus(
       step.id,
       checksFor(step.id),
       previousComplete,
-      firstBlocker
+      firstBlocker,
+      step.available !== false
     );
     ordered.push(status);
     if (previousComplete && !status.complete) firstBlocker = step.id;
@@ -410,6 +697,36 @@ export function evaluateProjectWorkflow(
   }
 
   return ordered;
+}
+
+/**
+ * The workflow of a new, unsaved project, from its live form values.
+ *
+ * Step 1 is evaluated from what has been entered so far; every later step is
+ * shown but locked as `unsaved`, with no checks or counts — nothing about it
+ * can exist before the project does.
+ */
+export function evaluateDraftWorkflow(
+  draft: InfoCheckInput,
+  steps: ProjectWorkflowStep[]
+): ProjectStepStatus[] {
+  return steps.map((step, index) => {
+    if (index === 0) {
+      return buildStatus(step.id, infoChecks(draft), true, undefined, true);
+    }
+    return {
+      id: step.id,
+      checks: [],
+      passedCount: 0,
+      total: 0,
+      percent: 0,
+      complete: false,
+      unlocked: false,
+      missing: [],
+      available: step.available !== false,
+      lockReason: "unsaved",
+    };
+  });
 }
 
 /** Overall setup completion across every step except Review. */

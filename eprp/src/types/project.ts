@@ -35,8 +35,25 @@ export interface Client extends MasterRecordBase {
   logoRef?: string;
 }
 
-/** Project classification, e.g. Turnaround, EPC. */
-export type ProjectType = MasterRecordBase;
+/**
+ * Project classification, e.g. Turnaround, EPC. Presented as the Project
+ * Category of an Other project (Phase 2C); the table keeps its name.
+ */
+export interface ProjectType extends MasterRecordBase {
+  /**
+   * An Other project choosing this category must name it in
+   * `Project.projectCategoryDetail`. Optional so rows read before the column
+   * existed stay valid — read as `?? false`.
+   */
+  allowsCustomName?: boolean;
+}
+
+/**
+ * The first Project Setup choice. `psm` keeps the fixed
+ * Departments → Systems → Programs & Studies structure; `other` requires a
+ * Project Category. Locked once the project is saved.
+ */
+export type StructureFamily = "psm" | "other";
 
 /**
  * Admin-managed Portfolio/Reporting Group (e.g. PSM, PSAIM, Construction),
@@ -982,8 +999,18 @@ export interface Project {
   name: string;
   shortName?: string;
   description?: string;
-  /** Managed master-data reference (ProjectType). */
+  /** Managed master-data reference (ProjectType), shown as Project Category. */
   projectTypeId?: string;
+  /**
+   * PSM / Other. Undefined = legacy, unclassified project, read through the
+   * project-type inference in `project-terminology.ts`.
+   */
+  structureFamily?: StructureFamily;
+  /**
+   * Project-specific category name, only for an Other project whose category
+   * has `allowsCustomName`. Never a master-data row.
+   */
+  projectCategoryDetail?: string;
   clientId: string;
   contractNumber?: string;
   purchaseOrderNumber?: string;

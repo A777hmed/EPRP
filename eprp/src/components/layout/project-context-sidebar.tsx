@@ -4,7 +4,7 @@ import * as React from "react";
 import { usePathname } from "next/navigation";
 
 import { useSidebar } from "@/components/ui/sidebar";
-import { activeProjectId } from "@/config/project-sections";
+import { activeProjectId, isNewProjectRoute } from "@/config/project-sections";
 import { cn } from "@/lib/utils";
 import { ProjectContextNav } from "./project-nav-group";
 
@@ -142,7 +142,8 @@ export function ProjectContextSidebar() {
     }
   }, [globalOpen]);
 
-  if (!projectId) return null;
+  // Shown for a real project, and for /projects/new as its setup column.
+  if (!projectId && !isNewProjectRoute(pathname)) return null;
 
   if (isCompact) {
     return (

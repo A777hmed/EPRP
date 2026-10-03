@@ -31,6 +31,8 @@ export function relationForSetupStep(
     case "contacts":
       return "team";
     case "info":
+    // The Other "Project Structure" placeholder owns nothing yet (2C.1b).
+    case "structure":
     case "team":
     case "review":
       return null;

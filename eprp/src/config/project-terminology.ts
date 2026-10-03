@@ -1,4 +1,4 @@
-import type { ProjectType } from "@/types";
+import type { ProjectType, StructureFamily } from "@/types";
 
 /**
  * User-facing terminology for the project hierarchy.
@@ -63,9 +63,62 @@ export function isPsmProjectType(type: ProjectType | undefined | null): boolean 
   return PSM_NAME_PATTERN.test(type.name ?? "");
 }
 
+/**
+ * The PSM / PSAIM token as a whole word anywhere in free text — "PSM",
+ * "PSM Project", "PSAIM Program" — but not letters inside another word.
+ */
+const PSM_NAME_TOKEN_PATTERN = /\b(?:PSM|PSAIM)\b/i;
+
+/**
+ * Whether a code is reserved for the PSM / PSAIM family: the same anchored,
+ * word-boundary rule {@link isPsmProjectType} applies to a code
+ * (`PSM`, `PSM-01`, `PSAIM-TEST`; never `AIM-01`).
+ */
+export function isReservedPsmCode(code: string | undefined | null): boolean {
+  const value = code?.trim();
+  return Boolean(value) && PSM_CODE_PATTERN.test(value as string);
+}
+
+/**
+ * Whether a name is reserved for the PSM / PSAIM family, judged on its own:
+ * the PSM / PSAIM token as a whole word, or "process safety" (the same name
+ * pattern {@link isPsmProjectType} falls back to), in any case and spacing.
+ *
+ * Stricter than the family rule on purpose: it is for refusing a NEW
+ * category, where a non-PSM code must not smuggle in a reserved name. It does
+ * not reclassify existing records — {@link isPsmProjectType} still decides
+ * which family a stored category belongs to.
+ */
+export function isReservedPsmName(name: string | undefined | null): boolean {
+  const value = name?.trim() ?? "";
+  return PSM_NAME_TOKEN_PATTERN.test(value) || PSM_NAME_PATTERN.test(value);
+}
+
 /** Hierarchy wording for a project type. Unknown / absent falls back to Discipline. */
 export function hierarchyTermsFor(
   type: ProjectType | undefined | null
 ): HierarchyTerms {
   return isPsmProjectType(type) ? PSM_HIERARCHY_TERMS : DEFAULT_HIERARCHY_TERMS;
+}
+
+/**
+ * Whether a project is PSM (Phase 2C.1). The project's explicit
+ * `structureFamily` wins; a legacy project with none falls back to the
+ * project-type inference above, unchanged.
+ */
+export function isPsmProject(
+  project: { structureFamily?: StructureFamily } | undefined | null,
+  type: ProjectType | undefined | null
+): boolean {
+  const family = project?.structureFamily;
+  if (family) return family === "psm";
+  return isPsmProjectType(type);
+}
+
+/** Hierarchy wording for a project — explicit family first, then its type. */
+export function hierarchyTermsForProject(
+  project: { structureFamily?: StructureFamily } | undefined | null,
+  type: ProjectType | undefined | null
+): HierarchyTerms {
+  return isPsmProject(project, type) ? PSM_HIERARCHY_TERMS : DEFAULT_HIERARCHY_TERMS;
 }

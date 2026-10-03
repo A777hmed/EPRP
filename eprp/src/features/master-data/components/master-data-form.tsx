@@ -13,6 +13,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { MasterRecordBase } from "@/types";
@@ -23,6 +24,7 @@ import {
   type MasterKind,
 } from "../types";
 import { useMasterData } from "../use-master-data";
+import { saveWithCreateGuard, type MasterCreateGuard } from "../save-guard";
 import { ManagedSelect, type ManagedSelectProps } from "./managed-select";
 
 /* ------------------------------ Validation -------------------------------- */
@@ -163,6 +165,11 @@ export interface MasterDataFormProps {
    * "Save & Add Another", "Save & Continue", and "Save & Return to Project".
    */
   saveActions?: { id: string; label: string }[];
+  /**
+   * Refuses a create before it reaches the service, for a rule only the
+   * opening context knows. Omit it and the form behaves exactly as before.
+   */
+  createGuard?: MasterCreateGuard;
 }
 
 /**
@@ -181,6 +188,7 @@ export function MasterDataForm({
   columns = 2,
   submitLabel,
   saveActions,
+  createGuard,
 }: MasterDataFormProps) {
   const config = MASTER_KIND_CONFIG[kind];
   const service = getMasterService(kind);
@@ -223,21 +231,34 @@ export function MasterDataForm({
     for (const field of config.fields) {
       const value = values[field.key]?.trim() ?? "";
       input[field.key] =
-        field.type === "number"
-          ? value === ""
-            ? undefined
-            : Number(value)
-          : value || undefined;
+        field.type === "boolean"
+          ? value === "true"
+          : field.type === "number"
+            ? value === ""
+              ? undefined
+              : Number(value)
+            : value || undefined;
     }
 
     try {
       setSaving(true);
-      const saved = isEdit
-        ? await service.update(record.id, input)
-        : await service.create(
-            input as Partial<MasterRecordBase> & { name: string }
-          );
-      onSaved(saved, isEdit ? "edit" : "create", actionId);
+      // A context-specific guard may refuse a CREATE before anything is
+      // written; the service is then never called.
+      const result = await saveWithCreateGuard({
+        mode: isEdit ? "edit" : "create",
+        input,
+        guard: createGuard,
+        save: () =>
+          isEdit
+            ? service.update(record.id, input)
+            : service.create(input as Partial<MasterRecordBase> & { name: string }),
+      });
+      if ("refused" in result) {
+        const { field, message } = result.refused;
+        setErrors((prev) => ({ ...prev, [field]: message }));
+        return;
+      }
+      onSaved(result.saved, isEdit ? "edit" : "create", actionId);
     } catch (error) {
       if (error instanceof DuplicateRecordError) {
         setErrors((prev) => ({ ...prev, [error.field]: error.message }));
@@ -295,6 +316,14 @@ export function MasterDataForm({
                     field.scopeBy
                       ? (values[field.scopeBy.field] ?? "")
                       : undefined
+                  }
+                />
+              ) : field.type === "boolean" ? (
+                <Switch
+                  {...controlProps}
+                  checked={values[field.key] === "true"}
+                  onCheckedChange={(checked) =>
+                    setValue(field.key, checked ? "true" : "false")
                   }
                 />
               ) : field.type === "textarea" ? (

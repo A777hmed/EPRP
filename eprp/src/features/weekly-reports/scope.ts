@@ -1,5 +1,5 @@
 import type { HierarchyTerms } from "@/config/project-terminology";
-import { hierarchyTermsFor } from "@/config/project-terminology";
+import { hierarchyTermsForProject } from "@/config/project-terminology";
 import { isEditableStatus } from "@/config/workflows";
 import type {
   Project,
@@ -189,7 +189,7 @@ export function resolveWeeklyScope(
   contactId: string,
   options: ResolveOptions = {}
 ): WeeklyScope {
-  const terms = hierarchyTermsFor(options.projectType);
+  const terms = hierarchyTermsForProject(project, options.projectType);
   const departments = weeklyDepartments(project);
 
   const base = {

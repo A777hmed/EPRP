@@ -18,6 +18,7 @@ import type { HierarchyTerms } from "@/config/project-terminology";
 import type { MasterRecordBase } from "@/types";
 import { MASTER_KIND_CONFIG } from "../services";
 import type { MasterKind } from "../types";
+import type { MasterCreateGuard } from "../save-guard";
 import { useMasterData } from "../use-master-data";
 import { MasterDataForm } from "./master-data-form";
 import { MasterDataTable } from "./master-data-table";
@@ -58,6 +59,8 @@ export interface MasterDataDialogProps {
   onMutated?: () => void;
   /** Project-type wording for the hierarchy level; display only. */
   displayTerms?: HierarchyTerms;
+  /** Refuses a create before it reaches the service (see ../save-guard). */
+  createGuard?: MasterCreateGuard;
 }
 
 type ViewState =
@@ -82,6 +85,7 @@ export function MasterDataDialog({
   onCreated,
   onMutated,
   displayTerms,
+  createGuard,
 }: MasterDataDialogProps) {
   const config = MASTER_KIND_CONFIG[kind];
   const singular = displayTerms?.singular ?? config.singular;
@@ -230,6 +234,7 @@ export function MasterDataDialog({
               initialName={state.view === "create" ? initialName : undefined}
               presetValues={state.view === "create" ? presetValues : undefined}
               onSaved={handleSaved}
+              createGuard={createGuard}
               onCancel={() => setState({ view: "list" })}
             />
           )}
