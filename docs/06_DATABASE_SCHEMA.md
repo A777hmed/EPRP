@@ -137,6 +137,8 @@ Tier 1. **Exactly seven kinds are shared across projects.** Everything else a pr
 | **Lifecycle Template** | Reusable set of lifecycle stages | Name · project type · stage definitions · active |
 | **Knowledge Base Record** | Organizational knowledge outliving projects | Title · content reference · classification · associated project types · active |
 
+**Terminology since Phase 2C.1.** The "Project Type" master in the table above is shown in the product as **Project Category**. Its storage keeps the legacy name (`project_types`, referenced by `projects.project_type_id`) and is not renamed. "Project Type" in the product now means only **PSM Project / Other Project**, a set-once attribute of the project (§6.1; stored as `projects.structure_family`). Read `project_types` / `project_type_id` as Project Category wherever they appear. See `02_PLATFORM_ARCHITECTURE.md` §4.2, §4.5.
+
 **Why these seven and no others.** They are precisely the definitions that must mean the same thing everywhere for portfolio comparison to be valid: a KPI must compute identically on every project, a risk severity must mean the same on every project, and a project type must classify consistently. Anything project-specific is owned by the project.
 
 **Lifecycle:** created by an authorized administrator, edited, and **archived** when withdrawn from new selection. Existing references stay valid and readable. **Never deleted while referenced** (rule 10).
@@ -154,6 +156,14 @@ The isolation boundary. Everything operational belongs to exactly one.
 - **Attributes:** Code · name · short name · description · project type · client · contract and purchase-order references · planned/actual/forecast dates · current phase · status · priority · reporting configuration (reporting day, working week, monthly cut-off, time zone, currency) · active · archived
 - **Relationships:** references Client and Project Type; **owns** everything in Groups B–G and N
 - **Lifecycle:** Planning → Active → On Hold → Completed → Archived. Archiving withdraws the project; nothing inside it is destroyed.
+
+**Classification (Phase 2C.1).** As built, "project type" is two attributes (see `02_PLATFORM_ARCHITECTURE.md` §4.5):
+
+- **Project Type** — PSM or Other. Set once, at the first save; absent only on legacy projects created before Phase 2C.1. After it is set it changes only by an audited System Administrator correction (§21.5).
+- **Project Category** — a reference to the shared Project Type master, shown as "Project Category". Required for an Other project, never a PSM/PSAIM category; absent for a PSM project.
+- **Project-specific category name** — only for an Other project whose category allows one. It belongs to the project and is never added to the shared list.
+
+The shared master gains one attribute: **allows a project-specific name**.
 
 ### 6.2 The project owns its structure
 
@@ -905,6 +915,14 @@ Both are required. Neither is derivable from the other.
 
 Removal is a **state, not an erasure**. A removed record is withdrawn from normal use, remains recoverable, and retains its full history. Genuine destruction is an administrative exception — itself audited.
 
+### 21.5 Project Type correction history (Phase 2C.1)
+
+An entity-specific audit record with the §21.1 properties.
+
+- **Owner:** Platform — it survives later changes to the categories it names
+- **Attributes:** Project · old and new Project Type · old and new Project Category, **with each category's name captured at the time** · old and new project-specific category name · **reason (required)** · acting account and its display name · timestamp · the transaction it was written in
+- **Rules:** written **only** in the same transaction as the correction it records, so a correction cannot happen unrecorded and a record cannot exist without its correction · append-only, immutable to everyone including a System Administrator · readable by the project's setup managers (`05_PERMISSION_MODEL.md` §3.6)
+
 ---
 
 ## 22. Relationship map
@@ -1004,6 +1022,7 @@ This document is **specification**. `docs/engineering/` describes what exists in
 | Read access | Every authenticated user has full reach | Universal read is now **correct by design**; action permission is not enforced |
 | Action permission | Not enforced anywhere | §17.2 resolved through role, project and department |
 | Hierarchy | One Discipline entity with PSM label resolution — **consistent with §7** | Label carried by a configurable Hierarchy Profile |
+| **Project classification** (Phase 2C.1) | Migration `20261001000001_project_setup_classification.sql`. `projects.structure_family` (`psm` · `other` · NULL for legacy), `projects.project_category_detail`, `project_types.allows_custom_name`. Trigger `enforce_project_classification` locks the family once set and validates the category. Table `project_classification_corrections` holds the history (§21.5). RPC `correct_project_structure_family()` is the System Administrator correction. Function `is_psm_family_project_type()` applies the PSM/PSAIM category rule. **Applied to the local development database only (runtime rehearsal `108_runtime_2c1_classification.sql`: 33 PASS / 0 FAIL). NOT applied to production.** | §6.1 classification; §21.5. Other-project structure levels (Phase 2C.1c) are not yet modelled |
 | Contacts | Global directory exists | §8.2 project-owned Project Contact |
 | Assignments and delegation | Specified; **not applied** | §8.4–§8.6 |
 | Organization Chart | Charts, positions and history exist | §9 |

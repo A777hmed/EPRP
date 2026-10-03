@@ -86,6 +86,16 @@ The **relationship** is invariant. The **naming and applicability** of each leve
 
 ### 4.2 Project Type drives the hierarchy
 
+> **Terminology since Phase 2C.1 — read with §4.5.** In the product, **Project
+> Type** now means only the set-once **PSM Project / Other Project** choice,
+> stored on the project as `projects.structure_family`. The admin-managed list
+> this section calls "Project Type" is shown to users as **Project Category**
+> (Engineering, Construction, Inspection, RBI, RCM, Asset Integrity,
+> Consultancy, Manpower Supply…). Its table and column keep their legacy names,
+> `project_types` and `projects.project_type_id`, and are **not** renamed. In
+> code and SQL, `project_types` / `project_type_id` therefore mean **Project
+> Category**, never PSM vs Other.
+
 The **Project Type** is a Tier 1 entity that carries a *hierarchy profile*. The profile determines, for every project of that type:
 
 - how many levels the hierarchy has;
@@ -133,6 +143,32 @@ Work Level Assignment  (owned by Project, within a System Assignment)
 The assignment carries everything project-specific: what this project expects of this department, who leads it here, whether it reports weekly, what scope it covers. The underlying master record carries only what is true organization-wide.
 
 This is what allows one department to contribute to twenty projects with a different obligation on each, while remaining one department for the purposes of analytics and the Contact Center.
+
+### 4.5 Project Type and Project Category (Phase 2C.1)
+
+Project Setup is the **project-definition layer**: it fixes what kind of project this is before any structure, people or planning is attached. Since Phase 2C.1 it separates two choices that §4.2 treats as one:
+
+| Concept | Values | Where it lives | What it decides |
+|---|---|---|---|
+| **Project Type** | **PSM Project** · **Other Project** | A set-once classification on the project itself | Which setup flow, and therefore which structure, the project uses |
+| **Project Category** | Admin-managed list (Engineering, Construction, Inspection, RBI, RCM, Asset Integrity, Consultancy, Manpower Supply…) | The existing master data, still physically named `project_types` / `project_type_id`, **relabelled** "Project Category" in the UI | A descriptive classification for an Other project; carries no structure |
+
+Rules:
+
+1. **Project Type is chosen first** on a new project and **locks on first save**. After that it changes only through an audited System Administrator correction (`05_PERMISSION_MODEL.md` §3.6).
+2. **A PSM Project has no Project Category.** Its structure is the fixed PSM hierarchy: Department → System → Program & Study.
+3. **An Other Project must have a Project Category,** never a PSM/PSAIM one. A category may allow a project-specific name ("Other → specify"); the name is stored on the project, not added to the shared list.
+4. **Legacy projects** created before Phase 2C.1 have no Project Type. They keep their original setup path and terminology until they are classified once.
+
+The setup flow follows the Project Type:
+
+| Project Type | Setup steps |
+|---|---|
+| PSM | Project Type & Information → Departments → Systems → Programs & Studies → Contacts → Project Team & Responsibilities → Review |
+| Other | Project Type & Information → **Project Structure** → Contacts → Project Team & Responsibilities → Review |
+| Legacy (unclassified) | Project Info → Departments → Systems → Disciplines → Contacts → Project Team Summary → Review — unchanged |
+
+**An Other Project never falls back to Departments → Systems → Disciplines.** Its configurable structure is deferred to Phase 2C.1c; until then "Project Structure" is shown as a placeholder step that cannot be opened. The hierarchy-profile model of §4.2 remains the target for that work.
 
 ---
 
@@ -373,6 +409,8 @@ Three distinct workflows operate at different levels. They are separate mechanis
 Governs whether a project is adequately configured. It is **derived entirely from the project's own data** and never stored as a status.
 
 This is deliberate: a stored setup status becomes wrong the moment data changes by any other route. Derivation is always correct.
+
+Which steps a project has is itself derived from its Project Type (§4.5). A new, unsaved project shows only step 1 as workable; every later step is visible but locked until the first save.
 
 ### 11.2 Submission workflow — department to report
 

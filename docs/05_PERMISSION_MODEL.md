@@ -23,7 +23,10 @@ Where this document and an engineering reference or the current code disagree,
 §7 *Reconciliation* rather than applied silently, so each one is changed
 deliberately.
 
-Nothing here is implemented. This is a specification.
+This is a specification of the **target** model; unless a section says
+otherwise, nothing here is implemented. Sections that describe implemented,
+as-built rules are explicitly marked **Implemented** — currently only §3.6
+(Phase 2C.1 project classification authority).
 
 ---
 
@@ -202,6 +205,38 @@ other responsibilities. Responsibility is therefore a **list**, not a column:
 - Multiple Reporting Coordinators (§1.4).
 - Multiple reviewers or approvers where the organisation requires it.
 - The same person holding a responsibility on several projects.
+
+### 3.6 Project classification authority (Phase 2C.1)
+
+**Implemented** (unlike the rest of this document) and enforced in the
+database. It uses the existing authority predicates only; no role boundary
+above is widened.
+
+| Action | Who | Enforced by |
+|---|---|---|
+| Create a project and choose its **Project Type** (PSM / Other) | Whoever may create a project today: System Administrator or Project Control Admin | `can_create_project()` (existing) |
+| Choose or change an Other project's **Project Category** and its project-specific name | Project setup managers: System Administrator, Project Control Admin, or the project's assigned Project Control Manager | `can_manage_project_setup()` (existing), plus the classification trigger |
+| Classify a **legacy** project once | Project setup managers, through the one-time Classify action | The same; the type then locks |
+| **Add or manage Project Categories** (the shared list) | System Administrator or Project Control Admin | `has_global_operational_authority()` — the existing master-data write rule. Other users only search and select |
+| **Change the Project Type after it is locked** | **System Administrator only** | `correct_project_structure_family()`; every other path is refused by the lock trigger |
+| Read the correction history | Project setup managers | Row-level policy `can_manage_project_operations()` |
+
+Rules:
+
+1. **First save locks the Project Type.** The first Create or Save Draft of a
+   new project asks for explicit confirmation ("Save and lock Project Type?").
+   Ordinary saves never carry the Project Type, and the database rejects any
+   change to it that is not a System Administrator correction.
+2. **A correction requires a reason** and is checked against the project's
+   current version, so a stale screen cannot overwrite a newer save.
+3. **Every correction is audited in the same transaction** as the change:
+   old and new type, old and new category (with names captured at the time),
+   old and new project-specific name, the reason, and who made it and when.
+   Audit rows are append-only; nobody can edit them — including a System
+   Administrator — and no user can write them directly.
+4. **PSM/PSAIM categories are reserved.** An Other project can never use one,
+   and adding a category whose code or name is reserved for PSM/PSAIM from an
+   Other project is refused before anything is created.
 
 ---
 

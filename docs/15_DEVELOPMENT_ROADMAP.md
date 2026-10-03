@@ -17,7 +17,11 @@ governs.
 
 ## Status at a glance
 
-Last verified: **2026-08-11** (lint, type-check, and production build all green;
+Last verified: **2026-10-03** — Phase 2C.1 (282/282 source tests; lint,
+type-check and production build green; browser UAT on the local stack; see
+Phase 2C).
+
+Previous full verification: **2026-08-11** (lint, type-check, and production build all green;
 98 assertions over the pure Weekly derivation, terminology, scope and lifecycle
 modules all passing; the Weekly workspace, Edit form and Preview exercised in
 the browser against the live Supabase project — a scope-item update and a
@@ -31,6 +35,7 @@ and a lifecycle transition correctly refused).
 | 2 | Project master data | ✅ Complete |
 | 2A | Organization Chart *(added — see note)* | ✅ Complete |
 | 2B | Configurable hierarchy and scoped assignments *(added — see note)* | ✅ Complete |
+| 2C | Project Setup classification and planning foundation *(added — see Phase 2C)* | ⚠️ In progress — **2C.1 (classification + setup shell) DONE**: implemented, browser-UAT verified, migration applied to the local database only (NOT production); **2C.1c Other Project dynamic structure — next, pending**; 2C.2 and 2C.3 not started |
 | 3 | Data foundation | ✅ Complete — all 47 migrations applied |
 | 4 | Weekly Workspace UI | ⚠️ Partial (~95%) — final Weekly UX, multiple authored updates, insights, plans and print delivered; attachments/history outstanding |
 | 5 | Weekly data and department submission | ⚠️ Partial — department ownership now enforced in the UI |
@@ -44,7 +49,13 @@ and a lifecycle transition correctly refused).
 | 12 | Hardening and future integrations | ❌ Not started |
 | 13 | Master Planning & Control *(added — see note)* | ⚠️ In progress — **13.1 & 13.2 CLOSED**, **13.3 implemented** (verified in UI), **13.2c + 13.2d implemented** (verified on the local rehearsal database); **13.4 Wave 1 implemented with isolated database validation green and authenticated UI review pending**; 13.4 Wave 2 and 13.5–13.7 not started |
 
-**Current phase: P0 — architecture-review blockers.** Scope, ordering and the
+**Current phase: Phase 2C — Project Setup classification and planning
+foundation.** 2C.1 — DONE / VERIFIED · 2C.1c — NEXT · 2C.2 — NOT STARTED ·
+2C.3 — NOT STARTED. The 2C.1 migration is applied to the local database only;
+production deployment is pending.
+
+*Earlier current phase, kept for history:* **P0 — architecture-review blockers**
+(deployed in two waves, 2026-08-21/22; see P0 status below). Scope, ordering and the
 locked decisions behind it are in
 [`02_PLATFORM_ARCHITECTURE.md` §24](02_PLATFORM_ARCHITECTURE.md#24-locked-decisions--p0-architecture-review-2026-08-20).
 Phase 4's remaining items (attachments, history) and Phase 11 resume after P0.
@@ -171,6 +182,10 @@ Earlier sessions used ad-hoc labels — `5A`, `5B`, `5C`, `6A.1`–`6A.4`, `OC-1
 
 Phase 2A did not exist in the original plan. The Organization Chart was built across six sessions and is substantial and working, so it is recorded here rather than left undocumented.
 
+Phase 2C is also an addition: Project Setup classification and planning
+foundation, numbered 2C.1 (with 2C.1a / 2C.1b / 2C.1c), 2C.2 and 2C.3 — see
+the Phase 2C section. Use these labels; do not invent parallel ones.
+
 Phase 2B is recorded on the same basis. It covers work that was not in the
 original plan but is now load-bearing for Weekly:
 
@@ -283,7 +298,91 @@ Project-scoped reporting structure, listed under "Main modules" in `01_PROJECT_V
 
 ---
 
-## Phase 3 — Data foundation ⚠️ PARTIAL — **current phase**
+## Phase 2C — Project Setup classification and planning foundation ⚠️ IN PROGRESS *(added)*
+
+Makes Project Setup the project-definition layer: what kind of project this is, then its structure, then its planning, people and organization. Architecture: [`02_PLATFORM_ARCHITECTURE.md` §4.5](02_PLATFORM_ARCHITECTURE.md#45-project-type-and-project-category-phase-2c1); permissions: [`05_PERMISSION_MODEL.md` §3.6](05_PERMISSION_MODEL.md#36-project-classification-authority-phase-2c1); data: [`06_DATABASE_SCHEMA.md` §6.1, §21.5, §24](06_DATABASE_SCHEMA.md#61-project).
+
+### Sub-phases
+
+| # | Sub-phase | Status |
+|---|---|---|
+| 2C.1 | Project classification (2C.1a) + Project Setup shell & workflow (2C.1b) | ✅ **DONE / VERIFIED** — checkpoint commit `72c9d07`, 2026-10-03 |
+| 2C.1c | Other Project dynamic structure (replaces the "Project Structure" placeholder) | ⏳ **Next — pending** |
+| 2C.2 | Planning / progress foundation | ❌ Not started |
+| 2C.3 | Responsibilities, Project Parties and Organization Chart setup | ❌ Not started — after 2C.2, in the approved order |
+
+**Open boundary decision — must be settled before 2C.2 starts.** The scope of
+2C.2 against existing planning work is not defined in these documents:
+
+- Phase 13 (Master Planning & Control) owns Master Milestones and Deliverables,
+  reporting integration, and schedule import and views (13.1–13.7).
+- Planning migrations already in the repository are not attributed to any phase
+  in this roadmap: `20260913000001_planning_foundation`,
+  `20260914000001_planning_slice2_schema` and
+  `20260915000001_planning_rollup_foundation`. The Project form already reads
+  governed performance from a Published Planning Snapshot and stores a Planning
+  Onboarding Mode.
+
+Before 2C.2 is planned, decide and record which planning capabilities 2C.2
+adds at setup time, and which remain Phase 13. Neither phase is redefined here.
+
+### 2C.1 — delivered
+
+**2C.1a — Project classification**
+
+- Project Type **PSM Project** or **Other Project**, chosen first on a new project. Legacy projects have none and keep their previous path.
+- PSM needs no Project Category. Other needs one, with a project-specific name where the category allows it.
+- Project Category is the existing project-type master, relabelled. Global authorities (System Admin, Project Control Admin) can add and manage categories inline, with duplicate safety and the category code shown.
+- PSM/PSAIM categories are reserved: never usable by an Other project, and refused before creation when the code or the name is reserved.
+- First save locks the Project Type. Ordinary edits cannot change it. A System Administrator can correct it through an audited path, and the correction history is immutable.
+- Migration `20261001000001_project_setup_classification.sql`.
+
+**2C.1b — Project Setup shell & workflow**
+
+- `/projects/new` shows the setup sidebar ("New Project · Not saved yet") and the workflow tracker. Later steps stay locked until first save.
+- **PSM flow:** Project Type & Information → Departments → Systems → Programs & Studies → Contacts → Project Team & Responsibilities → Review.
+- **Other flow (temporary):** Project Type & Information → Project Structure (placeholder) → Contacts → Project Team & Responsibilities → Review. It never falls back to Departments / Systems / Disciplines.
+- Create / Save Draft on a new project asks "Save and lock Project Type?".
+- `router.replace` keeps Back from returning to an empty `/projects/new`. The sidebar switches to the saved project's navigation.
+
+**UAT fixes inside 2C.1**
+
+- Project Responsibility no longer stays at "Has Errors" after a required role is filled: selecting a person re-validates the field. Project Manager, Project Control Manager and Reporting Coordinator remain required; Client Representative and Project Sponsor remain optional.
+- The saved-project sidebar and breadcrumb load the project through `projectService.getProjectById` (`useProjectById`), not the mock-only `listProjectsSync`. Sidebar shows code over short name; breadcrumb shows short name.
+
+### 2C.1 verification
+
+- Automated: **282/282** source tests; `npm run typecheck`, `npm run lint` (zero warnings) and `npm run build` clean.
+- Local database: migration applied to the local development database; runtime rehearsal `scripts/p0-validation/108_runtime_2c1_classification.sql` **33 PASS / 0 FAIL**, fixtures rolled back.
+- Browser UAT (local):
+  - PSM classification, then first-save lock confirmation, then Save and Lock.
+  - Project Type locked, and "Correct Project Type" offered to the System Admin.
+  - Project Responsibility Complete.
+  - Save Draft.
+  - Save & Continue to Departments, staying inside the saved project.
+  - Sidebar `PSM-02` / `PSM-ETHYDCO`; breadcrumb `Projects > PSM-ETHYDCO > Project Setup`.
+- **Production: migration NOT applied; production untouched.** A read-only production audit of category name/code consistency found **0 mismatches** (2 categories), so no cleanup is needed before deployment.
+
+### Known non-blocking items carried out of 2C.1
+
+1. **Project Setup Progress UX.** "N% complete" counts passed checks over total checks, not completed steps. It can fall when structure is added, because later steps gain checks per department. Review the wording or semantics later.
+2. **Identity freshness.** The sidebar and breadcrumb identity reload when the project id changes. Editing the code or short name on the current route needs a reload or navigation to show.
+3. The sidebar and breadcrumb each fetch the project separately.
+4. `ManagedSelectField` (Client, Current Phase) has a similar stale-error pattern. It self-heals on the next blur.
+5. A server-side category name/code consistency guard is future work; the production audit shows it can be added safely.
+6. Older master-data surfaces (detail views, usage checks) still use the mock-only `listProjectsSync`.
+7. **The production migration remains pending** and needs its own approved deployment.
+
+---
+
+## Phase 3 — Data foundation ✅ COMPLETE *(per the status table)*
+
+> **Historical record.** The lists below describe the state **before a
+> database was provisioned**. Their blockers have since been resolved: the
+> database is provisioned with all 47 migrations applied (see "Status at a
+> glance"), and the open `using (true)` policies were narrowed by P0. The
+> remaining unconditionally open policies are tracked as P1 residue in the P0
+> status, not as Phase 3 work.
 
 Connect the existing application to the chosen database/storage architecture. Add migrations, typed data access, seed data, authorization foundation, and loading/error handling.
 
