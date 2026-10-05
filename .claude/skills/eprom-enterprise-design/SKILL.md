@@ -246,11 +246,9 @@ Project Setup
 
 \- Project Information
 
-\- Departments
+\- PSM: Departments → Systems → Programs \& Studies
 
-\- Systems
-
-\- Disciplines OR Programs \& Studies
+\- Other: Project Structure (one step for the project's own 1–4 levels)
 
 \- Contacts
 
@@ -306,17 +304,29 @@ Project
 
 
 
-For other project types:
+For Other projects:
 
 
 
 Project
 
-→ Departments
+→ a configurable, project-specific structure of 1 to 4 levels
 
-→ Systems
 
-→ Disciplines
+
+\- the project names its own levels; fewer than 4 levels are allowed
+
+\- structure nodes belong to the project
+
+\- Weekly / Monthly operational reporting responsibilities are designated on structure nodes
+
+\- all levels together are one "Project Structure" setup step, never one step per level
+
+\- an Other project must NOT fall back to Departments / Systems / Disciplines
+
+
+
+Project Structure is not the Planning WBS. Planning keeps its own, separate hierarchy.
 
 
 
