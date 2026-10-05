@@ -200,7 +200,7 @@ test("empty editor has a compact honest state and Add first level", () => {
   assert.match(html, /No structure levels yet/);
   assert.match(html, /Add first level/);
   assert.match(html, /Step 2 · Add structure units/);
-  assert.match(html, /structure units are still needed/);
+  assert.match(html, /Configure the hierarchy types above/);
 });
 test("add first level produces blank user-named fields without a fabricated id", () => {
   const draft = reduce(createLevelsDraft(structure()), { type: "append" });
@@ -369,7 +369,7 @@ test("editor has responsive stacking, field-linked errors and unload protection"
   assert.match(editor, /removeEventListener/);
   assert.match(editor, /if \(!canManage \|\| !dirty \|\| busy \|\| blocked \|\| submitting.current\) return/);
 });
-test("no direct data access, permission decisions, invented versions, fallback hierarchy or unit editor", () => {
+test("level configuration keeps its data/permission/version boundaries and has no unit actions", () => {
   const code = [sourceText("../components/setup/structure/structure-levels-editor.tsx"), sourceText("../components/setup/structure/project-structure-workspace.tsx"), sourceText("./structure-levels-draft.ts")]
     .join("\n").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
   assert.doesNotMatch(code, /supabase|createClient|\.from\(|\.rpc\(|useProjectAuthority|canManageOperations|expectedVersion|\.version\b|Date\.now|Math\.random/);

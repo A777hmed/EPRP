@@ -84,7 +84,7 @@ export function StructureLevelsEditor({ structure, canManage, actions }: Project
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold">Step 1 · Configure hierarchy levels</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Name each level from the broadest scope to the deepest. Both labels are required.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Levels define the types of hierarchy; units are the actual items within those levels. Name each type from broadest to deepest. Both labels are required.</p>
         </div>
         <span className="text-xs text-muted-foreground tabular-nums">{draft.levels.length} of {MAX_STRUCTURE_LEVELS} levels</span>
       </div>
@@ -92,7 +92,7 @@ export function StructureLevelsEditor({ structure, canManage, actions }: Project
       {draft.levels.length === 0 ? (
         <div className="rounded-lg border border-dashed px-4 py-5">
           <p className="text-sm font-medium">No structure levels yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">Define the hierarchy for this project before adding its structure units.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Define the hierarchy types for this project before adding the actual items.</p>
           {canManage && (
             <Button type="button" variant="outline" className="mt-3 min-h-11" disabled={busy || blocked} onClick={() => dispatch({ type: "append" })}>
               <Plus aria-hidden="true" /> Add first level
@@ -125,7 +125,7 @@ export function StructureLevelsEditor({ structure, canManage, actions }: Project
                   );
                 })}
                 <div className="space-y-1 text-xs text-muted-foreground sm:col-span-2 lg:col-span-1 lg:pt-6">
-                  <p className="tabular-nums">{activeCount} active unit{activeCount === 1 ? "" : "s"}{archivedCount > 0 && ` · ${archivedCount} archived`}</p>
+                  <p className="tabular-nums">{activeCount} active {activeCount === 1 ? level.singularLabel : level.pluralLabel}{archivedCount > 0 && ` · ${archivedCount} archived`}</p>
                   <p>{inUse ? "In use · labels can be renamed" : "Unused level"}</p>
                   {canManage && index === draft.levels.length - 1 && removable ? (
                     <Button type="button" variant="ghost" className="min-h-11 px-2" aria-label={`Remove Level ${level.levelNumber}`} disabled={busy || blocked} onClick={() => dispatch({ type: "removeDeepest" })}>
