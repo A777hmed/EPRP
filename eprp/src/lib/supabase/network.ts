@@ -53,12 +53,19 @@ function isOwnTimeout(error: unknown): boolean {
 }
 
 /**
- * A rejected `fetch` means no response was received at all: either a
- * transport failure (`TypeError` — DNS, refused connection, dropped socket)
- * or our own timeout firing because the endpoint never answered at all.
+ * A genuine transport failure — `fetch` rejected with a `TypeError` (DNS,
+ * refused connection, dropped socket) — is the only failure worth repeating:
+ * it fails fast, and a transient one clears within the backoff.
+ *
+ * Our own timeout is deliberately NOT retryable. It is wall-clock time, so a
+ * stalled process (paging, GC, a busy dev server) fires it even when the
+ * response has already arrived; retrying then only repeats the stall, three
+ * times over (measured: 3 × 8 s per call). A timeout fails once and returns
+ * control to the caller, which still reads it as "unreachable", never as
+ * "signed out" — see `isSupabaseUnreachable`.
  */
 function isTransportFailure(error: unknown): boolean {
-  return error instanceof TypeError || isOwnTimeout(error);
+  return error instanceof TypeError;
 }
 
 /**
