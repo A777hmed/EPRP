@@ -300,7 +300,7 @@ test("12. the UI contract is project / structure / canManage / actions, typed, w
     assert.doesNotMatch(code, /getSupabaseBrowserClient|createClient\(|\.from\(|\.rpc\(|\bprojectStructureService\b/);
     assert.doesNotMatch(code, /useProjectAuthority|canManageOperations|isSystemAdmin/);
   }
-  assert.match(body, /export function ProjectStructureWorkspace\(\{ project, structure \}: ProjectStructureWorkspaceProps\)/);
+  assert.match(body, /export function ProjectStructureWorkspace\(\{ project, structure, canManage, actions \}: ProjectStructureWorkspaceProps\)/);
   // Only the workflow container wires the service, and it never imports Supabase.
   const container = read("../components/setup/structure/project-structure-step.tsx");
   assert.match(container, /import \{ projectStructureService \} from "@\/services\/project-structure-service";/);
