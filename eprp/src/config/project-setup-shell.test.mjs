@@ -19,7 +19,6 @@ import {
   projectWorkflowSteps,
   resolveSetupSteps,
   setupFlowFor,
-  STRUCTURE_PLACEHOLDER_MESSAGE,
 } from "./project-workflow.ts";
 import { activeProjectId, isNewProjectRoute } from "./project-sections.ts";
 import { relationForSetupStep } from "../features/projects/setup-save.ts";
@@ -111,29 +110,28 @@ test("A. legacy evaluation behaves as before: same checks, gating and percent", 
   }
 });
 
-test("A. Other resolves to the temporary structure-placeholder flow — never the generic one", () => {
+test("A. Other resolves to one workable Project Structure step — never the generic one", () => {
   const steps = resolveSetupSteps({ structureFamily: "other", saved: true });
   assert.deepEqual(ids(steps), ["info", "structure", "contacts", "team", "review"]);
   assert.deepEqual(labels(steps), [
     "Project Type & Information", "Project Structure", "Contacts", "Project Team & Responsibilities", "Review",
   ]);
   for (const generic of ["departments", "systems", "disciplines"]) assert.ok(!ids(steps).includes(generic));
-  const structure = steps[1];
-  assert.equal(structure.available, false);
-  assert.equal(structure.description, STRUCTURE_PLACEHOLDER_MESSAGE);
-  assert.equal(STRUCTURE_PLACEHOLDER_MESSAGE, "Structure configuration will be available in the next setup phase.");
+  // 2C.1c-c: the step is real now — workable, not a "next phase" placeholder.
+  assert.notEqual(steps[1].available, false);
 
-  // Evaluated: the placeholder cannot be worked on, and gates the rest.
+  // Evaluated with no structure loaded: incomplete (not an error), and it
+  // gates the rest. Detailed completion rules: structure-workflow.test.mjs.
   const statuses = evaluateProjectWorkflow(completeProject({ structureFamily: "other" }), DATA);
   assert.deepEqual(ids(statuses), ids(steps));
   assert.equal(statuses[0].complete, true);
-  assert.equal(statuses[1].available, false);
-  assert.equal(statuses[1].lockReason, "next-phase");
-  assert.equal(statuses[1].total, 0);
+  assert.equal(statuses[1].available, true);
+  assert.equal(statuses[1].lockReason, undefined);
+  assert.equal(statuses[1].complete, false);
+  assert.deepEqual(statuses[1].missing, ["Project structure loaded"]);
   assert.equal(statuses[2].unlocked, false);
   assert.equal(statuses[2].blockedBy, "structure");
   // Other contacts are never measured by the PSM/legacy department checks.
-  assert.ok(statuses[2].checks.some((check) => check.label === "Project structure configured"));
   assert.ok(!statuses[2].checks.some((check) => /department/i.test(check.label)));
 });
 
@@ -168,7 +166,8 @@ test("A. step navigation follows the resolved flow; every routable id is valid",
     assert.ok(isProjectWorkflowStep(id), id);
   }
   assert.equal(isProjectWorkflowStep("nope"), false);
-  // The placeholder owns no saved relation.
+  // The structure step owns no Project Setup relation: its writes go through
+  // the structure service, never the setup save.
   assert.equal(relationForSetupStep("structure"), null);
 });
 
@@ -197,11 +196,12 @@ test("B. an unsaved project: step 1 live from form values; later steps locked, n
   assert.equal(NEEDS_SAVED_PROJECT_MESSAGE, "Available after first save");
 });
 
-test("B. an Other draft keeps its placeholder marked unavailable", () => {
+test("B. an Other draft locks its Project Structure step until the first save", () => {
   const steps = resolveSetupSteps({ structureFamily: "other", saved: false });
   const statuses = evaluateDraftWorkflow({ structureFamily: "other" }, steps);
   assert.equal(statuses[1].id, "structure");
-  assert.equal(statuses[1].available, false);
+  assert.equal(statuses[1].available, true);
+  assert.equal(statuses[1].unlocked, false);
   assert.equal(statuses[1].lockReason, "unsaved");
 });
 

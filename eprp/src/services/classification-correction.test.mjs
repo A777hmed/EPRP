@@ -174,7 +174,7 @@ test("14. a successful correction refreshes the displayed classification with no
   assert.throws(attempt({ structureFamily: "other", projectTypeId: "x" }), (error) => error.reason === "same_type");
   assert.throws(attempt({}, { ...existing, structureFamily: undefined }), (error) => error.reason === "not_classified");
   // The in-memory backend delegates to this exact rule.
-  assert.match(source("./project-service.ts"), /applyProjectTypeCorrection\(existing, input, nowIso\(\)\)/);
+  assert.match(source("./project-service.ts"), /applyProjectTypeCorrection\(\s*existing,\s*input,\s*nowIso\(\),\s*activeStructureUnits\s*\)/);
   // Every host adopts the RPC result, so Details and Setup show the correction.
   assert.match(source("../features/projects/components/project-form.tsx"), /adoptClassification\(await onCorrectProjectType\(target\)\)/);
   assert.match(source("../features/projects/components/setup/project-setup-view.tsx"), /acceptInfoSaved\(corrected\);/);

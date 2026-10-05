@@ -9,6 +9,7 @@ import {
   projectWorkflowPercent,
   nextIncompleteStep,
   resolveSetupSteps,
+  setupFlowFor,
   type ProjectStepStatus,
   type ProjectWorkflowStep,
   type ProjectWorkflowStepId,
@@ -22,6 +23,10 @@ import type {
   System,
 } from "@/types";
 import { useHierarchyTerms } from "./use-hierarchy-terms";
+import {
+  useProjectStructure,
+  type ProjectStructureState,
+} from "./use-project-structure";
 
 export interface ProjectWorkflowState {
   /** This project's own setup steps, in order, already in its wording. */
@@ -42,12 +47,24 @@ export interface ProjectWorkflowState {
   departmentName: (id: string) => string;
 }
 
+export interface ProjectWorkflowOptions {
+  /**
+   * An Other project's structure, when the caller already loads it (the setup
+   * wizard does, once, for every view of the step). Omitted: an Other
+   * project's structure is loaded here. Ignored for PSM and legacy projects.
+   */
+  structure?: ProjectStructureState;
+}
+
 /**
  * Evaluates the guided workflow for a project. Reads master data reactively,
  * so assigning a system or adding a contact updates the step progress and
  * unlocks the next step without a reload.
  */
-export function useProjectWorkflow(project: Project): ProjectWorkflowState {
+export function useProjectWorkflow(
+  project: Project,
+  options: ProjectWorkflowOptions = {}
+): ProjectWorkflowState {
   const { activeRecords: departmentRecords } = useMasterData("department");
   const { activeRecords: systemRecords } = useMasterData("system");
   const { activeRecords: disciplineRecords } = useMasterData("discipline");
@@ -67,6 +84,25 @@ export function useProjectWorkflow(project: Project): ProjectWorkflowState {
 
   const terms = useHierarchyTerms(project);
 
+  // An Other project's Project Structure step is judged from its configured
+  // structure (2C.1c). Loaded here only when the caller did not supply it, and
+  // never for PSM / legacy projects.
+  const isOther =
+    setupFlowFor({ structureFamily: project.structureFamily, saved: true }) === "other";
+  const ownStructure = useProjectStructure(
+    isOther && !options.structure ? project.id : undefined
+  );
+  const structureState = options.structure ?? ownStructure;
+  // Only THIS project's structure may judge it — never one left over from a
+  // previously opened project.
+  const loaded =
+    structureState.structure?.projectId === project.id ? structureState.structure : null;
+  const structureError = structureState.error;
+  const structureInput = React.useMemo(
+    () => (isOther ? { structure: loaded, error: structureError } : undefined),
+    [isOther, loaded, structureError]
+  );
+
   // Resolved by Project Type, then put in the project's hierarchy wording —
   // a legacy PSAIM-coded project still reads "Programs & Studies".
   const structureFamily = project.structureFamily;
@@ -82,12 +118,12 @@ export function useProjectWorkflow(project: Project): ProjectWorkflowState {
     () =>
       evaluateProjectWorkflow(
         project,
-        { systems, disciplines, contacts },
+        { systems, disciplines, contacts, structure: structureInput },
         departmentName,
         terms,
         steps
       ),
-    [project, systems, disciplines, contacts, departmentName, terms, steps]
+    [project, systems, disciplines, contacts, structureInput, departmentName, terms, steps]
   );
 
   const byId = React.useMemo(

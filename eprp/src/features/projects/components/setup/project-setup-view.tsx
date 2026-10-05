@@ -26,7 +26,7 @@ import {
   resolveSetupSteps,
   setupFlowFor,
   setupStepLabel,
-  STRUCTURE_PLACEHOLDER_MESSAGE,
+  NEXT_PHASE_MESSAGE,
   type ProjectStepStatus,
   type ProjectWorkflowStep,
   type ProjectWorkflowStepId,
@@ -54,6 +54,10 @@ import { useCurrentIdentity } from "@/features/auth/use-current-identity";
 import { useHierarchyTerms } from "../../use-hierarchy-terms";
 import { useProjectAuthority } from "../../use-project-authority";
 import { useProjectWorkflow } from "../../use-project-workflow";
+import {
+  useProjectStructure,
+  type ProjectStructureState,
+} from "../../use-project-structure";
 import { ProjectForm } from "../project-form";
 import type {
   ClassifyProjectInput,
@@ -62,6 +66,7 @@ import type {
 import { canCorrectProjectType } from "../../classification";
 import { DraftWorkflowNav, ProjectWorkflowNav } from "../project-workflow-nav";
 import { ProjectInfoWorkspace } from "./project-info-workspace";
+import { OtherProjectResponsibilities } from "./other-project-responsibilities";
 import { SetupChecklist } from "./setup-checklist";
 import { SetupStepContacts } from "./setup-step-contacts";
 import { SetupStepDepartments } from "./setup-step-departments";
@@ -69,6 +74,7 @@ import { SetupStepDisciplines } from "./setup-step-disciplines";
 import { SetupStepReview } from "./setup-step-review";
 import { SetupStepTeam } from "./setup-step-team";
 import { SetupStepSystems } from "./setup-step-systems";
+import { ProjectStructureStep } from "./structure/project-structure-step";
 import type { Project } from "@/types";
 import type { ProjectLinkContext } from "../../project-link-context";
 
@@ -256,6 +262,7 @@ export function ProjectSetupView({
       step={step}
       initialDisciplineId={initialDisciplineId}
       onInfoSaved={handleInfoSaved}
+      canManage={authority.resolved && authority.canManageOperations}
     />
   );
 }
@@ -267,12 +274,15 @@ function SetupShell({
   step,
   initialDisciplineId,
   onInfoSaved,
+  canManage,
 }: {
   project: Project | null;
   usedCodes: string[];
   step: ProjectWorkflowStepId;
   initialDisciplineId?: string;
   onInfoSaved: (updated: Project) => void;
+  /** Project Setup authority, already resolved by the page. */
+  canManage: boolean;
 }) {
   const router = useRouter();
   // Presentation only: who may be offered "Correct Project Type".
@@ -304,6 +314,13 @@ function SetupShell({
   const next = nextStepId(step, steps);
   const previous = previousStepId(step, steps);
 
+  // An Other project's structure (2C.1c), loaded ONCE here for every view of
+  // this page: the stepper, the Project Structure step and Review. Keyed by
+  // the project (this shell is remounted per project), never loaded for PSM
+  // or legacy projects.
+  const isOther = setupFlowFor({ structureFamily, saved }) === "other";
+  const structureState = useProjectStructure(isOther && project ? project.id : undefined);
+
   // The trail handed to every linked record on this step. Steps that add a
   // child record narrow `sourceType`/`parentId` further before using it.
   const context: ProjectLinkContext = {
@@ -325,6 +342,26 @@ function SetupShell({
     );
     onInfoSaved(updated);
   };
+
+  // A structure write advanced the shared project version: take the fresh
+  // project as the baseline (unsaved edits elsewhere are reconciled, not lost).
+  const acceptLatest = React.useRef(acceptInfoSaved);
+  React.useEffect(() => {
+    acceptLatest.current = acceptInfoSaved;
+  });
+  const projectId = project?.id;
+  const reloadProject = React.useCallback(() => {
+    if (!projectId) return;
+    projectService
+      .getProjectById(projectId)
+      .then((fresh) => {
+        if (fresh) acceptLatest.current(fresh);
+      })
+      .catch(() => {
+        // The stepper reads the structure itself; the project catches up on
+        // the next load. Nothing is shown half-updated.
+      });
+  }, [projectId]);
 
   const acceptStepSaved = (
     submitted: Project,
@@ -375,7 +412,7 @@ function SetupShell({
         acceptInfoSaved(updated);
         toast.success("Project info saved");
         // The next step of THIS project's setup — Departments for PSM and
-        // legacy, the Structure placeholder for Other.
+        // legacy, Project Structure for Other.
         router.push(projectWorkflowHref(project.id, next ?? "info"));
       } else {
         const created = await projectService.createProject(
@@ -474,7 +511,9 @@ function SetupShell({
     return (
       <div className="space-y-6">
         {header}
-        {project && <ProjectWorkflowNav project={project} activeStep={step} />}
+        {project && (
+          <ProjectWorkflowNav project={project} activeStep={step} structure={structureState} />
+        )}
         <ProjectForm
           // New project: the tracker is driven by the live form values and
           // stays visible on the Project Type screen as well.
@@ -510,8 +549,8 @@ function SetupShell({
         />
         {/* Preserve the editor across saves; it reconciles the new baseline
             while retaining unrelated and in-flight edits. Not for an Other
-            project: its structure is not Departments → Systems, and is
-            configured in the next setup phase. */}
+            project: its structure is not Departments → Systems; it has its
+            own Project Structure step. */}
         {project && setupFlowFor({ structureFamily, saved }) !== "other" && (
           <ProjectInfoWorkspace
             key={project.id}
@@ -554,7 +593,7 @@ function SetupShell({
     return (
       <div className="space-y-6">
         {header}
-        <ProjectWorkflowNav project={current} />
+        <ProjectWorkflowNav project={current} structure={structureState} />
         <SectionCard title="Not part of this project's setup">
           <EmptyState
             icon={Lock}
@@ -590,6 +629,10 @@ function SetupShell({
       header={header}
       previousStep={previous}
       nextStep={next}
+      isOther={isOther}
+      structureState={structureState}
+      canManageStructure={canManage && savedBaseline.status !== "archived"}
+      onProjectChanged={reloadProject}
     />
   );
 }
@@ -609,6 +652,10 @@ function LoadedSteps({
   header,
   previousStep,
   nextStep,
+  isOther,
+  structureState,
+  canManageStructure,
+  onProjectChanged,
 }: {
   project: Project;
   current: Project;
@@ -625,11 +672,17 @@ function LoadedSteps({
   header: React.ReactNode;
   previousStep?: ProjectWorkflowStepId;
   nextStep?: ProjectWorkflowStepId;
+  /** An Other project (2C.1c): no departments, its own structure step. */
+  isOther: boolean;
+  /** The Other project's structure, loaded once by the shell. */
+  structureState: ProjectStructureState;
+  canManageStructure: boolean;
+  onProjectChanged: () => void;
 }) {
   const router = useRouter();
   // Progress is measured against the draft, so the checklist and the stepper
   // react as the user edits rather than only after a save.
-  const workflow = useProjectWorkflow(current);
+  const workflow = useProjectWorkflow(current, { structure: structureState });
   // Present for every step the caller routes here: unknown steps are
   // refused before LoadedSteps is reached (see `inFlow`).
   const status = workflow.byId[step] as ProjectStepStatus;
@@ -704,18 +757,18 @@ function LoadedSteps({
     router.push(`/projects/${project.id}`);
   };
 
-  // The Other "Project Structure" placeholder: shown in the workflow, but its
-  // capability arrives in the next setup phase — nothing to edit or save.
+  // A step whose capability arrives in a later setup phase: shown in the
+  // workflow, nothing to edit or save. (No current step uses this.)
   if (!status.available) {
     return (
       <div className="space-y-6">
         {header}
-        <ProjectWorkflowNav project={current} activeStep={step} />
+        <ProjectWorkflowNav project={current} activeStep={step} structure={structureState} />
         <SectionCard title={stepLabel(step)}>
           <EmptyState
             icon={Lock}
             title="Not available yet"
-            description={STRUCTURE_PLACEHOLDER_MESSAGE}
+            description={NEXT_PHASE_MESSAGE}
             action={
               previousStep ? (
                 <Button variant="outline" asChild>
@@ -740,7 +793,7 @@ function LoadedSteps({
     return (
       <div className="space-y-6">
         {header}
-        <ProjectWorkflowNav project={current} activeStep={step} />
+        <ProjectWorkflowNav project={current} activeStep={step} structure={structureState} />
         <SectionCard title="Step locked">
           <EmptyState
             icon={Lock}
@@ -752,7 +805,7 @@ function LoadedSteps({
             description={
               blockerAvailable
                 ? `${stepLabel(step)} unlocks once every earlier step is finished.`
-                : `${stepLabel(step)} unlocks after ${stepLabel(blockerId)}. ${STRUCTURE_PLACEHOLDER_MESSAGE}`
+                : `${stepLabel(step)} unlocks after ${stepLabel(blockerId)}. ${NEXT_PHASE_MESSAGE}`
             }
             action={
               <Button asChild>
@@ -771,8 +824,16 @@ function LoadedSteps({
   return (
     <div className="space-y-6">
       {header}
-      <ProjectWorkflowNav project={current} activeStep={step} />
+      <ProjectWorkflowNav project={current} activeStep={step} structure={structureState} />
 
+      {step === "structure" && (
+        <ProjectStructureStep
+          project={project}
+          structureState={structureState}
+          canManage={canManageStructure}
+          onProjectChanged={onProjectChanged}
+        />
+      )}
       {step === "departments" && (
         <SetupStepDepartments
           project={current}
@@ -801,7 +862,14 @@ function LoadedSteps({
           terms={workflow.terms}
         />
       )}
-      {step === "contacts" && (
+      {step === "contacts" && isOther && (
+        <OtherProjectResponsibilities
+          project={current}
+          contacts={workflow.contacts}
+          title="Project contacts"
+        />
+      )}
+      {step === "contacts" && !isOther && (
         <SetupStepContacts
           project={current}
           savedProject={project}
@@ -814,7 +882,14 @@ function LoadedSteps({
           initialDisciplineId={initialDisciplineId}
         />
       )}
-      {step === "team" && (
+      {step === "team" && isOther && (
+        <OtherProjectResponsibilities
+          project={current}
+          contacts={workflow.contacts}
+          title="Responsibilities"
+        />
+      )}
+      {step === "team" && !isOther && (
         <SetupStepTeam
           project={current}
           contacts={workflow.contacts}
@@ -833,6 +908,13 @@ function LoadedSteps({
           departmentName={workflow.departmentName}
           terms={workflow.terms}
           steps={steps}
+          structure={
+            isOther && structureState.structure?.projectId === project.id
+              ? structureState.structure
+              : isOther
+                ? null
+                : undefined
+          }
         />
       )}
 

@@ -12,6 +12,9 @@ import {
   type HierarchyTerms,
 } from "./project-terminology";
 import { isClassificationComplete } from "@/features/projects/classification";
+import { FIXED_RESPONSIBILITIES } from "@/features/projects/responsibilities";
+import { structureCompleteness } from "@/features/projects/structure/structure-rules";
+import type { ProjectStructure } from "@/types/project-structure";
 
 /**
  * The guided project setup wizard.
@@ -26,6 +29,10 @@ import { isClassificationComplete } from "@/features/projects/classification";
  *   Other: Project Type & Information → Project Structure → Contacts →
  *     Project Team & Responsibilities → Review
  *
+ * An Other project's whole configurable structure (1–4 levels and their
+ * units) is ONE step, however many levels it has (Phase 2C.1c). It never
+ * falls back to Departments → Systems → Disciplines.
+ *
  * Each step depends on the one before it. Nothing here is a stored status —
  * every step's state is derived from the project, so it stays correct however
  * the data was edited afterwards.
@@ -33,7 +40,7 @@ import { isClassificationComplete } from "@/features/projects/classification";
 
 export type ProjectWorkflowStepId =
   | "info"
-  /** Other projects only — placeholder until configurable structure exists. */
+  /** Other projects only — the project's own levels and units (2C.1c). */
   | "structure"
   | "departments"
   | "systems"
@@ -46,8 +53,8 @@ export type ProjectWorkflowStepId =
  * Where a step sits in the setup, so later capabilities have a defined slot
  * rather than forcing another shell redesign: Project Parties and
  * Organization Chart join the "people" group (before and after Project Team
- * & Responsibilities); configurable Other levels replace the "structure"
- * placeholder.
+ * & Responsibilities); an Other project's configurable structure is the
+ * single "structure" step.
  */
 export type SetupStepGroup = "identity" | "structure" | "people" | "confirm";
 
@@ -58,7 +65,8 @@ export interface ProjectWorkflowStep {
   group?: SetupStepGroup;
   /**
    * False for a step that is shown but cannot be worked on yet because its
-   * capability does not exist (the Other "Project Structure" placeholder).
+   * capability does not exist. No current step is unavailable; the mechanism
+   * stays for later setup capabilities.
    */
   available?: boolean;
 }
@@ -73,8 +81,6 @@ export interface SetupContext {
   structureFamily?: StructureFamily | "";
   /** Whether the project exists yet (has an id). */
   saved: boolean;
-  // Later (Phase 2C.1c): the Other project's configured structure levels,
-  // which will expand the "structure" slot into one step per level.
 }
 
 export function setupFlowFor(context: SetupContext): SetupFlow {
@@ -83,9 +89,8 @@ export function setupFlowFor(context: SetupContext): SetupFlow {
   return context.saved ? "legacy" : "unclassified";
 }
 
-/** Shown wherever the Other structure placeholder is explained. */
-export const STRUCTURE_PLACEHOLDER_MESSAGE =
-  "Structure configuration will be available in the next setup phase.";
+/** Shown for a step whose capability arrives in a later setup phase. */
+export const NEXT_PHASE_MESSAGE = "Available in a later setup phase.";
 
 /** "Available after first save" — the lock reason for steps of an unsaved project. */
 export const NEEDS_SAVED_PROJECT_MESSAGE = "Available after first save";
@@ -177,13 +182,13 @@ const PROGRAMS_AND_STUDIES_STEP: ProjectWorkflowStep = {
   group: "structure",
 };
 
-/** Other projects: shown, never worked on, until configurable structure exists. */
-const STRUCTURE_PLACEHOLDER_STEP: ProjectWorkflowStep = {
+/** Other projects: the project's own configurable structure, as one step. */
+const STRUCTURE_STEP: ProjectWorkflowStep = {
   id: "structure",
   label: "Project Structure",
-  description: STRUCTURE_PLACEHOLDER_MESSAGE,
+  description:
+    "The project's own structure levels and units, and which units owe Weekly and Monthly operational input.",
   group: "structure",
-  available: false,
 };
 
 /**
@@ -191,7 +196,7 @@ const STRUCTURE_PLACEHOLDER_STEP: ProjectWorkflowStep = {
  *
  * - Legacy (saved, unclassified): exactly today's seven steps.
  * - PSM: Departments → Systems → Programs & Studies, the fixed PSM structure.
- * - Other: a "Project Structure" placeholder instead of any structure steps —
+ * - Other: one "Project Structure" step instead of any PSM structure steps —
  *   an Other project never falls back to Departments → Systems → Disciplines.
  * - A new project with no type chosen yet: step 1 only; the rest appear once
  *   PSM or Other is chosen.
@@ -213,7 +218,7 @@ export function resolveSetupSteps(context: SetupContext): ProjectWorkflowStep[] 
     case "other":
       return [
         TYPE_AND_INFO_STEP,
-        STRUCTURE_PLACEHOLDER_STEP,
+        STRUCTURE_STEP,
         legacyStep("contacts"),
         RESPONSIBILITIES_STEP,
         legacyStep("review"),
@@ -293,11 +298,11 @@ export function isProjectWorkflowStep(
   return (ALL_STEP_IDS as string[]).includes(value);
 }
 
-/** The default definition of a step (legacy wording; the placeholder for "structure"). */
+/** The default definition of a step (legacy wording; the Other step for "structure"). */
 export function getProjectWorkflowStep(
   id: ProjectWorkflowStepId
 ): ProjectWorkflowStep {
-  if (id === "structure") return STRUCTURE_PLACEHOLDER_STEP;
+  if (id === "structure") return STRUCTURE_STEP;
   const step = projectWorkflowSteps.find((candidate) => candidate.id === id);
   if (!step) throw new Error(`Unknown project workflow step: ${id}`);
   return step;
@@ -409,8 +414,8 @@ export interface ProjectStepStatus {
   /** Labels of the failed checks — the "missing required data" list. */
   missing: string[];
   /**
-   * False for a step whose capability does not exist yet (the Other
-   * "Project Structure" placeholder). Shown, never worked on.
+   * False for a step whose capability does not exist yet. Shown, never
+   * worked on.
    */
   available: boolean;
   /**
@@ -422,11 +427,23 @@ export interface ProjectStepStatus {
   lockReason?: "earlier-step" | "unsaved" | "next-phase";
 }
 
-/** Master data the workflow is evaluated against. */
+/**
+ * An Other project's structure as the workflow sees it: the loaded
+ * structure, or null while it loads or after a failed load (with the
+ * plain-language error). Never a guessed or fallback structure.
+ */
+export interface StructureWorkflowInput {
+  structure: Pick<ProjectStructure, "levels" | "nodes"> | null;
+  error?: string | null;
+}
+
+/** Data the workflow is evaluated against. */
 export interface WorkflowMasterData {
   systems: System[];
   disciplines: Discipline[];
   contacts: Contact[];
+  /** Other projects only. Absent means "not loaded yet". */
+  structure?: StructureWorkflowInput;
 }
 
 function check(label: string, passed: boolean, hint?: string): WorkflowCheck {
@@ -529,14 +546,10 @@ function contactChecks(
       "Set the reporting coordinator on the Project Info step."
     ),
   ];
-  // An Other project's contacts are scoped by its configured structure, which
-  // does not exist yet — never by the PSM/legacy department checks.
-  if (flow === "other") {
-    return [
-      ...base,
-      check("Project structure configured", false, STRUCTURE_PLACEHOLDER_MESSAGE),
-    ];
-  }
+  // An Other project has no departments: never the PSM/legacy department
+  // checks. Contacts are not tied to structure units (future work), so the
+  // existing project-level responsibility holder is all that is judged.
+  if (flow === "other") return base;
   if (project.departments.length === 0) {
     return [...base, check("Assign departments first", false)];
   }
@@ -564,6 +577,78 @@ function contactChecks(
 }
 
 /**
+ * An Other project's Project Structure step (Phase 2C.1c). Judged from the
+ * shared completeness facts (structureCompleteness) — never re-derived here:
+ *
+ * - at least one level, at least one active top-level unit, and an active
+ *   unit on every configured level;
+ * - when the project's Weekly reporting is enabled, at least one active unit
+ *   owes Weekly input; the same for Monthly. The enable switches are the
+ *   project's own `reporting` settings (projects.weekly_enabled /
+ *   monthly_enabled) — the same ones that gate Weekly report creation.
+ *
+ * Archived units never count. Nothing loaded yet (or a failed load) is an
+ * incomplete step with one plain-language check, never an error screen and
+ * never a pass — so the steps after it stay locked.
+ */
+export function structureStepChecks(
+  project: Pick<Project, "reporting">,
+  input: StructureWorkflowInput | undefined
+): WorkflowCheck[] {
+  if (!input?.structure) {
+    return [
+      check(
+        "Project structure loaded",
+        false,
+        input?.error ?? "Loading the project structure…"
+      ),
+    ];
+  }
+  const { levels } = input.structure;
+  const facts = structureCompleteness(input.structure);
+  const levelName = (n: number) =>
+    levels.find((level) => level.levelNumber === n)?.pluralLabel ?? `Level ${n}`;
+  const checks = [
+    check(
+      "At least one structure level defined",
+      facts.levelCount > 0,
+      "Define the project's structure levels."
+    ),
+    check(
+      "At least one active top-level unit",
+      facts.activeRootCount > 0,
+      "Add a unit at the first level."
+    ),
+    check(
+      "Every structure level has an active unit",
+      facts.levelCount > 0 && facts.emptyLevels.length === 0,
+      facts.emptyLevels.length > 0
+        ? `Add an active unit to: ${facts.emptyLevels.map(levelName).join(", ")}.`
+        : "Define the project's structure levels."
+    ),
+  ];
+  if (project.reporting?.weeklyEnabled) {
+    checks.push(
+      check(
+        "At least one unit owes Weekly input",
+        facts.weeklyUnitCount > 0,
+        "Weekly reporting is enabled: mark the units that owe Weekly input."
+      )
+    );
+  }
+  if (project.reporting?.monthlyEnabled) {
+    checks.push(
+      check(
+        "At least one unit owes Monthly input",
+        facts.monthlyUnitCount > 0,
+        "Monthly reporting is enabled: mark the units that owe Monthly input."
+      )
+    );
+  }
+  return checks;
+}
+
+/**
  * Review passes only when every other step does — it is the confirmation
  * gate, so it mirrors their outcome rather than adding new requirements.
  */
@@ -575,7 +660,19 @@ function contactChecks(
  * requirement. Introducing a new gate here would block Review on a step where
  * the user has nothing to fix — every correction is made back on Contacts.
  */
-function teamChecks(project: Project): WorkflowCheck[] {
+function teamChecks(project: Project, flow: SetupFlow): WorkflowCheck[] {
+  // An Other project has no department-scoped team (contacts are not tied to
+  // structure units yet). Its responsibilities are the existing fixed holders;
+  // the required ones are exactly those Project Information already demands.
+  if (flow === "other") {
+    return FIXED_RESPONSIBILITIES.filter((meta) => meta.required).map((meta) =>
+      check(
+        `${meta.label} assigned`,
+        Boolean(project[meta.field]),
+        `Set the ${meta.label} on Project Type & Information.`
+      )
+    );
+  }
   const team = project.team ?? [];
   return [
     check(
@@ -596,7 +693,7 @@ function reviewChecks(
       status.complete,
       status.available
         ? `${status.missing.length} item(s) outstanding.`
-        : STRUCTURE_PLACEHOLDER_MESSAGE
+        : NEXT_PHASE_MESSAGE
     )
   );
 }
@@ -654,7 +751,8 @@ export function evaluateProjectWorkflow(
     saved: true,
   })
 ): ProjectStepStatus[] {
-  void data; // Reserved: all checks now read project-scoped links.
+  // Master records are reserved: every check reads project-scoped links. Only
+  // an Other project's structure is read from `data`.
   const flow = setupFlowFor({ structureFamily: project.structureFamily, saved: true });
 
   const ordered: ProjectStepStatus[] = [];
@@ -666,8 +764,7 @@ export function evaluateProjectWorkflow(
       case "info":
         return infoChecks(project);
       case "structure":
-        // Placeholder: nothing can be checked until the capability exists.
-        return [];
+        return structureStepChecks(project, data.structure);
       case "departments":
         return departmentChecks(project);
       case "systems":
@@ -677,7 +774,7 @@ export function evaluateProjectWorkflow(
       case "contacts":
         return contactChecks(project, departmentName, flow);
       case "team":
-        return teamChecks(project);
+        return teamChecks(project, flow);
       case "review":
         return reviewChecks(ordered, steps);
     }

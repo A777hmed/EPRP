@@ -27,6 +27,9 @@ import { misplacedScopeLinks, scopeLinkKey } from "../../scope-integrity";
 import { formatDate } from "@/lib/formatters";
 import type { HierarchyTerms } from "@/config/project-terminology";
 import type { Client, Contact, Discipline, Project, System } from "@/types";
+import type { ProjectStructure } from "@/types/project-structure";
+import { activeNodes } from "../../structure/structure-rules";
+import { StructureLevelSummary } from "./structure/structure-level-summary";
 
 export interface SetupStepReviewProps {
   /** Hierarchy wording — display only. */
@@ -37,6 +40,12 @@ export interface SetupStepReviewProps {
   contacts: Contact[];
   disciplines: Discipline[];
   departmentName: (id: string) => string;
+  /**
+   * An Other project's structure (2C.1c): `null` while it loads, absent for
+   * PSM and legacy projects. When present (even null), the review shows the
+   * structure instead of Departments → Systems → Disciplines.
+   */
+  structure?: Pick<ProjectStructure, "levels" | "nodes"> | null;
   /** This project's resolved setup steps, for labels in its own wording. */
   steps?: ProjectWorkflowStep[];
 }
@@ -64,7 +73,10 @@ export function SetupStepReview({
   departmentName,
   terms,
   steps,
+  structure,
 }: SetupStepReviewProps) {
+  // An Other project never falls back to the Departments → Systems view.
+  const isOther = structure !== undefined;
   const missing = allMissing(statuses);
   const stepLabel = (id: ProjectWorkflowStepId) =>
     steps ? setupStepLabel(steps, id) : getLocalizedProjectWorkflowStep(id, terms).label;
@@ -210,217 +222,250 @@ export function SetupStepReview({
             label="Planned finish"
             value={formatDate(project.plannedFinishDate)}
           />
-          <Summary label="Departments" value={project.departments.length} />
-          <Summary label="Systems" value={systemCount} />
-          <Summary label={terms.plural} value={uniqueDisciplines.size} />
-          <Summary label="Team members" value={uniqueTeam.size} />
+          {isOther ? (
+            <>
+              <Summary label="Structure levels" value={structure ? structure.levels.length : "—"} />
+              <Summary
+                label="Active structure units"
+                value={structure ? activeNodes(structure.nodes).length : "—"}
+              />
+            </>
+          ) : (
+            <>
+              <Summary label="Departments" value={project.departments.length} />
+              <Summary label="Systems" value={systemCount} />
+              <Summary label={terms.plural} value={uniqueDisciplines.size} />
+              <Summary label="Team members" value={uniqueTeam.size} />
+            </>
+          )}
         </dl>
       </SectionCard>
 
-      <SectionCard
-        title="Scope breakdown"
-        description="How the project is structured after setup."
-      >
-        {project.departments.length === 0 ? (
-          <EmptyState
-            title="Nothing scoped yet"
-            description="Work through the earlier steps to build the project scope."
-            className="py-8"
-          />
-        ) : (
-          <ul className="space-y-3">
-            {project.departments.map((assignment) => {
-              const manager = departmentManager(
-                project,
-                assignment.departmentId
-              );
-              const deptLinks = links.filter(
-                (link) => link.departmentId === assignment.departmentId
-              );
-              const deptTeam = team.filter(
-                (member) => member.departmentId === assignment.departmentId
-              );
-              return (
-                <li
-                  key={assignment.departmentId}
-                  className="rounded-lg border p-3"
-                >
-                  <p className="text-sm font-medium">
-                    {departmentName(assignment.departmentId)}
-                    {manager && (
-                      <span className="ml-2 text-xs font-normal text-muted-foreground">
-                        Manager: {contactName(manager.contactId)}
-                      </span>
-                    )}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {assignment.systems.length} system
-                    {assignment.systems.length === 1 ? "" : "s"} ·{" "}
-                    {new Set(deptLinks.map((l) => l.disciplineId)).size}{" "}
-                    {new Set(deptLinks.map((l) => l.disciplineId)).size === 1
-                      ? terms.singularLower
-                      : terms.pluralLower}{" "}
-                    · {new Set(deptTeam.map((m) => m.contactId)).size} member
-                    {new Set(deptTeam.map((m) => m.contactId)).size === 1
-                      ? ""
-                      : "s"}
-                  </p>
-                  {assignment.systems.length > 0 && (
-                    <ul className="mt-3 space-y-2">
-                      {assignment.systems.map((system) => {
-                        const systemLinks = deptLinks.filter(
-                          (link) => link.systemId === system.id
-                        );
-                        const disciplineIds = [
-                          ...new Set(
-                            systemLinks.map((link) => link.disciplineId)
-                          ),
-                        ];
-                        // Assignments snapshot the system's name/code at the
-                        // time it was added, so a stale or bad snapshot value
-                        // renders forever unless the live master record — the
-                        // same one `nameOfSystem` already resolves — is
-                        // preferred whenever it still exists.
-                        const masterSystem = (
-                          allSystemRecords as System[]
-                        ).find((record) => record.id === system.id);
-                        const displayName = masterSystem?.name ?? system.name;
-                        const displayCode = masterSystem?.code ?? system.code;
-                        return (
-                          <li key={system.id} className="rounded-md bg-muted/50 p-2.5">
-                            <p className="text-xs font-medium">
-                              <span className="text-muted-foreground">System:</span>{" "}
-                              {displayName}
-                              {displayCode ? ` (${displayCode})` : ""}
-                            </p>
-                            {disciplineIds.length > 0 ? (
-                              <ul className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                                <li className="text-[11px] text-muted-foreground">
-                                  {terms.plural}:
-                                </li>
-                                {disciplineIds.map((id) => (
-                                  <li
-                                    key={id}
-                                    className="rounded-md border bg-background px-2 py-0.5 text-xs"
-                                  >
-                                    {scopedDisciplineName(id)}
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="mt-1 text-[11px] text-muted-foreground">
-                                No {terms.pluralLower} linked to this System.
-                              </p>
-                            )}
-                          </li>
-                        );
-                      })}
-                      {deptLinks.some(
-                        (link) =>
-                          !link.systemId ||
-                          !assignment.systems.some(
-                            (system) => system.id === link.systemId
-                          )
-                      ) && (
-                        <li className="rounded-md border border-warning/40 bg-warning/5 p-2.5 text-xs">
-                          <span className="font-medium">Legacy unassigned {terms.pluralLower}:</span>{" "}
-                          {[
-                            ...new Set(
-                              deptLinks
-                                .filter(
-                                  (link) =>
-                                    !link.systemId ||
-                                    !assignment.systems.some(
-                                      (system) => system.id === link.systemId
-                                    )
-                                )
-                                .map((link) => link.disciplineId)
-                            ),
-                          ]
-                            .map((id) => scopedDisciplineName(id))
-                            .join(", ")}
-                        </li>
+      {isOther ? (
+        <SectionCard
+          title="Structure breakdown"
+          description="This project's own levels and active units."
+        >
+          {structure && structure.levels.length > 0 ? (
+            <StructureLevelSummary structure={structure} />
+          ) : (
+            <EmptyState
+              title={structure ? "No structure levels yet" : "Structure not loaded"}
+              description={
+                structure
+                  ? "Configure the levels on the Project Structure step."
+                  : "The project structure is still loading."
+              }
+              className="py-8"
+            />
+          )}
+        </SectionCard>
+      ) : (
+        <SectionCard
+          title="Scope breakdown"
+          description="How the project is structured after setup."
+        >
+          {project.departments.length === 0 ? (
+            <EmptyState
+              title="Nothing scoped yet"
+              description="Work through the earlier steps to build the project scope."
+              className="py-8"
+            />
+          ) : (
+            <ul className="space-y-3">
+              {project.departments.map((assignment) => {
+                const manager = departmentManager(
+                  project,
+                  assignment.departmentId
+                );
+                const deptLinks = links.filter(
+                  (link) => link.departmentId === assignment.departmentId
+                );
+                const deptTeam = team.filter(
+                  (member) => member.departmentId === assignment.departmentId
+                );
+                return (
+                  <li
+                    key={assignment.departmentId}
+                    className="rounded-lg border p-3"
+                  >
+                    <p className="text-sm font-medium">
+                      {departmentName(assignment.departmentId)}
+                      {manager && (
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                          Manager: {contactName(manager.contactId)}
+                        </span>
                       )}
-                    </ul>
-                  )}
-                  {deptTeam.length > 0 && (
-                    <ul className="mt-1.5 space-y-1">
-                      {departmentAssignments(
-                        project,
-                        assignment.departmentId
-                      )
-                        .sort((left, right) =>
-                          compareTeamDisplayOrder(left, right, contactName)
-                        )
-                        .map((entry) => {
-                        const contact = contacts.find(
-                          (candidate) => candidate.id === entry.contactId
-                        );
-                        const isCrossDepartment =
-                          Boolean(contact?.departmentId) &&
-                          contact?.departmentId !== assignment.departmentId;
-                        const reportsTo = entry.reportsToContactId
-                          ? contactName(entry.reportsToContactId)
-                          : undefined;
-                        return (
-                          <li
-                            key={entry.contactId}
-                            className="flex flex-wrap items-center gap-1.5 text-xs"
-                          >
-                            <span className="rounded-md bg-muted px-2 py-0.5">
-                              {contact?.name ?? "Unknown contact"}
-                            </span>
-                            {isCrossDepartment && contact?.departmentId && (
-                              <span className="text-muted-foreground">
-                                Cross-department · Home: {departmentName(contact.departmentId)}
-                              </span>
-                            )}
-                            {entry.functionalTitle && (
-                              <span className="text-muted-foreground">
-                                {entry.functionalTitle}
-                              </span>
-                            )}
-                            <StatusBadge
-                              tone={
-                                entry.assignmentRole === "department_manager"
-                                  ? "info"
-                                  : "neutral"
-                              }
-                            >
-                              {ASSIGNMENT_ROLE_META[entry.assignmentRole].label}
-                            </StatusBadge>
-                            {reportsTo && (
-                              <span className="text-muted-foreground">
-                                → {reportsTo}
-                              </span>
-                            )}
-                          </li>
-                        );
-                        })}
-                    </ul>
-                  )}
-                  {activeDelegations(
-                    project,
-                    assignment.departmentId,
-                    today
-                  ).map((delegation, index) => (
-                    <p
-                      key={delegation.id ?? index}
-                      className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"
-                    >
-                      <StatusBadge tone="success">
-                        Acting / Delegated Manager
-                      </StatusBadge>
-                      {contactName(delegation.delegateContactId)}
-                      <span>· until {delegation.endDate}</span>
                     </p>
-                  ))}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </SectionCard>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {assignment.systems.length} system
+                      {assignment.systems.length === 1 ? "" : "s"} ·{" "}
+                      {new Set(deptLinks.map((l) => l.disciplineId)).size}{" "}
+                      {new Set(deptLinks.map((l) => l.disciplineId)).size === 1
+                        ? terms.singularLower
+                        : terms.pluralLower}{" "}
+                      · {new Set(deptTeam.map((m) => m.contactId)).size} member
+                      {new Set(deptTeam.map((m) => m.contactId)).size === 1
+                        ? ""
+                        : "s"}
+                    </p>
+                    {assignment.systems.length > 0 && (
+                      <ul className="mt-3 space-y-2">
+                        {assignment.systems.map((system) => {
+                          const systemLinks = deptLinks.filter(
+                            (link) => link.systemId === system.id
+                          );
+                          const disciplineIds = [
+                            ...new Set(
+                              systemLinks.map((link) => link.disciplineId)
+                            ),
+                          ];
+                          // Assignments snapshot the system's name/code at the
+                          // time it was added, so a stale or bad snapshot value
+                          // renders forever unless the live master record — the
+                          // same one `nameOfSystem` already resolves — is
+                          // preferred whenever it still exists.
+                          const masterSystem = (
+                            allSystemRecords as System[]
+                          ).find((record) => record.id === system.id);
+                          const displayName = masterSystem?.name ?? system.name;
+                          const displayCode = masterSystem?.code ?? system.code;
+                          return (
+                            <li key={system.id} className="rounded-md bg-muted/50 p-2.5">
+                              <p className="text-xs font-medium">
+                                <span className="text-muted-foreground">System:</span>{" "}
+                                {displayName}
+                                {displayCode ? ` (${displayCode})` : ""}
+                              </p>
+                              {disciplineIds.length > 0 ? (
+                                <ul className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                  <li className="text-[11px] text-muted-foreground">
+                                    {terms.plural}:
+                                  </li>
+                                  {disciplineIds.map((id) => (
+                                    <li
+                                      key={id}
+                                      className="rounded-md border bg-background px-2 py-0.5 text-xs"
+                                    >
+                                      {scopedDisciplineName(id)}
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p className="mt-1 text-[11px] text-muted-foreground">
+                                  No {terms.pluralLower} linked to this System.
+                                </p>
+                              )}
+                            </li>
+                          );
+                        })}
+                        {deptLinks.some(
+                          (link) =>
+                            !link.systemId ||
+                            !assignment.systems.some(
+                              (system) => system.id === link.systemId
+                            )
+                        ) && (
+                          <li className="rounded-md border border-warning/40 bg-warning/5 p-2.5 text-xs">
+                            <span className="font-medium">Legacy unassigned {terms.pluralLower}:</span>{" "}
+                            {[
+                              ...new Set(
+                                deptLinks
+                                  .filter(
+                                    (link) =>
+                                      !link.systemId ||
+                                      !assignment.systems.some(
+                                        (system) => system.id === link.systemId
+                                      )
+                                  )
+                                  .map((link) => link.disciplineId)
+                              ),
+                            ]
+                              .map((id) => scopedDisciplineName(id))
+                              .join(", ")}
+                          </li>
+                        )}
+                      </ul>
+                    )}
+                    {deptTeam.length > 0 && (
+                      <ul className="mt-1.5 space-y-1">
+                        {departmentAssignments(
+                          project,
+                          assignment.departmentId
+                        )
+                          .sort((left, right) =>
+                            compareTeamDisplayOrder(left, right, contactName)
+                          )
+                          .map((entry) => {
+                          const contact = contacts.find(
+                            (candidate) => candidate.id === entry.contactId
+                          );
+                          const isCrossDepartment =
+                            Boolean(contact?.departmentId) &&
+                            contact?.departmentId !== assignment.departmentId;
+                          const reportsTo = entry.reportsToContactId
+                            ? contactName(entry.reportsToContactId)
+                            : undefined;
+                          return (
+                            <li
+                              key={entry.contactId}
+                              className="flex flex-wrap items-center gap-1.5 text-xs"
+                            >
+                              <span className="rounded-md bg-muted px-2 py-0.5">
+                                {contact?.name ?? "Unknown contact"}
+                              </span>
+                              {isCrossDepartment && contact?.departmentId && (
+                                <span className="text-muted-foreground">
+                                  Cross-department · Home: {departmentName(contact.departmentId)}
+                                </span>
+                              )}
+                              {entry.functionalTitle && (
+                                <span className="text-muted-foreground">
+                                  {entry.functionalTitle}
+                                </span>
+                              )}
+                              <StatusBadge
+                                tone={
+                                  entry.assignmentRole === "department_manager"
+                                    ? "info"
+                                    : "neutral"
+                                }
+                              >
+                                {ASSIGNMENT_ROLE_META[entry.assignmentRole].label}
+                              </StatusBadge>
+                              {reportsTo && (
+                                <span className="text-muted-foreground">
+                                  → {reportsTo}
+                                </span>
+                              )}
+                            </li>
+                          );
+                          })}
+                      </ul>
+                    )}
+                    {activeDelegations(
+                      project,
+                      assignment.departmentId,
+                      today
+                    ).map((delegation, index) => (
+                      <p
+                        key={delegation.id ?? index}
+                        className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"
+                      >
+                        <StatusBadge tone="success">
+                          Acting / Delegated Manager
+                        </StatusBadge>
+                        {contactName(delegation.delegateContactId)}
+                        <span>· until {delegation.endDate}</span>
+                      </p>
+                    ))}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </SectionCard>
+      )}
     </div>
   );
 }

@@ -12,7 +12,7 @@ import {
   projectWorkflowHref,
   resolveSetupSteps,
   setupStepLabel,
-  STRUCTURE_PLACEHOLDER_MESSAGE,
+  NEXT_PHASE_MESSAGE,
   type InfoCheckInput,
   type ProjectStepStatus,
   type ProjectWorkflowStep,
@@ -20,6 +20,7 @@ import {
 } from "@/config/project-workflow";
 import type { Project, StructureFamily } from "@/types";
 import { useProjectWorkflow } from "../use-project-workflow";
+import type { ProjectStructureState } from "../use-project-structure";
 
 /**
  * Locked outranks complete: a later step can already satisfy its own checks
@@ -43,7 +44,7 @@ export function workflowLockMessage(
     case "unsaved":
       return NEEDS_SAVED_PROJECT_MESSAGE;
     case "next-phase":
-      return STRUCTURE_PLACEHOLDER_MESSAGE;
+      return NEXT_PHASE_MESSAGE;
     case "earlier-step":
       return `Complete ${setupStepLabel(steps, status.blockedBy ?? "info")} first`;
     default:
@@ -254,6 +255,11 @@ export interface ProjectWorkflowNavProps {
   project: Project;
   /** The step whose page is open, if the workflow itself is being viewed. */
   activeStep?: ProjectWorkflowStepId;
+  /**
+   * An Other project's structure, when the page already loads it (the setup
+   * wizard). Omitted: the tracker loads it itself.
+   */
+  structure?: ProjectStructureState;
   className?: string;
 }
 
@@ -261,9 +267,10 @@ export interface ProjectWorkflowNavProps {
 export function ProjectWorkflowNav({
   project,
   activeStep,
+  structure,
   className,
 }: ProjectWorkflowNavProps) {
-  const { steps, statuses, percent } = useProjectWorkflow(project);
+  const { steps, statuses, percent } = useProjectWorkflow(project, { structure });
   return (
     <WorkflowTracker
       steps={steps}

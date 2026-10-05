@@ -187,11 +187,16 @@ export interface CorrectableProject {
  * The correction rules the database applies, for a backend without one (the
  * in-memory mock). Returns the corrected classification and the history entry
  * to record, or throws the same refusals. Authority is the database's alone.
+ *
+ * `activeStructureUnits` is the project's count of active Project Structure
+ * units (2C.1c): like the database's [STRUCTURE_EXISTS] guard, Other -> PSM
+ * is refused while any exist. Archived units alone do not block it.
  */
 export function applyProjectTypeCorrection(
   existing: CorrectableProject,
   input: CorrectProjectTypeInput,
-  correctedAt: string
+  correctedAt: string,
+  activeStructureUnits = 0
 ): {
   classification: Pick<CorrectableProject, "structureFamily" | "projectTypeId" | "projectCategoryDetail">;
   entry: Omit<ClassificationCorrection, "id">;
@@ -208,6 +213,11 @@ export function applyProjectTypeCorrection(
   if (!existing.structureFamily) throw new ProjectTypeCorrectionError("not_classified");
   if (existing.structureFamily === input.structureFamily) {
     throw new ProjectTypeCorrectionError("same_type");
+  }
+  // Same order as the database: after the version, classification and
+  // same-type checks, before anything is recorded.
+  if (existing.structureFamily === "other" && input.structureFamily === "psm" && activeStructureUnits > 0) {
+    throw new ProjectTypeCorrectionError("structure_exists");
   }
   const classification = {
     structureFamily: input.structureFamily,

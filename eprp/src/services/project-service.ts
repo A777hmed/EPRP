@@ -158,6 +158,30 @@ export function listProjectsSync(): Project[] {
  * the database's setup-version trigger does, so Project Setup and Project
  * Structure share ONE version per project (Phase 2C.1c). Returns the new one.
  */
+/**
+ * Active Project Structure units that block this correction: counted only for
+ * Other -> PSM, exactly like the database's [STRUCTURE_EXISTS] guard. Loaded
+ * lazily: the mock structure service reads this module's project store, so a
+ * static import would be a cycle. Any failure refuses the correction rather
+ * than guessing.
+ */
+async function structureUnitsBlockingCorrection(
+  existing: Project,
+  input: CorrectProjectTypeInput
+): Promise<number> {
+  if (existing.structureFamily !== "other" || input.structureFamily !== "psm") return 0;
+  try {
+    const [{ projectStructureService }, { activeNodes }] = await Promise.all([
+      import("./project-structure-service"),
+      import("@/features/projects/structure/structure-rules"),
+    ]);
+    const structure = await projectStructureService.getStructure(existing.id);
+    return activeNodes(structure.nodes).length;
+  } catch {
+    throw new ProjectTypeCorrectionError("failed");
+  }
+}
+
 export function advanceMockProjectVersion(id: string): string {
   const existing = store.get(id);
   if (!existing) throw new Error(`Project ${id} not found`);
@@ -244,7 +268,15 @@ const mockProjectService: ProjectService = {
     if (!input.reason.trim()) throw new ProjectTypeCorrectionError("reason_required");
     const existing = store.get(input.projectId);
     if (!existing) throw new ProjectTypeCorrectionError("not_found");
-    const { classification, entry } = applyProjectTypeCorrection(existing, input, nowIso());
+    // Mirrors the database's Other -> PSM structure guard (2C.1c-a) against the
+    // mock structure store, so mock mode never allows what the database refuses.
+    const activeStructureUnits = await structureUnitsBlockingCorrection(existing, input);
+    const { classification, entry } = applyProjectTypeCorrection(
+      existing,
+      input,
+      nowIso(),
+      activeStructureUnits
+    );
     classificationCorrections.unshift({
       id: `correction-${classificationCorrections.length + 1}`,
       ...entry,
