@@ -167,7 +167,10 @@ export function mapProjectTypeCorrectionError(
   const tag = /^\[(\w+)]/.exec(error?.message ?? "")?.[1];
   if (tag && TAG_REASON[tag]) return new ProjectTypeCorrectionError(TAG_REASON[tag]);
   if (error?.code === "42501") return new ProjectTypeCorrectionError("not_authorized");
-  if (error?.code === "40001") return new ProjectTypeCorrectionError("stale");
+  // PT409: the database's business-stale refusal (HTTP 409), raised only with
+  // [STALE]. 40001 is NOT treated as stale: a genuine serialization failure
+  // means "retry", not "the project changed".
+  if (error?.code === "PT409") return new ProjectTypeCorrectionError("stale");
   return new ProjectTypeCorrectionError("failed");
 }
 

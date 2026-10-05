@@ -93,7 +93,14 @@ test("refusals map to fixed wording; raw database text never reaches the user", 
   assert.doesNotMatch(mapped.message, /relation|public\./);
   assert.equal(mapProjectTypeCorrectionError({ message: "[CATEGORY_PSM_FAMILY] x", code: "23514" }).reason, "category_psm_family");
   assert.equal(mapProjectTypeCorrectionError({ message: "permission denied for table projects", code: "42501" }).reason, "not_authorized");
-  assert.equal(mapProjectTypeCorrectionError({ message: "could not serialize", code: "40001" }).reason, "stale");
+  // PT409 is the business-stale refusal; [STALE] alone also decides.
+  assert.equal(mapProjectTypeCorrectionError({ message: "[STALE] The project changed since this page loaded.", code: "PT409" }).reason, "stale");
+  assert.equal(mapProjectTypeCorrectionError({ message: "conflict", code: "PT409" }).reason, "stale");
+  assert.equal(mapProjectTypeCorrectionError({ message: "[STALE] x", code: "P0001" }).reason, "stale");
+  // A genuine serialization failure (40001) is not "the project changed", and
+  // a generic 409 such as a unique violation is not stale either.
+  assert.equal(mapProjectTypeCorrectionError({ message: "could not serialize access", code: "40001" }).reason, "failed");
+  assert.equal(mapProjectTypeCorrectionError({ message: "duplicate key value", code: "23505" }).reason, "failed");
   const unknown = mapProjectTypeCorrectionError({ message: "syntax error at or near \"x\"", code: "42601" });
   assert.equal(unknown.reason, "failed");
   assert.doesNotMatch(unknown.message, /syntax/);

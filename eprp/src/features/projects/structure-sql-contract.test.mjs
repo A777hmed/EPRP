@@ -199,7 +199,9 @@ test("2C.1c-a: the level RPC is invoker, locked, versioned, Other-only and tagge
 });
 
 test("2C.1c-a: the correction RPC is unchanged except the Other -> PSM structure guard", () => {
-  assert.equal(latestDefinition("correct_project_structure_family"), STRUCTURE_FILE);
+  // Live definition: re-created by the PT409 migration with only the stale
+  // SQLSTATE changed (proved in stale-sqlstate-contract.test.mjs).
+  assert.equal(latestDefinition("correct_project_structure_family"), "20261004000001_stale_conflict_sqlstate_pt409.sql");
   const before = body(classification, "correct_project_structure_family", "$correct$");
   const after = body(structure, "correct_project_structure_family", "$correct$");
   const guard = after.match(/\n  -- 4b\. \(2C\.1c\)[\s\S]+?\n  end if;\n/);
@@ -221,7 +223,7 @@ test("2C.1c-a: the application maps [STRUCTURE_EXISTS] to fixed wording", () => 
 });
 
 test("2C.1c-a: the Project Setup patch, PSM hierarchy, reporting and planning are untouched", () => {
-  assert.equal(latestDefinition("save_project_setup_patch"), CLASSIFICATION_FILE);
+  assert.equal(latestDefinition("save_project_setup_patch"), "20261004000001_stale_conflict_sqlstate_pt409.sql");
   assert.doesNotMatch(structure, /save_project_setup_patch/);
   const untouched = [
     "departments", "systems", "disciplines", "project_departments", "project_disciplines",

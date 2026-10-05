@@ -53,7 +53,8 @@ test("batch allowlist (latest patch definition) matches the mapper and excludes 
     ...[...mapper.matchAll(/row\.([a-z_]+) =/g)].map((match) => match[1]),
   ]);
   const latest = latestBody("save_project_setup_patch", "$patch$");
-  assert.equal(latest.file, "20261001000001_project_setup_classification.sql");
+  // Re-created unchanged apart from the stale SQLSTATE (see stale-sqlstate-contract.test.mjs).
+  assert.equal(latest.file, "20261004000001_stale_conflict_sqlstate_pt409.sql");
   const allowlist = latest.sql.match(/v_columns constant text\[\] := array\[([\s\S]+?)\];/)[1];
   assert.deepEqual(new Set([...allowlist.matchAll(/'([a-z_]+)'/g)].map((match) => match[1])), mapped);
   for (const column of ["id", "created_at", "updated_at", "archived_at"]) assert.equal(mapped.has(column), false);

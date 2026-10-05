@@ -919,6 +919,40 @@ export interface PositionAssignmentHistoryRow {
   created_at: string;
 }
 
+/**
+ * Phase 2C.1c — see 20261003000001_project_structure_foundation.sql. An Other
+ * project's own levels and units. `*_label_key` are generated columns (never
+ * written). No `active` column: a unit is archived when `archived_at` is set.
+ */
+export interface ProjectStructureLevelRow {
+  id: string;
+  project_id: string;
+  level_number: number;
+  singular_label: string;
+  plural_label: string;
+  singular_label_key: string;
+  plural_label_key: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectStructureNodeRow {
+  id: string;
+  project_id: string;
+  level_number: number;
+  parent_id: string | null;
+  name: string;
+  code: string | null;
+  description: string | null;
+  sort_order: number;
+  /** Operational input required — not a review / roll-up role. */
+  weekly_reporting_required: boolean;
+  monthly_reporting_required: boolean;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 type TableDef<Row, Insert, Update> = {
   Row: Row;
   Insert: Insert;
@@ -1071,6 +1105,17 @@ export interface Database {
         PlanningMilestoneLinkRow,
         Omit<PlanningMilestoneLinkRow, "id" | "created_at"> & { master_milestone_id: string },
         never
+      >;
+      // Levels change only through configure_project_structure_levels().
+      project_structure_levels: TableDef<ProjectStructureLevelRow, never, never>;
+      project_structure_nodes: TableDef<
+        ProjectStructureNodeRow,
+        Partial<Omit<ProjectStructureNodeRow, "id" | "created_at" | "updated_at" | "archived_at">> & {
+          project_id: string;
+          level_number: number;
+          name: string;
+        },
+        Partial<Omit<ProjectStructureNodeRow, "id" | "project_id" | "level_number" | "created_at" | "updated_at">>
       >;
     };
   };

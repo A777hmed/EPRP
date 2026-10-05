@@ -153,6 +153,19 @@ export function listProjectsSync(): Project[] {
   return [...store.values()].map(clone);
 }
 
+/**
+ * Mock-phase only: advances a project's version after a structure write, as
+ * the database's setup-version trigger does, so Project Setup and Project
+ * Structure share ONE version per project (Phase 2C.1c). Returns the new one.
+ */
+export function advanceMockProjectVersion(id: string): string {
+  const existing = store.get(id);
+  if (!existing) throw new Error(`Project ${id} not found`);
+  const next = new Date(Math.max(Date.now(), Date.parse(existing.updatedAt) + 1)).toISOString();
+  store.set(id, { ...existing, updatedAt: next });
+  return next;
+}
+
 const mockProjectService: ProjectService = {
   async getProjects() {
     await delay();
