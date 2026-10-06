@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Circle, MoreHorizontal, Plus } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Circle, MoreHorizontal, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { structureStepChecks } from "@/config/project-workflow";
@@ -20,8 +20,11 @@ export function StructureUnitsEditor(props: ProjectStructureWorkspaceProps) {
   const [intent, setIntent] = React.useState<StructureUnitIntent | null>(null);
   const [showArchived, setShowArchived] = React.useState(false);
   const [awaitingRead, setAwaitingRead] = React.useState<ProjectStructure | null>(null);
+  const [collapsedBranches, setCollapsedBranches] = React.useState<Set<string>>(() => new Set());
+  const treeId = React.useId();
   const sectionRef = React.useRef<HTMLElement>(null);
   const rootActionRef = React.useRef<HTMLButtonElement>(null);
+  const contextualActionRef = React.useRef<HTMLButtonElement | null>(null);
   const rowActionRefs = React.useRef(new Map<string, HTMLButtonElement>());
   const refreshing = awaitingRead === structure;
   const scope = reportingScope(structure.nodes);
@@ -34,6 +37,12 @@ export function StructureUnitsEditor(props: ProjectStructureWorkspaceProps) {
   const canWrite = canManage && !refreshing;
 
   function returnFocus() {
+    const contextualTrigger = contextualActionRef.current;
+    contextualActionRef.current = null;
+    if (contextualTrigger?.isConnected && !contextualTrigger.disabled) {
+      contextualTrigger.focus();
+      return;
+    }
     const rowId = intent?.mode === "create" ? intent.parentId : intent?.node.id;
     const trigger = rowId ? rowActionRefs.current.get(rowId) : rootActionRef.current;
     if (trigger?.isConnected && !trigger.disabled) trigger.focus();
@@ -41,7 +50,15 @@ export function StructureUnitsEditor(props: ProjectStructureWorkspaceProps) {
     else sectionRef.current?.focus();
   }
 
-  function renderBranch(entries: StructureTreeNode[]) {
+  function toggleBranch(id: string) {
+    setCollapsedBranches((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function renderBranch(entries: StructureTreeNode[], depth = 0) {
     return entries.map(({ node, level, children }) => {
       const labels = unitLabels(structure, node.levelNumber);
       const active = isActiveNode(node);
@@ -52,26 +69,34 @@ export function StructureUnitsEditor(props: ProjectStructureWorkspaceProps) {
       const archiveRule = canArchiveNode(structure.nodes, node.id);
       const restoreRule = canRestoreNode(structure.nodes, node.id);
       const deleteRule = canDeleteNode(structure.nodes, node.id);
+      const hasBranch = children.length > 0 || (canManage && childLevel && childRule.ok);
+      const expanded = !collapsedBranches.has(node.id);
+      const branchId = `${treeId}-branch-${node.id}`;
       return (
-        <li key={node.id} className="min-w-0">
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 border-b py-3 lg:grid-cols-[minmax(0,1fr)_13rem_auto]" aria-label={`${labels.singular}: ${node.name}`}>
+        <li key={node.id} className="relative min-w-0" data-structure-unit={node.id}>
+          {depth > 0 && <span aria-hidden="true" className="absolute -left-3 top-6 w-3 border-t-2 border-border sm:-left-4 sm:w-4" />}
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 rounded-md border bg-card p-3" aria-label={`${labels.singular}: ${node.name}`}>
             <div className="min-w-0">
-              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                <span className="break-words text-sm font-semibold">{node.name}</span>
+              <div className="flex min-w-0 items-start gap-2">
+                {hasBranch && <Button type="button" variant="ghost" className="-ml-1 -mt-1 size-11 shrink-0" aria-expanded={expanded} aria-controls={expanded ? branchId : undefined} aria-label={`${expanded ? "Collapse" : "Expand"} ${labels.singular} ${node.name} branch`} onClick={() => toggleBranch(node.id)}>{expanded ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}</Button>}
+                <div className="min-w-0 space-y-1"><span className="block break-words text-sm font-semibold">{node.name}</span>
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                 {node.code && <span className="break-all text-xs text-muted-foreground">{node.code}</span>}
                 <span className="text-xs text-muted-foreground">{level?.singularLabel ?? labels.singular}</span>
-                <span className="rounded border px-1.5 py-0.5 text-xs">{active ? "Active" : "Archived"}</span>
+                <span className="rounded border px-1.5 py-0.5 text-xs">{active ? "Active" : "Archived"}</span></div>
+                </div>
               </div>
               {parentType && <p className="mt-1 break-words text-xs text-muted-foreground" title={unitPathLabel(structure, node.id)}>Parent {parentType}: {parent?.name ?? "Not available"}</p>}
-              {node.description && <p className="mt-1 break-words text-xs text-muted-foreground">{node.description}</p>}
+              {node.description && <p className="mt-1 line-clamp-2 break-words text-xs text-muted-foreground" title={node.description}>{node.description}</p>}
             </div>
-            <div className="col-start-1 flex flex-wrap gap-x-3 gap-y-1 text-xs lg:col-start-2 lg:row-start-1 lg:pt-1">
-              <span>{node.weeklyReportingRequired && active ? "Weekly input required" : "Weekly input —"}</span>
-              <span>{node.monthlyReportingRequired && active ? "Monthly input required" : "Monthly input —"}</span>
+            <div className="col-span-2 flex flex-wrap gap-2 text-xs lg:col-span-1 lg:col-start-1">
+              <span className={`rounded border px-2 py-0.5 ${node.weeklyReportingRequired && active ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>{node.weeklyReportingRequired && active ? "Weekly input required" : "Weekly input —"}</span>
+              <span className={`rounded border px-2 py-0.5 ${node.monthlyReportingRequired && active ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>{node.monthlyReportingRequired && active ? "Monthly input required" : "Monthly input —"}</span>
+              {hasBranch && !expanded && <span className="self-center text-muted-foreground">{children.length} {childLevel?.pluralLabel ?? "child groups"} · collapsed</span>}
             </div>
             {canManage && (
               <DropdownMenu>
-                <DropdownMenuTrigger asChild><Button ref={(element) => { if (element) rowActionRefs.current.set(node.id, element); else rowActionRefs.current.delete(node.id); }} type="button" variant="ghost" className="col-start-2 row-start-1 size-11 lg:col-start-3" disabled={!canWrite} aria-label={`Actions for ${labels.singular} ${node.name}`}><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger>
+                <DropdownMenuTrigger asChild><Button ref={(element) => { if (element) rowActionRefs.current.set(node.id, element); else rowActionRefs.current.delete(node.id); }} type="button" variant="ghost" className="col-start-2 row-start-1 size-11" disabled={!canWrite} aria-label={`Actions for ${labels.singular} ${node.name}`}><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="max-w-[calc(100vw-2rem)]" onCloseAutoFocus={(event) => { if (intent) event.preventDefault(); }}>
                   {childLevel && <DropdownMenuItem className="min-h-11 whitespace-normal" disabled={!childRule.ok} title={!childRule.ok ? unitRuleMessage(childRule.reason) : undefined} onSelect={() => setIntent({ mode: "create", levelNumber: childLevel.levelNumber, parentId: node.id })}>Add {childLevel.singularLabel} under {node.name}</DropdownMenuItem>}
                   <DropdownMenuItem className="min-h-11" onSelect={() => setIntent({ mode: "details", node })}>Edit {labels.singular}</DropdownMenuItem>
@@ -87,7 +112,13 @@ export function StructureUnitsEditor(props: ProjectStructureWorkspaceProps) {
               </DropdownMenu>
             )}
           </div>
-          {children.length > 0 && <ul className="ml-3 min-w-0 border-l pl-3 sm:ml-4 sm:pl-4" aria-label={`${node.name} children`}>{renderBranch(children)}</ul>}
+          {hasBranch && expanded && <ul id={branchId} className="relative ml-3 min-w-0 space-y-3 border-l-2 border-border pb-1 pl-3 pt-3 sm:ml-6 sm:pl-4" aria-label={`${node.name} children`}>
+            {renderBranch(children, depth + 1)}
+            {canManage && childLevel && childRule.ok && <li key={`add:${node.id}`} className="relative min-w-0">
+              <span aria-hidden="true" className="absolute -left-3 top-5 w-3 border-t-2 border-border sm:-left-4 sm:w-4" />
+              <Button type="button" variant="outline" className="min-h-11 max-w-full whitespace-normal text-left" disabled={!canWrite} aria-label={`Add ${childLevel.singularLabel} under ${node.name}`} onClick={(event) => { contextualActionRef.current = event.currentTarget; setIntent({ mode: "create", levelNumber: childLevel.levelNumber, parentId: node.id }); }}><Plus aria-hidden="true" /> Add {childLevel.singularLabel}</Button>
+            </li>}
+          </ul>}
         </li>
       );
     });
@@ -109,9 +140,8 @@ export function StructureUnitsEditor(props: ProjectStructureWorkspaceProps) {
   return (
     <section ref={sectionRef} tabIndex={-1} className="min-w-0 space-y-4 border-t pt-4 focus-visible:outline-2 focus-visible:outline-ring" aria-label="Project hierarchy">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0"><h3 className="text-sm font-semibold">Step 2 · Add structure units</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Levels define the hierarchy types. The actual named items belong to those types.</p>
-          {structure.levels.length > 0 && <p className="mt-1 text-xs text-muted-foreground">{roots.singular} is a hierarchy type; each {roots.singular} you add is an actual project group.</p>}
+        <div className="min-w-0"><h3 className="text-sm font-semibold">Step 2 · Build your project structure</h3>
+          <p className="mt-1 text-xs text-muted-foreground">Add the actual project groups and arrange them in the hierarchy below.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {archived.length > 0 && <Button type="button" variant="outline" className="min-h-11" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Hide" : "Show"} archived ({archived.length})</Button>}
@@ -124,7 +154,7 @@ export function StructureUnitsEditor(props: ProjectStructureWorkspaceProps) {
             <p className="mt-1 text-sm text-muted-foreground">{roots.plural} are the actual project groups of type {roots.singular} at Level 1. Give each group its own name, then add its children.</p>
             {canManage && <Button ref={rootActionRef} type="button" className="mt-3 min-h-11" disabled={!canWrite} onClick={() => setIntent({ mode: "create", levelNumber: 1 })}><Plus aria-hidden="true" /> Add {roots.singular}</Button>}
           </div>
-        ) : <ul className="min-w-0" aria-label={roots.plural}>{renderBranch(tree)}</ul>}
+        ) : <ul className="min-w-0 space-y-4" aria-label={roots.plural}>{renderBranch(tree)}</ul>}
       {structure.levels.length > 0 && (
         <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground tabular-nums" aria-label="Reporting input summary">
           <span>Weekly input owners: {scope.weekly.length}{!project.reporting.weeklyEnabled && " · reporting disabled"}</span>
@@ -142,7 +172,7 @@ export function StructureUnitsEditor(props: ProjectStructureWorkspaceProps) {
           </li>
         ))}</ul>
       </div>
-      {intent && <StructureUnitDialog key={intent.mode === "create" ? `create-${intent.levelNumber}-${intent.parentId ?? "root"}` : `${intent.mode}-${intent.node.id}`} {...props} intent={intent} onReturnFocus={returnFocus} onClose={() => setIntent(null)} onSaved={() => { setAwaitingRead(structure); setIntent(null); }} onReload={() => { setAwaitingRead(structure); setIntent(null); }} />}
+      {intent && <StructureUnitDialog key={intent.mode === "create" ? `create-${intent.levelNumber}-${intent.parentId ?? "root"}` : `${intent.mode}-${intent.node.id}`} {...props} intent={intent} onReturnFocus={returnFocus} onClose={() => setIntent(null)} onSaved={() => { if (intent.mode === "create" && intent.parentId) setCollapsedBranches((current) => { const next = new Set(current); next.delete(intent.parentId!); return next; }); setAwaitingRead(structure); setIntent(null); }} onReload={() => { setAwaitingRead(structure); setIntent(null); }} />}
     </section>
   );
 }

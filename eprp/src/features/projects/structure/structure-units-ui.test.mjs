@@ -80,8 +80,8 @@ test("complete workspace markup contains each step heading and configured level 
   for (const canManage of [true, false]) {
     for (const source of [structure(), structure([root, child]), { ...structure(), levels: [] }]) {
       const html = renderToStaticMarkup(React.createElement(ProjectStructureWorkspace, propsFor(source, { canManage })));
-      assert.equal((html.match(/<h3[^>]*>Step 1 · Configure hierarchy levels<\/h3>/g) ?? []).length, 1);
-      assert.equal((html.match(/<h3[^>]*>Step 2 · Add structure units<\/h3>/g) ?? []).length, 1);
+      assert.equal((html.match(/<h3[^>]*>Step 1 · How is this project organized\?<\/h3>/g) ?? []).length, 1);
+      assert.equal((html.match(/<h3[^>]*>Step 2 · Build your project structure<\/h3>/g) ?? []).length, 1);
       assert.equal((html.match(/aria-label="Hierarchy level configuration"/g) ?? []).length, 1);
       assert.equal((html.match(/aria-label="Project hierarchy"/g) ?? []).length, 1);
       for (const level of source.levels) {
@@ -116,7 +116,7 @@ function componentHarness(filename, initialProps) {
   const primitives = (names) => Object.fromEntries(names.map((name) => [name, name]));
   const modules = {
     react: hooks, sonner: { toast: { success: (message) => notifications.push(message) } },
-    "lucide-react": primitives(["Check", "Circle", "MoreHorizontal", "Plus"]),
+    "lucide-react": primitives(["Check", "ChevronDown", "ChevronRight", "Circle", "MoreHorizontal", "Plus"]),
     "@/components/ui/button": { Button: "button" }, "@/components/ui/input": { Input: "input" },
     "@/components/ui/label": { Label: "label" }, "@/components/ui/textarea": { Textarea: "textarea" },
     "@/components/ui/dialog": primitives(["Dialog", "DialogContent", "DialogDescription", "DialogFooter", "DialogHeader", "DialogTitle"]),
@@ -434,4 +434,131 @@ test("dialog restores focus to its invoking row, with a hierarchy fallback after
   harness.all("UnitDialog")[0].props.onReturnFocus(); assert.equal(rowFocus, 1);
   row.isConnected = false;
   harness.all("UnitDialog")[0].props.onReturnFocus(); assert.equal(sectionFocus, 1);
+});
+
+const treeHarness = (source, extra = {}) => componentHarness("structure-units-editor", propsFor(source, extra));
+const treeRows = (harness) => harness.all("li").filter((entry) => entry.props["data-structure-unit"]);
+const branchButton = (harness, name) => harness.all("button").find((entry) => entry.props["aria-label"] === name);
+
+test("root hierarchy nodes expose identity, compact card, code, description and textual states", () => {
+  const source = structure([{ ...root, code: "AL", description: "Main project group", weeklyReportingRequired: true }]);
+  const harness = treeHarness(source);
+  assert.equal(treeRows(harness).length, 1);
+  assert.equal(treeRows(harness)[0].key, root.id);
+  const card = harness.all("div").find((entry) => entry.props["aria-label"] === "Function: Alpha");
+  assert.match(card.props.className, /rounded-md border bg-card p-3/);
+  for (const text of ["Alpha", "AL", "Main project group", "Function", "Active", "Weekly input required", "Monthly input —"]) assert.ok(harness.text().includes(text));
+});
+
+test("child and contextual creation belong to their parent's connected branch, with unique stable keys", () => {
+  const harness = treeHarness(structure([root, child]));
+  const branch = harness.all("ul").find((entry) => entry.props["aria-label"] === "Alpha children");
+  assert.match(branch.props.className, /border-l-2 border-border/);
+  const siblings = branch.props.children.flat(Infinity).filter(Boolean);
+  assert.deepEqual(siblings.map((entry) => entry.key), [child.id, `add:${root.id}`]);
+  assert.equal(new Set(siblings.map((entry) => entry.key)).size, siblings.length);
+  assert.match(siblings[0].props.children[0].props.className, /border-t-2 border-border/);
+  assert.equal(siblings[0].props.children[0].props["aria-hidden"], "true");
+});
+
+test("multiple roots stay separate and only their own descendants collapse", () => {
+  const secondChild = node("Scope B", 2, another.id);
+  const harness = treeHarness(structure([root, child, another, secondChild]));
+  const roots = harness.all("ul").find((entry) => entry.props["aria-label"] === "Functions");
+  assert.match(roots.props.className, /space-y-4/);
+  assert.deepEqual(roots.props.children.map((entry) => entry.key), [root.id, another.id]);
+  branchButton(harness, "Collapse Function Alpha branch").props.onClick(); harness.render();
+  assert.deepEqual(treeRows(harness).map((entry) => entry.key), [root.id, another.id, secondChild.id]);
+  assert.equal(branchButton(harness, "Expand Function Alpha branch").props["aria-expanded"], false);
+  branchButton(harness, "Expand Function Alpha branch").props.onClick(); harness.render();
+  assert.equal(treeRows(harness).length, 4);
+});
+
+test("collapse keeps ownership and completion facts, expands with a labelled native control", () => {
+  const source = structure([{ ...root, weeklyReportingRequired: true }, { ...child, monthlyReportingRequired: true }]);
+  const harness = treeHarness(source); const before = JSON.stringify(source);
+  const button = branchButton(harness, "Collapse Function Alpha branch");
+  assert.equal(button.type, "button"); assert.equal(button.props["aria-expanded"], true);
+  assert.equal(button.props["aria-controls"], harness.all("ul").find((entry) => entry.props["aria-label"] === "Alpha children").props.id);
+  assert.match(button.props.className, /size-11/);
+  button.props.onClick(); harness.render();
+  assert.equal(treeRows(harness).length, 1);
+  for (const text of ["Weekly input required", "1 Workstreams · collapsed", "Weekly input owners: 1", "Monthly input owners: 1", "Project Structure requirements complete", "Continue to Contacts"]) assert.ok(harness.text().includes(text));
+  assert.equal(JSON.stringify(source), before);
+});
+
+test("contextual creation uses configured terminology and the existing dialog/actions", () => {
+  const source = { ...structure([root]), levels: [{ ...levels[0], singularLabel: "Zone", pluralLabel: "Zones" }, { ...levels[1], singularLabel: "Section", pluralLabel: "Sections" }] };
+  const actions = {}; const harness = treeHarness(source, { actions });
+  branchButton(harness, "Add Section under Alpha").props.onClick({ currentTarget: {} }); harness.render();
+  const dialogProps = harness.all("UnitDialog")[0].props;
+  assert.deepEqual(JSON.parse(JSON.stringify(dialogProps.intent)), { mode: "create", levelNumber: 2, parentId: root.id });
+  assert.equal(dialogProps.actions, actions); assert.equal(dialogProps.structure, source);
+  assert.ok(harness.menu("Add Section under Alpha"));
+  assert.ok(branchButton(harness, "Collapse Zone Alpha branch"));
+});
+
+test("contextual dialog returns focus to its actual invoking button", () => {
+  const harness = treeHarness(structure([root])); let focus = 0;
+  const trigger = { isConnected: true, disabled: false, focus: () => { focus++; } };
+  branchButton(harness, "Add Workstream under Alpha").props.onClick({ currentTarget: trigger }); harness.render();
+  harness.all("UnitDialog")[0].props.onReturnFocus();
+  assert.equal(focus, 1);
+});
+
+test("contextual child save expands its parent and preserves the read-before-next-write guard", () => {
+  const source = structure([root]); const harness = treeHarness(source);
+  branchButton(harness, "Add Workstream under Alpha").props.onClick({ currentTarget: {} }); harness.render();
+  branchButton(harness, "Collapse Function Alpha branch").props.onClick(); harness.render();
+  harness.all("UnitDialog")[0].props.onSaved(); harness.render();
+  assert.ok(branchButton(harness, "Collapse Function Alpha branch"));
+  assert.equal(branchButton(harness, "Add Workstream under Alpha").props.disabled, true);
+  harness.render({ structure: structure([root, child]) });
+  assert.equal(branchButton(harness, "Add Workstream under Alpha").props.disabled, false);
+});
+
+test("read-only branches still expand and collapse with ownership visible and no mutation controls", () => {
+  const harness = treeHarness(structure([{ ...root, weeklyReportingRequired: true }, child]), { canManage: false });
+  assert.equal(harness.all("DropdownMenuItem").length, 0);
+  assert.equal(branchButton(harness, "Add Workstream under Alpha"), undefined);
+  branchButton(harness, "Collapse Function Alpha branch").props.onClick(); harness.render();
+  assert.ok(harness.text().includes("Weekly input required"));
+  assert.ok(branchButton(harness, "Expand Function Alpha branch"));
+});
+
+test("archived branches retain explicit lifecycle state and restore menus but no child creation", () => {
+  const archivedRoot = { ...root, archivedAt: "archived", weeklyReportingRequired: true };
+  const harness = treeHarness(structure([archivedRoot]));
+  assert.equal(treeRows(harness).length, 0);
+  harness.button("Show archived (1)").props.onClick(); harness.render();
+  assert.equal(treeRows(harness).length, 1); assert.ok(harness.text().includes("Archived"));
+  assert.ok(harness.menu("Restore Function"));
+  assert.equal(branchButton(harness, "Add Workstream under Alpha"), undefined);
+  assert.equal(harness.text().includes("Weekly input required"), false);
+});
+
+test("third and fourth configured layers render recursively with dynamic child actions", () => {
+  const source = { ...structure([root, child, node("Deep", 3, child.id), node("Leaf", 4, "Deep")]), levels: [...levels,
+    { ...levels[0], id: "l3", levelNumber: 3, singularLabel: "Section", pluralLabel: "Sections" },
+    { ...levels[0], id: "l4", levelNumber: 4, singularLabel: "Task group", pluralLabel: "Task groups" }] };
+  const harness = treeHarness(source);
+  assert.deepEqual(treeRows(harness).map((entry) => entry.key), [root.id, child.id, "Deep", "Leaf"]);
+  assert.ok(branchButton(harness, "Add Section under Scope A"));
+  assert.ok(branchButton(harness, "Add Task group under Deep"));
+  assert.equal(harness.all("button").some((entry) => entry.props["aria-label"] === "Add Task group under Leaf"), false);
+  assert.ok(harness.text().includes("Parent Section: Deep"));
+});
+
+test("Civil Weekly and Earthworks Monthly fixture remains intact with all five workflow checks passed", () => {
+  const civil = node("civil", 1, undefined, { name: "Civil", code: "CIV", weeklyReportingRequired: true });
+  const earthworks = node("earthworks", 2, civil.id, { name: "Earthworks", code: "EW", monthlyReportingRequired: true });
+  const source = structure([civil, earthworks]); const before = JSON.stringify(source);
+  const harness = treeHarness(source);
+  assert.equal(workflow.structureStepChecks(project, { structure: source }).filter((entry) => entry.passed).length, 5);
+  assert.ok(harness.text().includes("Parent Function: Civil"));
+  assert.ok(harness.text().includes("Weekly input required")); assert.ok(harness.text().includes("Monthly input required"));
+  branchButton(harness, "Collapse Function Civil branch").props.onClick(); harness.render();
+  assert.ok(harness.text().includes("Project Structure requirements complete"));
+  assert.equal(JSON.stringify(source), before);
+  assert.equal(issues(source, make("reporting", earthworks), { weeklyReportingRequired: true }).some((entry) => entry.reason === "reporting_overlap" || entry.message?.includes("Weekly")), true);
 });

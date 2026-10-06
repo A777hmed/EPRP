@@ -15,7 +15,7 @@ export function ProjectStructureWorkspace({ project, structure, canManage, actio
   return (
     <SectionCard
       title="Project structure"
-      description="Define the hierarchy types, add the actual project groups, and select who provides Weekly and Monthly operational input."
+      description="Choose how this project is organized, build its groups, and select who provides Weekly and Monthly input."
     >
       <div className="min-w-0 space-y-5">
         {!canManage && <p className="text-sm text-muted-foreground">{project.status === "archived" ? "Archived project · structure is read-only." : "Read-only · you can view this project's hierarchy."}</p>}

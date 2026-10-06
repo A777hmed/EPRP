@@ -2,6 +2,7 @@ import type { ProjectStructure, StructureLevelInput } from "@/types/project-stru
 import { MAX_STRUCTURE_LEVELS } from "@/types/project-structure";
 import { levelConfigurationIssues, sortLevels, type StructureIssue } from "./structure-rules";
 import { ProjectStructureError, PROJECT_STRUCTURE_MESSAGES } from "@/services/project-structure-errors";
+import { structurePatternDraft, type StructurePresetId } from "./structure-patterns-ui";
 
 /** Local form state only. The supplied snapshot stays with the draft; versions belong to the container. */
 export interface StructureLevelsDraft {
@@ -54,6 +55,7 @@ export function levelIssueMessage(issue: StructureIssue): string {
 }
 
 export type LevelsDraftAction =
+  | { type: "pattern"; pattern: StructurePresetId }
   | { type: "edit"; levelNumber: number; field: "singularLabel" | "pluralLabel"; value: string }
   | { type: "append" }
   | { type: "removeDeepest" }
@@ -84,6 +86,9 @@ export function levelsDraftReducer(draft: StructureLevelsDraft, action: LevelsDr
   }
   if (draft.saving || draft.awaitingReload || draft.stale) return draft;
   switch (action.type) {
+    case "pattern": return draft.source.nodes.length > 0 ? draft : {
+      ...draft, error: null, levels: structurePatternDraft(draft.levels, action.pattern),
+    };
     case "edit": return {
       ...draft, error: null,
       levels: draft.levels.map((level) => level.levelNumber === action.levelNumber
