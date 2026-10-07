@@ -414,6 +414,7 @@ function SetupShell({
         // The next step of THIS project's setup — Departments for PSM and
         // legacy, Project Structure for Other.
         router.push(projectWorkflowHref(project.id, next ?? "info"));
+        return updated;
       } else {
         const created = await projectService.createProject(
           formValuesToProjectInput(values)
@@ -422,6 +423,7 @@ function SetupShell({
         // Replace, not push: Back must never return to an empty
         // /projects/new now that the project exists.
         router.replace(firstSaveHref(created.id, values.structureFamily, "create"));
+        return created;
       }
     };
 
@@ -498,6 +500,7 @@ function SetupShell({
         acceptInfoSaved(updated);
         // ProjectForm's own handleSaveDraft already toasts "Draft saved" on
         // success; toasting again here just doubled it.
+        return updated;
       } else {
         const created = await projectService.createProject(
           formValuesToProjectInput(values, { asDraft: true })
@@ -505,6 +508,7 @@ function SetupShell({
         // Keep editing the stored draft so the id carries forward; replace so
         // Back never returns to an empty /projects/new.
         router.replace(firstSaveHref(created.id, values.structureFamily, "draft"));
+        return created;
       }
     };
 

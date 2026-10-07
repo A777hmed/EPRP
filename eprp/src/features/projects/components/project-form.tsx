@@ -58,6 +58,7 @@ import { planningService } from "@/services/planning-service";
 import {
   createProjectDraftSchema,
   createProjectFinalSchema,
+  projectToFormValues,
   type ProjectFormValues,
 } from "@/features/projects/schemas/project-form";
 import {
@@ -95,6 +96,7 @@ import {
 } from "@/features/master-data";
 import { RhfField } from "./form-field";
 import { ProjectFormSection } from "./project-form-section";
+import { ProjectPartiesFields } from "./project-parties-fields";
 import { ProjectScopeSummary } from "./project-scope-summary";
 import { LogoUploadField } from "./logo-upload-field";
 import { GovernedPerformancePanel } from "./governed-performance-panel";
@@ -1090,9 +1092,9 @@ export interface ProjectFormProps {
   /** Codes already in use (current project's own code excluded by caller). */
   usedCodes: string[];
   submitLabel: string;
-  onSubmit: (values: ProjectFormValues) => Promise<void>;
+  onSubmit: (values: ProjectFormValues) => Promise<Project | void>;
   /** Save Draft: called with (possibly incomplete) values after draft validation. */
-  onSaveDraft?: (values: ProjectFormValues) => Promise<void>;
+  onSaveDraft?: (values: ProjectFormValues) => Promise<Project | void>;
   /**
    * Persist ONLY the additional positions, without submitting the rest of the
    * form. Omit it (or leave `projectId` unset) and the section's Save button
@@ -1461,7 +1463,11 @@ export function ProjectForm({
 
   const performSubmit = async (values: ProjectFormValues) => {
     setSummary(null);
-    await onSubmit(values);
+    const saved = await onSubmit(values);
+    if (saved) {
+      // Adopt confirmed UUIDs so another save never recreates newly added parties.
+      setValue("subcontractors", projectToFormValues(saved).subcontractors);
+    }
     // Best-effort: Planning configuration is supplementary to the project
     // save that just succeeded, and only meaningful once the project exists.
     // A brand-new project (no projectId yet) picks this up on its next edit.
@@ -1531,9 +1537,9 @@ export function ProjectForm({
     if (!onSaveDraft) return;
     try {
       setSavingDraft(true);
-      await onSaveDraft(values);
+      const saved = await onSaveDraft(values);
       toast.success("Draft saved");
-      form.reset(values);
+      form.reset(saved ? { ...values, subcontractors: projectToFormValues(saved).subcontractors } : values);
     } finally {
       setSavingDraft(false);
     }
@@ -1646,8 +1652,15 @@ export function ProjectForm({
         <TextField control={control} name="name" label="Project Name" required placeholder="e.g. Plant Systems Asset Integrity Management" />
         <TextField control={control} name="code" label="Project Code" required placeholder="e.g. PRJ-001, PSAIM-001, EPROM-2026-001" description="Uppercase letters, numbers, and dashes. Must be unique." />
         <TextField control={control} name="shortName" label="Project Short Name" optional placeholder="e.g. PSAIM – SOPC" />
-        <ManagedSelectField control={control} name="clientId" label="Client" required kind="client" placeholder="Search or select client…" onMutated={markMasterTouched} />
-        <ClientShortNameField clientId={watchedValues.clientId ?? ""} onMutated={markMasterTouched} />
+        <ProjectPartiesFields
+          control={control}
+          disabled={formState.isSubmitting || savingDraft || savingConfirmed}
+          supported={!projectId || project?.parties !== undefined}
+          ownerFields={<>
+            <ManagedSelectField control={control} name="clientId" label="Owner / Client" required kind="client" placeholder="Search or select client…" onMutated={markMasterTouched} />
+            <ClientShortNameField clientId={watchedValues.clientId ?? ""} onMutated={markMasterTouched} />
+          </>}
+        />
         <TextField control={control} name="contractNumber" label="Contract Number" optional placeholder="e.g. SOPC-CN-2025-114" />
         <TextField control={control} name="purchaseOrderNumber" label="Purchase Order Number" optional placeholder="e.g. PO-88231" />
         {classificationState === "legacy" && (

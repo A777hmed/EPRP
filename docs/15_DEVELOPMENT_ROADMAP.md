@@ -309,7 +309,8 @@ Makes Project Setup the project-definition layer: what kind of project this is, 
 | 2C.1 | Project classification (2C.1a) + Project Setup shell & workflow (2C.1b) | ✅ **DONE / VERIFIED** — checkpoint commit `72c9d07`, 2026-10-03 |
 | 2C.1c | Other Project dynamic structure (replaces the "Project Structure" placeholder) | ⏳ **Next — pending** |
 | 2C.2 | Planning / progress foundation | ❌ Not started |
-| 2C.3 | Responsibilities, Project Parties and Organization Chart setup | ❌ Not started — after 2C.2, in the approved order |
+| 2C.3 | Responsibilities, Project Parties and Organization Chart setup | ⚠️ 2C.3A foundation implemented for review; responsibility/team, reporting and chart redesign deferred |
+| 2C.3A | Project Parties foundation + Project Information (owner-authorized scope) | ✅ Code verified: 206 focused / 508 source tests, typecheck, lint and production webpack build PASS. Additive migration `20261006123219_project_parties_foundation.sql` NOT APPLIED; database/RLS and authenticated save/refresh UAT pending review |
 
 **Open boundary decision — must be settled before 2C.2 starts.** The scope of
 2C.2 against existing planning work is not defined in these documents:

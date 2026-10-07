@@ -93,6 +93,10 @@ function createBaseSchema() {
     code: z.string().trim().max(24),
     shortName: optionalText,
     clientId: z.string(),
+    subcontractors: z.array(z.object({
+      id: z.string().optional(),
+      name: z.string().trim().min(1, "Enter a subcontractor name or remove this row").max(140),
+    })),
     contractNumber: optionalText,
     purchaseOrderNumber: optionalText,
     description: z.string().trim().max(2000).optional().or(z.literal("")),
@@ -506,6 +510,7 @@ export function emptyProjectFormValues(): ProjectFormValues {
     code: "",
     shortName: "",
     clientId: "",
+    subcontractors: [],
     contractNumber: "",
     purchaseOrderNumber: "",
     description: "",
@@ -581,6 +586,10 @@ export function projectToFormValues(project: Project): ProjectFormValues {
     code: project.code,
     shortName: project.shortName ?? "",
     clientId: project.clientId,
+    subcontractors: (project.parties ?? [])
+      .filter((party) => party.kind === "subcontractor")
+      .slice().sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((party) => ({ id: party.id, name: party.name ?? "" })),
     contractNumber: project.contractNumber ?? "",
     purchaseOrderNumber: project.purchaseOrderNumber ?? "",
     description: project.description ?? "",
@@ -712,6 +721,9 @@ export function formValuesToProjectInput(
     description: blankToUndefined(values.description),
     ...classificationSaveFields(values, "create"),
     clientId: values.clientId,
+    parties: values.subcontractors.map((party, sortOrder) => ({
+      id: blankToUndefined(party.id), kind: "subcontractor", name: party.name, sortOrder,
+    })),
     contractNumber: blankToUndefined(values.contractNumber),
     purchaseOrderNumber: blankToUndefined(values.purchaseOrderNumber),
     contractStartDate: blankToUndefined(values.contractStartDate),

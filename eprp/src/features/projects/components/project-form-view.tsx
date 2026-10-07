@@ -115,17 +115,19 @@ export function ProjectFormView({ projectId }: ProjectFormViewProps) {
       // Project Info payload only — `ProjectInfoUpdate` excludes departments,
       // disciplines, and team at the type level, so this save can never
       // replace project scope owned by the setup wizard steps.
-      await projectService.updateProject(
+      const updated = await projectService.updateProject(
         project.id,
         formValuesToProjectInfoUpdate(values), project.updatedAt
       );
       router.push(`/projects/${project.id}`);
+      return updated;
     } else {
       const created = await projectService.createProject(
         formValuesToProjectInput(values)
       );
       // Replace: Back must not return to an empty create form (2C.1b).
       router.replace(`/projects/${created.id}`);
+      return created;
     }
   };
 
@@ -137,12 +139,14 @@ export function ProjectFormView({ projectId }: ProjectFormViewProps) {
         formValuesToProjectInfoUpdate(values), project.updatedAt
       );
       setProject(updated);
+      return updated;
     } else {
       const created = await projectService.createProject(
         formValuesToProjectInput(values, { asDraft: true })
       );
       // Continue editing the stored draft so later saves update it.
       router.replace(`/projects/${created.id}/edit`);
+      return created;
     }
   };
 

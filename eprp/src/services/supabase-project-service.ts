@@ -23,12 +23,14 @@ import type {
   ProjectDisciplineRow,
   ProjectRow,
   ProjectPositionRow,
+  ProjectPartyRow,
   ProjectSiteRow,
 } from "@/lib/supabase/database.types";
 // [reporting-perf] TEMPORARY diagnostic import — remove with src/lib/perf-temp.ts
 import { startTimer, timed } from "@/lib/perf-temp";
 import type { ProjectService } from "./project-service";
 import { collectSetupRelations, confirmSetupSave } from "@/features/projects/setup-save";
+import { fetchProjectPartyRows, preparePartyRelation } from "./project-party-storage";
 import {
   ReplacePersonError,
   type ReplacePersonInput,
@@ -233,7 +235,8 @@ export function rowToProject(
   teamRows: ProjectContactRow[] = [],
   delegationRows: ProjectDelegationRow[] = [],
   siteRows: ProjectSiteRow[] = [],
-  positionRows: ProjectPositionRow[] = []
+  positionRows: ProjectPositionRow[] = [],
+  partyRows?: ProjectPartyRow[]
 ): Project {
   const departments: DepartmentAssignment[] = deptRows.map((d) => ({
     departmentId: d.department_id,
@@ -258,6 +261,9 @@ export function rowToProject(
     structureFamily: (row.structure_family ?? undefined) as StructureFamily | undefined,
     projectCategoryDetail: row.project_category_detail ?? undefined,
     clientId: row.client_id,
+    ...(partyRows ? { parties: partyRows.map((party) => ({
+      id: party.id, kind: party.kind, name: party.name ?? undefined, sortOrder: party.sort_order,
+    })) } : {}),
     contractNumber: row.contract_number ?? undefined,
     purchaseOrderNumber: row.purchase_order_number ?? undefined,
     contractStartDate: row.contract_start_date ?? undefined,
@@ -999,7 +1005,7 @@ async function fetchProjectSiteRows(
 /* ------------------------------ One project ------------------------------- */
 
 /**
- * Read one project and its six child collections. Always a real read — no
+ * Read one project and its seven child collections. Always a real read — no
  * cache, no sharing. Mutations use this directly so a write is never followed
  * by a snapshot taken before it.
  */
@@ -1024,6 +1030,7 @@ async function loadProjectById(id: string): Promise<Project | null> {
     delegationRows,
     siteRows,
     positionRows,
+    partyRows,
   ] = await Promise.all([
     timed("getProjectById.departments", () => fetchDepartmentRows([row.id])),
     timed("getProjectById.disciplines", () => fetchDisciplineRows([row.id])),
@@ -1031,6 +1038,7 @@ async function loadProjectById(id: string): Promise<Project | null> {
     timed("getProjectById.delegations", () => fetchDelegationRows([row.id])),
     timed("getProjectById.sites", () => fetchProjectSiteRows([row.id])),
     timed("getProjectById.positions", () => fetchProjectPositionRows([row.id])),
+    timed("getProjectById.parties", () => fetchProjectPartyRows(client(), [row.id])),
   ]);
   doneGroup();
   // Parent and relation reads use separate HTTP requests. Refuse a mixed
@@ -1049,7 +1057,8 @@ async function loadProjectById(id: string): Promise<Project | null> {
     teamRows.get(row.id) ?? [],
     delegationRows.get(row.id) ?? [],
     siteRows.get(row.id) ?? [],
-    positionRows.get(row.id) ?? []
+    positionRows.get(row.id) ?? [],
+    partyRows === null ? undefined : partyRows.get(row.id) ?? []
   );
 }
 
@@ -1109,6 +1118,7 @@ export const supabaseProjectService: ProjectService = {
       delegationRows,
       siteRows,
       positionRows,
+      partyRows,
     ] = await Promise.all([
       fetchDepartmentRows(ids),
       fetchDisciplineRows(ids),
@@ -1116,6 +1126,7 @@ export const supabaseProjectService: ProjectService = {
       fetchDelegationRows(ids),
       fetchProjectSiteRows(ids),
       fetchProjectPositionRows(ids),
+      fetchProjectPartyRows(client(), ids),
     ]);
     return rows.map((row) =>
       rowToProject(
@@ -1125,7 +1136,8 @@ export const supabaseProjectService: ProjectService = {
         teamRows.get(row.id) ?? [],
         delegationRows.get(row.id) ?? [],
         siteRows.get(row.id) ?? [],
-        positionRows.get(row.id) ?? []
+        positionRows.get(row.id) ?? [],
+        partyRows === null ? undefined : partyRows.get(row.id) ?? []
       )
     );
   },
@@ -1135,6 +1147,9 @@ export const supabaseProjectService: ProjectService = {
   },
 
   async createProject(input) {
+    const partyRelations = collectSetupRelations({ parties: input.parties ?? [] });
+    // Preflight before INSERT so unavailable party storage cannot leave a new project behind.
+    await preparePartyRelation(client(), "00000000-0000-0000-0000-000000000000", partyRelations);
     const columns = flattenProject(input);
     const { data, error } = await client()
       .from("projects")
@@ -1164,6 +1179,16 @@ export const supabaseProjectService: ProjectService = {
     await replaceDelegations(row.id, input.delegations ?? []);
     await replaceProjectSites(row.id, input.sites ?? []);
     await replaceProjectPositions(row.id, input.positions ?? []);
+    if ("parties" in partyRelations && partyRelations.parties.length > 0) {
+      const { data: version, error: versionError } = await client().from("projects")
+        .select("updated_at").eq("id", row.id).single();
+      if (versionError) throw new Error(versionError.message);
+      const { error: partyError } = await client().rpc("save_project_setup_relation", {
+        p_project: row.id, p_expected_updated_at: version.updated_at,
+        p_relation: "parties", p_rows: partyRelations.parties.map((party) => ({ ...(party as object), id: undefined })),
+      });
+      if (partyError) throw new Error(partyError.message);
+    }
     const created = await loadProjectById(row.id);
     if (!created) throw new Error("Project was created but could not be read back.");
     return created;
@@ -1174,6 +1199,7 @@ export const supabaseProjectService: ProjectService = {
       throw new Error("Reload before saving: the loaded project version is required.");
     }
     const relations = collectSetupRelations(input);
+    await preparePartyRelation(client(), id, relations);
     return confirmSetupSave(async () => {
       const { data, error } = await client().rpc("save_project_setup_patch", {
         p_project: id,

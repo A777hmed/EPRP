@@ -275,6 +275,16 @@ export interface ProjectLocation {
   city?: string;
 }
 
+/** Project-owned party identity; Owner's Client remains projects.client_id. */
+export interface ProjectParty {
+  /** Undefined only before save or on a database without the additive migration. */
+  id?: string;
+  kind: "eprom" | "owner" | "subcontractor";
+  /** Only subcontractors store a name. EPROM and Owner labels are derived. */
+  name?: string;
+  sortOrder: number;
+}
+
 /**
  * One additional, admin-configurable position on a project.
  *
@@ -1012,6 +1022,8 @@ export interface Project {
    */
   projectCategoryDetail?: string;
   clientId: string;
+  /** Required parties plus optional subcontractors; absent on unmigrated databases. */
+  parties?: ProjectParty[];
   contractNumber?: string;
   purchaseOrderNumber?: string;
 

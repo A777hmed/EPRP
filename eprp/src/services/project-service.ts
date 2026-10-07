@@ -3,6 +3,7 @@ import { mockContacts } from "@/data/mock/master-data.mock";
 import { mockProjects } from "@/data/mock/projects.mock";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { hasProjectAssignment } from "@/features/projects/assignment-rules";
+import { persistProjectParties } from "@/features/projects/project-parties";
 import {
   ReplacePersonError,
   type ReplacePersonInput,
@@ -112,7 +113,7 @@ function delay(ms = 250): Promise<void> {
 }
 
 const store: Map<string, Project> = new Map(
-  mockProjects.map((p) => [p.id, clone(p)])
+  mockProjects.map((p) => [p.id, { ...clone(p), parties: persistProjectParties(undefined, undefined, () => crypto.randomUUID()) }])
 );
 
 let sequence = store.size;
@@ -210,6 +211,7 @@ const mockProjectService: ProjectService = {
     const project: Project = {
       ...clone(input),
       id: nextId(),
+      parties: persistProjectParties(undefined, input.parties?.map((party) => ({ ...party, id: undefined })), () => crypto.randomUUID()),
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -230,6 +232,7 @@ const mockProjectService: ProjectService = {
       ...existing,
       ...clone(input),
       id,
+      parties: persistProjectParties(existing.parties, input.parties, () => crypto.randomUUID()),
       createdAt: existing.createdAt,
       updatedAt: nowIso(),
     };
@@ -247,6 +250,7 @@ const mockProjectService: ProjectService = {
     const copy: Project = {
       ...clone(source),
       id: nextId(),
+      parties: persistProjectParties(undefined, source.parties?.map((party) => ({ ...party, id: undefined })), () => crypto.randomUUID()),
       code: `${source.code}-COPY`,
       name: `${source.name} (Copy)`,
       status: "planning",

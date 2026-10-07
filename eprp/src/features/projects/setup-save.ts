@@ -1,8 +1,9 @@
 import type { Project } from "@/types";
 import type { ProjectWorkflowStepId } from "@/config/project-workflow";
+import { subcontractorsForSave } from "./project-parties";
 
 export type SetupRelation = "departments" | "disciplines" | "team";
-export const setupRelations = ["departments", "disciplines", "team", "sites", "positions", "delegations"] as const;
+export const setupRelations = ["departments", "disciplines", "team", "sites", "positions", "delegations", "parties"] as const;
 
 /** Present-but-unhydrated relations must never disappear during JSON transport. */
 export function collectSetupRelations(input: Partial<Project>): Record<string, unknown[]> {
@@ -13,7 +14,7 @@ export function collectSetupRelations(input: Partial<Project>): Record<string, u
     if (!Array.isArray(value)) {
       throw new Error(`Project ${key} data has not finished loading. Reload before saving.`);
     }
-    relations[key] = value;
+    relations[key] = key === "parties" ? subcontractorsForSave(input.parties!) : value;
   }
   return relations;
 }

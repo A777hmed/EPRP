@@ -158,6 +158,17 @@ export interface ProjectSiteRow extends Timestamps {
   sort_order: number;
 }
 
+/** Phase 2C.3A project-owned parties; Owner resolves through projects.client_id. */
+export interface ProjectPartyRow {
+  id: string;
+  project_id: string;
+  kind: "eprom" | "owner" | "subcontractor";
+  name: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 /** Additional project positions — see 20260818000001_project_positions.sql. */
 export interface ProjectPositionRow extends Timestamps {
   id: string;
@@ -976,6 +987,7 @@ export interface Database {
       systems: TableDef<SystemRow, Writable<SystemRow> & { name: string; code: string }, Writable<SystemRow>>;
       disciplines: TableDef<DisciplineRow, Writable<DisciplineRow> & { name: string; code: string }, Writable<DisciplineRow>>;
       projects: TableDef<ProjectRow, Writable<ProjectRow>, Writable<ProjectRow>>;
+      project_parties: TableDef<ProjectPartyRow, Writable<ProjectPartyRow>, Writable<ProjectPartyRow>>;
       project_sites: TableDef<
         ProjectSiteRow,
         Writable<ProjectSiteRow>,
