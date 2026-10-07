@@ -13,7 +13,7 @@ export const FIELD_LABELS: Record<string, string> = {
   name: "Project Name",
   code: "Project Code",
   shortName: "Project Short Name",
-  clientId: "Client",
+  clientId: "Owner / Client",
   subcontractors: "Subcontractors",
   contractNumber: "Contract Number",
   purchaseOrderNumber: "Purchase Order Number",
@@ -95,11 +95,20 @@ export function sectionForPath(path: readonly PropertyKey[]): SectionId {
   return SECTION_OF_FIELD[String(path[0])] ?? 1;
 }
 
+const SUBCONTRACTOR_FIELD_LABELS: Record<string, string> = {
+  name: "Registered Company Name",
+  shortName: "Short Name / Acronym",
+  scope: "Scope / Package",
+  contractReference: "Subcontract / Contract Reference",
+  engagementStatus: "Engagement Status",
+};
+
 /** "departments.0.leadName" → "Department 1 — Lead". */
 export function labelForPath(path: readonly PropertyKey[]): string {
   const [head, di, sub, si, leaf] = path;
   if (head === "subcontractors" && typeof di === "number") {
-    return `Subcontractor ${di + 1} — Name`;
+    const suffix = SUBCONTRACTOR_FIELD_LABELS[String(sub)] ?? SUBCONTRACTOR_FIELD_LABELS.name;
+    return `Subcontractor ${di + 1} — ${suffix}`;
   }
   if (head === "additionalSites" && typeof di === "number") {
     const suffix = sub === "country" ? "Country" : sub === "city" ? "City" : "Name";

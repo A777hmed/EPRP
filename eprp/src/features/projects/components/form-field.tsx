@@ -44,6 +44,12 @@ export interface RhfFieldProps<
   optional?: boolean;
   description?: string;
   className?: string;
+  /**
+   * Display timing only — never changes validation. Return false to keep an
+   * existing error hidden (neutral styling, no message). Omitted: errors show
+   * as soon as they exist, as before.
+   */
+  showError?: (state: { isTouched: boolean }) => boolean;
   children: (props: RhfFieldRenderProps<TValues, TName>) => React.ReactNode;
 }
 
@@ -64,6 +70,7 @@ export function RhfField<
   optional = false,
   description,
   className,
+  showError,
   children,
 }: RhfFieldProps<TValues, TName>) {
   const id = React.useId();
@@ -75,7 +82,9 @@ export function RhfField<
       control={control}
       name={name}
       render={({ field, fieldState }) => {
-        const invalid = fieldState.invalid;
+        const invalid =
+          fieldState.invalid &&
+          (showError?.({ isTouched: fieldState.isTouched }) ?? true);
         const describedBy =
           [invalid ? errorId : null, description ? descriptionId : null]
             .filter(Boolean)

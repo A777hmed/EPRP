@@ -195,6 +195,28 @@ Project
 
 **Lifecycle & history:** added, edited, reordered, **archived** — never hard-deleted while referenced by reporting history. Every change audited (§21).
 
+### 6.4 Project Parties (Phase 2C.3A, 2C.3B)
+
+The companies party to a project. It is the same model for PSM and Other projects; their differences begin at Project Structure. Parties are **companies, not people**: personnel belong to Project Responsibility (§6.3, §8), which this entity does not touch.
+
+- **Owner:** Project
+- **Identity:** Stable identifier per party row. A subcontractor's company name is a business label, never the identity.
+- **Kinds:** exactly one **EPROM** (service provider; fixed, read-only), exactly one **Owner** (resolved through the project's Client reference, so no Client master data is copied), and zero or more **Subcontractors** (optional, repeatable, ordered).
+- **Subcontractor attributes (2C.3B):**
+
+| Attribute | Rule |
+|---|---|
+| Registered Company Name | Required; up to 140 characters; unique within the project after trim, case-insensitive |
+| Short Name / Acronym | Optional; up to 40 characters |
+| Scope / Package | Required; up to 250 characters |
+| Subcontract / Contract Reference | Optional; up to 100 characters |
+| Engagement Status | Required; Planned · Active · Suspended · Completed. No default — chosen explicitly |
+
+- **Completion:** zero subcontractors is valid and complete. A subcontractor saved before 2C.3B may lack Scope / Package and Engagement Status; it is preserved, never backfilled, and shown as **Needs completion** until it is completed and saved.
+- **Lifecycle:** subcontractors are added, edited, reordered and removed through Project Information's normal save. EPROM and Owner rows are created by the server and cannot be edited or removed.
+
+**As built (storage).** Table `project_parties` (`kind` ∈ `eprom` · `owner` · `subcontractor`; `name`, `short_name`, `scope`, `contract_reference`, `engagement_status`, `sort_order`). EPROM and Owner rows keep every name and professional column null. Subcontractor rows are written only through `save_project_setup_relation` (relation `parties`), which enforces the rules above, refuses duplicate company names (SQLSTATE `23505`) and keeps existing row identifiers. The required-field CHECK `project_parties_subcontractor_professional_required` is `NOT VALID`, so legacy rows survive while every new or updated subcontractor must comply. There is deliberately no unique index on company name. Migrations: `20261006123219_project_parties_foundation.sql` (2C.3A) and `20261007120000_project_parties_professional_information.sql` (2C.3B).
+
 ---
 
 ## 7. Group C — Dynamic hierarchy
@@ -1023,6 +1045,7 @@ This document is **specification**. `docs/engineering/` describes what exists in
 | Action permission | Not enforced anywhere | §17.2 resolved through role, project and department |
 | Hierarchy | One Discipline entity with PSM label resolution — **consistent with §7** | Label carried by a configurable Hierarchy Profile |
 | **Project classification** (Phase 2C.1) | Migration `20261001000001_project_setup_classification.sql`. `projects.structure_family` (`psm` · `other` · NULL for legacy), `projects.project_category_detail`, `project_types.allows_custom_name`. Trigger `enforce_project_classification` locks the family once set and validates the category. Table `project_classification_corrections` holds the history (§21.5). RPC `correct_project_structure_family()` is the System Administrator correction. Function `is_psm_family_project_type()` applies the PSM/PSAIM category rule. **Applied to the local development database only (runtime rehearsal `108_runtime_2c1_classification.sql`: 33 PASS / 0 FAIL). NOT applied to production.** | §6.1 classification; §21.5. Other-project structure levels (Phase 2C.1c) are not yet modelled |
+| **Project Parties** (Phases 2C.3A, 2C.3B) | Table `project_parties`. 2C.3A (`20261006123219_project_parties_foundation.sql`): EPROM, Owner and subcontractor company names. **Applied to the local development database and browser-UAT verified; not deployed remotely or to production.** 2C.3B (`20261007120000_project_parties_professional_information.sql`): subcontractor Short Name, Scope / Package, Contract Reference and Engagement Status. **Prepared; NOT applied to any database.** | §6.4 |
 | Contacts | Global directory exists | §8.2 project-owned Project Contact |
 | Assignments and delegation | Specified; **not applied** | §8.4–§8.6 |
 | Organization Chart | Charts, positions and history exist | §9 |

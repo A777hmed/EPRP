@@ -17,13 +17,34 @@ export async function fetchProjectPartyRows(
   return grouped;
 }
 
+export const PARTY_DETAILS_UNAVAILABLE =
+  "Subcontractor details cannot be saved until the database is updated. Contact your administrator.";
+
+/**
+ * 2C.3B columns. With only the 2C.3A migration applied, the save function
+ * would store the company name and silently drop every other field, so a
+ * subcontractor save is refused instead.
+ */
+async function hasProfessionalPartyColumns(supabase: SupabaseClient): Promise<boolean> {
+  const { error } = await supabase.from("project_parties")
+    .select("id, short_name, scope, contract_reference, engagement_status").limit(0);
+  if (error?.code === "42703" || error?.code === "PGRST204") return false;
+  if (error) throw new Error(error.message);
+  return true;
+}
+
 /** Before migration, retain ordinary zero-subcontractor saves; never silently drop new data. */
 export async function preparePartyRelation(
   supabase: SupabaseClient, projectId: string, relations: Record<string, unknown[]>
 ): Promise<void> {
   if (!("parties" in relations)) return;
   const rows = await fetchProjectPartyRows(supabase, [projectId]);
-  if (rows !== null) return;
+  if (rows !== null) {
+    if (relations.parties.length > 0 && !(await hasProfessionalPartyColumns(supabase))) {
+      throw new Error(PARTY_DETAILS_UNAVAILABLE);
+    }
+    return;
+  }
   if (relations.parties.length > 0) {
     throw new Error("Subcontractor setup is not available yet. Contact your administrator.");
   }

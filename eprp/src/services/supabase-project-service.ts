@@ -262,7 +262,12 @@ export function rowToProject(
     projectCategoryDetail: row.project_category_detail ?? undefined,
     clientId: row.client_id,
     ...(partyRows ? { parties: partyRows.map((party) => ({
-      id: party.id, kind: party.kind, name: party.name ?? undefined, sortOrder: party.sort_order,
+      id: party.id, kind: party.kind, name: party.name ?? undefined,
+      shortName: party.short_name ?? undefined,
+      scope: party.scope ?? undefined,
+      contractReference: party.contract_reference ?? undefined,
+      engagementStatus: party.engagement_status ?? undefined,
+      sortOrder: party.sort_order,
     })) } : {}),
     contractNumber: row.contract_number ?? undefined,
     purchaseOrderNumber: row.purchase_order_number ?? undefined,

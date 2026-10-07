@@ -103,9 +103,10 @@ test("PT409: every PT409 is a business-stale refusal carrying the unchanged stal
 test("PT409: the live functions raise no 40001 except the genuine Weekly concurrency retry", () => {
   const live = liveDefinitions();
   for (const [name] of RECREATED) {
-    // Parties extends only the relation dispatcher and retains the PT409 contract.
+    // Parties (2C.3A) and its professional fields (2C.3B) extend only the
+    // relation dispatcher and retain the PT409 contract.
     const expected = name === "save_project_setup_relation"
-      ? "20261006123219_project_parties_foundation.sql" : PT409_FILE;
+      ? "20261007120000_project_parties_professional_information.sql" : PT409_FILE;
     assert.equal(live.get(name)?.file, expected, name);
   }
   const serialization = [...live.values()]

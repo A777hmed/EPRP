@@ -164,6 +164,11 @@ export interface ProjectPartyRow {
   project_id: string;
   kind: "eprom" | "owner" | "subcontractor";
   name: string | null;
+  /** 2C.3B subcontractor columns — absent before 20261007120000 is applied. */
+  short_name?: string | null;
+  scope?: string | null;
+  contract_reference?: string | null;
+  engagement_status?: "planned" | "active" | "suspended" | "completed" | null;
   sort_order: number;
   created_at: string;
   updated_at: string;

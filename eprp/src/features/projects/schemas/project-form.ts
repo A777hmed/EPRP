@@ -7,6 +7,11 @@ import {
   classificationSaveFields,
   type ClassificationRuleOptions,
 } from "../classification";
+import {
+  SUBCONTRACTOR_LIMITS,
+  duplicateCompanyNameIndexes,
+  isEngagementStatus,
+} from "../project-parties";
 
 /**
  * Project form schemas (Phase 5A validation update).
@@ -93,9 +98,16 @@ function createBaseSchema() {
     code: z.string().trim().max(24),
     shortName: optionalText,
     clientId: z.string(),
+    // Lengths only; required/status/duplicate rules are in addSubcontractorIssues
+    // so an unfinished row never hides the other Basic Information checks.
     subcontractors: z.array(z.object({
       id: z.string().optional(),
-      name: z.string().trim().min(1, "Enter a subcontractor name or remove this row").max(140),
+      name: z.string().trim().max(SUBCONTRACTOR_LIMITS.name),
+      shortName: z.string().trim().max(SUBCONTRACTOR_LIMITS.shortName),
+      scope: z.string().trim().max(SUBCONTRACTOR_LIMITS.scope),
+      contractReference: z.string().trim().max(SUBCONTRACTOR_LIMITS.contractReference),
+      /** "" is the explicit "Select engagement status" state — never defaulted. */
+      engagementStatus: z.string(),
     })),
     contractNumber: optionalText,
     purchaseOrderNumber: optionalText,
@@ -193,6 +205,32 @@ type BaseValues = z.infer<ReturnType<typeof createBaseSchema>>;
 /* ----------------------------- Shared refinements ------------------------- */
 
 /**
+ * Subcontractors (2C.3B), identical for PSM and Other. Applied to drafts too:
+ * the database refuses an incomplete subcontractor row, so a configured row
+ * must be completed or removed before any save.
+ */
+function addSubcontractorIssues(values: BaseValues, ctx: z.RefinementCtx): void {
+  values.subcontractors.forEach((row, index) => {
+    if (!row.name) {
+      ctx.addIssue({ code: "custom", path: ["subcontractors", index, "name"],
+        message: "Enter the registered company name or remove this subcontractor" });
+    }
+    if (!row.scope) {
+      ctx.addIssue({ code: "custom", path: ["subcontractors", index, "scope"],
+        message: "Enter the scope / package" });
+    }
+    if (!isEngagementStatus(row.engagementStatus)) {
+      ctx.addIssue({ code: "custom", path: ["subcontractors", index, "engagementStatus"],
+        message: "Select an engagement status" });
+    }
+  });
+  for (const index of duplicateCompanyNameIndexes(values.subcontractors.map((row) => row.name))) {
+    ctx.addIssue({ code: "custom", path: ["subcontractors", index, "name"],
+      message: "This company is already listed as a subcontractor on this project" });
+  }
+}
+
+/**
  * Format rules applied to drafts AND final submissions: name/code identity,
  * code uniqueness, email shape, numeric ranges, and date ordering.
  */
@@ -227,6 +265,8 @@ function createFormatIssues(usedCodes: string[]) {
         message: "This project code is already in use",
       });
     }
+
+    addSubcontractorIssues(values, ctx);
 
     if (
       values.clientContactEmail &&
@@ -589,7 +629,15 @@ export function projectToFormValues(project: Project): ProjectFormValues {
     subcontractors: (project.parties ?? [])
       .filter((party) => party.kind === "subcontractor")
       .slice().sort((a, b) => a.sortOrder - b.sortOrder)
-      .map((party) => ({ id: party.id, name: party.name ?? "" })),
+      .map((party) => ({
+        id: party.id,
+        name: party.name ?? "",
+        shortName: party.shortName ?? "",
+        scope: party.scope ?? "",
+        contractReference: party.contractReference ?? "",
+        // A pre-2C.3B row stays unselected; it is never defaulted to Planned.
+        engagementStatus: party.engagementStatus ?? "",
+      })),
     contractNumber: project.contractNumber ?? "",
     purchaseOrderNumber: project.purchaseOrderNumber ?? "",
     description: project.description ?? "",
@@ -722,7 +770,12 @@ export function formValuesToProjectInput(
     ...classificationSaveFields(values, "create"),
     clientId: values.clientId,
     parties: values.subcontractors.map((party, sortOrder) => ({
-      id: blankToUndefined(party.id), kind: "subcontractor", name: party.name, sortOrder,
+      id: blankToUndefined(party.id), kind: "subcontractor", name: party.name,
+      shortName: blankToUndefined(party.shortName),
+      scope: blankToUndefined(party.scope),
+      contractReference: blankToUndefined(party.contractReference),
+      engagementStatus: isEngagementStatus(party.engagementStatus) ? party.engagementStatus : undefined,
+      sortOrder,
     })),
     contractNumber: blankToUndefined(values.contractNumber),
     purchaseOrderNumber: blankToUndefined(values.purchaseOrderNumber),

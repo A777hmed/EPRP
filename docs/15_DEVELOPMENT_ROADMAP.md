@@ -309,8 +309,9 @@ Makes Project Setup the project-definition layer: what kind of project this is, 
 | 2C.1 | Project classification (2C.1a) + Project Setup shell & workflow (2C.1b) | ✅ **DONE / VERIFIED** — checkpoint commit `72c9d07`, 2026-10-03 |
 | 2C.1c | Other Project dynamic structure (replaces the "Project Structure" placeholder) | ⏳ **Next — pending** |
 | 2C.2 | Planning / progress foundation | ❌ Not started |
-| 2C.3 | Responsibilities, Project Parties and Organization Chart setup | ⚠️ 2C.3A foundation implemented for review; responsibility/team, reporting and chart redesign deferred |
-| 2C.3A | Project Parties foundation + Project Information (owner-authorized scope) | ✅ Code verified: 206 focused / 508 source tests, typecheck, lint and production webpack build PASS. Additive migration `20261006123219_project_parties_foundation.sql` NOT APPLIED; database/RLS and authenticated save/refresh UAT pending review |
+| 2C.3 | Responsibilities, Project Parties and Organization Chart setup | ⚠️ In progress — 2C.3A done; 2C.3B verified (local); responsibility/team, reporting and chart redesign deferred |
+| 2C.3A | Project Parties foundation + Project Information (owner-authorized scope) | ✅ **DONE** — commit `5e88ef5`. Migration `20261006123219_project_parties_foundation.sql` applied to the local development database and browser-UAT verified (PSM and Other); not deployed remotely or to production |
+| 2C.3B | Professional Project Information — subcontractor Registered Company Name, Short Name / Acronym, Scope / Package, Subcontract / Contract Reference, Engagement Status (shared by PSM and Other) | ✅ **Verified, 2026-10-07** — migration `20261007120000_project_parties_professional_information.sql` applied to the local development database and browser-UAT verified for PSM and Other Project; not deployed remotely/production. Final validation-timing polish: 85 focused / 538 source tests, typecheck, lint and production build PASS. No people, responsibility, structure, reporting or chart changes |
 
 **Open boundary decision — must be settled before 2C.2 starts.** The scope of
 2C.2 against existing planning work is not defined in these documents:
@@ -373,6 +374,25 @@ adds at setup time, and which remain Phase 13. Neither phase is redefined here.
 5. A server-side category name/code consistency guard is future work; the production audit shows it can be added safely.
 6. Older master-data surfaces (detail views, usage checks) still use the mock-only `listProjectsSync`.
 7. **The production migration remains pending** and needs its own approved deployment.
+
+### 2C.3B — Professional Project Information (checkpoint, 2026-10-07)
+
+**Scope.** Project Information / Project Parties, identical for PSM and Other projects. EPROM remains required, fixed and read-only. Owner / Client remains required and resolved through the Client master. Subcontractors remain optional and repeatable; each is now a card with Registered Company Name (required, ≤140), Short Name / Acronym (optional, ≤40), Scope / Package (required, ≤250), Subcontract / Contract Reference (optional, ≤100) and Engagement Status (required: Planned · Active · Suspended · Completed). The card heading uses the Short Name when present, otherwise the Registered Company Name. Data model: `06_DATABASE_SCHEMA.md` §6.4.
+
+**Decisions recorded.**
+- Engagement Status has no default. A new row shows "Select engagement status" and stays incomplete until a value is chosen.
+- Existing 2C.3A subcontractors are preserved with null professional fields and are not backfilled. They show **Needs completion**, and the Project Information step adds a failing "Subcontractor details complete" check until they are completed. Zero subcontractors adds no check and stays Complete.
+- Duplicate Registered Company Names (trim + case-insensitive) are blocked in the form schema, in the domain save, and in the database save function. There is no unique index in this phase; the party UUID remains the identity.
+- Text + CHECK constraints, not a PostgreSQL enum. The required-field CHECK is `NOT VALID`, so legacy rows survive while new or updated rows must comply.
+- If the app runs against a database that has 2C.3A but not 2C.3B, a save that includes subcontractors is refused with a clear message instead of silently dropping the new fields. Zero-subcontractor saves continue.
+
+**Validation timing (final polish).** Display timing only; the schema, domain, save-function and database rules are unchanged. A newly added subcontractor card shows its required `*` markers at once but starts neutral, with no red borders or messages. A field shows its error once it has been left (blurred) while invalid. A refused Save Changes / Save & Continue (`onInvalid`) or a Save Draft attempt marks every field of every current row as touched, so all of their errors show and nothing is saved. A row added after that attempt starts neutral again. Engagement Status counts as left when its list closes, not when it opens. Removing a row drops its errors and touched state together. Duplicate-company errors still show on the duplicate's name field. The shared `RhfField` gained an optional `showError` rule; fields that don't use it behave exactly as before.
+
+**Migration.** `20261007120000_project_parties_professional_information.sql` is applied to the local development database and browser-UAT verified for PSM and Other Project: zero subcontractors valid; professional add/save/refresh; multiple rows and order; normalized duplicate rejection; remove/save/refresh; return to a valid zero state; Owner/Client and EPROM preserved. **Not deployed remotely/production.**
+
+**Verification.** 85 focused and 538 source tests, `tsc --noEmit`, `eslint src --max-warnings=0` and `next build` pass.
+
+**Out of scope (unchanged).** People, Project Responsibility, contacts, reporting lines, Structure assignments, Weekly/Monthly/Executive person responsibilities, Organization Chart.
 
 ---
 

@@ -13,6 +13,7 @@ import {
 } from "./project-terminology";
 import { isClassificationComplete } from "@/features/projects/classification";
 import { FIXED_RESPONSIBILITIES } from "@/features/projects/responsibilities";
+import { subcontractorNeedsCompletion } from "@/features/projects/project-parties";
 import { structureCompleteness } from "@/features/projects/structure/structure-rules";
 import type { ProjectStructure } from "@/types/project-structure";
 
@@ -462,9 +463,14 @@ export type InfoCheckInput = Pick<
   | "plannedStartDate"
   | "plannedFinishDate"
   | "projectManagerId"
->;
+> & Partial<Pick<Project, "parties">>;
 
 function infoChecks(project: InfoCheckInput): WorkflowCheck[] {
+  // Zero subcontractors adds no check: Project Information stays Complete.
+  // A saved subcontractor missing Scope / Package or Engagement Status (e.g.
+  // one created before 2C.3B) needs completion. PSM and Other are identical.
+  const subcontractors = (project.parties ?? []).filter((party) => party.kind === "subcontractor");
+  const incomplete = subcontractors.filter(subcontractorNeedsCompletion).length;
   return [
     check("Project code", Boolean(project.code)),
     check("Project name", Boolean(project.name)),
@@ -475,6 +481,13 @@ function infoChecks(project: InfoCheckInput): WorkflowCheck[] {
     check("Planned start date", Boolean(project.plannedStartDate)),
     check("Planned finish date", Boolean(project.plannedFinishDate)),
     check("Project manager assigned", Boolean(project.projectManagerId)),
+    ...(subcontractors.length > 0 ? [check(
+      "Subcontractor details complete",
+      incomplete === 0,
+      incomplete > 0
+        ? `${incomplete} subcontractor${incomplete === 1 ? " needs" : "s need"} Scope / Package and Engagement Status.`
+        : undefined
+    )] : []),
   ];
 }
 

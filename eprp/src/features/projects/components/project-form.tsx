@@ -96,7 +96,7 @@ import {
 } from "@/features/master-data";
 import { RhfField } from "./form-field";
 import { ProjectFormSection } from "./project-form-section";
-import { ProjectPartiesFields } from "./project-parties-fields";
+import { ProjectPartiesFields, touchSubcontractorFields } from "./project-parties-fields";
 import { ProjectScopeSummary } from "./project-scope-summary";
 import { LogoUploadField } from "./logo-upload-field";
 import { GovernedPerformancePanel } from "./governed-performance-panel";
@@ -1492,6 +1492,9 @@ export function ProjectForm({
   };
 
   const onInvalid: SubmitErrorHandler<ProjectFormValues> = (rhfErrors) => {
+    // Save Changes / Save & Continue was refused: reveal every current
+    // subcontractor row's errors (display timing only; nothing was saved).
+    touchSubcontractorFields(form);
     const errors = flattenFormErrors(rhfErrors);
     setSummary({
       title: `Project cannot be created. Complete ${errors.length} required ${
@@ -1504,6 +1507,7 @@ export function ProjectForm({
 
   const handleSaveDraft = async () => {
     if (!onSaveDraft) return;
+    touchSubcontractorFields(form);
     setSummary(null);
     form.clearErrors();
     const values = form.getValues();

@@ -275,13 +275,24 @@ export interface ProjectLocation {
   city?: string;
 }
 
+/** Subcontractor engagement (Phase 2C.3B). Chosen explicitly; never defaulted. */
+export type SubcontractorEngagementStatus = "planned" | "active" | "suspended" | "completed";
+
 /** Project-owned party identity; Owner's Client remains projects.client_id. */
 export interface ProjectParty {
   /** Undefined only before save or on a database without the additive migration. */
   id?: string;
   kind: "eprom" | "owner" | "subcontractor";
-  /** Only subcontractors store a name. EPROM and Owner labels are derived. */
+  /** Only subcontractors store a name (Registered Company Name). EPROM and Owner labels are derived. */
   name?: string;
+  /**
+   * Subcontractor professional data (2C.3B). Undefined on EPROM/Owner, and on
+   * subcontractors saved before 2C.3B until they are completed and saved again.
+   */
+  shortName?: string;
+  scope?: string;
+  contractReference?: string;
+  engagementStatus?: SubcontractorEngagementStatus;
   sortOrder: number;
 }
 
