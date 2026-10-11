@@ -1,9 +1,13 @@
-import type { Project } from "@/types";
+import type { Project, ProjectMember, ProjectParty } from "@/types";
 import { mockContacts } from "@/data/mock/master-data.mock";
 import { mockProjects } from "@/data/mock/projects.mock";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { hasProjectAssignment } from "@/features/projects/assignment-rules";
 import { persistProjectParties } from "@/features/projects/project-parties";
+import {
+  PARTY_TEAM_HISTORY_MESSAGE,
+  partyHasTeamHistory,
+} from "@/features/projects/project-team";
 import {
   ReplacePersonError,
   type ReplacePersonInput,
@@ -113,8 +117,39 @@ function delay(ms = 250): Promise<void> {
 }
 
 const store: Map<string, Project> = new Map(
-  mockProjects.map((p) => [p.id, { ...clone(p), parties: persistProjectParties(undefined, undefined, () => crypto.randomUUID()) }])
+  mockProjects.map((p) => [p.id, {
+    ...clone(p),
+    parties: persistProjectParties(undefined, undefined, () => crypto.randomUUID()),
+    members: [],
+  }])
 );
+
+/**
+ * Mock-phase only (2C.3C): the project team service reads and writes
+ * memberships through these, so membership and Project Setup share ONE
+ * version per project, as they do in the database.
+ */
+export function readMockProject(id: string): Project | undefined {
+  const project = store.get(id);
+  return project ? clone(project) : undefined;
+}
+
+export function writeMockProjectMembers(id: string, members: ProjectMember[]): string {
+  const existing = store.get(id);
+  if (!existing) throw new Error(`Project ${id} not found`);
+  store.set(id, { ...existing, members: clone(members) });
+  return advanceMockProjectVersion(id);
+}
+
+/** Mirrors guard_project_party_team_history for the mock Project Information save. */
+function assertNoRemovedPartyHasHistory(existing: Project, nextParties: ProjectParty[]): void {
+  for (const party of existing.parties ?? []) {
+    if (party.kind !== "subcontractor" || !party.id) continue;
+    if (!nextParties.some((next) => next.id === party.id) && partyHasTeamHistory(existing.members, party.id)) {
+      throw new Error(PARTY_TEAM_HISTORY_MESSAGE);
+    }
+  }
+}
 
 let sequence = store.size;
 
@@ -212,6 +247,7 @@ const mockProjectService: ProjectService = {
       ...clone(input),
       id: nextId(),
       parties: persistProjectParties(undefined, input.parties?.map((party) => ({ ...party, id: undefined })), () => crypto.randomUUID()),
+      members: [],
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -228,11 +264,15 @@ const mockProjectService: ProjectService = {
     if (existing.updatedAt !== expectedUpdatedAt) {
       throw new Error("Project Setup changed since this page loaded. Reload before saving.");
     }
+    const parties = persistProjectParties(existing.parties, input.parties, () => crypto.randomUUID());
+    assertNoRemovedPartyHasHistory(existing, parties);
     const updated: Project = {
       ...existing,
       ...clone(input),
       id,
-      parties: persistProjectParties(existing.parties, input.parties, () => crypto.randomUUID()),
+      parties,
+      // Membership is written only through the project team service.
+      members: existing.members,
       createdAt: existing.createdAt,
       updatedAt: nowIso(),
     };
@@ -251,6 +291,8 @@ const mockProjectService: ProjectService = {
       ...clone(source),
       id: nextId(),
       parties: persistProjectParties(undefined, source.parties?.map((party) => ({ ...party, id: undefined })), () => crypto.randomUUID()),
+      // A copy starts without a team: membership is project-specific history.
+      members: [],
       code: `${source.code}-COPY`,
       name: `${source.name} (Copy)`,
       status: "planning",

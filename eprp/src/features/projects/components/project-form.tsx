@@ -97,6 +97,7 @@ import {
 import { RhfField } from "./form-field";
 import { ProjectFormSection } from "./project-form-section";
 import { ProjectPartiesFields, touchSubcontractorFields } from "./project-parties-fields";
+import { usePeopleMasterAuthority } from "@/features/auth/people-master-authority";
 import { ProjectScopeSummary } from "./project-scope-summary";
 import { LogoUploadField } from "./logo-upload-field";
 import { GovernedPerformancePanel } from "./governed-performance-panel";
@@ -926,6 +927,9 @@ function PersonField({
   onMutated?: () => void;
   onValueChange?: (value: string, previousValue: string) => void;
 }) {
+  // Only the People-master authorities may create or edit a person from here;
+  // everyone else assigns existing people (2C.3C). Presentation only.
+  const canEditPeople = usePeopleMasterAuthority();
   return (
     <RhfField {...props}>
       {({ field, controlProps }) => {
@@ -952,17 +956,20 @@ function PersonField({
                 clearLabel={`Clear ${props.label}`}
                 controlProps={controlProps}
                 onMutated={onMutated}
+                allowManage={canEditPeople}
               />
             </div>
             {/* Opens the person already chosen here, rather than sending the
                 user to Manage People to search for someone they have just
                 selected. Saving closes the dialog and leaves this form — and
                 every unsaved edit on it — exactly as it was. */}
-            <MasterRecordEditButton
-              kind="contact"
-              recordId={selectedId}
-              onMutated={onMutated}
-            />
+            {canEditPeople && (
+              <MasterRecordEditButton
+                kind="contact"
+                recordId={selectedId}
+                onMutated={onMutated}
+              />
+            )}
           </div>
         );
       }}

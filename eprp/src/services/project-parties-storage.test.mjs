@@ -5,6 +5,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import * as setupSave from "../features/projects/setup-save.ts";
 import * as storage from "./project-party-storage.ts";
+import * as memberStorage from "./project-member-storage.ts";
 import { persistProjectParties } from "../features/projects/project-parties.ts";
 import { formValuesToProjectInfoUpdate, projectToFormValues } from "../features/projects/schemas/project-form.ts";
 
@@ -86,6 +87,7 @@ function harness({ missing = false, authorized = true, readError = null, foundat
       if (name === "@/lib/perf-temp") return { startTimer: () => () => {}, timed: (_name, fn) => fn() };
       if (name === "@/features/projects/setup-save") return setupSave;
       if (name === "./project-party-storage") return storage;
+      if (name === "./project-member-storage") return memberStorage;
       if (["./replace-person", "./classification-correction"].includes(name)) return {};
       throw new Error(`Unexpected service dependency ${name}`);
     },

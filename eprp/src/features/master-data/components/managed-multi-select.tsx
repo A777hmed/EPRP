@@ -94,6 +94,12 @@ export interface ManagedMultiSelectProps {
     "aria-required"?: boolean;
   };
   onMutated?: () => void;
+  /**
+   * Offer "+ Add new" and the Manage surface (default). Off for callers who
+   * may only choose existing records — e.g. assigning existing People without
+   * People-master authority (2C.3C), as `ManagedSelect.allowManage` does.
+   */
+  allowManage?: boolean;
 }
 
 /**
@@ -122,6 +128,7 @@ export function ManagedMultiSelect({
   clearLabel,
   controlProps,
   onMutated,
+  allowManage = true,
 }: ManagedMultiSelectProps) {
   const config = MASTER_KIND_CONFIG[kind];
   const singular = displayTerms?.singular ?? config.singular;
@@ -295,23 +302,27 @@ export function ManagedMultiSelect({
                     })}
                   </CommandGroup>
                 ))}
-                <CommandSeparator />
-                <CommandGroup>
-                  <CommandItem
-                    value="__add_new__"
-                    onSelect={() => openDialog("create", query.trim())}
-                  >
-                    <Plus className="size-4" aria-hidden="true" />
-                    Add new {singularLower}
-                  </CommandItem>
-                  <CommandItem
-                    value="__manage__"
-                    onSelect={() => openDialog("list")}
-                  >
-                    <Settings2 className="size-4" aria-hidden="true" />
-                    Manage {pluralLower}…
-                  </CommandItem>
-                </CommandGroup>
+                {allowManage && (
+                  <>
+                    <CommandSeparator />
+                    <CommandGroup>
+                      <CommandItem
+                        value="__add_new__"
+                        onSelect={() => openDialog("create", query.trim())}
+                      >
+                        <Plus className="size-4" aria-hidden="true" />
+                        Add new {singularLower}
+                      </CommandItem>
+                      <CommandItem
+                        value="__manage__"
+                        onSelect={() => openDialog("list")}
+                      >
+                        <Settings2 className="size-4" aria-hidden="true" />
+                        Manage {pluralLower}…
+                      </CommandItem>
+                    </CommandGroup>
+                  </>
+                )}
               </CommandList>
             </Command>
           </PopoverContent>
@@ -325,31 +336,35 @@ export function ManagedMultiSelect({
           />
         )}
 
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          disabled={disabled}
-          aria-label={`Manage ${pluralLower}`}
-          onClick={() => openDialog("list")}
-        >
-          <Settings2 aria-hidden="true" />
-        </Button>
+        {allowManage && (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            disabled={disabled}
+            aria-label={`Manage ${pluralLower}`}
+            onClick={() => openDialog("list")}
+          >
+            <Settings2 aria-hidden="true" />
+          </Button>
+        )}
       </div>
 
-      <MasterDataDialog
-        kind={kind}
-        open={dialog.open}
-        onOpenChange={(nextOpen) =>
-          setDialog((previous) => ({ ...previous, open: nextOpen }))
-        }
-        initialMode={dialog.mode}
-        initialName={dialog.initialName}
-        presetValues={createPresetValues}
-        displayTerms={displayTerms}
-        onCreated={(record) => onChange([...value, record.id])}
-        onMutated={onMutated}
-      />
+      {allowManage && (
+        <MasterDataDialog
+          kind={kind}
+          open={dialog.open}
+          onOpenChange={(nextOpen) =>
+            setDialog((previous) => ({ ...previous, open: nextOpen }))
+          }
+          initialMode={dialog.mode}
+          initialName={dialog.initialName}
+          presetValues={createPresetValues}
+          displayTerms={displayTerms}
+          onCreated={(record) => onChange([...value, record.id])}
+          onMutated={onMutated}
+        />
+      )}
     </>
   );
 }

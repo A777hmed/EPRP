@@ -62,6 +62,12 @@ export interface SetupStepContactsProps {
   departmentName: (id: string) => string;
   onDraftChange: (patch: Partial<Project>) => void;
   initialDisciplineId?: string;
+  /**
+   * May edit the global People master (System Admin / Project Control Admin).
+   * Otherwise Add Contact, "Add new person" and the person Edit links are
+   * hidden: existing people can still be assigned (2C.3C).
+   */
+  canEditPeople: boolean;
 }
 
 /**
@@ -89,6 +95,7 @@ export function SetupStepContacts({
   onDraftChange,
   initialDisciplineId,
   terms,
+  canEditPeople,
 }: SetupStepContactsProps) {
   const team = React.useMemo(() => project.team ?? [], [project.team]);
 
@@ -315,14 +322,16 @@ export function SetupStepContacts({
         title="Assign the project team"
         description={`The Department Manager belongs to the selected Department. Team Members may be assigned explicitly from any home Department without changing their Person record.`}
         action={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setAddPersonOpen(true)}
-          >
-            <Plus data-icon="inline-start" aria-hidden="true" />
-            Add Contact
-          </Button>
+          canEditPeople ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddPersonOpen(true)}
+            >
+              <Plus data-icon="inline-start" aria-hidden="true" />
+              Add Contact
+            </Button>
+          ) : undefined
         }
       >
         <div className="grid gap-3 lg:grid-cols-3">
@@ -360,6 +369,7 @@ export function SetupStepContacts({
               emptyLabel="No contacts belong to this department yet."
               clearable={false}
               disabled={managerLocked}
+              allowManage={canEditPeople}
               controlProps={{ id: "setup-department-manager" }}
             />
             {managerLocked && (
@@ -410,6 +420,7 @@ export function SetupStepContacts({
               }}
               emptyLabel="No people are available."
               placeholder="Select people…"
+              allowManage={canEditPeople}
               controlProps={{ id: "setup-team-members" }}
             />
             <p className="text-xs text-muted-foreground">
@@ -445,6 +456,7 @@ export function SetupStepContacts({
                     name={contactName(person.contactId)}
                     meta={contactMeta(person.contactId, person.departmentIds)}
                     context={context}
+                    canEdit={canEditPeople}
                   >
                     {/* Each scope assignment is removable on its own. Removing
                         one leaves the person and their other assignments in
@@ -532,13 +544,15 @@ export function SetupStepContacts({
       {/* No `onCreated`: the Person joins the shared People list and becomes
           selectable in the pickers above, but is given no Department Manager
           seat, Team Member row, or any other project assignment. */}
-      <MasterDataDialog
-        kind="contact"
-        open={addPersonOpen}
-        onOpenChange={setAddPersonOpen}
-        initialMode="create"
-        presetValues={createPresetValues}
-      />
+      {canEditPeople && (
+        <MasterDataDialog
+          kind="contact"
+          open={addPersonOpen}
+          onOpenChange={setAddPersonOpen}
+          initialMode="create"
+          presetValues={createPresetValues}
+        />
+      )}
     </div>
   );
 }

@@ -168,7 +168,7 @@ The setup flow follows the Project Type:
 | Other | Project Type & Information → **Project Structure** → Contacts → Project Team & Responsibilities → Review |
 | Legacy (unclassified) | Project Info → Departments → Systems → Disciplines → Contacts → Project Team Summary → Review — unchanged |
 
-**An Other Project never falls back to Departments → Systems → Disciplines.** Its configurable structure is deferred to Phase 2C.1c; until then "Project Structure" is shown as a placeholder step that cannot be opened. The hierarchy-profile model of §4.2 remains the target for that work.
+**An Other Project never falls back to Departments → Systems → Disciplines.** Its configurable structure was delivered in Phase 2C.1c: "Project Structure" is a working step with 1–4 project-specific levels and units, and flags for which units owe Weekly / Monthly input (`20261003000001_project_structure_foundation.sql`; see `15_DEVELOPMENT_ROADMAP.md`). The hierarchy-profile model of §4.2 remains the longer-term target. Since 2C.3C, the Contacts step holds the same Project Team (membership by Project Party) for PSM, Other and legacy projects (`06_DATABASE_SCHEMA.md` §8.8).
 
 ---
 

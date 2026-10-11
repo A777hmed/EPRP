@@ -297,6 +297,30 @@ export interface ProjectParty {
 }
 
 /**
+ * Project-scoped team membership (Phase 2C.3C). The person is the global
+ * `contacts` record, never copied. AUTHORITY-FREE: nothing here grants access.
+ */
+export interface ProjectMember {
+  id: string;
+  projectId: string;
+  /** The authoritative person (`contacts.id`). */
+  contactId: string;
+  /** The Project Party represented. Undefined only on legacy rows: "Needs party". */
+  partyId?: string;
+  /**
+   * Descriptive role on THIS project — not the person's global Position /
+   * Job Title. Undefined only on legacy rows: "Needs project role".
+   */
+  projectRole?: string;
+  /** Project-scoped manager (another member of this project, any party). */
+  reportsToMemberId?: string;
+  /** Undefined = active. Ended memberships are kept as history. */
+  endedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
  * One additional, admin-configurable position on a project.
  *
  * Sits BESIDE the five fixed responsibility roles rather than replacing any of
@@ -1035,6 +1059,12 @@ export interface Project {
   clientId: string;
   /** Required parties plus optional subcontractors; absent on unmigrated databases. */
   parties?: ProjectParty[];
+  /**
+   * Project team membership, active and ended (2C.3C); absent on a database
+   * without the membership table. Read-only here: written only through the
+   * project team service, never through a Project Setup save.
+   */
+  members?: ProjectMember[];
   contractNumber?: string;
   purchaseOrderNumber?: string;
 

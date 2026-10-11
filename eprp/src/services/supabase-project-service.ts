@@ -24,6 +24,7 @@ import type {
   ProjectRow,
   ProjectPositionRow,
   ProjectPartyRow,
+  ProjectMemberRow,
   ProjectSiteRow,
 } from "@/lib/supabase/database.types";
 // [reporting-perf] TEMPORARY diagnostic import — remove with src/lib/perf-temp.ts
@@ -31,6 +32,7 @@ import { startTimer, timed } from "@/lib/perf-temp";
 import type { ProjectService } from "./project-service";
 import { collectSetupRelations, confirmSetupSave } from "@/features/projects/setup-save";
 import { fetchProjectPartyRows, preparePartyRelation } from "./project-party-storage";
+import { fetchProjectMemberRows, memberFromRow } from "./project-member-storage";
 import {
   ReplacePersonError,
   type ReplacePersonInput,
@@ -236,7 +238,9 @@ export function rowToProject(
   delegationRows: ProjectDelegationRow[] = [],
   siteRows: ProjectSiteRow[] = [],
   positionRows: ProjectPositionRow[] = [],
-  partyRows?: ProjectPartyRow[]
+  partyRows?: ProjectPartyRow[],
+  /** 2C.3C membership; undefined when not loaded or the table is absent. */
+  memberRows?: ProjectMemberRow[]
 ): Project {
   const departments: DepartmentAssignment[] = deptRows.map((d) => ({
     departmentId: d.department_id,
@@ -269,6 +273,7 @@ export function rowToProject(
       engagementStatus: party.engagement_status ?? undefined,
       sortOrder: party.sort_order,
     })) } : {}),
+    ...(memberRows ? { members: memberRows.map(memberFromRow) } : {}),
     contractNumber: row.contract_number ?? undefined,
     purchaseOrderNumber: row.purchase_order_number ?? undefined,
     contractStartDate: row.contract_start_date ?? undefined,
@@ -1036,6 +1041,7 @@ async function loadProjectById(id: string): Promise<Project | null> {
     siteRows,
     positionRows,
     partyRows,
+    memberRows,
   ] = await Promise.all([
     timed("getProjectById.departments", () => fetchDepartmentRows([row.id])),
     timed("getProjectById.disciplines", () => fetchDisciplineRows([row.id])),
@@ -1044,6 +1050,7 @@ async function loadProjectById(id: string): Promise<Project | null> {
     timed("getProjectById.sites", () => fetchProjectSiteRows([row.id])),
     timed("getProjectById.positions", () => fetchProjectPositionRows([row.id])),
     timed("getProjectById.parties", () => fetchProjectPartyRows(client(), [row.id])),
+    timed("getProjectById.members", () => fetchProjectMemberRows(client(), [row.id])),
   ]);
   doneGroup();
   // Parent and relation reads use separate HTTP requests. Refuse a mixed
@@ -1063,7 +1070,8 @@ async function loadProjectById(id: string): Promise<Project | null> {
     delegationRows.get(row.id) ?? [],
     siteRows.get(row.id) ?? [],
     positionRows.get(row.id) ?? [],
-    partyRows === null ? undefined : partyRows.get(row.id) ?? []
+    partyRows === null ? undefined : partyRows.get(row.id) ?? [],
+    memberRows === null ? undefined : memberRows.get(row.id) ?? []
   );
 }
 

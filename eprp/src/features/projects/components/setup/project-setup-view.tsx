@@ -51,6 +51,8 @@ import {
   validateAssignments,
 } from "../../assignment-rules";
 import { useCurrentIdentity } from "@/features/auth/use-current-identity";
+import { canEditPeopleMaster } from "@/features/auth/people-master-authority";
+import { useMasterData } from "@/features/master-data";
 import { useHierarchyTerms } from "../../use-hierarchy-terms";
 import { useProjectAuthority } from "../../use-project-authority";
 import { useProjectWorkflow } from "../../use-project-workflow";
@@ -74,8 +76,9 @@ import { SetupStepDisciplines } from "./setup-step-disciplines";
 import { SetupStepReview } from "./setup-step-review";
 import { SetupStepTeam } from "./setup-step-team";
 import { SetupStepSystems } from "./setup-step-systems";
+import { ProjectTeamWorkspace } from "./project-team-workspace";
 import { ProjectStructureStep } from "./structure/project-structure-step";
-import type { Project } from "@/types";
+import type { Client, Project } from "@/types";
 import type { ProjectLinkContext } from "../../project-link-context";
 
 export interface ProjectSetupViewProps {
@@ -636,6 +639,8 @@ function SetupShell({
       isOther={isOther}
       structureState={structureState}
       canManageStructure={canManage && savedBaseline.status !== "archived"}
+      canManageTeam={canManage && savedBaseline.status !== "archived"}
+      canEditPeople={canEditPeopleMaster(identity)}
       onProjectChanged={reloadProject}
     />
   );
@@ -659,6 +664,8 @@ function LoadedSteps({
   isOther,
   structureState,
   canManageStructure,
+  canManageTeam,
+  canEditPeople,
   onProjectChanged,
 }: {
   project: Project;
@@ -681,9 +688,15 @@ function LoadedSteps({
   /** The Other project's structure, loaded once by the shell. */
   structureState: ProjectStructureState;
   canManageStructure: boolean;
+  /** Project Responsibility authority (2C.3C membership), not archived. */
+  canManageTeam: boolean;
+  /** May edit the global People master — hides Edit / Add Person otherwise. */
+  canEditPeople: boolean;
   onProjectChanged: () => void;
 }) {
   const router = useRouter();
+  const { records: clientRecords } = useMasterData("client");
+  const clientName = (clientRecords as Client[]).find((client) => client.id === project.clientId)?.name;
   // Progress is measured against the draft, so the checklist and the stepper
   // react as the user edits rather than only after a save.
   const workflow = useProjectWorkflow(current, { structure: structureState });
@@ -866,13 +879,19 @@ function LoadedSteps({
           terms={workflow.terms}
         />
       )}
-      {step === "contacts" && isOther && (
-        <OtherProjectResponsibilities
-          project={current}
+      {/* Project Team (2C.3C): the same membership model for PSM, Other and
+          legacy projects. Saved immediately against the saved project. */}
+      {step === "contacts" && (
+        <ProjectTeamWorkspace
+          project={project}
           contacts={workflow.contacts}
-          title="Project contacts"
+          clientName={clientName}
+          canManage={canManageTeam}
+          canEditPeople={canEditPeople}
+          onProjectChanged={onProjectChanged}
         />
       )}
+      {/* PSM / legacy department scope assignments stay as they are. */}
       {step === "contacts" && !isOther && (
         <SetupStepContacts
           project={current}
@@ -884,6 +903,7 @@ function LoadedSteps({
           onDraftChange={applyDraft}
           terms={workflow.terms}
           initialDisciplineId={initialDisciplineId}
+          canEditPeople={canEditPeople}
         />
       )}
       {step === "team" && isOther && (

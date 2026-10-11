@@ -174,6 +174,20 @@ export interface ProjectPartyRow {
   updated_at: string;
 }
 
+/** Phase 2C.3C project team membership — see 20261007150000_project_team_membership.sql. */
+export interface ProjectMemberRow {
+  id: string;
+  project_id: string;
+  contact_id: string;
+  party_id: string | null;
+  project_role: string | null;
+  reports_to_member_id: string | null;
+  ended_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** Additional project positions — see 20260818000001_project_positions.sql. */
 export interface ProjectPositionRow extends Timestamps {
   id: string;
@@ -993,6 +1007,7 @@ export interface Database {
       disciplines: TableDef<DisciplineRow, Writable<DisciplineRow> & { name: string; code: string }, Writable<DisciplineRow>>;
       projects: TableDef<ProjectRow, Writable<ProjectRow>, Writable<ProjectRow>>;
       project_parties: TableDef<ProjectPartyRow, Writable<ProjectPartyRow>, Writable<ProjectPartyRow>>;
+      project_members: TableDef<ProjectMemberRow, Writable<ProjectMemberRow>, Writable<ProjectMemberRow>>;
       project_sites: TableDef<
         ProjectSiteRow,
         Writable<ProjectSiteRow>,

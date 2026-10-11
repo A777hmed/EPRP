@@ -29,6 +29,8 @@ export interface LinkedRecordRowProps {
   /** Project trail carried into the target page and back again. */
   context: ProjectLinkContext;
   onRemove?: () => void;
+  /** Offer the master record's Edit page. False hides it for callers who may not edit the master. */
+  canEdit?: boolean;
   className?: string;
   children?: React.ReactNode;
 }
@@ -44,6 +46,7 @@ export function LinkedRecordRow({
   meta,
   context,
   onRemove,
+  canEdit = true,
   className,
   children,
 }: LinkedRecordRowProps) {
@@ -70,12 +73,14 @@ export function LinkedRecordRow({
             Open
           </Link>
         </Button>
-        <Button variant="outline" size="sm" asChild>
-          <Link href={editHref}>
-            <PenLine data-icon="inline-start" aria-hidden="true" />
-            Edit
-          </Link>
-        </Button>
+        {canEdit && (
+          <Button variant="outline" size="sm" asChild>
+            <Link href={editHref}>
+              <PenLine data-icon="inline-start" aria-hidden="true" />
+              Edit
+            </Link>
+          </Button>
+        )}
         {onRemove && (
           <Button
             variant="ghost"

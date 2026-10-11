@@ -125,7 +125,7 @@ export const projectWorkflowSteps: ProjectWorkflowStep[] = [
     id: "contacts",
     label: "Contacts",
     description:
-      "The project team, scoped to the department and discipline they work in.",
+      "The people working on this project, their project party, role and reporting relationship.",
   },
   {
     id: "team",

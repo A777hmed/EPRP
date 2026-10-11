@@ -34,6 +34,7 @@ import {
   type ProjectLinkContext,
 } from "../../project-link-context";
 import { useProjectWorkflow } from "../../use-project-workflow";
+import { usePeopleMasterAuthority } from "@/features/auth/people-master-authority";
 
 /**
  * Count chip for a responsibility group. A missing Department Manager is the
@@ -104,6 +105,7 @@ export function ProjectInfoWorkspace({
   onSaved,
 }: ProjectInfoWorkspaceProps) {
   const workflow = useProjectWorkflow(project);
+  const canEditPeople = usePeopleMasterAuthority();
   const [draft, setDraft] = React.useState<Project>(project);
   const [saving, setSaving] = React.useState<"structure" | "team" | null>(null);
   const [open, setOpen] = React.useState<SectionId | null>(null);
@@ -304,6 +306,7 @@ export function ProjectInfoWorkspace({
           departmentName={workflow.departmentName}
           onDraftChange={applyDraft}
           terms={workflow.terms}
+          canEditPeople={canEditPeople}
         />
       ),
     },
@@ -359,18 +362,21 @@ export function ProjectInfoWorkspace({
                 {section.summary}
               </p>
               <div className="mt-auto flex flex-wrap gap-1.5">
-                <Button variant="outline" size="sm" asChild>
-                  <Link
-                    href={withProjectContext(ADD_PATH[section.id], {
-                      ...context,
-                      sourceType: "project",
-                      parentId: project.id,
-                    })}
-                  >
-                    <Plus data-icon="inline-start" aria-hidden="true" />
-                    Add
-                  </Link>
-                </Button>
+                {/* Creating a Person needs People-master authority (2C.3C). */}
+                {(section.id !== "contacts" || canEditPeople) && (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link
+                      href={withProjectContext(ADD_PATH[section.id], {
+                        ...context,
+                        sourceType: "project",
+                        parentId: project.id,
+                      })}
+                    >
+                      <Plus data-icon="inline-start" aria-hidden="true" />
+                      Add
+                    </Link>
+                  </Button>
+                )}
                 <Button
                   variant={open === section.id ? "default" : "outline"}
                   size="sm"

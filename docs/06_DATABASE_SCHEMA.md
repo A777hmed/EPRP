@@ -213,7 +213,7 @@ The companies party to a project. It is the same model for PSM and Other project
 | Engagement Status | Required; Planned · Active · Suspended · Completed. No default — chosen explicitly |
 
 - **Completion:** zero subcontractors is valid and complete. A subcontractor saved before 2C.3B may lack Scope / Package and Engagement Status; it is preserved, never backfilled, and shown as **Needs completion** until it is completed and saved.
-- **Lifecycle:** subcontractors are added, edited, reordered and removed through Project Information's normal save. EPROM and Owner rows are created by the server and cannot be edited or removed.
+- **Lifecycle:** subcontractors are added, edited, reordered and removed through Project Information's normal save. EPROM and Owner rows are created by the server and cannot be edited or removed. **Since 2C.3C, a subcontractor with any current or ended team membership (§8.8) cannot be removed** — historical integrity wins. Retiring or archiving a party is not yet modelled.
 
 **As built (storage).** Table `project_parties` (`kind` ∈ `eprom` · `owner` · `subcontractor`; `name`, `short_name`, `scope`, `contract_reference`, `engagement_status`, `sort_order`). EPROM and Owner rows keep every name and professional column null. Subcontractor rows are written only through `save_project_setup_relation` (relation `parties`), which enforces the rules above, refuses duplicate company names (SQLSTATE `23505`) and keeps existing row identifiers. The required-field CHECK `project_parties_subcontractor_professional_required` is `NOT VALID`, so legacy rows survive while every new or updated subcontractor must comply. There is deliberately no unique index on company name. Migrations: `20261006123219_project_parties_foundation.sql` (2C.3A) and `20261007120000_project_parties_professional_information.sql` (2C.3B).
 
@@ -253,35 +253,38 @@ Only the **label** varies:
 
 ## 8. Group D — Contacts and assignments
 
-### 8.1 Two identities, not three
+### 8.1 One person, many project memberships
 
-Under decision 2 there is **no global person directory**. Identity resolves as:
+**Amended in Phase 2C.3C (owner decision, 2026-10-07).** People are **one global master**, and participation in a project is **project-scoped membership**. This supersedes this section's earlier "no global person directory" position. That position derived people from decision 2 (§1.1), but people were never one of the project-owned structure kinds, and the as-built `contacts` master has always been global.
 
 ```text
-ACCOUNT                             PROJECT CONTACT
-who can sign in                     a person on one project
-Tier 0 — platform                   Tier 2 — owned by the project
-     └────── optional link ──────────────┘
+ACCOUNT                 PERSON                          PROJECT MEMBERSHIP
+who can sign in         one record per human            this person on ONE project:
+Tier 0 — platform       Tier 1 — global People master   party · project role · reports to
+     └── optional link ──┘   └──────── referenced, never copied ────────┘
 ```
 
 **Account** — the authentication identity. **Only accounts can act**; every action and audit record attributes to one. Platform-owned, deactivated but never deleted.
 
-**Project Contact** — a person as they exist on one project. Project-owned.
+**Person** — the authoritative people record (`contacts`): name, position / job title, employer, email, phone, active. A person is **never duplicated** because they work on another project or for another party, and their identifier is stable.
 
-### 8.2 Project Contact
+**Project Membership** — a person on one project (§8.8). It references the Person; it never copies their details.
 
-- **Owner:** Project
-- **Identity:** Project + identifier
-- **Attributes:** Full name · display name · job title (reference to global Job Title) · organization/employer · email · phone · internal or external · **linked Account (optional)** · avatar reference · active
+### 8.2 Person (global People master)
+
+- **Owner:** Organization (global master data)
+- **Identity:** Stable identifier
+- **Attributes:** Full name · position (free text) · job title (reference to global Job Title, optional) · organization/employer (free text) · email · phone · home department · active
+- **Write authority:** System Administrator and Project Control Admin only. Project Control / Planning may **assign existing people** to their own projects but cannot create or edit a Person.
 - **Lifecycle:** created, edited, **deactivated** — never deleted, so historical attribution survives.
 
-A Project Contact **may exist with no account at all** — client representatives, external contributors and reference contacts are normal.
+A Person **may exist with no account at all** — client representatives, external contributors and reference contacts are normal.
 
 ### 8.3 The Contact Center
 
-The Contact Center is a **cross-project directory surface**, not an entity. It reads Project Contacts across all projects — which every authenticated user may do under decision 1 — and groups them by linked Account where one exists.
+The Contact Center is the directory surface over the People master. Because a person is one record, their participation across projects is resolvable through their memberships (§8.8), whether or not they have an account.
 
-> **Consequence.** Without a global person record, the same human appearing on two projects is **two independent Project Contacts**. They are linked only when both carry the same Account. For a person who never signs in — most client representatives and external contributors — cross-project identity is not resolvable by the platform. This is a direct consequence of decision 2 and is recorded in §23.
+> **Superseded consequence.** Before 2C.3C this section said the same human on two projects was two unlinked Project Contacts. That no longer applies (§23.2).
 
 ### 8.4 Project Assignment
 
@@ -330,6 +333,43 @@ The Contact Center is a **cross-project directory surface**, not an entity. It r
 ### 8.7 Titles grant nothing
 
 **Job Title and Functional Responsibility Title are descriptive only** (rule 12). Neither is consulted when resolving action permission. A title containing "Lead" or "Manager" confers no authority.
+
+### 8.8 Project Team Membership (Phase 2C.3C)
+
+Who works on a project, which company they represent, their project role and their manager on the project. It is identical for PSM, Other and legacy projects.
+
+- **Owner:** Project
+- **Identity:** Stable identifier. **One active membership per person per project.** Leaving and rejoining creates a new row, and the ended row is kept.
+- **Attributes:**
+
+| Attribute | Rule |
+|---|---|
+| Person | Reference to the Person (§8.2); never copied |
+| Project Party | Exactly one of this project's parties (§6.4): EPROM, Owner, or one Subcontractor. Must belong to the **same project**. Legacy backfilled rows may have none ("Needs party") |
+| Project Role | Descriptive, project-scoped, 1–80 characters. **Not** the person's global Position / Job Title and never derived from it. Legacy backfilled rows may have none ("Needs project role") |
+| Reports To | Another **active member of the same project**, from any party. No self-reporting and no cycles. Project-scoped: the person's global manager is never changed. Missing is a warning, not an error |
+| Ended at | The single lifecycle field: empty = active, set = ended |
+
+- **Rules:**
+  1. A new or edited active membership **must** have a Party and a Project Role. Legacy rows created by the 2C.3C backfill may stay incomplete until edited, and may be **ended without completing** them.
+  2. A membership is **created active**. Ending is a separate operation, refused while active members still report to the person.
+  3. Ended memberships are **history**: never edited, never deleted.
+  4. A Subcontractor party with any current or ended membership **cannot be removed**: "This subcontractor cannot be removed because project team history exists."
+  5. **Membership grants no authority**, platform or project: no authorization check reads it, and it does not make a project visible. Authority stays with accounts, roles and the existing Project Responsibility assignments (§8.4–§8.7, `05_PERMISSION_MODEL.md`).
+- **Leadership.** The five existing fixed roles stay authoritative where they are. They are *presented* as **Project Leadership & Governance** (Project Sponsor, Project Manager, Client Representative) and **Project Controls & Coordination** (Project Control Manager, Reporting Coordinator), and are not called "top management".
+- **Department reporting line.** The PSM Project Assignment *Reports To* (§8.4–§8.5) is a separate, department-scoped relationship. The project-level Reports To above is the canonical hierarchy from which a future Organization Chart (§9) will be derived.
+
+**As built.** Table `project_members` (migration `20261007150000_project_team_membership.sql`):
+- Same-project Party and Reports To are enforced by composite foreign keys.
+- One active membership per person is enforced by a partial unique index (`ended_at is null`).
+- Self-reporting and cycles are refused by a trigger.
+- The required-data rule is a `NOT VALID` CHECK added after the backfill.
+- Writes go **only** through `add_project_member`, `update_project_member` and `end_project_member`, made hardened SECURITY DEFINER functions by `20261011090000_project_team_controlled_writes.sql`:
+  - empty `search_path`, EXECUTE for authenticated only;
+  - explicit authority: System Admin / Project Control Admin, or the project's assigned Project Control / Planning;
+  - archived projects refused;
+  - the project-version compare-and-swap.
+- Authenticated callers hold SELECT only: there is no direct INSERT, UPDATE or DELETE, so the stale-version check cannot be bypassed.
 
 ---
 
@@ -1024,7 +1064,7 @@ Recorded so they are accepted knowingly rather than discovered later.
 |---|---|
 | **Departments, systems and work items are not comparable across projects** | Two projects' "Process Safety" departments are unrelated records. Cross-project analytics by department is not possible without a later grouping concept |
 | **Portfolio comparison runs on global master data only** | KPI Definitions, Risk and Criticality Matrices, and Project Types remain shared — these are what make the Portfolio Summary valid |
-| **Cross-project person identity resolves only through Accounts** | A person without an account appearing on two projects is two unlinked Project Contacts (§8.3) |
+| ~~Cross-project person identity resolves only through Accounts~~ **Superseded in 2C.3C** | People are one global master (§8.1–§8.2); a person on several projects is one record with several project memberships (§8.8), whether or not they have an account |
 | **Project setup requires seeding** | With nothing shared, each project defines its structure from scratch unless seeded from a template — see §25, Decision 1 |
 | **Master-data maintenance moves into the project** | Renaming a department is a per-project act; there is no single place to rename it everywhere |
 
@@ -1044,9 +1084,10 @@ This document is **specification**. `docs/engineering/` describes what exists in
 | Read access | Every authenticated user has full reach | Universal read is now **correct by design**; action permission is not enforced |
 | Action permission | Not enforced anywhere | §17.2 resolved through role, project and department |
 | Hierarchy | One Discipline entity with PSM label resolution — **consistent with §7** | Label carried by a configurable Hierarchy Profile |
-| **Project classification** (Phase 2C.1) | Migration `20261001000001_project_setup_classification.sql`. `projects.structure_family` (`psm` · `other` · NULL for legacy), `projects.project_category_detail`, `project_types.allows_custom_name`. Trigger `enforce_project_classification` locks the family once set and validates the category. Table `project_classification_corrections` holds the history (§21.5). RPC `correct_project_structure_family()` is the System Administrator correction. Function `is_psm_family_project_type()` applies the PSM/PSAIM category rule. **Applied to the local development database only (runtime rehearsal `108_runtime_2c1_classification.sql`: 33 PASS / 0 FAIL). NOT applied to production.** | §6.1 classification; §21.5. Other-project structure levels (Phase 2C.1c) are not yet modelled |
-| **Project Parties** (Phases 2C.3A, 2C.3B) | Table `project_parties`. 2C.3A (`20261006123219_project_parties_foundation.sql`): EPROM, Owner and subcontractor company names. **Applied to the local development database and browser-UAT verified; not deployed remotely or to production.** 2C.3B (`20261007120000_project_parties_professional_information.sql`): subcontractor Short Name, Scope / Package, Contract Reference and Engagement Status. **Prepared; NOT applied to any database.** | §6.4 |
-| Contacts | Global directory exists | §8.2 project-owned Project Contact |
+| **Project classification** (Phase 2C.1) | Migration `20261001000001_project_setup_classification.sql`. `projects.structure_family` (`psm` · `other` · NULL for legacy), `projects.project_category_detail`, `project_types.allows_custom_name`. Trigger `enforce_project_classification` locks the family once set and validates the category. Table `project_classification_corrections` holds the history (§21.5). RPC `correct_project_structure_family()` is the System Administrator correction. Function `is_psm_family_project_type()` applies the PSM/PSAIM category rule. **Applied to the local development database only (runtime rehearsal `108_runtime_2c1_classification.sql`: 33 PASS / 0 FAIL). NOT applied to production.** | §6.1 classification; §21.5. Other-project structure (Phase 2C.1c) is modelled in `20261003000001_project_structure_foundation.sql` (`project_structure_levels`, `project_structure_nodes`), applied to the local development database (checked read-only, 2026-10-07) |
+| **Project Parties** (Phases 2C.3A, 2C.3B) | Table `project_parties`. 2C.3A (`20261006123219_project_parties_foundation.sql`): EPROM, Owner and subcontractor company names. **Applied to the local development database and browser-UAT verified; not deployed remotely or to production.** 2C.3B (`20261007120000_project_parties_professional_information.sql`): subcontractor Short Name, Scope / Package, Contract Reference and Engagement Status. **Applied to the local development database and browser-UAT verified for PSM and Other Project; not deployed remotely or to production.** | §6.4 |
+| **Project Team Membership** (Phase 2C.3C) | Table `project_members` (`20261007150000_project_team_membership.sql`) with backfill of the approved Preflight V2 dataset (46 memberships). Finalized by `20261011090000_project_team_controlled_writes.sql` (the three RPCs are the only write path). **Complete locally:** both migrations applied to the local development database; automated verification complete; browser UAT done on the Other Project path; a true PSM browser smoke test is pending, with PSM / shared behaviour covered by automated tests. **Not deployed remotely or to production.** See `15_DEVELOPMENT_ROADMAP.md` 2C.3C. | §8.8 |
+| Contacts | Global People master (`contacts`) — **matches the amended §8.1–§8.2** | §8.2 Person (global) + §8.8 membership |
 | Assignments and delegation | Specified; **not applied** | §8.4–§8.6 |
 | Organization Chart | Charts, positions and history exist | §9 |
 | **Project Lifecycle** | **Does not exist** | §10 in full |

@@ -107,7 +107,10 @@ test("3. Other never falls back to Departments / Systems / Disciplines", () => {
   const view = read("../components/setup/project-setup-view.tsx");
   assert.match(view, /step === "contacts" && !isOther && \(\s*<SetupStepContacts/);
   assert.match(view, /step === "team" && !isOther && \(\s*<SetupStepTeam/);
-  assert.match(view, /step === "contacts" && isOther && \(\s*<OtherProjectResponsibilities/);
+  // 2C.3C: every project type gets the same Project Team on Contacts; the
+  // department builder above stays PSM / legacy only.
+  assert.match(view, /step === "contacts" && \(\s*<ProjectTeamWorkspace/);
+  assert.match(view, /step === "team" && isOther && \(\s*<OtherProjectResponsibilities/);
   const review = read("../components/setup/setup-step-review.tsx");
   assert.match(review, /\{isOther \? \(\s*<>\s*<Summary label="Structure levels"/);
   assert.match(review, /\{isOther \? \(\s*<SectionCard\s+title="Structure breakdown"/);
