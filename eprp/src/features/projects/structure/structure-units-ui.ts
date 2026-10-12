@@ -27,7 +27,7 @@ export interface StructureUnitFormIssue {
 
 export function unitLabels(structure: ProjectStructure, levelNumber: number) {
   const level = findLevel(structure.levels, levelNumber);
-  return { singular: level?.singularLabel ?? "Item", plural: level?.pluralLabel ?? "Items" };
+  return { singular: level?.singularLabel ?? "Unit", plural: level?.pluralLabel ?? "Units" };
 }
 
 export function unitPathLabel(structure: ProjectStructure, id: string): string {
@@ -47,17 +47,17 @@ export function initialUnitFields(intent: StructureUnitIntent): StructureUnitFie
 export function unitRuleMessage(reason: StructureRuleReason | undefined): string {
   switch (reason) {
     case "active_children": return "Archive the active children first. This change never cascades.";
-    case "has_children": return "This item still has children, including archived children. Archive it instead.";
+    case "has_children": return "This unit still has children, including archived ones. Archive it instead.";
     case "parent_archived": return "Restore the parent first, then try again.";
-    case "duplicate_name": return "Another active item under that parent already uses this name.";
-    case "duplicate_code": return "Another active item in this project already uses this code.";
-    case "wrong_level": return "Choose a parent from the hierarchy type immediately above.";
-    case "same_parent": return "Choose a different parent to move this item.";
-    case "reporting_overlap": return "Weekly or Monthly input already belongs to another item on this branch. Choose one input owner for each report type.";
-    case "archived": return "Archived items cannot own reporting input, accept children or move. Restore this item first.";
-    case "deepest_level": return "This is the deepest hierarchy type; no child type is configured.";
-    case "not_found": return "This item or its parent is no longer available. Reload the hierarchy.";
-    case "not_archived": return "This item is already active.";
+    case "duplicate_name": return "Another active unit under that parent already uses this name.";
+    case "duplicate_code": return "Another active unit in this project already uses this code.";
+    case "wrong_level": return "Choose a parent from the level immediately above.";
+    case "same_parent": return "Choose a different parent to move this unit.";
+    case "reporting_overlap": return "Weekly or Monthly input is already provided by a unit above or below this one on the same branch. Each report type takes input from one unit per branch.";
+    case "archived": return "Archived units cannot provide reporting input, accept children or move. Restore this unit first.";
+    case "deepest_level": return "This is the lowest level; no level is configured below it.";
+    case "not_found": return "This unit or its parent is no longer available. Reload the structure.";
+    case "not_archived": return "This unit is already active.";
     default: return "Check this change before saving.";
   }
 }
@@ -73,8 +73,8 @@ function inputIssueMessage(issue: StructureIssue): string {
     case "parent_required": return "Select the parent before saving.";
     case "parent_archived": return unitRuleMessage("parent_archived");
     case "parent_level": return unitRuleMessage("wrong_level");
-    case "parent_not_allowed": return "The first hierarchy type has no parent.";
-    case "level_undefined": return "This hierarchy type is no longer configured. Reload before adding an item.";
+    case "parent_not_allowed": return "Level 1 units have no parent.";
+    case "level_undefined": return "This level is no longer configured. Reload before adding a unit.";
     case "reporting_overlap": return unitRuleMessage("reporting_overlap");
     default: return "Check the fields before saving.";
   }
@@ -126,11 +126,11 @@ export async function saveStructureUnit(actions: ProjectStructureActions, intent
 }
 
 export function unitActionError(error: unknown, singular: string): { message: string; reload: boolean } {
-  if (!(error instanceof ProjectStructureError) || error.reason === "failed") return { message: "The save could not be confirmed. Your edits are kept. Reload the hierarchy before trying again.", reload: true };
+  if (!(error instanceof ProjectStructureError) || error.reason === "failed") return { message: "The save could not be confirmed. Your edits are kept. Reload the structure before trying again.", reload: true };
   const reload = error.reason === "stale" || error.reason === "not_found";
-  if (error.reason === "stale") return { message: `This ${singular} changed since you opened it. Your edits are kept. Reload the current hierarchy before trying again.`, reload };
+  if (error.reason === "stale") return { message: `This ${singular} changed since you opened it. Your edits are kept. Reload the current structure before trying again.`, reload };
   return {
-    message: error.message.replace(/structure unit/gi, singular).replace(/\bunits\b/gi, "items").replace(/\bunit\b/gi, singular),
+    message: error.message.replace(/structure unit/gi, singular).replace(/\bunit\b/gi, singular),
     reload,
   };
 }

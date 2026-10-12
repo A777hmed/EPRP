@@ -23,6 +23,7 @@ const { createStructureActions } = await import("./structure-workspace-contract.
 const { StructureUnitsEditor } = await import("../components/setup/structure/structure-units-editor.tsx");
 const { StructureLevelsEditor } = await import("../components/setup/structure/structure-levels-editor.tsx");
 const { ProjectStructureWorkspace } = await import("../components/setup/structure/project-structure-workspace.tsx");
+const { StructureViews } = await import("../components/setup/structure/structure-views.tsx");
 
 const levels = [
   { id: "l1", projectId: "p", levelNumber: 1, singularLabel: "Function", pluralLabel: "Functions", createdAt: "t", updatedAt: "t" },
@@ -59,15 +60,17 @@ test("workspace sibling editors have unique stable keys scoped to their role and
   assert.ok(keys.every((key, index) => key !== otherKeys[index]), "Both editors reset when project identity changes");
 });
 
-test("workspace composes exactly one levels editor and one units editor with unchanged callbacks", () => {
+test("workspace composes exactly one levels editor and one structure-views container with unchanged callbacks", () => {
   for (const canManage of [true, false]) {
     const props = propsFor(structure([root, child]), { canManage, actions: { configureLevels() {}, createNode() {}, updateNode() {}, refresh() {} } });
     const workspace = ProjectStructureWorkspace(props);
     const children = workspace.props.children.props.children.filter(React.isValidElement);
     const levelEditors = children.filter((entry) => entry.type === StructureLevelsEditor);
-    const unitEditors = children.filter((entry) => entry.type === StructureUnitsEditor);
-    assert.equal(levelEditors.length, 1); assert.equal(unitEditors.length, 1);
-    for (const editor of [...levelEditors, ...unitEditors]) {
+    // The units are shown through StructureViews: Hierarchy View or Manage View
+    // (the unchanged StructureUnitsEditor), both over the same props.
+    const views = children.filter((entry) => entry.type === StructureViews);
+    assert.equal(levelEditors.length, 1); assert.equal(views.length, 1);
+    for (const editor of [...levelEditors, ...views]) {
       assert.equal(editor.props.actions, props.actions);
       assert.equal(editor.props.structure, props.structure);
       assert.equal(editor.props.project, props.project);
@@ -80,10 +83,16 @@ test("complete workspace markup contains each step heading and configured level 
   for (const canManage of [true, false]) {
     for (const source of [structure(), structure([root, child]), { ...structure(), levels: [] }]) {
       const html = renderToStaticMarkup(React.createElement(ProjectStructureWorkspace, propsFor(source, { canManage })));
+      const hasUnits = source.nodes.some((entry) => !entry.archivedAt);
       assert.equal((html.match(/<h3[^>]*>Step 1 · How is this project organized\?<\/h3>/g) ?? []).length, 1);
-      assert.equal((html.match(/<h3[^>]*>Step 2 · Build your project structure<\/h3>/g) ?? []).length, 1);
-      assert.equal((html.match(/aria-label="Hierarchy level configuration"/g) ?? []).length, 1);
-      assert.equal((html.match(/aria-label="Project hierarchy"/g) ?? []).length, 1);
+      // Exactly one Step 2, named the same in both views: the Hierarchy View
+      // once there are units, otherwise the Manage View.
+      assert.equal((html.match(/<h3[^>]*>Step 2 · [^<]*<\/h3>/g) ?? []).length, 1);
+      assert.equal((html.match(/<h3[^>]*>Step 2 · Structure Hierarchy<\/h3>/g) ?? []).length, 1);
+      assert.equal((html.match(/aria-label="Structure level configuration"/g) ?? []).length, 1);
+      assert.equal((html.match(/aria-label="Structure Hierarchy · Manage View"/g) ?? []).length, hasUnits ? 0 : 1);
+      assert.equal((html.match(/aria-label="Structure Hierarchy · Hierarchy View"/g) ?? []).length, hasUnits ? 1 : 0);
+      assert.equal((html.match(/aria-label="Structure view"/g) ?? []).length, 1, "one view switch");
       for (const level of source.levels) {
         assert.equal((html.match(new RegExp(`value="${level.singularLabel}"`, "g")) ?? []).length, 1);
         assert.equal((html.match(new RegExp(`value="${level.pluralLabel}"`, "g")) ?? []).length, 1);
@@ -166,7 +175,7 @@ test("empty state and action use the configured first type", () => {
   const html = render(structure());
   assert.match(html, /Add your first Function/);
   assert.match(html, /Add Function/);
-  assert.match(html, /Functions are the actual project groups/);
+  assert.match(html, /Functions are this project&#x27;s Level 1 Structure Units/);
   assert.doesNotMatch(html, /Add node|parent node|node id|Add Level 1 unit/);
 });
 test("root create callback sends one validated explicit action without keystroke saving", async () => {
@@ -249,13 +258,13 @@ test("invalid moves: wrong type, missing parent, archived parent and sibling dup
 test("archive confirmation calls one action; active children block archive", async () => {
   const calls = [], intent = make("archive");
   const form = dialog(structure([root]), intent, { actions: { archiveNode: async (record) => calls.push(record) } });
-  assert.match(form.text(), /responsibility will be cleared/);
+  assert.match(form.text(), /Weekly and Monthly input settings will be cleared/);
   await form.submit(); assert.deepEqual(calls, [root]);
   assert.match(issues(structure([root, child]), intent)[0].message, /active children first/);
   const blocked = dialog(structure([root, child]), intent, { actions: { archiveNode: async (record) => calls.push(record) } });
   await blocked.submit(); assert.equal(calls.length, 1);
 });
-test("archived items cannot own input or offer reporting/move/create-child actions", () => {
+test("archived units cannot provide input or offer reporting/move/create-child actions", () => {
   const old = { ...root, archivedAt: "a" }, source = structure([old]);
   assert.ok(issues(source, make("reporting", old), { weeklyReportingRequired: true }).length > 0);
   const harness = componentHarness("structure-units-editor", propsFor(source));
@@ -298,7 +307,7 @@ test("Weekly and Monthly input save independently through existing flag action",
 test("same-type nested reporting overlaps are blocked in both directions", () => {
   for (const field of ["weeklyReportingRequired", "monthlyReportingRequired"]) {
     const parentOwns = { ...root, [field]: true }, childOwns = { ...child, [field]: true };
-    assert.match(issues(structure([parentOwns, child]), make("reporting", child), { [field]: true })[0].message, /one input owner/);
+    assert.match(issues(structure([parentOwns, child]), make("reporting", child), { [field]: true })[0].message, /one unit per branch/);
     assert.ok(issues(structure([root, childOwns]), make("reporting"), { [field]: true }).length > 0);
   }
 });
@@ -308,13 +317,13 @@ test("cross-report parent/child input is allowed", () => {
 });
 test("creation reporting conflict is explained before any save", () => {
   const parentOwns = { ...root, weeklyReportingRequired: true }, intent = { mode: "create", levelNumber: 2, parentId: root.id };
-  assert.match(issues(structure([parentOwns]), intent, { name: "New", weeklyReportingRequired: true })[0].message, /one input owner/);
+  assert.match(issues(structure([parentOwns]), intent, { name: "New", weeklyReportingRequired: true })[0].message, /one unit per branch/);
 });
 test("move previews reporting overlap introduced by the new parent branch", () => {
   const owner = { ...another, weeklyReportingRequired: true }, reports = { ...child, weeklyReportingRequired: true };
-  assert.match(issues(structure([root, owner, reports]), make("move", reports), { parentId: owner.id })[0].message, /one input owner/);
+  assert.match(issues(structure([root, owner, reports]), make("move", reports), { parentId: owner.id })[0].message, /one unit per branch/);
 });
-test("completion reacts to creation and independent Weekly/Monthly owners", () => {
+test("completion reacts to creation and independent Weekly/Monthly input units", () => {
   const remaining = (nodes) => workflow.structureStepChecks(project, { structure: structure(nodes) }).filter((c) => !c.passed).map((c) => c.label);
   assert.equal(remaining([]).length, 4);
   assert.equal(remaining([root]).length, 3);
@@ -324,8 +333,8 @@ test("completion reacts to creation and independent Weekly/Monthly owners", () =
   const monthlyChild = { ...child, monthlyReportingRequired: true };
   assert.deepEqual(remaining([weeklyRoot, monthlyChild]), []);
   assert.match(render(structure([weeklyRoot, monthlyChild])), /Project Structure requirements complete/);
-  assert.match(render(structure([weeklyRoot, monthlyChild])), /Weekly input owners: 1/);
-  assert.match(render(structure([weeklyRoot, monthlyChild])), /Monthly input owners: 1/);
+  assert.match(render(structure([weeklyRoot, monthlyChild])), /Weekly input: 1 unit</);
+  assert.match(render(structure([weeklyRoot, monthlyChild])), /Monthly input: 1 unit</);
 });
 test("read-only hierarchy and reporting remain readable, with no mutation controls", async () => {
   const source = structure([{ ...root, weeklyReportingRequired: true }, child]);
@@ -483,7 +492,7 @@ test("collapse keeps ownership and completion facts, expands with a labelled nat
   assert.match(button.props.className, /size-11/);
   button.props.onClick(); harness.render();
   assert.equal(treeRows(harness).length, 1);
-  for (const text of ["Weekly input required", "1 Workstreams · collapsed", "Weekly input owners: 1", "Monthly input owners: 1", "Project Structure requirements complete", "Continue to Contacts"]) assert.ok(harness.text().includes(text));
+  for (const text of ["Weekly input required", "1 Workstreams · collapsed", "Weekly input: 1 unit", "Monthly input: 1 unit", "Project Structure requirements complete", "Continue to Contacts"]) assert.ok(harness.text().includes(text));
   assert.equal(JSON.stringify(source), before);
 });
 
@@ -537,7 +546,7 @@ test("archived branches retain explicit lifecycle state and restore menus but no
   assert.equal(harness.text().includes("Weekly input required"), false);
 });
 
-test("third and fourth configured layers render recursively with dynamic child actions", () => {
+test("third and fourth configured levels render recursively with dynamic child actions", () => {
   const source = { ...structure([root, child, node("Deep", 3, child.id), node("Leaf", 4, "Deep")]), levels: [...levels,
     { ...levels[0], id: "l3", levelNumber: 3, singularLabel: "Section", pluralLabel: "Sections" },
     { ...levels[0], id: "l4", levelNumber: 4, singularLabel: "Task group", pluralLabel: "Task groups" }] };

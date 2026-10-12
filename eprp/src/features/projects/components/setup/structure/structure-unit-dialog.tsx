@@ -43,12 +43,12 @@ export function StructureUnitDialog({ structure, canManage, actions, intent, onC
   const verb = intent.mode === "create" ? "Add" : intent.mode === "details" ? "Edit" : intent.mode === "reporting" ? "Reporting input for" : intent.mode === "move" ? "Move" : intent.mode === "archive" ? "Archive" : intent.mode === "restore" ? "Restore" : "Delete";
   const title = `${verb} ${labels.singular}${intent.mode === "create" ? "" : ` · ${intent.node.name}`}`;
   const description = intent.mode === "delete" ? "Delete only if there are no children or protected references. A refused deletion keeps the record and its history intact."
-    : intent.mode === "archive" ? "Archive this item only. Active children must be archived first. Weekly and Monthly input responsibility will be cleared."
-    : intent.mode === "restore" ? "Restore this item with an active parent and an available name and code. Reporting input remains off until explicitly assigned."
-    : intent.mode === "move" ? `Choose a different ${parentLabel}. The hierarchy type stays ${labels.singular}; children stay attached.`
-    : intent.mode === "reporting" ? "Assign operational input for each report type. These settings do not grant reviewer or consolidator authority."
+    : intent.mode === "archive" ? "Archive this unit only. Active children must be archived first. Its Weekly and Monthly input settings will be cleared."
+    : intent.mode === "restore" ? "Restore this unit under an active parent, with an available name and code. Reporting input stays off until it is set again."
+    : intent.mode === "move" ? `Choose a different ${parentLabel}. The unit stays at the ${labels.singular} level, and its children move with it.`
+    : intent.mode === "reporting" ? "Operational reporting input only: this does not assign people or grant reviewer or consolidator authority."
     : intent.mode === "details" ? `Update this ${labels.singular}'s details. Use Reporting input or Move for those separate changes.`
-    : `Create an actual ${labels.singular} within the configured hierarchy. Its hierarchy type cannot be changed later.`;
+    : `Add a new unit at the ${labels.singular} level of the Structure Hierarchy. Its level cannot be changed later.`;
 
   React.useEffect(() => {
     if (!dirty || !canManage) return;
@@ -122,7 +122,7 @@ export function StructureUnitDialog({ structure, canManage, actions, intent, onC
           {number > 1 && intent.mode === "details" && <p className="text-xs text-muted-foreground">Parent {parentLabel}: {unitPathLabel(structure, fields.parentId) || "Not available"}</p>}
           {(intent.mode === "create" || intent.mode === "reporting") && (
             <fieldset className="space-y-2 border-t pt-3"><legend className="text-sm font-medium">Operational reporting input</legend>
-              <p id={`${id}-reporting-hint`} className="text-xs text-muted-foreground">Select the reports this {labels.singular} contributes input to. For each report type, choose one owner on a branch; a parent and its child cannot both own that same input.</p>
+              <p id={`${id}-reporting-hint`} className="text-xs text-muted-foreground">Select the reports this {labels.singular} provides input for. Each report takes input from one unit per branch, so a unit and the units above or below it cannot both provide the same input.</p>
               <div className="grid gap-2 sm:grid-cols-2">{(["weeklyReportingRequired", "monthlyReportingRequired"] as const).map((field) => (
                 <Label key={field} htmlFor={`${id}-${field}`} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border p-3">
                   <input id={`${id}-${field}`} type="checkbox" checked={fields[field]} disabled={disabled} className="size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" aria-describedby={`${id}-reporting-hint`} onChange={(event) => setFields((current) => ({ ...current, [field]: event.target.checked }))} />

@@ -141,7 +141,7 @@ function editorHarness(source = structure(), canManage = true, configureLevels =
 test("production UI callbacks add, edit, save complete trimmed levels, and wait for reload", async () => {
   const calls = [];
   const harness = editorHarness(structure(), true, async (levels) => { calls.push(JSON.parse(JSON.stringify(levels))); });
-  harness.button("Add first grouping").props.onClick(); harness.render();
+  harness.button("Add first level").props.onClick(); harness.render();
   assert.equal(harness.button("Save Changes").props.disabled, true);
   harness.input(1, "singularLabel").props.onChange({ target: { value: " Section " } });
   harness.input(1, "pluralLabel").props.onChange({ target: { value: " Sections " } }); harness.render();
@@ -152,7 +152,7 @@ test("production UI callbacks add, edit, save complete trimmed levels, and wait 
   assert.deepEqual(calls, [[{ levelNumber: 1, singularLabel: "Section", pluralLabel: "Sections" }]]);
   assert.equal(harness.button("Save Changes").props.disabled, true);
   assert.match(harness.text(), /Refreshing the configuration/);
-  assert.deepEqual(harness.notifications, ["Hierarchy levels saved"]);
+  assert.deepEqual(harness.notifications, ["Structure levels saved"]);
   harness.render({ structure: { ...structure(1), levels: [{ ...level(1), singularLabel: "Section", pluralLabel: "Sections" }] } });
   assert.equal(harness.input(1, "singularLabel").props.value, "Section");
   assert.equal(harness.windowHandlers.has("beforeunload"), false);
@@ -203,9 +203,9 @@ test("production submit guard refuses writes when canManage=false", async () => 
 test("empty editor has a compact honest state and Add first level", () => {
   const html = render();
   assert.match(html, /No structure pattern yet/);
-  assert.match(html, /Add first grouping/);
-  assert.match(html, /Step 2 · Build your project structure/);
-  assert.match(html, /Configure the hierarchy types above/);
+  assert.match(html, /Add first level/);
+  assert.match(html, /Step 2 · Structure Hierarchy/);
+  assert.match(html, /Define the structure levels in Step 1/);
 });
 test("add first level produces blank user-named fields without a fabricated id", () => {
   const draft = reduce(createLevelsDraft(structure()), { type: "append" });
@@ -216,7 +216,7 @@ test("append four contiguous levels and refuse a fifth", () => {
   for (let n = 0; n < 4; n++) draft = reduce(draft, { type: "append" });
   assert.deepEqual(draft.levels.map((l) => l.levelNumber), [1, 2, 3, 4]);
   assert.equal(reduce(draft, { type: "append" }), draft);
-  assert.match(render(structure(4)), /disabled=""[^>]*>.*?Add another layer/);
+  assert.match(render(structure(4)), /disabled=""[^>]*>.*?Add another level/);
 });
 test("singular and plural edits affect only their own retained level", () => {
   let draft = createLevelsDraft(structure(2));
@@ -347,9 +347,9 @@ test("explicit reload discards edits and waits before allowing more changes", ()
 test("read-only mode exposes values but no write controls", () => {
   const html = render(structure(2), false);
   assert.match(html, /readOnly=""/);
-  assert.doesNotMatch(html, /Save Changes|Add another layer|Remove layer|Reset changes/);
+  assert.doesNotMatch(html, /Save Changes|Add another level|Remove level|Reset changes/);
   assert.match(render(structure(), false), /No structure pattern yet/);
-  assert.doesNotMatch(render(structure(), false), /Add first grouping/);
+  assert.doesNotMatch(render(structure(), false), /Add first level/);
 });
 test("archived project is explicitly read-only with supplied container authority", () => {
   assert.match(render(structure(1), false, "archived"), /Archived project · structure is read-only/);
@@ -383,7 +383,7 @@ test("level configuration keeps its data/permission/version boundaries and has n
   assert.match(code, /actions\.configureLevels\(draft\.levels\.map/);
 });
 
-test("first use presents five labelled patterns without four empty layers", () => {
+test("first use presents five labelled patterns without four empty levels", () => {
   const harness = editorHarness();
   assert.equal(harness.all("input").filter((entry) => entry.props.type === "radio").length, 5);
   assert.equal(harness.all("input").filter((entry) => entry.props.type !== "radio").length, 0);
@@ -401,7 +401,7 @@ for (const pattern of patternsModule.STRUCTURE_PATTERNS) {
       assert.equal(harness.input(index + 1, "singularLabel").props.value, singular);
       assert.equal(harness.input(index + 1, "pluralLabel").props.value, plural);
     }
-    assert.equal(JSON.stringify(source), before, "no saved levels or actual groups changed");
+    assert.equal(JSON.stringify(source), before, "no saved levels or structure units changed");
     assert.equal(source.nodes.length, 0);
     assert.equal(harness.all("details")[0].props.open, false);
     assert.equal(harness.button("Save Changes").props.disabled, false);
@@ -411,15 +411,15 @@ for (const pattern of patternsModule.STRUCTURE_PATTERNS) {
   });
 }
 
-test("Custom structure starts with one blank main grouping and clear business labels", () => {
+test("Custom structure starts with one blank top level and clear business labels", () => {
   const harness = editorHarness();
   harness.pattern("custom").props.onChange(); harness.render();
   assert.equal(harness.input(1, "singularLabel").props.value, "");
   assert.equal(harness.input(2, "singularLabel"), undefined);
   assert.equal(harness.all("details")[0].props.open, true);
-  assert.match(harness.text(), /Main project group/);
-  assert.match(harness.text(), /What is one group called\?/);
-  assert.match(harness.text(), /What are multiple groups called\?/);
+  assert.match(harness.text(), /Top level/);
+  assert.match(harness.text(), /What is one unit called\?/);
+  assert.match(harness.text(), /What are multiple units called\?/);
 });
 
 test("live preview follows preset and custom edits without any action", () => {
@@ -453,7 +453,7 @@ test("non-preset, whitespace-different and differently cased saved names stay Cu
   assert.match(render(structure(2)), /Current pattern: Custom structure/);
 });
 
-test("preset drafts retain existing IDs and omit IDs on newly appended layers", () => {
+test("preset drafts retain existing IDs and omit IDs on newly appended levels", () => {
   const draft = createLevelsDraft(structure(1));
   const selected = reduce(draft, { type: "pattern", pattern: "package-workstream" });
   assert.equal(selected.levels[0].id, "l1");
@@ -461,7 +461,7 @@ test("preset drafts retain existing IDs and omit IDs on newly appended layers", 
   assert.deepEqual(issues(selected), []);
 });
 
-test("active or archived groups hide preset replacement and keep node-aware editing rules", () => {
+test("active or archived units hide preset replacement and keep node-aware editing rules", () => {
   for (const archivedAt of [undefined, "archived"]) {
     const source = structure(2, [node(2, archivedAt)]), draft = createLevelsDraft(source);
     assert.equal(editorHarness(source).pattern("single"), undefined);
@@ -472,20 +472,20 @@ test("active or archived groups hide preset replacement and keep node-aware edit
   }
 });
 
-test("a single grouping is a valid complete type configuration", () => {
+test("a single level is a valid complete level configuration", () => {
   const draft = reduce(createLevelsDraft(structure()), { type: "pattern", pattern: "single" });
   assert.deepEqual(issues(draft), []); assert.equal(draft.levels.length, 1);
   assert.equal(removable(draft), false);
 });
 
-test("custom Add another layer grows progressively to four and blocks a fifth", () => {
+test("custom Add another level grows progressively to four and blocks a fifth", () => {
   const harness = editorHarness();
   harness.pattern("custom").props.onChange(); harness.render();
-  for (let n = 2; n <= 4; n++) { harness.button("Add another layer").props.onClick(); harness.render(); assert.ok(harness.input(n, "singularLabel")); }
-  assert.equal(harness.button("Add another layer").props.disabled, true);
-  harness.button("Add another layer").props.onClick(); harness.render();
+  for (let n = 2; n <= 4; n++) { harness.button("Add another level").props.onClick(); harness.render(); assert.ok(harness.input(n, "singularLabel")); }
+  assert.equal(harness.button("Add another level").props.disabled, true);
+  harness.button("Add another level").props.onClick(); harness.render();
   assert.equal(harness.input(5, "singularLabel"), undefined);
-  assert.match(harness.text(), /Add another layer only|Maximum of four layers/);
+  assert.match(harness.text(), /Add another level only|Maximum of four levels/);
 });
 
 test("pattern changes respect busy, stale and external-snapshot guards", () => {
@@ -511,10 +511,10 @@ test("custom labels are progressively disclosed on existing projects and remain 
   assert.ok(harness.input(1, "singularLabel"));
   const readonly = editorHarness(source, false);
   assert.equal(readonly.pattern("custom"), undefined); assert.equal(readonly.buttons().length, 0);
-  assert.match(readonly.text(), /View hierarchy labels/);
+  assert.match(readonly.text(), /View level names/);
 });
 
-test("pattern definitions contain hierarchy types only, with no clients, IDs, groups or writes", () => {
+test("pattern definitions contain structure levels only, with no clients, IDs, units or writes", () => {
   const code = sourceText("./structure-patterns-ui.ts");
   assert.doesNotMatch(code, /Civil|Earthworks|Mechanical|Piping|Package A|createNode|supabase|\.from\(|\.rpc\(|Date\.now|Math\.random/);
 });

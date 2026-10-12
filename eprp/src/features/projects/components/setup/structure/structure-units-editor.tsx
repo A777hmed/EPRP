@@ -14,8 +14,12 @@ import {
 import { unitLabels, unitPathLabel, unitRuleMessage, type StructureUnitIntent } from "../../../structure/structure-units-ui";
 import { StructureUnitDialog } from "./structure-unit-dialog";
 
-/** Named hierarchy, reporting scope and workflow feedback over container-owned data/actions. */
-export function StructureUnitsEditor(props: ProjectStructureWorkspaceProps) {
+/**
+ * Structure units, reporting scope and workflow feedback over container-owned
+ * data/actions — the Manage View. `headerAction` (the view switch) is the
+ * only addition; it is rendered, never passed on.
+ */
+export function StructureUnitsEditor({ headerAction, ...props }: ProjectStructureWorkspaceProps & { headerAction?: React.ReactNode }) {
   const { project, structure, canManage } = props;
   const [intent, setIntent] = React.useState<StructureUnitIntent | null>(null);
   const [showArchived, setShowArchived] = React.useState(false);
@@ -92,7 +96,7 @@ export function StructureUnitsEditor(props: ProjectStructureWorkspaceProps) {
             <div className="col-span-2 flex flex-wrap gap-2 text-xs lg:col-span-1 lg:col-start-1">
               <span className={`rounded border px-2 py-0.5 ${node.weeklyReportingRequired && active ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>{node.weeklyReportingRequired && active ? "Weekly input required" : "Weekly input —"}</span>
               <span className={`rounded border px-2 py-0.5 ${node.monthlyReportingRequired && active ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>{node.monthlyReportingRequired && active ? "Monthly input required" : "Monthly input —"}</span>
-              {hasBranch && !expanded && <span className="self-center text-muted-foreground">{children.length} {childLevel?.pluralLabel ?? "child groups"} · collapsed</span>}
+              {hasBranch && !expanded && <span className="self-center text-muted-foreground">{children.length} {childLevel?.pluralLabel ?? "child units"} · collapsed</span>}
             </div>
             {canManage && (
               <DropdownMenu>
@@ -126,42 +130,44 @@ export function StructureUnitsEditor(props: ProjectStructureWorkspaceProps) {
 
   const completionLabel = (label: string) => {
     const display: Record<string, string> = {
-      "At least one structure level defined": "Hierarchy types configured",
+      "At least one structure level defined": "Structure levels defined",
       "At least one active top-level unit": `At least one active ${roots.singular}`,
-      "Every structure level has an active unit": "Every hierarchy type has active items",
-      "At least one unit owes Weekly input": "Weekly input owner selected",
-      "At least one unit owes Monthly input": "Monthly input owner selected",
+      "Every structure level has an active unit": "Every level has an active unit",
+      "At least one unit owes Weekly input": "At least one unit provides Weekly input",
+      "At least one unit owes Monthly input": "At least one unit provides Monthly input",
     };
     return display[label] ?? label;
   };
   const completionHint = (hint: string | undefined) => hint === "Add a unit at the first level." ? `Add your first ${roots.singular}.`
-    : hint?.replace("Add an active unit to:", "Add active items to:").replace(/\bunits\b/g, "items");
+    : hint?.replace("units that owe", "units that provide");
+  const unitCount = (count: number) => `${count} unit${count === 1 ? "" : "s"}`;
 
   return (
-    <section ref={sectionRef} tabIndex={-1} className="min-w-0 space-y-4 border-t pt-4 focus-visible:outline-2 focus-visible:outline-ring" aria-label="Project hierarchy">
+    <section ref={sectionRef} tabIndex={-1} className="min-w-0 space-y-4 border-t pt-4 focus-visible:outline-2 focus-visible:outline-ring" aria-label="Structure Hierarchy · Manage View">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0"><h3 className="text-sm font-semibold">Step 2 · Build your project structure</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Add the actual project groups and arrange them in the hierarchy below.</p>
+        <div className="min-w-0"><h3 className="text-sm font-semibold">Step 2 · Structure Hierarchy</h3>
+          <p className="mt-1 text-xs text-muted-foreground">Add, edit and arrange this project&apos;s Structure Units, and choose which units provide Weekly and Monthly input.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {headerAction}
           {archived.length > 0 && <Button type="button" variant="outline" className="min-h-11" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Hide" : "Show"} archived ({archived.length})</Button>}
           {canManage && structure.levels.length > 0 && (facts.activeNodeCount > 0 || tree.length > 0) && <Button ref={rootActionRef} type="button" variant="outline" className="min-h-11" disabled={!canWrite} onClick={() => setIntent({ mode: "create", levelNumber: 1 })}><Plus aria-hidden="true" /> Add {roots.singular}</Button>}
         </div>
       </div>
-      {structure.levels.length === 0 ? <p className="text-sm text-muted-foreground">Configure the hierarchy types above, then add their actual items.</p>
+      {structure.levels.length === 0 ? <p className="text-sm text-muted-foreground">Define the structure levels in Step 1, then add units here.</p>
         : tree.length === 0 ? (
           <div className="rounded-lg border border-dashed p-4"><p className="text-sm font-medium">{canManage ? `Add your first ${roots.singular}` : `No active ${roots.plural} yet`}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{roots.plural} are the actual project groups of type {roots.singular} at Level 1. Give each group its own name, then add its children.</p>
+            <p className="mt-1 text-sm text-muted-foreground">{roots.plural} are this project&apos;s Level 1 Structure Units. Give each one its own name, then add the units below it.</p>
             {canManage && <Button ref={rootActionRef} type="button" className="mt-3 min-h-11" disabled={!canWrite} onClick={() => setIntent({ mode: "create", levelNumber: 1 })}><Plus aria-hidden="true" /> Add {roots.singular}</Button>}
           </div>
         ) : <ul className="min-w-0 space-y-4" aria-label={roots.plural}>{renderBranch(tree)}</ul>}
       {structure.levels.length > 0 && (
         <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground tabular-nums" aria-label="Reporting input summary">
-          <span>Weekly input owners: {scope.weekly.length}{!project.reporting.weeklyEnabled && " · reporting disabled"}</span>
-          <span>Monthly input owners: {scope.monthly.length}{!project.reporting.monthlyEnabled && " · reporting disabled"}</span>
+          <span>Weekly input: {unitCount(scope.weekly.length)}{!project.reporting.weeklyEnabled && " · reporting disabled"}</span>
+          <span>Monthly input: {unitCount(scope.monthly.length)}{!project.reporting.monthlyEnabled && " · reporting disabled"}</span>
         </div>
       )}
-      {refreshing && <p role="status" className="text-sm text-muted-foreground">Refreshing the hierarchy…</p>}
+      {refreshing && <p role="status" className="text-sm text-muted-foreground">Refreshing the structure…</p>}
       <div className="space-y-2 border-t pt-3" aria-live="polite" aria-label="Project Structure completion">
         <p className="text-sm font-medium">{missing.length === 0 ? "Project Structure requirements complete" : `${missing.length} requirement${missing.length === 1 ? "" : "s"} remaining`}</p>
         {missing.length === 0 && <p className="text-xs text-muted-foreground">Continue to Contacts using the Project Setup workflow.</p>}

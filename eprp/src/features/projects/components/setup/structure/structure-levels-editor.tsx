@@ -13,7 +13,7 @@ import { levelConfigurationIssues, nodesByLevel, archivedNodes, STRUCTURE_LABEL_
 import {
   canRemoveDeepestLevel, createLevelsDraft, levelIssueMessage, levelsAreDirty, levelsDraftReducer,
 } from "../../../structure/structure-levels-draft";
-import { STRUCTURE_PATTERNS, hierarchyLayerName, recognizeStructurePattern, structurePatternName, type StructurePresetId } from "../../../structure/structure-patterns-ui";
+import { STRUCTURE_PATTERNS, levelPositionName, levelRelation, recognizeStructurePattern, structurePatternName, type StructurePresetId } from "../../../structure/structure-patterns-ui";
 
 /** Level configuration only, over the frozen workspace contract. */
 export function StructureLevelsEditor({ structure, canManage, actions }: ProjectStructureWorkspaceProps) {
@@ -87,7 +87,7 @@ export function StructureLevelsEditor({ structure, canManage, actions }: Project
       })));
       dispatch({ type: "saveSucceeded" });
       setTouched({});
-      toast.success("Hierarchy levels saved");
+      toast.success("Structure levels saved");
     } catch (error: unknown) {
       dispatch({ type: "saveFailed", error });
     } finally {
@@ -96,13 +96,13 @@ export function StructureLevelsEditor({ structure, canManage, actions }: Project
   }
 
   return (
-    <form ref={formRef} onSubmit={save} noValidate className="min-w-0 space-y-4" aria-label="Hierarchy level configuration" aria-busy={busy}>
+    <form ref={formRef} onSubmit={save} noValidate className="min-w-0 space-y-4" aria-label="Structure level configuration" aria-busy={busy}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold">Step 1 · How is this project organized?</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Choose the types of groups this project needs. Actual project groups are added in the next section.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Choose the levels this project needs, from the top down.</p>
         </div>
-        <span className="text-xs text-muted-foreground tabular-nums">{draft.levels.length} of {MAX_STRUCTURE_LEVELS} layers</span>
+        <span className="text-xs text-muted-foreground tabular-nums">{draft.levels.length} of {MAX_STRUCTURE_LEVELS} levels</span>
       </div>
 
       {canChoosePattern && <fieldset disabled={busy || blocked} className="space-y-2">
@@ -112,29 +112,50 @@ export function StructureLevelsEditor({ structure, canManage, actions }: Project
           {[...STRUCTURE_PATTERNS, { id: "custom" as const, name: "Custom structure", labels: [] }].map((option) => (
             <Label key={option.id} htmlFor={`${id}-pattern-${option.id}`} className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-md border p-3 ${pattern === option.id && draft.levels.length > 0 ? "border-primary bg-accent/40" : "hover:bg-muted/40"}`}>
               <input id={`${id}-pattern-${option.id}`} name={`${id}-pattern`} type="radio" checked={draft.levels.length > 0 && pattern === option.id} aria-describedby={`${id}-pattern-hint`} className="mt-0.5 size-4 shrink-0 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" onChange={() => choosePattern(option.id)} />
-              <span className="min-w-0"><span className="block text-sm font-medium">{option.name}</span><span className="mt-1 block text-xs font-normal text-muted-foreground">{option.id === "custom" ? "Choose your own group names · 1–4 layers" : `Project → ${option.labels.map(([singular]) => singular).join(" → ")}`}</span></span>
+              <span className="min-w-0"><span className="block text-sm font-medium">{option.name}</span><span className="mt-1 block text-xs font-normal text-muted-foreground">{option.id === "custom" ? "Name your own levels · 1–4 levels" : `Project → ${option.labels.map(([singular]) => singular).join(" → ")}`}</span></span>
             </Label>
           ))}
         </div>
       </fieldset>}
 
-      {draft.levels.length > 0 && <section className="space-y-2 rounded-md bg-muted/30 p-3" aria-label="Structure preview" aria-live="polite">
-        <div className="flex flex-wrap justify-between gap-2"><h4 className="text-xs font-semibold">Structure preview</h4><span className="text-xs text-muted-foreground">{dirty ? "Draft pattern" : "Current pattern"}: {structurePatternName(draft.levels)}</span></div>
-        <p className="text-sm font-medium">Project</p>
-        <ol className="space-y-1">{draft.levels.map((level) => <li key={level.id ?? `preview-${level.levelNumber}`} style={{ marginInlineStart: `${(level.levelNumber - 1) * 0.75}rem` }} className="flex min-w-0 items-center gap-2 border-l-2 pl-3 text-sm"><span aria-hidden="true" className="w-3 shrink-0 border-t-2" /><span className="break-words">{level.singularLabel || hierarchyLayerName(level.levelNumber)}</span></li>)}</ol>
-        <p className="text-xs text-muted-foreground">Structure types define how the project is organized. Actual project groups are added in the next section.</p>
+      {draft.levels.length > 0 && <section className="space-y-3 rounded-md border bg-muted/20 p-3" aria-label="Structure preview" aria-live="polite">
+        <div className="flex flex-wrap items-baseline justify-between gap-2"><h4 className="text-xs font-semibold">Structure levels</h4><span className="text-xs text-muted-foreground">{dirty ? "Draft pattern" : "Current pattern"}: {structurePatternName(draft.levels)}</span></div>
+        {/* Level flow: the project, then each configured level in order, each
+            reporting under the one above. Only configured levels appear. */}
+        <ol className="max-w-xl" aria-label="Level order, top to bottom">
+          <li className="flex"><span className="rounded-md border bg-background px-2.5 py-1 text-xs font-medium">Project</span></li>
+          {draft.levels.map((level, index) => {
+            const count = active.get(level.levelNumber)?.length ?? 0;
+            const name = level.singularLabel.trim() || levelPositionName(level.levelNumber);
+            const lowest = draft.levels.length > 1 && index === draft.levels.length - 1;
+            return (
+              <li key={level.id ?? `preview-${level.levelNumber}`} className="min-w-0">
+                <span aria-hidden="true" className="ml-5 block h-3 border-l border-muted-foreground/40" />
+                <div className="flex min-w-0 items-start gap-3 rounded-md border bg-background px-3 py-2">
+                  <span className="mt-0.5 shrink-0 rounded border px-1.5 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">Level {level.levelNumber}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-semibold">{name}</p>
+                    <p className="break-words text-xs text-muted-foreground">{levelRelation(draft.levels, level.levelNumber)}{lowest && " · lowest level"}</p>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{count === 0 ? "No units yet" : `${count} ${count === 1 ? name : level.pluralLabel.trim() || name}`}</span>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+        <p className="text-xs text-muted-foreground">Levels define how the project is organized. Its Structure Units are added in Step 2 · Structure Hierarchy.</p>
       </section>}
 
       <details open={customOpen} onToggle={(event) => setCustomOpen(event.currentTarget.open)} className="group space-y-3">
-        <summary className="min-h-11 cursor-pointer rounded-md py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">{canManage ? "Customize hierarchy" : "View hierarchy labels"}</summary>
+        <summary className="min-h-11 cursor-pointer rounded-md py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">{canManage ? "Customize levels" : "View level names"}</summary>
 
       {draft.levels.length === 0 ? (
         <div className="rounded-lg border border-dashed px-4 py-5">
           <p className="text-sm font-medium">No structure pattern yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">Start with one main grouping. A single layer is a complete, valid structure.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Start with one level. A single level is a complete, valid structure.</p>
           {canManage && (
             <Button type="button" variant="outline" className="mt-3 min-h-11" disabled={busy || blocked} onClick={() => dispatch({ type: "append" })}>
-              <Plus aria-hidden="true" /> Add first grouping
+              <Plus aria-hidden="true" /> Add first level
             </Button>
           )}
         </div>
@@ -146,7 +167,7 @@ export function StructureLevelsEditor({ structure, canManage, actions }: Project
             const inUse = activeCount + archivedCount > 0;
             return (
               <li key={level.id ?? `new-${level.levelNumber}`} className="grid min-w-0 gap-3 p-3 sm:grid-cols-2 lg:grid-cols-[8rem_minmax(0,1fr)_minmax(0,1fr)_10rem]">
-                <div className="text-sm font-semibold sm:col-span-2 lg:col-span-1 lg:pt-7">{hierarchyLayerName(level.levelNumber)}<span className="mt-1 block text-xs font-normal text-muted-foreground">Level {level.levelNumber}</span></div>
+                <div className="text-sm font-semibold sm:col-span-2 lg:col-span-1 lg:pt-7">{levelPositionName(level.levelNumber)}<span className="mt-1 block text-xs font-normal text-muted-foreground">Level {level.levelNumber}</span></div>
                 {(["singularLabel", "pluralLabel"] as const).map((field) => {
                   const fieldKey = `${level.levelNumber}-${field}`;
                   const inputId = `${id}-${fieldKey}`;
@@ -154,7 +175,7 @@ export function StructureLevelsEditor({ structure, canManage, actions }: Project
                   const error = touched[fieldKey] && issue ? levelIssueMessage(issue) : null;
                   return (
                     <div key={field} className="min-w-0 space-y-1.5">
-                      <Label htmlFor={inputId}>{field === "singularLabel" ? "What is one group called?" : "What are multiple groups called?"}<span className="sr-only"> for {hierarchyLayerName(level.levelNumber)} (required)</span></Label>
+                      <Label htmlFor={inputId}>{field === "singularLabel" ? "What is one unit called?" : "What are multiple units called?"}<span className="sr-only"> for {levelPositionName(level.levelNumber)} (required)</span></Label>
                       <Input id={inputId} value={level[field]} required maxLength={STRUCTURE_LABEL_MAX} autoComplete="off" className="min-h-11"
                         readOnly={!canManage} disabled={canManage && (busy || blocked)} aria-invalid={Boolean(error)} aria-describedby={error ? `${inputId}-error` : undefined}
                         onChange={(event) => dispatch({ type: "edit", levelNumber: level.levelNumber, field, value: event.target.value })}
@@ -168,7 +189,7 @@ export function StructureLevelsEditor({ structure, canManage, actions }: Project
                   <p>{inUse ? "In use · labels can be renamed" : "Unused level"}</p>
                   {canManage && index === draft.levels.length - 1 && removable ? (
                     <Button type="button" variant="ghost" className="min-h-11 px-2" aria-label={`Remove Level ${level.levelNumber}`} disabled={busy || blocked} onClick={() => dispatch({ type: "removeDeepest" })}>
-                      <Trash2 aria-hidden="true" /> Remove layer
+                      <Trash2 aria-hidden="true" /> Remove level
                     </Button>
                   ) : canManage && <p>{inUse ? "Cannot remove while in use" : index < draft.levels.length - 1 ? "Remove deeper levels first" : "Keep at least one level"}</p>}
                 </div>
@@ -181,9 +202,9 @@ export function StructureLevelsEditor({ structure, canManage, actions }: Project
       {canManage && draft.levels.length > 0 && (
         <div className="flex flex-wrap items-center gap-3">
           <Button type="button" variant="outline" className="min-h-11" disabled={busy || blocked || draft.levels.length >= MAX_STRUCTURE_LEVELS} onClick={() => dispatch({ type: "append" })}>
-            <Plus aria-hidden="true" /> Add another layer
+            <Plus aria-hidden="true" /> Add another level
           </Button>
-          <p className="text-xs text-muted-foreground">{draft.levels.length >= MAX_STRUCTURE_LEVELS ? "Maximum of four layers reached." : "Add another layer only if these groups need to be divided further."}</p>
+          <p className="text-xs text-muted-foreground">{draft.levels.length >= MAX_STRUCTURE_LEVELS ? "Maximum of four levels reached." : "Add another level only if these units need to be divided further."}</p>
         </div>
       )}
       </details>
@@ -193,7 +214,7 @@ export function StructureLevelsEditor({ structure, canManage, actions }: Project
           <div aria-live="polite" className="space-y-2 text-sm">
             {draft.error && <p role="alert" className="text-destructive">{draft.error}</p>}
             {blocked && <p role="alert">Your edits are kept. Reload and discard edits to use the current configuration before saving again.</p>}
-            {dirty && !blocked && !busy && <p className="text-xs text-muted-foreground">Unsaved changes. {issues.length > 0 ? "Complete both labels with unique names before saving." : "Save the complete hierarchy when ready."}</p>}
+            {dirty && !blocked && !busy && <p className="text-xs text-muted-foreground">Unsaved changes. {issues.length > 0 ? "Complete both labels with unique names before saving." : "Save the levels when ready."}</p>}
             {issues.filter((issue) => !issue.field).map((issue, index) => dirty && <p key={index} role="alert" className="text-destructive">{levelIssueMessage(issue)}</p>)}
             {draft.awaitingReload && <p>Refreshing the configuration…</p>}
           </div>

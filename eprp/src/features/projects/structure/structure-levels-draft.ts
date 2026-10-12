@@ -45,12 +45,12 @@ export function levelIssueMessage(issue: StructureIssue): string {
     case "label_required": return `Enter a ${issue.field === "pluralLabel" ? "plural" : "singular"} label.`;
     case "label_too_long": return "Use no more than 60 characters.";
     case "duplicate_label": return "Use a different label from the other levels.";
-    case "level_count": return "Add at least one hierarchy level before saving.";
+    case "level_count": return "Add at least one structure level before saving.";
     case "level_limit": return PROJECT_STRUCTURE_MESSAGES.level_limit;
     case "level_gap": return PROJECT_STRUCTURE_MESSAGES.level_gap;
     case "level_in_use": return PROJECT_STRUCTURE_MESSAGES.level_in_use;
-    case "new_level_has_id": return "Add new levels below the existing hierarchy. Reset your edits and try again.";
-    default: return "Check the hierarchy level configuration before saving.";
+    case "new_level_has_id": return "Add new levels below the existing levels. Reset your edits and try again.";
+    default: return "Check the structure levels before saving.";
   }
 }
 

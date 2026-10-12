@@ -35,7 +35,7 @@ and a lifecycle transition correctly refused).
 | 2 | Project master data | ✅ Complete |
 | 2A | Organization Chart *(added — see note)* | ✅ Complete |
 | 2B | Configurable hierarchy and scoped assignments *(added — see note)* | ✅ Complete |
-| 2C | Project Setup classification and planning foundation *(added — see Phase 2C)* | ⚠️ In progress — **2C.1 DONE** (browser-UAT verified); **2C.1c delivered** (Other Project structure, commits `494367f`–`6b7fba4`); **2C.3A / 2C.3B verified**; **2C.3C complete locally** — migrations applied, automated verification complete, browser UAT on the Other Project path done, true PSM browser smoke pending; 2C.2 not started. All 2C migrations are applied to the local development database only (NOT production) |
+| 2C | Project Setup classification and planning foundation *(added — see Phase 2C)* | ⚠️ In progress — **2C.1 DONE** (browser-UAT verified); **2C.1c delivered** (Other Project structure, commits `494367f`–`6b7fba4`; Structure Hierarchy UX implemented locally, browser visual UAT pending); **2C.3A / 2C.3B verified**; **2C.3C complete locally** — migrations applied, automated verification complete, browser UAT on the Other Project path done, true PSM browser smoke pending; 2C.2 not started. All 2C migrations are applied to the local development database only (NOT production) |
 | 3 | Data foundation | ✅ Complete — all 47 migrations applied |
 | 4 | Weekly Workspace UI | ⚠️ Partial (~95%) — final Weekly UX, multiple authored updates, insights, plans and print delivered; attachments/history outstanding |
 | 5 | Weekly data and department submission | ⚠️ Partial — department ownership now enforced in the UI |
@@ -310,7 +310,7 @@ Makes Project Setup the project-definition layer: what kind of project this is, 
 | # | Sub-phase | Status |
 |---|---|---|
 | 2C.1 | Project classification (2C.1a) + Project Setup shell & workflow (2C.1b) | ✅ **DONE / VERIFIED** — checkpoint commit `72c9d07`, 2026-10-03 |
-| 2C.1c | Other Project dynamic structure (replaces the "Project Structure" placeholder) | ✅ **Delivered** — commits `494367f`–`6b7fba4` (2026-10-03 → 2026-10-06). Migration `20261003000001_project_structure_foundation.sql` is applied to the local development database (verified read-only against `supabase_migrations.schema_migrations`, 2026-10-07), with structure data present locally. Runtime scripts: `110_runtime_2c1c_structure.sql`, `111_runtime_2c1c_service_concurrency.mjs`. A formal browser-UAT checkpoint is not recorded in this document. Not deployed remotely or to production |
+| 2C.1c | Other Project dynamic structure (replaces the "Project Structure" placeholder) | ✅ **Delivered** — commits `494367f`–`6b7fba4` (2026-10-03 → 2026-10-06). Migration `20261003000001_project_structure_foundation.sql` is applied to the local development database (verified read-only against `supabase_migrations.schema_migrations`, 2026-10-07), with structure data present locally. Runtime scripts: `110_runtime_2c1c_structure.sql`, `111_runtime_2c1c_service_concurrency.mjs`. A formal browser-UAT checkpoint is not recorded in this document. Not deployed remotely or to production. **Structure Hierarchy UX implemented locally (2026-10-11)** — no database or schema change; browser visual UAT on the final polished version pending (see below) |
 | 2C.2 | Planning / progress foundation | ❌ Not started |
 | 2C.3 | Responsibilities, Project Parties and Organization Chart setup | ⚠️ In progress — 2C.3A done; 2C.3B verified (local); 2C.3C complete locally (Other Project browser UAT done; true PSM browser smoke pending); 2C.3D (authority-bearing assignment rules, archived setup read-only, membership guards) and 2C.3E (Organization Chart derived from membership) not started |
 | 2C.3A | Project Parties foundation + Project Information (owner-authorized scope) | ✅ **DONE** — commit `5e88ef5`. Migration `20261006123219_project_parties_foundation.sql` applied to the local development database and browser-UAT verified (PSM and Other); not deployed remotely or to production |
@@ -378,6 +378,26 @@ adds at setup time, and which remain Phase 13. Neither phase is redefined here.
 5. A server-side category name/code consistency guard is future work; the production audit shows it can be added safely.
 6. Older master-data surfaces (detail views, usage checks) still use the mock-only `listProjectsSync`.
 7. **The production migration remains pending** and needs its own approved deployment.
+
+### 2C.1c — Other Project Structure Hierarchy UX (checkpoint, 2026-10-11)
+
+**Status: implemented locally. Browser visual UAT on the final polished version is pending.**
+
+**Delivered.**
+- **Configurable 1–4 Levels preserved.** Fewer than four remain allowed. Level and unit IDs, parent/child relationships, reporting flags, validation, save/edit behaviour and authorization are unchanged.
+- **Level flow** in Step 1: Project, then each configured Level in order, with its number, name, "Reports under <the level above>", the lowest level marked, and its active unit count. Only configured Levels appear.
+- **Step 2 · Structure Hierarchy**, shown in two views over the same canonical structure data:
+  - **Hierarchy View** (read-only; opens by default once active units exist): the Project at the top, Level 1 units side by side, and deeper Levels beneath them, with parent/child connectors, branch collapse/expand (per branch and all), and Weekly / Monthly reporting-input indicators. Active units only; archived units are counted and shown in the Manage View.
+  - **Manage View**: the existing structure editor, with unchanged behaviour (add, edit, move, archive, restore, delete, reporting input).
+- **Terminology standardized** to Level / Unit (Structure Unit) / Structure Hierarchy across Step 1, both Step 2 views, the unit dialogs and messages. The view shows structure units, not people, and is not the Organization Chart.
+- **No database or schema change:** no migration, no data change, no service or permission change.
+- **PSM Structure unchanged** (Departments → Systems → Programs & Studies).
+
+**Verification.**
+- Automated verification complete: **601/601** full source tests (the full `src` run, which includes the 20 tests of the unrelated, untracked `src/features/reports/report-approval-foundation.test.mjs`; 581 without it), `tsc --noEmit` clean, `eslint src --max-warnings=0` clean, `next build` passes.
+- Visual checks so far were made on static renders of the real components with the app's compiled CSS, not in the signed-in app. **Browser visual UAT on the final polished version is pending.**
+
+**Not in this slice.** Other-project Structure Responsibility (Unit Lead, Members, Weekly / Monthly Responsible, Backup / Delegate) is not implemented. The unit card leaves room for it but shows nothing about people.
 
 ### 2C.3B — Professional Project Information (checkpoint, 2026-10-07)
 
