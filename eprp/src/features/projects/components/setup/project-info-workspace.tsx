@@ -27,6 +27,7 @@ import {
   compareTeamDisplayOrder,
   delegationStatus,
   departmentAssignments,
+  teamMembershipIssues,
   validateAssignments,
 } from "../../assignment-rules";
 import {
@@ -146,8 +147,13 @@ export function ProjectInfoWorkspace({
     support !== null && (!support.assignmentColumns || !support.delegations);
 
   // Reporting lines are validated against the draft, so the button reflects
-  // what would actually be written rather than what was last saved.
-  const assignmentIssues = validateAssignments(draft);
+  // what would actually be written rather than what was last saved. 2C.3D
+  // Wave 2: a new or edited department assignment needs an active project
+  // member; unchanged legacy rows are never reported.
+  const assignmentIssues = [
+    ...validateAssignments(draft),
+    ...teamMembershipIssues({ team: draft.team, members: project.members }, project),
+  ];
   const assignmentsBlocked = migrationBlocked || assignmentIssues.length > 0;
 
   const structureDirty =

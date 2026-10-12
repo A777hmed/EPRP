@@ -2,7 +2,11 @@ import type { Project, ProjectMember, ProjectParty } from "@/types";
 import { mockContacts } from "@/data/mock/master-data.mock";
 import { mockProjects } from "@/data/mock/projects.mock";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { hasProjectAssignment } from "@/features/projects/assignment-rules";
+import {
+  hasProjectAssignment,
+  PSM_MEMBER_REQUIRED_MESSAGE,
+  teamMembershipIssues,
+} from "@/features/projects/assignment-rules";
 import { persistProjectParties } from "@/features/projects/project-parties";
 import {
   PARTY_TEAM_HISTORY_MESSAGE,
@@ -266,6 +270,10 @@ const mockProjectService: ProjectService = {
     }
     const parties = persistProjectParties(existing.parties, input.parties, () => crypto.randomUUID());
     assertNoRemovedPartyHasHistory(existing, parties);
+    // 2C.3D Wave 2: a new or edited department assignment needs an active member.
+    if (input.team && teamMembershipIssues({ team: input.team, members: existing.members }, existing).length > 0) {
+      throw new Error(PSM_MEMBER_REQUIRED_MESSAGE);
+    }
     const updated: Project = {
       ...existing,
       ...clone(input),
@@ -291,8 +299,10 @@ const mockProjectService: ProjectService = {
       ...clone(source),
       id: nextId(),
       parties: persistProjectParties(undefined, source.parties?.map((party) => ({ ...party, id: undefined })), () => crypto.randomUUID()),
-      // A copy starts without a team: membership is project-specific history.
+      // A copy starts without a team: membership is project-specific history,
+      // so it carries no department assignments either (2C.3D Wave 2).
       members: [],
+      team: [],
       code: `${source.code}-COPY`,
       name: `${source.name} (Copy)`,
       status: "planning",
@@ -471,6 +481,15 @@ const mockProjectService: ProjectService = {
         throw new ReplacePersonError(
           "manager_conflict",
           "Another person already manages this department. Resolve that conflict before replacing the manager."
+        );
+      }
+      // Mirrors guard_psm_assignment_membership() (2C.3D Wave 2): the person
+      // taking over a department assignment must be an ACTIVE member of this
+      // project's team. Nothing is fabricated for them.
+      if (!(updated.members ?? []).some((m) => m.contactId === toContactId && !m.endedAt)) {
+        throw new ReplacePersonError(
+          "not_project_member",
+          "Only an active member of this project's team can hold a department assignment. Add the person to the Project Team first."
         );
       }
 

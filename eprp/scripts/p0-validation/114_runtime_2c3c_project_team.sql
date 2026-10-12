@@ -429,12 +429,32 @@ reset role;
 
 /* ============== As Project Control Admin: legacy + archived ============== */
 
+-- Since 2C.3D Wave 2 a membership cannot end while the person holds a fixed
+-- responsibility, a project position or a department assignment. Every
+-- backfilled legacy member holds one of those, so (rolled back, as the owner)
+-- the chosen member's fixed responsibility is cleared first: check 8 still
+-- proves the 2C.3C rule that ending needs no Party / Project Role.
+do $release$
+declare
+  v_member public.project_members;
+begin
+  select m.* into v_member from public.project_members m join public.projects p on p.id = m.project_id
+   where p.code = 'MDP-PIPE-04' and m.party_id is null and m.ended_at is null order by m.id limit 1;
+  update public.projects p
+     set project_manager_id = nullif(p.project_manager_id, v_member.contact_id),
+         project_control_manager_id = nullif(p.project_control_manager_id, v_member.contact_id),
+         reporting_coordinator_id = nullif(p.reporting_coordinator_id, v_member.contact_id),
+         client_representative_id = nullif(p.client_representative_id, v_member.contact_id),
+         project_sponsor_id = nullif(p.project_sponsor_id, v_member.contact_id)
+   where p.id = v_member.project_id;
+end $release$;
+
 do $pca$
 declare
   LEGACY uuid := (select m.id from public.project_members m
                    join public.projects p on p.id = m.project_id
                   where p.code = 'MDP-PIPE-04' and m.party_id is null and m.ended_at is null
-                  limit 1);
+                  order by m.id limit 1);
   ARCHIVED_MEMBER uuid := (select m.id from public.project_members m
                             join public.projects p on p.id = m.project_id
                            where p.status = 'archived' and m.ended_at is null limit 1);

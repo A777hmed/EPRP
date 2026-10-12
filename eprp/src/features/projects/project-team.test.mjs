@@ -182,7 +182,11 @@ test("mock service: legacy rows end without completion, but an edit must complet
   const legacy = member("legacy", "c-sponsor", { partyId: undefined, projectRole: undefined });
   const { service } = harness(project("other", { members: [legacy] }));
   await assert.rejects(service.updateMember({ projectId: "prj", version: "v1", memberId: "legacy", partyId: "p-eprom", projectRole: "" }), { reason: "project_role_required" });
-  const ended = await service.endMember({ projectId: "prj", version: "v1", memberId: "legacy" });
+  // 2C.3D Wave 2: while they still hold Project Sponsor, ending is refused...
+  await assert.rejects(service.endMember({ projectId: "prj", version: "v1", memberId: "legacy" }), { reason: "has_project_responsibility" });
+  // ...and once that is reassigned, an incomplete legacy membership still ends without completion.
+  const released = harness({ ...project("other", { members: [legacy] }), projectSponsorId: undefined });
+  const ended = await released.service.endMember({ projectId: "prj", version: "v1", memberId: "legacy" });
   assert.ok(ended.version);
   const archived = harness(project("psm", { status: "archived", members: [member("m1", "c1")] }));
   await assert.rejects(archived.service.endMember({ projectId: "prj", version: "v1", memberId: "m1" }), { reason: "project_archived" });

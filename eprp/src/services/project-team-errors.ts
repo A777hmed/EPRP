@@ -22,6 +22,8 @@ export type ProjectTeamErrorReason =
   | "self_report"
   | "inactive_person"
   | "has_active_reports"
+  | "has_project_responsibility"
+  | "has_psm_assignments"
   | "has_unit_responsibility"
   | "has_unit_assignments"
   | "member_ended"
@@ -45,6 +47,10 @@ export const PROJECT_TEAM_MESSAGES: Record<ProjectTeamErrorReason, string> = {
   inactive_person: "Only an active person can join a project team.",
   has_active_reports:
     "Other members report to this person. Change their Reports To before ending this membership.",
+  has_project_responsibility:
+    "This person holds a project responsibility (for example Project Manager) or a project position. Reassign it before ending this membership.",
+  has_psm_assignments:
+    "This person still holds department assignments (Department Manager, Team Member Lead or Team Member). Remove or replace them on the Contacts step before ending this membership.",
   has_unit_responsibility:
     "This person is a Unit Lead or holds a Weekly / Monthly responsibility. Reassign it on Project Team & Responsibilities before ending this membership.",
   has_unit_assignments:
@@ -67,6 +73,9 @@ const TAG_REASON: Record<string, ProjectTeamErrorReason> = {
   SELF_REPORT: "self_report",
   INACTIVE_PERSON: "inactive_person",
   HAS_ACTIVE_REPORTS: "has_active_reports",
+  // PSM linkage (2C.3D Wave 2): ending never removes or reassigns responsibility.
+  MEMBER_HAS_PROJECT_RESPONSIBILITY: "has_project_responsibility",
+  MEMBER_HAS_PSM_ASSIGNMENTS: "has_psm_assignments",
   // Structure responsibilities (2C.3D): ending never cascades to unit rows.
   MEMBER_HAS_UNIT_RESPONSIBILITY: "has_unit_responsibility",
   MEMBER_HAS_UNIT_ASSIGNMENTS: "has_unit_assignments",

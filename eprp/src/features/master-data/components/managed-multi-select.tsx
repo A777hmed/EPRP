@@ -5,6 +5,7 @@ import { ChevronsUpDown, Plus, Settings2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ClearValueButton } from "@/components/shared/clear-value-button";
+import { StatusBadge } from "@/components/shared/status-badge";
 import {
   Command,
   CommandEmpty,
@@ -72,6 +73,11 @@ export interface ManagedMultiSelectProps {
   /** Optional context-specific metadata shown and included in typeahead. */
   optionSublabel?: (record: MasterRecordBase) => string | undefined;
   /**
+   * Short warning badges after an option's name, e.g. a project member's
+   * "Needs party" (2C.3D Wave 2). Display only: never filters or blocks.
+   */
+  optionBadges?: (record: MasterRecordBase) => string[] | undefined;
+  /**
    * Split the options into labelled groups, in the order returned.
    *
    * Used so a Team Member picker can offer people from the active Department
@@ -123,6 +129,7 @@ export function ManagedMultiSelect({
   optionsHeading,
   displayTerms,
   optionSublabel,
+  optionBadges,
   optionGroup,
   optionGroupOrder,
   clearLabel,
@@ -276,6 +283,7 @@ export function ManagedMultiSelect({
                       const sublabel =
                         optionSublabel?.(record) ??
                         config.optionSublabel?.(record);
+                      const badges = optionBadges?.(record) ?? [];
                       return (
                         <CommandItem
                           key={record.id}
@@ -292,6 +300,11 @@ export function ManagedMultiSelect({
                               </span>
                             )}
                           </span>
+                          {badges.map((badge) => (
+                            <StatusBadge key={badge} tone="warning" hideDot className="shrink-0">
+                              {badge}
+                            </StatusBadge>
+                          ))}
                           {(sublabel || record.code) && (
                             <span className="shrink-0 font-mono text-xs text-muted-foreground">
                               {sublabel ?? record.code}

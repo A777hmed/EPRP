@@ -117,7 +117,9 @@ test("a normalized duplicate name is refused; codes stay unique", () => {
 test("the category code is provided as the secondary label", () => {
   assert.match(services, /optionSublabel: \(record\) => record\.code\?\.trim\(\) \|\| undefined,/);
   // The select renders the sublabel on every option, and beside the chosen value.
-  assert.match(select, /const sublabel = config\.optionSublabel\?\.\(record\);/);
+  // (A caller's own optionSublabel wins; the category picker passes none.)
+  assert.match(select, /const sublabel =\s+optionSublabel\?\.\(record\) \?\? config\.optionSublabel\?\.\(record\);/);
+  assert.doesNotMatch(picker, /optionSublabel=/);
   assert.match(select, /\{sublabel && \(\s+<span className="ml-2 shrink-0 text-xs text-muted-foreground">\s+\{sublabel\}/);
   assert.match(picker, /showSublabelInTrigger/);
   // Same-named rows stay separate, distinguishable options (no silent merge).

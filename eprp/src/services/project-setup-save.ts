@@ -5,7 +5,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { projectService } from "./project-service";
 import { readProjectByIdFresh } from "./supabase-project-service";
-import { confirmSetupSave, type SetupRelation } from "@/features/projects/setup-save";
+import { confirmSetupSave, setupSaveMessage, type SetupRelation } from "@/features/projects/setup-save";
 
 /** A single setup relation and the project version form one atomic write. */
 export async function saveProjectSetupRelation(
@@ -30,7 +30,7 @@ export async function saveProjectSetupRelation(
         p_relation: relation,
         p_rows: value,
       });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(setupSaveMessage(error.message));
       return typeof data === "string" ? data : "";
     },
     () => readProjectByIdFresh(project.id)

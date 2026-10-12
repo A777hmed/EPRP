@@ -65,6 +65,16 @@ export function isSetupDraftDirty(draft: Project, saved: Project): boolean {
   return JSON.stringify(draft) !== JSON.stringify(saved);
 }
 
+/**
+ * A refusal raised with a stable [TAG] prefix (e.g. 2C.3D Wave 2's
+ * [PSM_MEMBER_REQUIRED]) is shown without the tag; the sentence after it was
+ * written for users. Anything else is passed on unchanged.
+ */
+export function setupSaveMessage(message: string): string {
+  const tagged = /^\[[A-Z_]+\]\s*([\s\S]+)$/.exec(message);
+  return tagged ? tagged[1] : message;
+}
+
 /** A write acknowledgement alone is insufficient; confirm the read-back version. */
 export async function confirmSetupSave(
   write: () => Promise<string>,

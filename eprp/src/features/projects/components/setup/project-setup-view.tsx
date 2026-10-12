@@ -48,6 +48,7 @@ import {
 } from "../../schemas/project-form";
 import {
   duplicateManagerIssues,
+  teamMembershipIssues,
   validateAssignments,
 } from "../../assignment-rules";
 import { useCurrentIdentity } from "@/features/auth/use-current-identity";
@@ -715,10 +716,12 @@ function LoadedSteps({
    * or not. It is a hard integrity rule with a one-click fix in the Department
    * Manager selector, so unlike the rest it is not something the user can be
    * left sitting on. `validateAssignments` already reports it, so it is only
-   * added separately on the un-edited path.
+   * added separately on the un-edited path. 2C.3D Wave 2: a new or edited
+   * department assignment also needs an active project member; unchanged
+   * legacy rows are never reported.
    */
   const assignmentIssues = teamEdited
-    ? validateAssignments(current)
+    ? [...validateAssignments(current), ...teamMembershipIssues({ team: current.team, members: project.members }, project)]
     : duplicateManagerIssues(current);
 
   const save = async (): Promise<boolean> => {
@@ -907,6 +910,7 @@ function LoadedSteps({
           terms={workflow.terms}
           initialDisciplineId={initialDisciplineId}
           canEditPeople={canEditPeople}
+          clientName={clientName}
         />
       )}
       {step === "team" && isOther && (

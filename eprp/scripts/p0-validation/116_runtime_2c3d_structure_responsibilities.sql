@@ -163,9 +163,11 @@ begin
   if to_regclass('public.project_structure_unit_members') is null then
     raise exception 'project_structure_unit_members not found — apply 20261012100000_structure_responsibilities.sql first.';
   end if;
-  perform pg_temp.chk(0, '00 BASELINE', 'both new tables start empty (no backfill, no fabricated assignments)',
-    (select count(*) from public.project_structure_unit_members) = 0
-    and (select count(*) from public.project_structure_report_responsibilities) = 0);
+  -- The migration created no row; rows saved since (e.g. browser UAT) always
+  -- carry their author, so an authorless row would be a backfill.
+  perform pg_temp.chk(0, '00 BASELINE', 'no backfilled or fabricated assignment: every existing row was saved by a signed-in user',
+    not exists (select 1 from public.project_structure_unit_members where created_by is null)
+    and not exists (select 1 from public.project_structure_report_responsibilities where created_by is null));
 end $baseline$;
 
 /* ========================= fixtures (as postgres) ======================== */

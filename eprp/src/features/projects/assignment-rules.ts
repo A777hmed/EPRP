@@ -435,6 +435,39 @@ export function eligibleReportsTo(
 
 /* ------------------------------ Validation -------------------------------- */
 
+/**
+ * The plain refusal for a department assignment whose person is not an
+ * active member of the project's team (the database's [PSM_MEMBER_REQUIRED]).
+ */
+export const PSM_MEMBER_REQUIRED_MESSAGE =
+  "Only an active member of this project's team can hold a department assignment. Add the person to the Project Team first.";
+
+/**
+ * 2C.3D Wave 2: every NEW or EDITED department-team assignment must name an
+ * ACTIVE member of THIS project (`project.members`). Unchanged legacy rows are
+ * never reported, so existing assignments stay readable and savable as they
+ * are. Membership is checked for presence only — Party / Project Role may be
+ * legacy-incomplete — and grants no authority.
+ */
+export function teamMembershipIssues(
+  current: Pick<Project, "team" | "members">,
+  saved: Pick<Project, "team">
+): AssignmentIssue[] {
+  const key = (row: ProjectTeamMember) => JSON.stringify([
+    row.contactId, row.departmentId ?? null, row.systemId ?? null, row.disciplineId ?? null,
+    row.assignmentRole ?? "team_member", row.functionalTitle ?? null, row.reportsToContactId ?? null,
+  ]);
+  const unchanged = new Set((saved.team ?? []).filter((row) => !row.role).map(key));
+  const active = new Set((current.members ?? []).filter((member) => !member.endedAt).map((member) => member.contactId));
+  const issues: AssignmentIssue[] = [];
+  for (const row of current.team ?? []) {
+    if (row.role || unchanged.has(key(row)) || active.has(row.contactId)) continue;
+    if (issues.some((issue) => issue.contactId === row.contactId && issue.departmentId === (row.departmentId ?? ""))) continue;
+    issues.push({ departmentId: row.departmentId ?? "", contactId: row.contactId, message: PSM_MEMBER_REQUIRED_MESSAGE });
+  }
+  return issues;
+}
+
 /** One thing wrong with a department's assignments. */
 export interface AssignmentIssue {
   departmentId: string;

@@ -35,7 +35,7 @@ and a lifecycle transition correctly refused).
 | 2 | Project master data | ✅ Complete |
 | 2A | Organization Chart *(added — see note)* | ✅ Complete |
 | 2B | Configurable hierarchy and scoped assignments *(added — see note)* | ✅ Complete |
-| 2C | Project Setup classification and planning foundation *(added — see Phase 2C)* | ⚠️ In progress — **2C.1 DONE** (browser-UAT verified); **2C.1c delivered** (Other Project structure, commits `494367f`–`6b7fba4`; Structure Hierarchy UX implemented locally, browser visual UAT pending); **2C.3A / 2C.3B verified**; **2C.3C complete locally** — migrations applied, automated verification complete, browser UAT on the Other Project path done, true PSM browser smoke pending; **2C.3D Wave 1 complete locally** — migration applied, automated verification complete, browser UAT on ZZ-STRUCT-UI-01 done; 2C.2 not started. All 2C migrations are applied to the local development database only (NOT production) |
+| 2C | Project Setup classification and planning foundation *(added — see Phase 2C)* | ⚠️ In progress — **2C.1 DONE** (browser-UAT verified); **2C.1c delivered** (Other Project structure, commits `494367f`–`6b7fba4`; Structure Hierarchy UX implemented locally, browser visual UAT pending); **2C.3A / 2C.3B verified**; **2C.3C complete locally** — migrations applied, automated verification complete, browser UAT on the Other Project path done, true PSM browser smoke pending; **2C.3D Wave 1 complete locally** — migration applied, automated verification complete, browser UAT on ZZ-STRUCT-UI-01 done; **2C.3D Wave 2 complete locally (LOCAL ONLY)** — migration applied, automated verification complete, browser smoke done on MDP-PSAIM-01 (legacy / PSAIM shared PSM Contacts path); true classified PSM browser UAT pending; 2C.2 not started. All 2C migrations are applied to the local development database only (NOT production) |
 | 3 | Data foundation | ✅ Complete — all 47 migrations applied |
 | 4 | Weekly Workspace UI | ⚠️ Partial (~95%) — final Weekly UX, multiple authored updates, insights, plans and print delivered; attachments/history outstanding |
 | 5 | Weekly data and department submission | ⚠️ Partial — department ownership now enforced in the UI |
@@ -54,7 +54,9 @@ foundation.** 2C.1 — DONE / VERIFIED · 2C.1c — DELIVERED (applied locally) 
 2C.2 — NOT STARTED · 2C.3 — IN PROGRESS (2C.3A, 2C.3B verified; **2C.3C
 complete locally** — browser UAT done on the Other Project path, true PSM
 browser smoke pending; **2C.3D Wave 1 complete locally** — browser UAT
-done on ZZ-STRUCT-UI-01). Every 2C migration is
+done on ZZ-STRUCT-UI-01; **2C.3D Wave 2 complete locally** — browser
+smoke done on MDP-PSAIM-01 (legacy / PSAIM shared PSM path), true
+classified PSM browser UAT pending). Every 2C migration is
 applied to the local development database only; production deployment is
 pending.
 
@@ -313,11 +315,11 @@ Makes Project Setup the project-definition layer: what kind of project this is, 
 | 2C.1 | Project classification (2C.1a) + Project Setup shell & workflow (2C.1b) | ✅ **DONE / VERIFIED** — checkpoint commit `72c9d07`, 2026-10-03 |
 | 2C.1c | Other Project dynamic structure (replaces the "Project Structure" placeholder) | ✅ **Delivered** — commits `494367f`–`6b7fba4` (2026-10-03 → 2026-10-06). Migration `20261003000001_project_structure_foundation.sql` is applied to the local development database (verified read-only against `supabase_migrations.schema_migrations`, 2026-10-07), with structure data present locally. Runtime scripts: `110_runtime_2c1c_structure.sql`, `111_runtime_2c1c_service_concurrency.mjs`. A formal browser-UAT checkpoint is not recorded in this document. Not deployed remotely or to production. **Structure Hierarchy UX implemented locally (2026-10-11)** — no database or schema change; browser visual UAT on the final polished version pending (see below) |
 | 2C.2 | Planning / progress foundation | ❌ Not started |
-| 2C.3 | Responsibilities, Project Parties and Organization Chart setup | ⚠️ In progress — 2C.3A done; 2C.3B verified (local); 2C.3C complete locally (Other Project browser UAT done; true PSM browser smoke pending); 2C.3D Wave 1 (Other Project Structure Responsibilities) complete locally (browser UAT done on ZZ-STRUCT-UI-01); 2C.3D Wave 2 (PSM linkage), 2C.3E (authority-bearing assignment rules, archived setup read-only) and 2C.3F (People Organization Chart) not started |
+| 2C.3 | Responsibilities, Project Parties and Organization Chart setup | ⚠️ In progress — 2C.3A done; 2C.3B verified (local); 2C.3C complete locally (Other Project browser UAT done; true PSM browser smoke pending); 2C.3D Wave 1 (Other Project Structure Responsibilities) complete locally (browser UAT done on ZZ-STRUCT-UI-01); 2C.3D Wave 2 (PSM linkage) complete locally (LOCAL ONLY; browser smoke done on MDP-PSAIM-01 (legacy / PSAIM shared PSM Contacts path); true classified PSM browser UAT pending); 2C.3E (authority-bearing assignment rules, archived setup read-only) and 2C.3F (People Organization Chart) not started |
 | 2C.3A | Project Parties foundation + Project Information (owner-authorized scope) | ✅ **DONE** — commit `5e88ef5`. Migration `20261006123219_project_parties_foundation.sql` applied to the local development database and browser-UAT verified (PSM and Other); not deployed remotely or to production |
 | 2C.3B | Professional Project Information — subcontractor Registered Company Name, Short Name / Acronym, Scope / Package, Subcontract / Contract Reference, Engagement Status (shared by PSM and Other) | ✅ **Verified, 2026-10-07** — migration `20261007120000_project_parties_professional_information.sql` applied to the local development database and browser-UAT verified for PSM and Other Project; not deployed remotely/production. Final validation-timing polish: 85 focused / 538 source tests, typecheck, lint and production build PASS. No people, responsibility, structure, reporting or chart changes |
 | 2C.3C | Project Team Membership and Project Reports To — one global People master + project-scoped, authority-free membership grouped by Project Party; leadership presented from the existing fixed roles | ✅ **Complete locally, 2026-10-11.** Migrations `20261007150000_project_team_membership.sql` and `20261011090000_project_team_controlled_writes.sql` (the three RPCs become the only write path) are applied to the local development database; backfill verified identical to the approved Preflight V2 (46 / EPROM 30 / Owner 7 / Needs party 9 / Needs project role 46). Automated verification complete: runtime 63/63, 582 source tests, typecheck, lint, production build. Browser UAT on the Other Project path (ZZ-STRUCT-UI-01, 2026-10-08) done. **True PSM browser smoke pending:** the only classified PSM project, PSM-02, does not yet meet the prerequisites to open Contacts; PSM / shared behaviour is covered by automated UI, domain and runtime tests. Not deployed remotely or to production |
-| 2C.3D | Structure Responsibilities — **Wave 1:** Other Project Structure Responsibilities (authority-free Unit membership and Unit Lead; Weekly / Monthly Responsible and per-report Backup, drawn from the unit's own active members). **Wave 2:** PSM linkage to canonical project membership (assignment pickers use active project members; same-project / active-membership guards for new or edited PSM assignments; the PSM hierarchy, the `project_contacts` responsibility system and Department Manager authority are unchanged) | ⚠️ **Wave 1 implemented locally, 2026-10-12.** Migration `20261012100000_structure_responsibilities.sql` applied to the local development database (both new tables start empty — no backfill); runtime `116_runtime_2c3d_structure_responsibilities.sql` 96/96; automated verification complete (full source suite, typecheck, lint, production build). **Browser UAT on ZZ-STRUCT-UI-01 done** (see the checkpoint below). Wave 2 not started. Not deployed remotely or to production |
+| 2C.3D | Structure Responsibilities — **Wave 1:** Other Project Structure Responsibilities (authority-free Unit membership and Unit Lead; Weekly / Monthly Responsible and per-report Backup, drawn from the unit's own active members). **Wave 2:** PSM linkage to canonical project membership (assignment pickers use active project members; same-project / active-membership guards for new or edited PSM assignments; the PSM hierarchy, the `project_contacts` responsibility system and Department Manager authority are unchanged) | ⚠️ **Wave 1 implemented locally, 2026-10-12.** Migration `20261012100000_structure_responsibilities.sql` applied to the local development database (both new tables start empty — no backfill); runtime `116_runtime_2c3d_structure_responsibilities.sql` 96/96; automated verification complete (full source suite, typecheck, lint, production build). **Browser UAT on ZZ-STRUCT-UI-01 done** (see the checkpoint below). **Wave 2 complete locally, 2026-10-12 — LOCAL ONLY.** Migration `20261012150000_psm_membership_linkage.sql` applied to the local development database (no backfill; no data changed); runtime `117_runtime_2c3d_psm_membership_linkage.sql` 29/29; automated verification complete. **Browser smoke done on MDP-PSAIM-01** (legacy / PSAIM shared PSM Contacts path); a true classified PSM browser UAT is pending (see the Wave 2 checkpoint below). Not deployed remotely or to production |
 | 2C.3E | Authority-bearing assignment rules and archived setup read-only | ❌ Not started |
 | 2C.3F | People Organization Chart, derived from project membership and Project Reports To | ❌ Not started |
 
@@ -494,7 +496,7 @@ Data model: `06_DATABASE_SCHEMA.md` §8.1, §8.2, §8.8.
 
 ### 2C.3D Wave 1 — Other Project Structure Responsibilities (checkpoint, 2026-10-12)
 
-**Status: complete locally; migration applied to the LOCAL development database; automated verification complete; browser UAT done on ZZ-STRUCT-UI-01. Wave 2 (PSM linkage) not started. Not deployed remotely or to production.** Data model: `06_DATABASE_SCHEMA.md` §8.9.
+**Status: complete locally; migration applied to the LOCAL development database; automated verification complete; browser UAT done on ZZ-STRUCT-UI-01. Wave 2 (PSM linkage): see its own checkpoint below. Not deployed remotely or to production.** Data model: `06_DATABASE_SCHEMA.md` §8.9.
 
 **Delivered (Other projects only).**
 - Two separate, authority-free models over the active project team (2C.3C): unit membership / Unit Lead (`project_structure_unit_members`) and Weekly / Monthly Responsible + per-report Backup (`project_structure_report_responsibilities`). The unit Weekly / Monthly flags are unchanged and stay authoritative.
@@ -517,6 +519,63 @@ Data model: `06_DATABASE_SCHEMA.md` §8.1, §8.2, §8.8.
 - **Not browser-tested** (automated / runtime coverage only): archived-project read-only, delete with people history, and ending a membership that holds structure responsibilities. The in-memory (mock) team service now mirrors that end-membership refusal, with parity tests.
 
 **Not in Wave 1.** PSM linkage (Wave 2), Replace Person v2, temporary dated delegation (`project_delegations` untouched), Primary Unit, Deputy Lead, Other-project Weekly / Monthly collection, any report-writing authority for Responsibles, the People Organization Chart (2C.3F).
+
+### 2C.3D Wave 2 — PSM linkage to project membership (checkpoint, 2026-10-12)
+
+**Status: complete locally — LOCAL ONLY. Migration applied to the LOCAL development database; automated verification complete; browser smoke done on MDP-PSAIM-01 (legacy / PSAIM shared PSM Contacts path); a true classified PSM browser UAT is pending, because PSM-02 still lacks the department / setup prerequisites. Not deployed remotely or to production.** Data model: `06_DATABASE_SCHEMA.md` §8.10.
+
+**Preflight (read-only, before implementation).**
+- 7 scoped `project_contacts` rows: 1 `team_member` row (ZZ-P0TEST-PRJ, archived) and the 6 malformed rows below.
+- Every scoped row's person is an active member of the same project. There are 0 inactive people and 0 cross-project mismatches, and every fixed-role holder is an active member.
+- 0 project positions; 47 active and 0 ended memberships.
+- No backfill was needed.
+
+**Delivered.**
+- **Assignment guard.** A new or edited PSM / legacy department assignment needs an active membership of the same project and an active Person (`[PSM_MEMBER_REQUIRED]`, `[PSM_PERSON_INACTIVE]`). This holds on every write path: the Contacts step, Project Information, Replace Person's department branch and direct writes. Unchanged legacy rows stay readable and re-save as they are; changing one requires the membership.
+- **Membership-end guard.** Ending a membership is refused while the person holds a fixed project responsibility, a project position or any department assignment (`[MEMBER_HAS_PROJECT_RESPONSIBILITY]`, `[MEMBER_HAS_PSM_ASSIGNMENTS]`). Nothing is removed or reassigned. The fixed-responsibility / position part applies to every project family.
+- **Pickers.** The Department Manager and Team Members pickers on the Contacts step:
+  - offer active Project Team members only (the Department Manager's home-department rule is kept);
+  - show Party · Project Role · Position, with the Needs party / Needs project role badges;
+  - would mark a legacy assignment whose person is not an active member "Not on the Project Team" (no such row exists today: all 7 scoped rows belong to active members).
+
+  Neither picker creates people. The step's Add Contact action was removed: a new person is added on the Project Team first. Replace Person offers active members only for a department assignment.
+- **Saves.** Both setup saves check membership before the database, with the same plain sentence. Tagged database refusals are shown without the tag. The in-memory (mock) services mirror every refusal.
+- **Duplicate Project** copies no department assignments, because a copy has no project team. Fixed roles are kept.
+- **Unchanged:**
+  - the PSM hierarchy and the §8.5 assignment rules;
+  - `project_contacts` authority: Weekly / Monthly department authority, Department Manager approve / return and fixed roles;
+  - `replace_project_responsibility()`, which was not redesigned;
+  - `project_members`, which stays authority-free (migration post-check and source test).
+
+**Verification (automated only — not browser verification).**
+- Runtime `117_runtime_2c3d_psm_membership_linkage.sql`: 29/29, rolled back.
+- Re-run with the guard: `114` 63/63 and `116` 96/96, both rolled back.
+- Source suite 652/652 (this includes 20 tests in an unrelated, untracked file), typecheck, lint and a production build.
+
+**Script adjustments.**
+- `114` (2C.3C) now releases the legacy member's fixed responsibility inside its rolled-back run, before proving that an incomplete membership can end.
+- `116` (Wave 1) now checks that no row was fabricated, instead of checking that the tables are empty: UAT rows now exist.
+- Older validation scripts (`01`, `03`, `94`, `phase_a2`, `phase_b`) insert `team_member` fixtures without memberships, so they would be refused if re-run. They are unchanged.
+
+**Known data-quality issue — NOT resolved.**
+- Six legacy rows on MDP-PIPE-04, MDP-PSAIM-01, MDP-RBI-02, MDP-SOLAR-05, MDP-TANK-03 and MDP-UTIL-06 carry `role = project_manager` with a department and `assignment_role = department_manager`.
+- They are untouched and grant no Department Manager authority (re-proved by 117).
+- They still need a separate, approved clean-up.
+
+**Known edge.** Replace Person's department branch repoints Reports To on the department's other rows. If one of those people were a legacy non-member, the whole replacement would be refused with the membership message (no such row exists today).
+
+**Browser smoke (MDP-PSAIM-01 — the legacy / PSAIM shared PSM assignment path).** This is a browser smoke on the shared Contacts path, **not** a true classified PSM browser UAT: PSM-02 still lacks the required department / setup prerequisites. Verified:
+- The Project Team showed the active project members and the legacy completion badges.
+- "Assign the project team" no longer has Add Contact.
+- The Department Manager picker for Mechanical showed only Mohamed Helmy (Demo), from the active Project Team, with Party / Position and the Needs project role badge.
+- The Team Members picker showed active Project Team members only, grouped Same Department / Cross-Department.
+- Party / Project Role / Position and the Needs party / Needs project role badges were visible.
+- No Add new person / Manage People option was present.
+- No assignments were saved; MDP-PSAIM-01 data was not modified.
+
+**Not browser-verified** (runtime 117 and the source / mock tests cover them, because they cannot be exercised safely on the current browser data): a true classified PSM project; saving a new assignment; the non-member refusal (the pickers never offer one); legacy non-member rows (none exist); editing a legacy row; Replace Person candidates; the membership-end refusals; Department Manager approve / return (no MDP member has a sign-in); the malformed rows granting nothing.
+
+**Not in Wave 2.** Replace Person v2, authority-bearing assignment rules and archived setup read-only (2C.3E), the People Organization Chart (2C.3F), the malformed-row clean-up, Milestones, Tasks.
 
 ---
 

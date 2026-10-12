@@ -224,6 +224,28 @@ export function teamWarnings(project: Pick<Project, "members" | "projectManagerI
   return { needsParty, needsProjectRole, noReportsTo, messages };
 }
 
+/* ----------------------- Ending a membership (2C.3D Wave 2) ---------------- */
+
+/**
+ * Why a membership cannot end yet because of PROJECT-level responsibility
+ * (mirrors the database guard guard_project_member_psm_responsibilities):
+ * a fixed responsibility or project position first, then any department-team
+ * assignment (Department Manager, Team Member Lead, Team Member). Nothing is
+ * ever removed or reassigned on the user's behalf.
+ */
+export function membershipEndResponsibility(
+  project: Pick<Project, FixedResponsibilityField | "team" | "positions">,
+  contactId: string
+): "project_responsibility" | "psm_assignments" | undefined {
+  if (FIXED_RESPONSIBILITIES.some((meta) => project[meta.field] === contactId)
+      || (project.positions ?? []).some((position) => position.contactId === contactId)) {
+    return "project_responsibility";
+  }
+  // Department-team rows carry no responsibility `role` (fixed mirrors do).
+  if ((project.team ?? []).some((row) => row.contactId === contactId && !row.role)) return "psm_assignments";
+  return undefined;
+}
+
 /* --------------------------- Party removal (mock) --------------------------- */
 
 export const PARTY_TEAM_HISTORY_MESSAGE =

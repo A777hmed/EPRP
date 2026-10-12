@@ -10,11 +10,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { EmptyState, SectionCard } from "@/components/shared";
+import { EmptyState, SectionCard, StatusBadge } from "@/components/shared";
 import {
   ManagedMultiSelect,
   ManagedPersonSelect,
-  MasterDataDialog,
 } from "@/features/master-data";
 import type {
   Contact,
@@ -23,10 +22,9 @@ import type {
   Project,
   ProjectTeamMember,
 } from "@/types";
-import { Plus, X } from "lucide-react";
+import { X } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
 import { type ProjectLinkContext } from "../../project-link-context";
 import type { HierarchyTerms } from "@/config/project-terminology";
 import {
@@ -42,6 +40,12 @@ import {
   isDepartmentManagerHolderLocked,
   REPLACE_PERSON_MANAGER_HELP_TEXT,
 } from "../../responsibility-guard";
+import {
+  activeMembers,
+  memberNeedsParty,
+  memberNeedsProjectRole,
+  partyLabel,
+} from "../../project-team";
 import { DepartmentTeamAssignments } from "./department-team-assignments";
 import { LinkedRecordRow } from "./linked-record-row";
 
@@ -64,10 +68,11 @@ export interface SetupStepContactsProps {
   initialDisciplineId?: string;
   /**
    * May edit the global People master (System Admin / Project Control Admin).
-   * Otherwise Add Contact, "Add new person" and the person Edit links are
-   * hidden: existing people can still be assigned (2C.3C).
+   * Otherwise the person Edit links are hidden (2C.3C).
    */
   canEditPeople: boolean;
+  /** The client's name, for the Owner / Client party label. Display only. */
+  clientName?: string;
 }
 
 /**
@@ -77,13 +82,14 @@ export interface SetupStepContactsProps {
  * come from another home Department; the assignment remains explicit and the
  * Person record is never moved.
  *
- * "Add Contact" creates a Person without leaving the step, using the same
- * shared dialog the pickers below open from "Add new person". It deliberately
- * does NOT select the new Person anywhere: creating someone in the People
- * master list and giving them a role on this project are separate decisions,
- * and the pickers refresh from the shared store on their own, so the new
- * Person is immediately available to choose. Navigating to /contacts/new
- * instead dropped the project sidebar and needed a save-and-return round trip.
+ * 2C.3D Wave 2: both pickers offer ACTIVE members of this project's team only
+ * (the Project Team above, `savedProject.members`), never the global People
+ * list, and neither creates people: someone new is added to the Project Team
+ * first (which can create the Person), then assigned here. The database
+ * refuses anyone else. Party and Project Role are shown, with the Project
+ * Team's own "Needs party" / "Needs project role" badges, but are not
+ * required here. Existing assignments of people who are not active members
+ * stay readable and are marked; only new or edited ones are refused.
  */
 export function SetupStepContacts({
   project,
@@ -96,8 +102,39 @@ export function SetupStepContacts({
   initialDisciplineId,
   terms,
   canEditPeople,
+  clientName,
 }: SetupStepContactsProps) {
   const team = React.useMemo(() => project.team ?? [], [project.team]);
+
+  // Active memberships of the SAVED project: memberships save on their own,
+  // straight away, so this is the canonical Project Team.
+  const memberByContact = React.useMemo(
+    () => new Map(activeMembers(savedProject.members).map((member) => [member.contactId, member])),
+    [savedProject.members]
+  );
+  const partyById = React.useMemo(
+    () => new Map((savedProject.parties ?? []).flatMap((party) => (party.id ? [[party.id, party] as const] : []))),
+    [savedProject.parties]
+  );
+  const isActiveMember = (record: MasterRecordBase) => memberByContact.has(record.id);
+  /** Party · Project Role · Position, as far as each is recorded. */
+  const memberSublabel = (record: MasterRecordBase) => {
+    const member = memberByContact.get(record.id);
+    return [
+      member?.partyId ? partyLabel(partyById.get(member.partyId), clientName) : undefined,
+      member?.projectRole?.trim() || undefined,
+      (record as Contact).position,
+    ].filter(Boolean).join(" · ") || undefined;
+  };
+  const memberBadges = (record: MasterRecordBase) => {
+    const member = memberByContact.get(record.id);
+    // Only an already-selected legacy assignment can show a non-member.
+    if (!member) return ["Not on the Project Team"];
+    return [
+      ...(memberNeedsParty(member) ? ["Needs party"] : []),
+      ...(memberNeedsProjectRole(member) ? ["Needs project role"] : []),
+    ];
+  };
 
   // Disciplines actually linked to this project, with their department.
   const projectDisciplines = React.useMemo(() => {
@@ -121,7 +158,6 @@ export function SetupStepContacts({
         ? (initialDisciplineId ?? "")
         : (projectDisciplines[0]?.id ?? "")
   );
-  const [addPersonOpen, setAddPersonOpen] = React.useState(false);
   const activeDiscipline = projectDisciplines.find(
     (discipline) => discipline.id === disciplineId
   );
@@ -281,16 +317,6 @@ export function SetupStepContacts({
     disciplines.find((discipline) => discipline.id === id)?.name ??
     `Unknown ${terms.singularLower}`;
 
-  /*
-   * Home Department for a Person created here, taken from the department that
-   * owns the selected scope item. Only preset when that actually resolves —
-   * otherwise the dialog opens blank and the user chooses, as the global page
-   * does. A Home Department is a property of the Person, not a project role.
-   */
-  const createPresetValues = activeDepartmentId
-    ? { departmentId: activeDepartmentId }
-    : undefined;
-
   // Departments that actually have people on them — assignment roles are per
   // department, while the picker above works per discipline.
   const staffedDepartmentIds = React.useMemo(
@@ -320,19 +346,7 @@ export function SetupStepContacts({
     <div className="space-y-4">
       <SectionCard
         title="Assign the project team"
-        description={`The Department Manager belongs to the selected Department. Team Members may be assigned explicitly from any home Department without changing their Person record.`}
-        action={
-          canEditPeople ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAddPersonOpen(true)}
-            >
-              <Plus data-icon="inline-start" aria-hidden="true" />
-              Add Contact
-            </Button>
-          ) : undefined
-        }
+        description={`Choose from the active Project Team above; add someone there first. The Department Manager belongs to the selected Department. Team Members may be assigned explicitly from any home Department without changing their Person record.`}
       >
         <div className="grid gap-3 lg:grid-cols-3">
           <div className="space-y-1.5">
@@ -362,14 +376,17 @@ export function SetupStepContacts({
               value={activeManager?.contactId ?? ""}
               onChange={setDepartmentManager}
               filter={(record: MasterRecordBase) =>
-                (record as Contact).departmentId === activeDepartmentId
+                (record as Contact).departmentId === activeDepartmentId &&
+                isActiveMember(record)
               }
+              optionSublabel={memberSublabel}
+              optionBadges={memberBadges}
               placeholder="Select department manager…"
-              searchPlaceholder="Search department contacts…"
-              emptyLabel="No contacts belong to this department yet."
+              searchPlaceholder="Search the project team…"
+              emptyLabel="No active Project Team member belongs to this department. Add them to the Project Team first."
               clearable={false}
               disabled={managerLocked}
-              allowManage={canEditPeople}
+              allowManage={false}
               controlProps={{ id: "setup-department-manager" }}
             />
             {managerLocked && (
@@ -393,7 +410,7 @@ export function SetupStepContacts({
                 .map((member) => member.contactId)}
               onChange={setForDiscipline}
               filter={(record: MasterRecordBase) =>
-                record.id !== activeManager?.contactId
+                record.id !== activeManager?.contactId && isActiveMember(record)
               }
               /* Cross-department people stay in the SAME list — assigning one
                  is legal and creates only a project scope assignment — but the
@@ -406,21 +423,11 @@ export function SetupStepContacts({
                   : "Cross-Department"
               }
               optionGroupOrder={["Same Department", "Cross-Department"]}
-              optionSublabel={(record: MasterRecordBase) => {
-                const contact = record as Contact;
-                const homeDepartment = contact.departmentId
-                  ? departmentName(contact.departmentId)
-                  : "Not assigned";
-                return `${contact.position ? `${contact.position} · ` : ""}Home: ${homeDepartment}${
-                  contact.departmentId &&
-                  contact.departmentId !== activeDepartmentId
-                    ? " · Cross-department"
-                    : ""
-                }`;
-              }}
-              emptyLabel="No people are available."
+              optionSublabel={memberSublabel}
+              optionBadges={memberBadges}
+              emptyLabel="No active Project Team members yet. Add people to the Project Team first."
               placeholder="Select people…"
-              allowManage={canEditPeople}
+              allowManage={false}
               controlProps={{ id: "setup-team-members" }}
             />
             <p className="text-xs text-muted-foreground">
@@ -454,7 +461,18 @@ export function SetupStepContacts({
                     kind="contact"
                     id={person.contactId}
                     name={contactName(person.contactId)}
-                    meta={contactMeta(person.contactId, person.departmentIds)}
+                    meta={
+                      <>
+                        {contactMeta(person.contactId, person.departmentIds)}
+                        {/* A legacy assignment stays readable; changing it
+                            needs an active membership (2C.3D Wave 2). */}
+                        {!memberByContact.has(person.contactId) && (
+                          <StatusBadge tone="warning" hideDot className="ml-1.5 align-middle">
+                            Not on the Project Team
+                          </StatusBadge>
+                        )}
+                      </>
+                    }
                     context={context}
                     canEdit={canEditPeople}
                   >
@@ -540,19 +558,6 @@ export function SetupStepContacts({
           onDraftChange={onDraftChange}
         />
       ))}
-
-      {/* No `onCreated`: the Person joins the shared People list and becomes
-          selectable in the pickers above, but is given no Department Manager
-          seat, Team Member row, or any other project assignment. */}
-      {canEditPeople && (
-        <MasterDataDialog
-          kind="contact"
-          open={addPersonOpen}
-          onOpenChange={setAddPersonOpen}
-          initialMode="create"
-          presetValues={createPresetValues}
-        />
-      )}
     </div>
   );
 }

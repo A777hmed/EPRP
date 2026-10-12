@@ -30,7 +30,7 @@ import type {
 // [reporting-perf] TEMPORARY diagnostic import — remove with src/lib/perf-temp.ts
 import { startTimer, timed } from "@/lib/perf-temp";
 import type { ProjectService } from "./project-service";
-import { collectSetupRelations, confirmSetupSave } from "@/features/projects/setup-save";
+import { collectSetupRelations, confirmSetupSave, setupSaveMessage } from "@/features/projects/setup-save";
 import { fetchProjectPartyRows, preparePartyRelation } from "./project-party-storage";
 import { fetchProjectMemberRows, memberFromRow } from "./project-member-storage";
 import {
@@ -830,6 +830,10 @@ const REPLACE_PERSON_TAG_REASON: Record<string, ReplacePersonError["reason"]> = 
   STALE_ASSIGNMENT: "stale_assignment",
   DUPLICATE_ASSIGNMENT: "duplicate_assignment",
   MANAGER_CONFLICT: "manager_conflict",
+  // 2C.3D Wave 2: the replacement in a department assignment must be an
+  // active member of the project's team.
+  PSM_MEMBER_REQUIRED: "not_project_member",
+  PSM_PERSON_INACTIVE: "invalid_replacement",
 };
 
 function mapReplacePersonError(error: {
@@ -1220,7 +1224,7 @@ export const supabaseProjectService: ProjectService = {
         p_columns: flattenProject(input),
         p_relations: relations,
       });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(setupSaveMessage(error.message));
       return typeof data === "string" ? data : "";
     }, () => loadProjectById(id));
   },
@@ -1239,6 +1243,10 @@ export const supabaseProjectService: ProjectService = {
     void _updatedAt;
     return supabaseProjectService.createProject({
       ...rest,
+      // A copy starts without a project team (memberships are project
+      // history and are not copied), so it cannot carry the source's
+      // department assignments either (2C.3D Wave 2). Fixed roles are kept.
+      team: [],
       code: `${source.code}-COPY`,
       name: `${source.name} (Copy)`,
       status: "planning",

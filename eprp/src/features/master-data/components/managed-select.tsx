@@ -5,6 +5,7 @@ import { Check, ChevronsUpDown, Plus, Settings2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ClearValueButton } from "@/components/shared/clear-value-button";
+import { StatusBadge } from "@/components/shared/status-badge";
 import {
   Command,
   CommandEmpty,
@@ -91,6 +92,16 @@ export interface ManagedSelectProps {
   /** Also show the option sublabel (e.g. the code) beside the chosen value. */
   showSublabelInTrigger?: boolean;
   /**
+   * Context-specific metadata for each option, in place of the kind's own
+   * sublabel (e.g. a person's project Party and Role instead of Position).
+   */
+  optionSublabel?: (record: MasterRecordBase) => string | undefined;
+  /**
+   * Short warning badges after an option's name, e.g. a project member's
+   * "Needs party" (2C.3D Wave 2). Display only: never filters or blocks.
+   */
+  optionBadges?: (record: MasterRecordBase) => string[] | undefined;
+  /**
    * Refuses an inline create before anything is written, for a rule this
    * field's context owns (see ../save-guard). Applies to adds made from here,
    * including from the Manage surface; edits are never blocked.
@@ -131,6 +142,8 @@ export function ManagedSelect({
   onRecordCreated,
   showSublabelInTrigger = false,
   createGuard,
+  optionSublabel,
+  optionBadges,
 }: ManagedSelectProps) {
   const config = MASTER_KIND_CONFIG[kind];
   const { records, activeRecords } = useMasterData(kind);
@@ -252,7 +265,9 @@ export function ManagedSelect({
                     </CommandItem>
                   )}
                   {options.map((record) => {
-                    const sublabel = config.optionSublabel?.(record);
+                    const sublabel =
+                      optionSublabel?.(record) ?? config.optionSublabel?.(record);
+                    const badges = optionBadges?.(record) ?? [];
                     return (
                       <CommandItem
                         key={record.id}
@@ -277,6 +292,11 @@ export function ManagedSelect({
                             </span>
                           )}
                         </span>
+                        {badges.map((badge) => (
+                          <StatusBadge key={badge} tone="warning" hideDot className="shrink-0">
+                            {badge}
+                          </StatusBadge>
+                        ))}
                         {sublabel && (
                           <span className="ml-2 shrink-0 text-xs text-muted-foreground">
                             {sublabel}

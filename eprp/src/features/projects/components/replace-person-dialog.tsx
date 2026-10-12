@@ -95,16 +95,23 @@ export function ReplacePersonDialog({
    * `getContactById` (not the base MasterRecordBase records) is what carries
    * `email` for the Review Impact section below.
    */
+  // 2C.3D Wave 2: a department assignment's replacement must also be an
+  // ACTIVE member of the project's team (the database refuses anyone else).
+  const activeMemberContacts = React.useMemo(
+    () => new Set((project.members ?? []).filter((member) => !member.endedAt).map((member) => member.contactId)),
+    [project.members]
+  );
   const candidates = React.useMemo<Contact[]>(() => {
     return activeRecords
       .filter(
         (record) =>
           record.id !== currentContactId &&
-          hasProjectAssignment(project, record.id)
+          hasProjectAssignment(project, record.id) &&
+          (unit.kind !== "department_assignment" || activeMemberContacts.has(record.id))
       )
       .map((record) => getContactById(record.id))
       .filter((contact): contact is Contact => Boolean(contact));
-  }, [activeRecords, currentContactId, project]);
+  }, [activeRecords, currentContactId, project, unit.kind, activeMemberContacts]);
 
   const selectedContact = candidates.find((c) => c.id === toContactId);
   const trimmedReason = reason.trim();

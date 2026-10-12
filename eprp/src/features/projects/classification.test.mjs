@@ -150,10 +150,11 @@ test("workflow check: PSM by family, Other by category, legacy by type", () => {
 
 test("Duplicate Project inherits family, category, custom name and portfolio group", () => {
   // Supabase: the copy is the full source project minus identity/timestamps,
-  // overriding only code, name and status.
+  // overriding only code, name and status — and, since 2C.3D Wave 2, the
+  // department-team rows (a copy has no project team to hold them).
   const supabase = source("../../services/supabase-project-service.ts");
   const duplicate = supabase.slice(supabase.indexOf("  async duplicateProject("), supabase.indexOf("  async archiveProject("));
-  assert.match(duplicate, /return supabaseProjectService\.createProject\(\{\s+\.\.\.rest,\s+code: `\$\{source\.code\}-COPY`,\s+name: `\$\{source\.name\} \(Copy\)`,\s+status: "planning",\s+\}\);/);
+  assert.match(duplicate, /return supabaseProjectService\.createProject\(\{\s+\.\.\.rest,\s+(?:\/\/[^\n]*\n\s+)*team: \[\],\s+code: `\$\{source\.code\}-COPY`,\s+name: `\$\{source\.name\} \(Copy\)`,\s+status: "planning",\s+\}\);/);
   for (const key of ["structureFamily", "projectTypeId", "projectCategoryDetail", "portfolioGroupId"]) {
     assert.doesNotMatch(duplicate, new RegExp(`\\b${key}\\b`), `${key} must not be reset on duplicate`);
   }

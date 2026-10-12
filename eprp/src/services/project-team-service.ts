@@ -4,6 +4,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   memberDraftIssues,
+  membershipEndResponsibility,
   PROJECT_ROLE_MAX,
   wouldCreateCycle,
 } from "@/features/projects/project-team";
@@ -199,9 +200,13 @@ export function createInMemoryProjectTeamService(
       return save(input.projectId, members, input.memberId);
     },
     async endMember(input) {
-      const { members } = await load(input.projectId, input.version);
+      const { project, members } = await load(input.projectId, input.version);
       const index = members.findIndex((member) => member.id === input.memberId && !member.endedAt);
       if (index < 0) throw new ProjectTeamError("not_found");
+      // Project-level responsibility (2C.3D Wave 2), in the database's trigger order.
+      const held = membershipEndResponsibility(project, members[index].contactId);
+      if (held === "project_responsibility") throw new ProjectTeamError("has_project_responsibility");
+      if (held === "psm_assignments") throw new ProjectTeamError("has_psm_assignments");
       // Structure responsibilities (2C.3D) first, in the database's trigger order.
       const blocker = membershipEndBlocker(await store.unitAssignments?.(input.projectId), input.memberId);
       if (blocker === "unit_responsibility") throw new ProjectTeamError("has_unit_responsibility");

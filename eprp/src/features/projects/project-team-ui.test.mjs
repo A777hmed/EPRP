@@ -157,10 +157,12 @@ test("direct Edit / Add Person controls are gated on People-master authority eve
   assert.match(form, /const canEditPeople = usePeopleMasterAuthority\(\);/);
   assert.match(form, /allowManage=\{canEditPeople\}\s+\/>\s+<\/div>[\s\S]*?\{canEditPeople && \(\s+<MasterRecordEditButton\s+kind="contact"/);
   const contactsStep = source("./components/setup/setup-step-contacts.tsx");
-  assert.match(contactsStep, /canEditPeople \? \(\s+<Button[\s\S]*?Add Contact/);
-  assert.equal((contactsStep.match(/allowManage=\{canEditPeople\}/g) ?? []).length, 2);
+  // 2C.3D Wave 2: the PSM pickers choose from the active Project Team only, so
+  // they create nobody — no Add Contact, no "Add new person" — for anyone. A
+  // new person is added (and, with authority, created) on the Project Team.
+  assert.doesNotMatch(contactsStep, /Add Contact|MasterDataDialog|allowManage=\{canEditPeople\}/);
+  assert.equal((contactsStep.match(/allowManage=\{false\}/g) ?? []).length, 2);
   assert.match(contactsStep, /canEdit=\{canEditPeople\}/);
-  assert.match(contactsStep, /\{canEditPeople && \(\s+<MasterDataDialog/);
   const info = source("./components/setup/project-info-workspace.tsx");
   assert.match(info, /\(section\.id !== "contacts" \|\| canEditPeople\)/);
   const multi = source("../master-data/components/managed-multi-select.tsx");
