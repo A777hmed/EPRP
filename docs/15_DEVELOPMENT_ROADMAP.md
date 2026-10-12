@@ -35,7 +35,7 @@ and a lifecycle transition correctly refused).
 | 2 | Project master data | ✅ Complete |
 | 2A | Organization Chart *(added — see note)* | ✅ Complete |
 | 2B | Configurable hierarchy and scoped assignments *(added — see note)* | ✅ Complete |
-| 2C | Project Setup classification and planning foundation *(added — see Phase 2C)* | ⚠️ In progress — **2C.1 DONE** (browser-UAT verified); **2C.1c delivered** (Other Project structure, commits `494367f`–`6b7fba4`; Structure Hierarchy UX implemented locally, browser visual UAT pending); **2C.3A / 2C.3B verified**; **2C.3C complete locally** — migrations applied, automated verification complete, browser UAT on the Other Project path done, true PSM browser smoke pending; 2C.2 not started. All 2C migrations are applied to the local development database only (NOT production) |
+| 2C | Project Setup classification and planning foundation *(added — see Phase 2C)* | ⚠️ In progress — **2C.1 DONE** (browser-UAT verified); **2C.1c delivered** (Other Project structure, commits `494367f`–`6b7fba4`; Structure Hierarchy UX implemented locally, browser visual UAT pending); **2C.3A / 2C.3B verified**; **2C.3C complete locally** — migrations applied, automated verification complete, browser UAT on the Other Project path done, true PSM browser smoke pending; **2C.3D Wave 1 complete locally** — migration applied, automated verification complete, browser UAT on ZZ-STRUCT-UI-01 done; 2C.2 not started. All 2C migrations are applied to the local development database only (NOT production) |
 | 3 | Data foundation | ✅ Complete — all 47 migrations applied |
 | 4 | Weekly Workspace UI | ⚠️ Partial (~95%) — final Weekly UX, multiple authored updates, insights, plans and print delivered; attachments/history outstanding |
 | 5 | Weekly data and department submission | ⚠️ Partial — department ownership now enforced in the UI |
@@ -53,7 +53,8 @@ and a lifecycle transition correctly refused).
 foundation.** 2C.1 — DONE / VERIFIED · 2C.1c — DELIVERED (applied locally) ·
 2C.2 — NOT STARTED · 2C.3 — IN PROGRESS (2C.3A, 2C.3B verified; **2C.3C
 complete locally** — browser UAT done on the Other Project path, true PSM
-browser smoke pending). Every 2C migration is
+browser smoke pending; **2C.3D Wave 1 complete locally** — browser UAT
+done on ZZ-STRUCT-UI-01). Every 2C migration is
 applied to the local development database only; production deployment is
 pending.
 
@@ -312,10 +313,13 @@ Makes Project Setup the project-definition layer: what kind of project this is, 
 | 2C.1 | Project classification (2C.1a) + Project Setup shell & workflow (2C.1b) | ✅ **DONE / VERIFIED** — checkpoint commit `72c9d07`, 2026-10-03 |
 | 2C.1c | Other Project dynamic structure (replaces the "Project Structure" placeholder) | ✅ **Delivered** — commits `494367f`–`6b7fba4` (2026-10-03 → 2026-10-06). Migration `20261003000001_project_structure_foundation.sql` is applied to the local development database (verified read-only against `supabase_migrations.schema_migrations`, 2026-10-07), with structure data present locally. Runtime scripts: `110_runtime_2c1c_structure.sql`, `111_runtime_2c1c_service_concurrency.mjs`. A formal browser-UAT checkpoint is not recorded in this document. Not deployed remotely or to production. **Structure Hierarchy UX implemented locally (2026-10-11)** — no database or schema change; browser visual UAT on the final polished version pending (see below) |
 | 2C.2 | Planning / progress foundation | ❌ Not started |
-| 2C.3 | Responsibilities, Project Parties and Organization Chart setup | ⚠️ In progress — 2C.3A done; 2C.3B verified (local); 2C.3C complete locally (Other Project browser UAT done; true PSM browser smoke pending); 2C.3D (authority-bearing assignment rules, archived setup read-only, membership guards) and 2C.3E (Organization Chart derived from membership) not started |
+| 2C.3 | Responsibilities, Project Parties and Organization Chart setup | ⚠️ In progress — 2C.3A done; 2C.3B verified (local); 2C.3C complete locally (Other Project browser UAT done; true PSM browser smoke pending); 2C.3D Wave 1 (Other Project Structure Responsibilities) complete locally (browser UAT done on ZZ-STRUCT-UI-01); 2C.3D Wave 2 (PSM linkage), 2C.3E (authority-bearing assignment rules, archived setup read-only) and 2C.3F (People Organization Chart) not started |
 | 2C.3A | Project Parties foundation + Project Information (owner-authorized scope) | ✅ **DONE** — commit `5e88ef5`. Migration `20261006123219_project_parties_foundation.sql` applied to the local development database and browser-UAT verified (PSM and Other); not deployed remotely or to production |
 | 2C.3B | Professional Project Information — subcontractor Registered Company Name, Short Name / Acronym, Scope / Package, Subcontract / Contract Reference, Engagement Status (shared by PSM and Other) | ✅ **Verified, 2026-10-07** — migration `20261007120000_project_parties_professional_information.sql` applied to the local development database and browser-UAT verified for PSM and Other Project; not deployed remotely/production. Final validation-timing polish: 85 focused / 538 source tests, typecheck, lint and production build PASS. No people, responsibility, structure, reporting or chart changes |
 | 2C.3C | Project Team Membership and Project Reports To — one global People master + project-scoped, authority-free membership grouped by Project Party; leadership presented from the existing fixed roles | ✅ **Complete locally, 2026-10-11.** Migrations `20261007150000_project_team_membership.sql` and `20261011090000_project_team_controlled_writes.sql` (the three RPCs become the only write path) are applied to the local development database; backfill verified identical to the approved Preflight V2 (46 / EPROM 30 / Owner 7 / Needs party 9 / Needs project role 46). Automated verification complete: runtime 63/63, 582 source tests, typecheck, lint, production build. Browser UAT on the Other Project path (ZZ-STRUCT-UI-01, 2026-10-08) done. **True PSM browser smoke pending:** the only classified PSM project, PSM-02, does not yet meet the prerequisites to open Contacts; PSM / shared behaviour is covered by automated UI, domain and runtime tests. Not deployed remotely or to production |
+| 2C.3D | Structure Responsibilities — **Wave 1:** Other Project Structure Responsibilities (authority-free Unit membership and Unit Lead; Weekly / Monthly Responsible and per-report Backup, drawn from the unit's own active members). **Wave 2:** PSM linkage to canonical project membership (assignment pickers use active project members; same-project / active-membership guards for new or edited PSM assignments; the PSM hierarchy, the `project_contacts` responsibility system and Department Manager authority are unchanged) | ⚠️ **Wave 1 implemented locally, 2026-10-12.** Migration `20261012100000_structure_responsibilities.sql` applied to the local development database (both new tables start empty — no backfill); runtime `116_runtime_2c3d_structure_responsibilities.sql` 96/96; automated verification complete (full source suite, typecheck, lint, production build). **Browser UAT on ZZ-STRUCT-UI-01 done** (see the checkpoint below). Wave 2 not started. Not deployed remotely or to production |
+| 2C.3E | Authority-bearing assignment rules and archived setup read-only | ❌ Not started |
+| 2C.3F | People Organization Chart, derived from project membership and Project Reports To | ❌ Not started |
 
 **Open boundary decision — must be settled before 2C.2 starts.** The scope of
 2C.2 against existing planning work is not defined in these documents:
@@ -397,7 +401,7 @@ adds at setup time, and which remain Phase 13. Neither phase is redefined here.
 - Automated verification complete: **601/601** full source tests (the full `src` run, which includes the 20 tests of the unrelated, untracked `src/features/reports/report-approval-foundation.test.mjs`; 581 without it), `tsc --noEmit` clean, `eslint src --max-warnings=0` clean, `next build` passes.
 - Visual checks so far were made on static renders of the real components with the app's compiled CSS, not in the signed-in app. **Browser visual UAT on the final polished version is pending.**
 
-**Not in this slice.** Other-project Structure Responsibility (Unit Lead, Members, Weekly / Monthly Responsible, Backup / Delegate) is not implemented. The unit card leaves room for it but shows nothing about people.
+**Not in this slice.** Other-project Structure Responsibility (Unit Lead, Members, Weekly / Monthly Responsible, Backup / Delegate) is not implemented; it is planned as 2C.3D Wave 1. The unit card leaves room for it but shows nothing about people.
 
 ### 2C.3B — Professional Project Information (checkpoint, 2026-10-07)
 
@@ -483,10 +487,36 @@ Data model: `06_DATABASE_SCHEMA.md` §8.1, §8.2, §8.8.
 
 **Not in 2C.3C.**
 - Replace Person on membership.
-- Membership guards on fixed roles, `project_positions` and PSM scope rows.
-- Authority-bearing assignment rules and archived setup read-only (2C.3D).
-- Other-project Structure Responsibility.
-- Organization Chart derivation (2C.3E).
+- Membership guards on fixed roles, `project_positions` and PSM scope rows (guards for new or edited PSM assignments: 2C.3D Wave 2).
+- Authority-bearing assignment rules and archived setup read-only (2C.3E).
+- Other-project Structure Responsibility (2C.3D Wave 1).
+- People Organization Chart derivation (2C.3F).
+
+### 2C.3D Wave 1 — Other Project Structure Responsibilities (checkpoint, 2026-10-12)
+
+**Status: complete locally; migration applied to the LOCAL development database; automated verification complete; browser UAT done on ZZ-STRUCT-UI-01. Wave 2 (PSM linkage) not started. Not deployed remotely or to production.** Data model: `06_DATABASE_SCHEMA.md` §8.9.
+
+**Delivered (Other projects only).**
+- Two separate, authority-free models over the active project team (2C.3C): unit membership / Unit Lead (`project_structure_unit_members`) and Weekly / Monthly Responsible + per-report Backup (`project_structure_report_responsibilities`). The unit Weekly / Monthly flags are unchanged and stay authoritative.
+- Rules: many-to-many unit membership; one active Lead per unit, also a unit member; Responsible and Backup are active members of the SAME unit, different people, only on a unit flagged for that report; a Backup needs a Responsible; Lead / Responsible / Backup need a complete membership (Party + Project Role) — incomplete legacy members may still be normal unit members.
+- Explicit refusals, never cascades: ending a membership with active unit rows or roles; ending a unit member row that still leads or holds a responsibility; archiving a unit with active people; turning a Weekly / Monthly flag off while that responsibility is active; hard-deleting a unit with people history. Tagged domain messages, never raw FK errors.
+- Writes only through `save_structure_unit_responsibilities()` (hardened SECURITY DEFINER; System Admin / Project Control Admin / assigned Project Control / Planning; archived refusal; setup lock; project-version check; only the differences; ends, never deletes). Callers hold SELECT only. No authority helper or other policy reads the new tables.
+- Completion: on **Project Team & Responsibilities** (not Project Structure), a missing Weekly / Monthly Responsible blocks only when the project uses that report AND the unit is flagged. A missing Unit Lead is a warning; a missing Backup is allowed.
+- UI: the Other project's Project Team & Responsibilities step (units in hierarchy order, blockers, Lead warnings, a Needs-responsible filter); a concise people summary and a People action on Structure Hierarchy cards; a "People & responsibilities" entry in the Manage View; one canonical Responsibility dialog; each Project Team member card shows the member's units and roles.
+
+**Initial data.** No assignment was fabricated or backfilled. ZZ-STRUCT-UI-01 (Civil: Weekly input; Earthworks: Monthly input; Weekly and Monthly reporting on) therefore shows Project Team & Responsibilities as incomplete until both Responsibles are assigned — intended.
+
+**Browser UAT (ZZ-STRUCT-UI-01).**
+- Initial state showed 2 required Responsible blockers (Civil Weekly, Earthworks Monthly); a missing Unit Lead was a warning only.
+- Civil: 3 members; Khaled Fahmy (Demo) as Unit Lead; Khaled Fahmy as Weekly Responsible. Earthworks: Khaled Fahmy as Unit Lead and Monthly Responsible. The blockers cleared, and a refresh kept the assignments.
+- Structure Hierarchy cards showed Lead, member count and the Weekly / Monthly responsibility summary; the People action opened the same canonical Responsibility dialog.
+- Legacy incomplete member Dina Samir remained allowed as a normal Unit Member; incomplete memberships were excluded from Lead / Responsible / Backup.
+- Turning off Civil's Weekly input while its Weekly responsibility existed was clearly refused.
+- The Project Team reverse view showed each member's Structure Units and roles.
+- A stale second-tab save was refused with "The project changed since this page loaded. Reload before saving." The Weekly Backup used temporarily for that test was restored to No Backup.
+- **Not browser-tested** (automated / runtime coverage only): archived-project read-only, delete with people history, and ending a membership that holds structure responsibilities. The in-memory (mock) team service now mirrors that end-membership refusal, with parity tests.
+
+**Not in Wave 1.** PSM linkage (Wave 2), Replace Person v2, temporary dated delegation (`project_delegations` untouched), Primary Unit, Deputy Lead, Other-project Weekly / Monthly collection, any report-writing authority for Responsibles, the People Organization Chart (2C.3F).
 
 ---
 

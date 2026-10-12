@@ -1,3 +1,4 @@
+import type { ProjectReportingConfig } from "@/types";
 import type { ProjectStructure } from "@/types/project-structure";
 import {
   archivedNodes,
@@ -9,14 +10,16 @@ import {
   type StructureTreeNode,
 } from "./structure-rules";
 import { levelRelation } from "./structure-patterns-ui";
+import { unitPeopleSummary, type StructureTeamDirectory, type UnitPeopleSummary } from "./structure-responsibilities";
 
 /**
  * Read model for the Other project's Structure Hierarchy view.
  *
  * Pure and derived: it reads the same canonical `ProjectStructure` the Manage
  * View edits (through the existing structure rules) and never stores,
- * copies or re-validates anything. Units only — people and responsibilities
- * are a later phase and are deliberately absent here.
+ * copies or re-validates anything. When the project's people directory is
+ * given (Phase 2C.3D), each unit also carries a concise, read-only people
+ * summary; without it the hierarchy shows units only.
  */
 
 /** One configured level, in order, with how it relates to the level above. */
@@ -46,7 +49,15 @@ export interface HierarchyNode {
   childLevelPlural?: string;
   /** Every active unit below this one, at any depth. */
   descendantCount: number;
+  /** Lead, member count and Weekly / Monthly Responsible (2C.3D); absent without people data. */
+  people?: UnitPeopleSummary;
   children: HierarchyNode[];
+}
+
+/** What the hierarchy needs to show each unit's people (Phase 2C.3D). */
+export interface HierarchyPeopleContext {
+  directory: StructureTeamDirectory;
+  reporting: Pick<ProjectReportingConfig, "weeklyEnabled" | "monthlyEnabled">;
 }
 
 export interface StructureHierarchy {
@@ -60,11 +71,12 @@ export interface StructureHierarchy {
 
 function toView(
   entry: StructureTreeNode,
-  structure: Pick<ProjectStructure, "levels">,
-  parentName: string | undefined
+  structure: Pick<ProjectStructure, "levels" | "assignments">,
+  parentName: string | undefined,
+  people: HierarchyPeopleContext | undefined
 ): HierarchyNode {
   const { node, level } = entry;
-  const children = entry.children.map((child) => toView(child, structure, node.name));
+  const children = entry.children.map((child) => toView(child, structure, node.name, people));
   return {
     id: node.id,
     name: node.name,
@@ -76,17 +88,19 @@ function toView(
     monthlyInputRequired: node.monthlyReportingRequired,
     childLevelPlural: findLevel(structure.levels, node.levelNumber + 1)?.pluralLabel,
     descendantCount: children.reduce((total, child) => total + 1 + child.descendantCount, 0),
+    people: people ? unitPeopleSummary(node, structure, people.directory, people.reporting) : undefined,
     children,
   };
 }
 
 /** Active units only, as one tree, with per-level context and summary counts. */
 export function buildStructureHierarchy(
-  structure: Pick<ProjectStructure, "levels" | "nodes">
+  structure: Pick<ProjectStructure, "levels" | "nodes" | "assignments">,
+  people?: HierarchyPeopleContext
 ): StructureHierarchy {
   const levels = sortLevels(structure.levels);
   const active = nodesByLevel(structure);
-  const roots = buildStructureTree(structure).map((entry) => toView(entry, structure, undefined));
+  const roots = buildStructureTree(structure).map((entry) => toView(entry, structure, undefined, people));
   const activeCount = [...active.values()].reduce((total, group) => total + group.length, 0);
   const all = (nodes: HierarchyNode[]): HierarchyNode[] => nodes.flatMap((node) => [node, ...all(node.children)]);
   const units = all(roots);

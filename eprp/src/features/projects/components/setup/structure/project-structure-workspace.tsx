@@ -13,7 +13,7 @@ import { StructureViews } from "./structure-views";
  * is the frozen ProjectStructureWorkspaceProps contract (project, structure,
  * canManage, actions) — see structure-workspace-contract.ts.
  */
-export function ProjectStructureWorkspace({ project, structure, canManage, actions }: ProjectStructureWorkspaceProps) {
+export function ProjectStructureWorkspace({ project, structure, canManage, actions, people }: ProjectStructureWorkspaceProps) {
   return (
     <SectionCard
       title="Project structure"
@@ -22,7 +22,7 @@ export function ProjectStructureWorkspace({ project, structure, canManage, actio
       <div className="min-w-0 space-y-5">
         {!canManage && <p className="text-sm text-muted-foreground">{project.status === "archived" ? "Archived project · structure is read-only." : "Read-only · you can view this project's structure."}</p>}
         <StructureLevelsEditor key={`levels:${project.id}`} project={project} structure={structure} canManage={canManage} actions={actions} />
-        <StructureViews key={`units:${project.id}`} project={project} structure={structure} canManage={canManage} actions={actions} />
+        <StructureViews key={`units:${project.id}`} project={project} structure={structure} canManage={canManage} actions={actions} people={people} />
       </div>
     </SectionCard>
   );

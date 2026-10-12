@@ -116,8 +116,10 @@ test("PT409: the live functions raise no 40001 except the genuine Weekly concurr
   assert.deepEqual(serialization, ["20260824121615_reporting_integration_wave1.sql:submit_finalized_weekly_milestones"]);
   assert.doesNotMatch(pt409, /submit_finalized_weekly_milestones/);
   const stale = [...live.values()].filter((d) => /errcode = 'PT409'/.test(d.body)).map((d) => d.name).sort();
-  // 2C.3C adds three membership writers born with the same business-stale refusal.
-  const LATER_PT409 = ["add_project_member", "end_project_member", "update_project_member"];
+  // 2C.3C adds three membership writers, and 2C.3D the per-unit people
+  // writer, all born with the same business-stale refusal.
+  const LATER_PT409 = ["add_project_member", "end_project_member", "update_project_member",
+    "save_structure_unit_responsibilities"];
   assert.deepEqual(stale, [...RECREATED.map(([name]) => name), ...LATER_PT409].sort());
 });
 

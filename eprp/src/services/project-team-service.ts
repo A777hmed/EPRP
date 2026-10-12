@@ -7,7 +7,9 @@ import {
   PROJECT_ROLE_MAX,
   wouldCreateCycle,
 } from "@/features/projects/project-team";
+import { membershipEndBlocker } from "@/features/projects/structure/structure-responsibilities";
 import type { Project, ProjectMember } from "@/types";
+import type { StructureAssignments } from "@/types/project-structure";
 import { mapProjectTeamError, ProjectTeamError } from "./project-team-errors";
 
 /**
@@ -126,6 +128,11 @@ export interface TeamProjectStore {
   read(projectId: string): Promise<Project | undefined> | Project | undefined;
   /** Replace the project's memberships and advance its version; returns the new one. */
   writeMembers(projectId: string, members: ProjectMember[]): Promise<string> | string;
+  /**
+   * The project's structure-unit people (2C.3D), so ending a membership is
+   * refused exactly as the database refuses it. Absent / undefined = none.
+   */
+  unitAssignments?(projectId: string): Promise<StructureAssignments | undefined> | StructureAssignments | undefined;
 }
 
 /**
@@ -195,6 +202,10 @@ export function createInMemoryProjectTeamService(
       const { members } = await load(input.projectId, input.version);
       const index = members.findIndex((member) => member.id === input.memberId && !member.endedAt);
       if (index < 0) throw new ProjectTeamError("not_found");
+      // Structure responsibilities (2C.3D) first, in the database's trigger order.
+      const blocker = membershipEndBlocker(await store.unitAssignments?.(input.projectId), input.memberId);
+      if (blocker === "unit_responsibility") throw new ProjectTeamError("has_unit_responsibility");
+      if (blocker === "unit_assignments") throw new ProjectTeamError("has_unit_assignments");
       if (members.some((member) => member.reportsToMemberId === input.memberId && !member.endedAt)) {
         throw new ProjectTeamError("has_active_reports");
       }
@@ -219,5 +230,10 @@ export const projectTeamService: ProjectTeamService = isSupabaseConfigured()
       async writeMembers(projectId, members) {
         const { writeMockProjectMembers } = await import("./project-service");
         return writeMockProjectMembers(projectId, members);
+      },
+      // The in-memory structure service holds the units' people (2C.3D).
+      async unitAssignments(projectId) {
+        const { projectStructureService } = await import("./project-structure-service");
+        return projectStructureService.getStructure(projectId).then((structure) => structure.assignments, () => undefined);
       },
     });

@@ -4,9 +4,10 @@ import * as React from "react";
 
 import { ErrorState, LoadingState } from "@/components/shared";
 import { projectStructureService } from "@/services/project-structure-service";
-import type { Project } from "@/types";
+import type { Contact, Project } from "@/types";
 import type { ProjectStructureState } from "../../../use-project-structure";
 import { createStructureActions } from "../../../structure/structure-workspace-contract";
+import { buildTeamDirectory } from "../../../structure/structure-responsibilities";
 import { ProjectStructureWorkspace } from "./project-structure-workspace";
 
 export interface ProjectStructureStepProps {
@@ -17,6 +18,10 @@ export interface ProjectStructureStepProps {
   canManage: boolean;
   /** A structure write advanced the project version: reload the project. */
   onProjectChanged: () => void;
+  /** The People master, to name the project's members on unit cards (2C.3D). */
+  contacts?: Contact[];
+  /** The Owner / Client's name, for party labels. */
+  clientName?: string;
 }
 
 /**
@@ -29,6 +34,8 @@ export function ProjectStructureStep({
   structureState,
   canManage,
   onProjectChanged,
+  contacts,
+  clientName,
 }: ProjectStructureStepProps) {
   const { structure: loaded, error, refresh } = structureState;
   // Only this project's structure — never one left over from another project.
@@ -53,6 +60,13 @@ export function ProjectStructureStep({
     [project.id, structureVersion, refresh, onProjectChanged]
   );
 
+  // The project's active members, display-ready, for each unit's people
+  // summary and the Responsibility dialog. Without contacts: units only.
+  const people = React.useMemo(
+    () => (contacts ? buildTeamDirectory(project, contacts, clientName) : undefined),
+    [project, contacts, clientName]
+  );
+
   if (error) {
     return (
       <ErrorState
@@ -71,6 +85,7 @@ export function ProjectStructureStep({
       structure={structure}
       canManage={canManage}
       actions={actions}
+      people={people}
     />
   );
 }

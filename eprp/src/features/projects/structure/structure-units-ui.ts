@@ -4,7 +4,7 @@ import {
   canArchiveNode, canDeleteNode, canMoveNode, canRestoreNode, canSetReportingFlags,
   findLevel, isActiveNode, nodeInputIssues, pathOf, type StructureIssue, type StructureRuleReason,
 } from "./structure-rules";
-import { ProjectStructureError } from "@/services/project-structure-errors";
+import { PROJECT_STRUCTURE_MESSAGES, ProjectStructureError } from "@/services/project-structure-errors";
 
 export type StructureUnitIntent =
   | { mode: "create"; levelNumber: number; parentId?: string }
@@ -99,6 +99,9 @@ export function unitFormIssues(structure: ProjectStructure, intent: StructureUni
       }));
   }
   const { node } = intent;
+  // Unit people (2C.3D) refuse first, exactly as the database's guard does.
+  const peopleIssue = unitPeopleRefusal(structure, intent, fields);
+  if (peopleIssue) return [{ message: peopleIssue }];
   const verdict = intent.mode === "move"
     ? (isActiveNode(node) ? canMoveNode(structure, node.id, fields.parentId) : { ok: false, reason: "archived" as const })
     : intent.mode === "reporting" ? canSetReportingFlags(structure.nodes, { nodeId: node.id, weeklyReportingRequired: fields.weeklyReportingRequired, monthlyReportingRequired: fields.monthlyReportingRequired })
@@ -106,6 +109,39 @@ export function unitFormIssues(structure: ProjectStructure, intent: StructureUni
     : intent.mode === "restore" ? canRestoreNode(structure.nodes, node.id)
     : canDeleteNode(structure.nodes, node.id);
   return verdict.ok ? [] : [{ field: intent.mode === "move" ? "parentId" : undefined, message: unitRuleMessage(verdict.reason) }];
+}
+
+/**
+ * The explicit unit-people refusals (Phase 2C.3D), previewed before a save:
+ * no archive while people are active, no Weekly / Monthly flag-off while
+ * that report's Responsible or Backup is active, no hard delete once the
+ * unit has any people history. Nothing is ever ended on the user's behalf.
+ */
+function unitPeopleRefusal(
+  structure: ProjectStructure,
+  intent: Extract<StructureUnitIntent, { node: ProjectStructureNode }>,
+  fields: StructureUnitFields
+): string | undefined {
+  const people = structure.assignments;
+  if (!people) return undefined;
+  const { node } = intent;
+  if (intent.mode === "archive" && people.unitMembers.some((row) => row.nodeId === node.id && !row.endedAt)) {
+    return PROJECT_STRUCTURE_MESSAGES.unit_has_active_people;
+  }
+  if (intent.mode === "delete" && people.unitMembers.some((row) => row.nodeId === node.id)) {
+    return PROJECT_STRUCTURE_MESSAGES.unit_has_people_history;
+  }
+  if (intent.mode === "reporting") {
+    const active = (kind: "weekly" | "monthly") =>
+      people.reportResponsibilities.some((row) => row.nodeId === node.id && row.reportKind === kind && !row.endedAt);
+    if (node.weeklyReportingRequired && !fields.weeklyReportingRequired && active("weekly")) {
+      return PROJECT_STRUCTURE_MESSAGES.weekly_responsibility_exists;
+    }
+    if (node.monthlyReportingRequired && !fields.monthlyReportingRequired && active("monthly")) {
+      return PROJECT_STRUCTURE_MESSAGES.monthly_responsibility_exists;
+    }
+  }
+  return undefined;
 }
 
 /** Exactly one write per explicit save. The original record supplies its existing concurrency token. */

@@ -15,6 +15,11 @@ import { isClassificationComplete } from "@/features/projects/classification";
 import { FIXED_RESPONSIBILITIES } from "@/features/projects/responsibilities";
 import { subcontractorNeedsCompletion } from "@/features/projects/project-parties";
 import { structureCompleteness } from "@/features/projects/structure/structure-rules";
+import {
+  activeUnitsInOrder,
+  requiresResponsible,
+  responsibilityGaps,
+} from "@/features/projects/structure/structure-responsibilities";
 import type { ProjectStructure } from "@/types/project-structure";
 
 /**
@@ -434,7 +439,7 @@ export interface ProjectStepStatus {
  * plain-language error). Never a guessed or fallback structure.
  */
 export interface StructureWorkflowInput {
-  structure: Pick<ProjectStructure, "levels" | "nodes"> | null;
+  structure: Pick<ProjectStructure, "levels" | "nodes" | "assignments"> | null;
   error?: string | null;
 }
 
@@ -662,6 +667,44 @@ export function structureStepChecks(
 }
 
 /**
+ * Structure Responsibilities (Phase 2C.3D) for an Other project's Project
+ * Team & Responsibilities step — never Project Structure, which decides only
+ * WHICH units owe input. A unit that owes a report the project uses needs
+ * that report's Responsible: a missing one BLOCKS. Units that owe nothing,
+ * report types the project does not use, a missing Backup and a missing Unit
+ * Lead (a warning shown in the workspace) add no check.
+ */
+export function structureResponsibilityChecks(
+  project: Pick<Project, "reporting">,
+  input: StructureWorkflowInput | undefined
+): WorkflowCheck[] {
+  const structure = input?.structure;
+  if (!structure) {
+    return [check("Structure responsibilities loaded", false, input?.error ?? "Loading the project structure…")];
+  }
+  const kinds = (["weekly", "monthly"] as const).filter((kind) =>
+    activeUnitsInOrder(structure).some((node) => requiresResponsible(project.reporting, node, kind)));
+  if (kinds.length === 0) return [];
+  if (!structure.assignments) {
+    return [check(
+      "Structure responsibilities available",
+      false,
+      "Structure responsibilities are not available on this database yet. Contact your administrator."
+    )];
+  }
+  const gaps = responsibilityGaps(project.reporting, structure);
+  return kinds.map((kind) => {
+    const label = kind === "weekly" ? "Weekly" : "Monthly";
+    const missing = gaps[kind];
+    return check(
+      `${label} Responsible assigned for every ${label} input unit`,
+      missing.length === 0,
+      `Assign a ${label} Responsible for: ${missing.map((node) => node.name).join(", ")}.`
+    );
+  });
+}
+
+/**
  * Review passes only when every other step does — it is the confirmation
  * gate, so it mirrors their outcome rather than adding new requirements.
  */
@@ -673,18 +716,21 @@ export function structureStepChecks(
  * requirement. Introducing a new gate here would block Review on a step where
  * the user has nothing to fix — every correction is made back on Contacts.
  */
-function teamChecks(project: Project, flow: SetupFlow): WorkflowCheck[] {
-  // An Other project has no department-scoped team (contacts are not tied to
-  // structure units yet). Its responsibilities are the existing fixed holders;
-  // the required ones are exactly those Project Information already demands.
+function teamChecks(project: Project, flow: SetupFlow, structure?: StructureWorkflowInput): WorkflowCheck[] {
+  // An Other project has no department-scoped team. Its project-level
+  // holders are the fixed responsibilities Project Information demands; its
+  // unit-level accountability is the Structure Responsibilities (2C.3D).
   if (flow === "other") {
-    return FIXED_RESPONSIBILITIES.filter((meta) => meta.required).map((meta) =>
-      check(
-        `${meta.label} assigned`,
-        Boolean(project[meta.field]),
-        `Set the ${meta.label} on Project Type & Information.`
-      )
-    );
+    return [
+      ...FIXED_RESPONSIBILITIES.filter((meta) => meta.required).map((meta) =>
+        check(
+          `${meta.label} assigned`,
+          Boolean(project[meta.field]),
+          `Set the ${meta.label} on Project Type & Information.`
+        )
+      ),
+      ...structureResponsibilityChecks(project, structure),
+    ];
   }
   const team = project.team ?? [];
   return [
@@ -787,7 +833,7 @@ export function evaluateProjectWorkflow(
       case "contacts":
         return contactChecks(project, departmentName, flow);
       case "team":
-        return teamChecks(project, flow);
+        return teamChecks(project, flow, data.structure);
       case "review":
         return reviewChecks(ordered, steps);
     }

@@ -6,9 +6,11 @@ import type {
   StructureLevelInput,
   StructureNodeVersion,
   StructureReportingFlagsInput,
+  StructureUnitPeopleInput,
   UpdateStructureNodeInput,
 } from "@/types/project-structure";
 import type { ProjectStructureService } from "@/services/project-structure-service";
+import type { StructureTeamDirectory } from "./structure-responsibilities";
 
 /**
  * The FROZEN contract between the Project Setup workflow and the Other
@@ -59,6 +61,11 @@ export interface ProjectStructureActions {
   archiveNode(node: StructureNodeVersion): Promise<ProjectStructureNode>;
   restoreNode(node: StructureNodeVersion): Promise<ProjectStructureNode>;
   deleteNode(node: StructureNodeVersion): Promise<void>;
+  /**
+   * ONE unit's complete desired people (Phase 2C.3D). Authority-free
+   * configuration; the database applies only the differences.
+   */
+  saveUnitResponsibilities(input: StructureUnitPeopleInput): Promise<void>;
   /** Reload on demand (e.g. a "Reload" button after a stale refusal). */
   refresh(): void;
 }
@@ -74,6 +81,11 @@ export interface ProjectStructureWorkspaceProps {
    */
   canManage: boolean;
   actions: ProjectStructureActions;
+  /**
+   * The project's active members, display-ready (Phase 2C.3D). Optional and
+   * additive: without it the structure UI shows no people.
+   */
+  people?: StructureTeamDirectory;
 }
 
 /** The service methods the actions use — the active service in the app. */
@@ -87,6 +99,7 @@ export type StructureWriteService = Pick<
   | "archiveNode"
   | "restoreNode"
   | "deleteNode"
+  | "saveUnitResponsibilities"
 >;
 
 export interface StructureActionDeps {
@@ -137,6 +150,11 @@ export function createStructureActions(deps: StructureActionDeps): ProjectStruct
     archiveNode: (node) => run(() => service.archiveNode(node)),
     restoreNode: (node) => run(() => service.restoreNode(node)),
     deleteNode: (node) => run(() => service.deleteNode(node)),
+    async saveUnitResponsibilities(input) {
+      await run(() =>
+        service.saveUnitResponsibilities({ ...input, projectId, expectedVersion: deps.currentVersion() })
+      );
+    },
     refresh: deps.refresh,
   };
 }

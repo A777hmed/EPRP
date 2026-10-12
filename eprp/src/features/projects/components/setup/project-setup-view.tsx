@@ -849,6 +849,8 @@ function LoadedSteps({
           structureState={structureState}
           canManage={canManageStructure}
           onProjectChanged={onProjectChanged}
+          contacts={workflow.contacts}
+          clientName={clientName}
         />
       )}
       {step === "departments" && (
@@ -889,6 +891,7 @@ function LoadedSteps({
           canManage={canManageTeam}
           canEditPeople={canEditPeople}
           onProjectChanged={onProjectChanged}
+          structure={isOther && structureState.structure?.projectId === project.id ? structureState.structure : undefined}
         />
       )}
       {/* PSM / legacy department scope assignments stay as they are. */}
@@ -909,8 +912,13 @@ function LoadedSteps({
       {step === "team" && isOther && (
         <OtherProjectResponsibilities
           project={current}
+          savedProject={project}
           contacts={workflow.contacts}
-          title="Responsibilities"
+          clientName={clientName}
+          title="Project-level responsibilities"
+          structureState={structureState}
+          canManage={canManageTeam}
+          onProjectChanged={onProjectChanged}
         />
       )}
       {step === "team" && !isOther && (

@@ -75,6 +75,81 @@ export interface ProjectStructure {
   version: string;
   levels: ProjectStructureLevel[];
   nodes: ProjectStructureNode[];
+  /**
+   * The units' people (Phase 2C.3D), read in the same consistent window.
+   * Absent when this database does not provide structure responsibilities.
+   */
+  assignments?: StructureAssignments;
+}
+
+/* -------------------- Structure responsibilities (2C.3D) ------------------- */
+
+/**
+ * `member` works in the unit; `lead` is the Unit Lead / Manager, held as an
+ * extra row beside the person's member row. Descriptive only: grants nothing.
+ */
+export type StructureUnitRole = "member" | "lead";
+
+/** One person's (a project member's) place in one structure unit. */
+export interface StructureUnitMember {
+  id: string;
+  projectId: string;
+  nodeId: string;
+  /** `project_members.id` — never a global contact. */
+  memberId: string;
+  unitRole: StructureUnitRole;
+  /** Set when ended; ended rows are history. */
+  endedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** `responsible` provides the unit's input; `backup` is the standing alternate. */
+export type StructureResponsibilityKind = "responsible" | "backup";
+
+/**
+ * Who provides a unit's Weekly / Monthly OPERATIONAL INPUT. Configuration
+ * only: grants no authority and no report-writing right.
+ */
+export interface StructureReportResponsibility {
+  id: string;
+  projectId: string;
+  nodeId: string;
+  memberId: string;
+  /** The person's member row in the same unit. */
+  unitMemberId: string;
+  reportKind: StructureReportKind;
+  responsibility: StructureResponsibilityKind;
+  endedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Every unit-people row of a project, active and ended (history). */
+export interface StructureAssignments {
+  unitMembers: StructureUnitMember[];
+  reportResponsibilities: StructureReportResponsibility[];
+}
+
+/**
+ * One unit's complete desired people, as the per-unit save takes them. Every
+ * id is a `project_members.id`; the Lead, Responsibles and Backups must also
+ * be in `memberIds`.
+ */
+export interface StructureUnitPeopleInput {
+  nodeId: string;
+  memberIds: string[];
+  leadMemberId?: string;
+  weeklyResponsibleId?: string;
+  weeklyBackupId?: string;
+  monthlyResponsibleId?: string;
+  monthlyBackupId?: string;
+}
+
+export interface SaveUnitResponsibilitiesInput extends StructureUnitPeopleInput {
+  projectId: string;
+  /** `ProjectStructure.version` the change was built on. */
+  expectedVersion: string;
 }
 
 /** The units owing operational input, per report. */

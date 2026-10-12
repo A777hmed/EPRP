@@ -4,6 +4,8 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   ProjectStructureLevelRow,
   ProjectStructureNodeRow,
+  ProjectStructureReportResponsibilityRow,
+  ProjectStructureUnitMemberRow,
 } from "@/lib/supabase/database.types";
 import { sortLevels, sortNodes } from "@/features/projects/structure/structure-rules";
 import type {
@@ -12,8 +14,12 @@ import type {
   ProjectStructure,
   ProjectStructureLevel,
   ProjectStructureNode,
+  SaveUnitResponsibilitiesInput,
+  StructureAssignments,
   StructureLevelNumber,
   StructureNodeVersion,
+  StructureReportResponsibility,
+  StructureUnitMember,
   StructureReportingFlagsInput,
   UpdateStructureNodeInput,
 } from "@/types/project-structure";
@@ -57,6 +63,9 @@ const LEVEL_COLUMNS =
   "id, project_id, level_number, singular_label, plural_label, created_at, updated_at";
 const NODE_COLUMNS =
   "id, project_id, level_number, parent_id, name, code, description, sort_order, weekly_reporting_required, monthly_reporting_required, archived_at, created_at, updated_at";
+const UNIT_MEMBER_COLUMNS = "id, project_id, node_id, member_id, unit_role, ended_at, created_at, updated_at";
+const REPORT_RESPONSIBILITY_COLUMNS =
+  "id, project_id, node_id, member_id, unit_member_id, report_kind, responsibility, ended_at, created_at, updated_at";
 
 export type StructureClient = Pick<SupabaseClient, "from" | "rpc">;
 
@@ -89,6 +98,56 @@ export function nodeFromRow(row: ProjectStructureNodeRow): ProjectStructureNode 
     updatedAt: row.updated_at,
   };
 }
+
+export function unitMemberFromRow(row: ProjectStructureUnitMemberRow): StructureUnitMember {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    nodeId: row.node_id,
+    memberId: row.member_id,
+    unitRole: row.unit_role,
+    endedAt: row.ended_at ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function reportResponsibilityFromRow(row: ProjectStructureReportResponsibilityRow): StructureReportResponsibility {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    nodeId: row.node_id,
+    memberId: row.member_id,
+    unitMemberId: row.unit_member_id,
+    reportKind: row.report_kind,
+    responsibility: row.responsibility,
+    endedAt: row.ended_at ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/**
+ * Arguments for save_structure_unit_responsibilities(): ONE unit's complete
+ * desired people. Absent slots are sent as null (cleared).
+ */
+export function saveUnitResponsibilitiesRpcArgs(input: SaveUnitResponsibilitiesInput) {
+  return {
+    p_project: input.projectId,
+    p_expected_updated_at: input.expectedVersion,
+    p_node: input.nodeId,
+    p_members: [...new Set(input.memberIds)],
+    p_lead: input.leadMemberId ?? null,
+    p_weekly_responsible: input.weeklyResponsibleId ?? null,
+    p_weekly_backup: input.weeklyBackupId ?? null,
+    p_monthly_responsible: input.monthlyResponsibleId ?? null,
+    p_monthly_backup: input.monthlyBackupId ?? null,
+  };
+}
+
+/** A database without the 2C.3D tables: the structure still loads, without people. */
+const isMissingRelation = (error: ServiceError | null) =>
+  error?.code === "42P01" || error?.code === "PGRST205" || /does not exist|schema cache/i.test(error?.message ?? "");
 
 /** Blank clears an optional text field; the database stores NULL. */
 function optionalText(value: string | undefined): string | null {
@@ -218,16 +277,32 @@ export function createSupabaseProjectStructureService(
       const before = await readVersion(client, projectId);
       if (before === null) throw new ProjectStructureError("not_found");
 
-      const [levels, units] = await Promise.all([
+      const [levels, units, unitMembers, reports] = await Promise.all([
         client.from("project_structure_levels").select(LEVEL_COLUMNS).eq("project_id", projectId)
           .order("level_number", { ascending: true }),
         client.from("project_structure_nodes").select(NODE_COLUMNS).eq("project_id", projectId)
           .order("level_number", { ascending: true })
           .order("sort_order", { ascending: true })
           .order("name", { ascending: true }),
+        client.from("project_structure_unit_members").select(UNIT_MEMBER_COLUMNS).eq("project_id", projectId)
+          .order("created_at", { ascending: true }),
+        client.from("project_structure_report_responsibilities").select(REPORT_RESPONSIBILITY_COLUMNS).eq("project_id", projectId)
+          .order("created_at", { ascending: true }),
       ]);
       if (levels.error) throw fail("read the structure levels", levels.error);
       if (units.error) throw fail("read the structure units", units.error);
+      // Structure responsibilities (2C.3D) are optional on an older database.
+      let assignments: StructureAssignments | undefined;
+      if (isMissingRelation(unitMembers.error) || isMissingRelation(reports.error)) {
+        assignments = undefined;
+      } else {
+        if (unitMembers.error) throw fail("read the unit people", unitMembers.error);
+        if (reports.error) throw fail("read the reporting responsibilities", reports.error);
+        assignments = {
+          unitMembers: ((unitMembers.data ?? []) as ProjectStructureUnitMemberRow[]).map(unitMemberFromRow),
+          reportResponsibilities: ((reports.data ?? []) as ProjectStructureReportResponsibilityRow[]).map(reportResponsibilityFromRow),
+        };
+      }
 
       // A writer committed while the children loaded: refuse the mixed result.
       const after = await readVersion(client, projectId);
@@ -239,6 +314,7 @@ export function createSupabaseProjectStructureService(
         version: before,
         levels: sortLevels(((levels.data ?? []) as ProjectStructureLevelRow[]).map(levelFromRow)),
         nodes: sortNodes(((units.data ?? []) as ProjectStructureNodeRow[]).map(nodeFromRow)),
+        ...(assignments ? { assignments } : {}),
       };
       return structure;
     },
@@ -278,6 +354,19 @@ export function createSupabaseProjectStructureService(
 
     restoreNode(ref) {
       return updateNode("restore the unit", ref, { archived_at: null });
+    },
+
+    async saveUnitResponsibilities(input) {
+      const { data, error } = await getClient().rpc("save_structure_unit_responsibilities", saveUnitResponsibilitiesRpcArgs(input));
+      if (error) {
+        if (error.code === "PGRST202" || error.code === "42883") {
+          throw new ProjectStructureError("responsibilities_unavailable");
+        }
+        throw fail("save the unit's people", error);
+      }
+      const version = (data as { version?: unknown } | null)?.version;
+      if (typeof version !== "string") throw new ProjectStructureError("failed");
+      return { version };
     },
 
     async deleteNode(ref) {

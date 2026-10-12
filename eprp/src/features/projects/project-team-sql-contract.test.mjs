@@ -28,7 +28,11 @@ test("2C.3C is one migration after 2C.3B plus one forward finalization; nothing 
   const files = sorted();
   assert.equal(files.indexOf(FILE), files.indexOf("20261007120000_project_parties_professional_information.sql") + 1);
   assert.equal(files.indexOf(FINAL), files.indexOf(FILE) + 1);
-  assert.equal(files.at(-1), FINAL);
+  // Later phases (2C.3D onwards) may follow; none redefines a 2C.3C writer or guard.
+  for (const later of files.slice(files.indexOf(FINAL) + 1)) {
+    assert.doesNotMatch(read(migrations, later),
+      /function public\.(add_project_member|update_project_member|end_project_member|guard_project_member_write|guard_project_member_delete|guard_project_party_team_history)\(/, later);
+  }
   assert.doesNotMatch(code, /create or replace function public\.save_project_setup_relation|alter table public\.project_contacts|alter table public\.projects\b/);
 });
 

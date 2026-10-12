@@ -22,6 +22,8 @@ export type ProjectTeamErrorReason =
   | "self_report"
   | "inactive_person"
   | "has_active_reports"
+  | "has_unit_responsibility"
+  | "has_unit_assignments"
   | "member_ended"
   | "not_found"
   | "unavailable"
@@ -43,6 +45,10 @@ export const PROJECT_TEAM_MESSAGES: Record<ProjectTeamErrorReason, string> = {
   inactive_person: "Only an active person can join a project team.",
   has_active_reports:
     "Other members report to this person. Change their Reports To before ending this membership.",
+  has_unit_responsibility:
+    "This person is a Unit Lead or holds a Weekly / Monthly responsibility. Reassign it on Project Team & Responsibilities before ending this membership.",
+  has_unit_assignments:
+    "This person still belongs to structure units. Remove them from those units on Project Team & Responsibilities before ending this membership.",
   member_ended: "This membership has ended and is kept as history.",
   not_found: "This member is no longer active on this project. Reload the page.",
   unavailable: "Project team membership is not available yet. Contact your administrator.",
@@ -61,6 +67,9 @@ const TAG_REASON: Record<string, ProjectTeamErrorReason> = {
   SELF_REPORT: "self_report",
   INACTIVE_PERSON: "inactive_person",
   HAS_ACTIVE_REPORTS: "has_active_reports",
+  // Structure responsibilities (2C.3D): ending never cascades to unit rows.
+  MEMBER_HAS_UNIT_RESPONSIBILITY: "has_unit_responsibility",
+  MEMBER_HAS_UNIT_ASSIGNMENTS: "has_unit_assignments",
   MEMBER_ENDED: "member_ended",
   NOT_FOUND: "not_found",
   INVALID_INPUT: "failed",

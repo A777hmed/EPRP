@@ -983,6 +983,37 @@ export interface ProjectStructureNodeRow {
   updated_at: string;
 }
 
+/**
+ * Phase 2C.3D — see 20261012100000_structure_responsibilities.sql. Unit people
+ * of an Other project. Authority-free; written only through
+ * save_structure_unit_responsibilities() (callers hold SELECT only).
+ */
+export interface ProjectStructureUnitMemberRow {
+  id: string;
+  project_id: string;
+  node_id: string;
+  member_id: string;
+  unit_role: "member" | "lead";
+  ended_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectStructureReportResponsibilityRow {
+  id: string;
+  project_id: string;
+  node_id: string;
+  member_id: string;
+  unit_member_id: string;
+  report_kind: "weekly" | "monthly";
+  responsibility: "responsible" | "backup";
+  ended_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 type TableDef<Row, Insert, Update> = {
   Row: Row;
   Insert: Insert;
@@ -1149,6 +1180,9 @@ export interface Database {
         },
         Partial<Omit<ProjectStructureNodeRow, "id" | "project_id" | "level_number" | "created_at" | "updated_at">>
       >;
+      // Unit people change only through save_structure_unit_responsibilities().
+      project_structure_unit_members: TableDef<ProjectStructureUnitMemberRow, never, never>;
+      project_structure_report_responsibilities: TableDef<ProjectStructureReportResponsibilityRow, never, never>;
     };
   };
 }

@@ -289,7 +289,7 @@ test("12. the UI contract is project / structure / canManage / actions, typed, w
   const actions = contract.slice(contract.indexOf("export interface ProjectStructureActions"));
   assert.deepEqual([...actions.slice(0, actions.indexOf("\n}")).matchAll(/^  (\w+)\(/gm)].map((m) => m[1]), [
     "configureLevels", "createNode", "updateNode", "moveNode", "setReportingFlags",
-    "archiveNode", "restoreNode", "deleteNode", "refresh",
+    "archiveNode", "restoreNode", "deleteNode", "saveUnitResponsibilities", "refresh",
   ]);
   // The placeholder body (replaced later) and the contract never touch data
   // directly, never decide authority and never carry mock data.
@@ -303,7 +303,8 @@ test("12. the UI contract is project / structure / canManage / actions, typed, w
     assert.doesNotMatch(code, /getSupabaseBrowserClient|createClient\(|\.from\(|\.rpc\(|\bprojectStructureService\b/);
     assert.doesNotMatch(code, /useProjectAuthority|canManageOperations|isSystemAdmin/);
   }
-  assert.match(body, /export function ProjectStructureWorkspace\(\{ project, structure, canManage, actions \}: ProjectStructureWorkspaceProps\)/);
+  // 2C.3D: the optional people directory rides along; the four contract props are unchanged.
+  assert.match(body, /export function ProjectStructureWorkspace\(\{ project, structure, canManage, actions, people \}: ProjectStructureWorkspaceProps\)/);
   // Only the workflow container wires the service, and it never imports Supabase.
   const container = read("../components/setup/structure/project-structure-step.tsx");
   assert.match(container, /import \{ projectStructureService \} from "@\/services\/project-structure-service";/);

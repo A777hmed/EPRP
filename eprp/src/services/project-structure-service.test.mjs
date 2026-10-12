@@ -156,8 +156,10 @@ test("structure read: stable window — version, children, same version — mapp
   });
   const archived = nodeFromRow(nodeRow("X", 2, "P1", { archived: "2026-10-01T00:00:00Z" }));
   assert.deepEqual([archived.archivedAt, archived.parentId, archived.code], ["2026-10-01T00:00:00Z", "P1", undefined]);
-  // Version read first and again last; the children in between.
-  assert.deepEqual(calls.map((c) => c.table), ["projects", "project_structure_levels", "project_structure_nodes", "projects"]);
+  // Version read first and again last; the children (and, since 2C.3D, the
+  // units' people) in between.
+  assert.deepEqual(calls.map((c) => c.table), ["projects", "project_structure_levels", "project_structure_nodes",
+    "project_structure_unit_members", "project_structure_report_responsibilities", "projects"]);
   assert.ok(calls.every((c) => c.ops.every(([op]) => ["select", "eq", "order", "maybeSingle"].includes(op))));
 });
 
@@ -190,7 +192,7 @@ test("structure read: an empty Other project is levels [] and nodes []", async (
     project_structure_nodes: [{ data: null, error: null }],
   });
   assert.deepEqual(await createSupabaseProjectStructureService(() => client).getStructure("P"),
-    { projectId: "P", version: "v", levels: [], nodes: [] });
+    { projectId: "P", version: "v", levels: [], nodes: [], assignments: { unitMembers: [], reportResponsibilities: [] } });
 });
 
 test("level RPC: complete set, sorted, trimmed, ids only when kept; returns the new version", async () => {
@@ -311,10 +313,15 @@ test("Supabase contract: caller's own client only, the two structure tables and 
   assert.doesNotMatch(code, /service_role|SERVICE_ROLE|createClient\(|serviceRole/);
   assert.match(code, /getSupabaseBrowserClient\(\)/);
   const tables = [...code.matchAll(/\.from\("([a-z_]+)"\)/g)].map((m) => m[1]);
-  assert.deepEqual([...new Set(tables)].sort(), ["project_structure_levels", "project_structure_nodes", "projects"]);
-  assert.deepEqual([...code.matchAll(/\.rpc\("([a-z_]+)"/g)].map((m) => m[1]), ["configure_project_structure_levels"]);
-  // The unit's own *_reporting_required flags are the only weekly/monthly names here.
-  assert.doesNotMatch(code, /planning_|weekly_(?!reporting_required)|monthly_(?!reporting_required)|project_contacts|departments|disciplines|systems|structure_node_id/);
+  assert.deepEqual([...new Set(tables)].sort(), ["project_structure_levels", "project_structure_nodes",
+    "project_structure_report_responsibilities", "project_structure_unit_members", "projects"]);
+  // 2C.3D: unit people are read here and written only through their RPC.
+  assert.deepEqual([...code.matchAll(/\.rpc\("([a-z_]+)"/g)].map((m) => m[1]),
+    ["configure_project_structure_levels", "save_structure_unit_responsibilities"]);
+  assert.doesNotMatch(code, /from\("project_structure_(?:unit_members|report_responsibilities)"\)\.(?:insert|update|delete)/);
+  // The unit's own *_reporting_required flags and the people RPC's Weekly /
+  // Monthly slot arguments are the only weekly/monthly names here.
+  assert.doesNotMatch(code, /planning_|weekly_(?!reporting_required|responsible|backup)|monthly_(?!reporting_required|responsible|backup)|project_contacts|departments|disciplines|systems|structure_node_id/);
   assert.doesNotMatch(code, /\.upsert\(/);
   assert.doesNotMatch(code, /from\("projects"\)\.(?:insert|update|delete)|from\("project_structure_levels"\)\.(?:insert|update|delete)/);
   // Every update / delete of a unit carries the caller's version filter.
@@ -561,6 +568,8 @@ test("the service contract exposes no bulk write and no future-phase fields", ()
   assert.deepEqual([...iface.matchAll(/^  (\w+)\(/gm)].map((m) => m[1]), [
     "getStructure", "configureLevels", "createNode", "updateNode", "moveNode",
     "setReportingFlags", "archiveNode", "restoreNode", "deleteNode",
+    // 2C.3D: one unit's complete people per call — still no bulk write.
+    "saveUnitResponsibilities",
   ]);
   // Every change to an existing unit carries the unit's version.
   for (const method of ["updateNode", "moveNode", "setReportingFlags", "archiveNode", "restoreNode", "deleteNode"]) {

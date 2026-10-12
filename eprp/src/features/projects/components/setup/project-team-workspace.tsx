@@ -21,6 +21,11 @@ import {
   teamWarnings,
   type TeamSection,
 } from "../../project-team";
+import {
+  describeMemberUnits,
+  memberUnitAssignments,
+} from "../../structure/structure-responsibilities";
+import type { ProjectStructure } from "@/types/project-structure";
 import { ProjectTeamMemberDialog } from "./project-team-member-dialog";
 
 export interface ProjectTeamWorkspaceProps {
@@ -34,6 +39,12 @@ export interface ProjectTeamWorkspaceProps {
   canEditPeople: boolean;
   /** Reload the project after a membership write advanced its version. */
   onProjectChanged: () => void;
+  /**
+   * An Other project's structure with its unit people (2C.3D): each member
+   * card then shows the units, Lead role and Weekly / Monthly
+   * responsibilities they hold. Absent for PSM and legacy projects.
+   */
+  structure?: Pick<ProjectStructure, "levels" | "nodes" | "assignments">;
 }
 
 /**
@@ -52,6 +63,7 @@ export function ProjectTeamWorkspace({
   canManage,
   canEditPeople,
   onProjectChanged,
+  structure,
 }: ProjectTeamWorkspaceProps) {
   const [dialog, setDialog] = React.useState<{ member?: ProjectMember; partyId?: string } | null>(null);
   const [ending, setEnding] = React.useState<ProjectMember | null>(null);
@@ -177,6 +189,7 @@ export function ProjectTeamWorkspace({
               ? nameOf(memberById.get(member.reportsToMemberId)?.contactId ?? "")
               : undefined,
             party: partyLabel(partyById.get(member.partyId ?? ""), clientName),
+            units: structure?.assignments ? describeMemberUnits(memberUnitAssignments(structure, member.id)) : undefined,
           })}
         />
       ))}
@@ -224,6 +237,8 @@ interface MemberView {
   leadership: string[];
   reportsTo?: string;
   party: string;
+  /** Other projects (2C.3D): "Civil (Lead, Weekly Responsible) · Earthworks"; "" = none. */
+  units?: string;
 }
 
 function TeamSectionCard({
@@ -286,6 +301,12 @@ function TeamSectionCard({
                       <dt className="text-muted-foreground">Party</dt>
                       <dd>{member.partyId ? view.party : <StatusBadge tone="warning">Needs party</StatusBadge>}</dd>
                     </div>
+                    {view.units !== undefined && (
+                      <div className="sm:col-span-3" data-member-units>
+                        <dt className="text-muted-foreground">Structure units</dt>
+                        <dd>{view.units || <span className="text-muted-foreground">No unit assignment</span>}</dd>
+                      </div>
+                    )}
                   </dl>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">

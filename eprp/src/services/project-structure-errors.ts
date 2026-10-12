@@ -34,6 +34,24 @@ export type ProjectStructureErrorReason =
   | "duplicate_name"
   | "duplicate_code"
   | "invalid_node"
+  // Structure responsibilities (Phase 2C.3D).
+  | "unit_has_active_people"
+  | "weekly_responsibility_exists"
+  | "monthly_responsibility_exists"
+  | "unit_has_people_history"
+  | "lead_not_unit_member"
+  | "responsible_not_unit_member"
+  | "backup_without_responsible"
+  | "same_person"
+  | "membership_incomplete"
+  | "member_not_active"
+  | "unit_archived"
+  | "unit_not_reporting"
+  | "unit_member_is_lead"
+  | "unit_member_has_responsibility"
+  | "assignment_history"
+  | "invalid_people"
+  | "responsibilities_unavailable"
   | "failed";
 
 export const PROJECT_STRUCTURE_MESSAGES: Record<ProjectStructureErrorReason, string> = {
@@ -63,6 +81,29 @@ export const PROJECT_STRUCTURE_MESSAGES: Record<ProjectStructureErrorReason, str
   duplicate_code: "Another active unit in this project already uses this code.",
   invalid_node:
     "Check the unit: a name of at most 140 characters is required, a code may have at most 40 characters.",
+  unit_has_active_people:
+    "Remove this unit's Lead, members and Weekly / Monthly responsibilities before archiving it.",
+  weekly_responsibility_exists:
+    "Remove this unit's Weekly Responsible and Backup before turning off Weekly input.",
+  monthly_responsibility_exists:
+    "Remove this unit's Monthly Responsible and Backup before turning off Monthly input.",
+  unit_has_people_history: "This unit has people history, so it cannot be deleted. Archive it instead.",
+  lead_not_unit_member: "The Unit Lead must be a member of this unit.",
+  responsible_not_unit_member: "Weekly and Monthly Responsibles and Backups must be members of this unit.",
+  backup_without_responsible: "Assign the Responsible before the Backup.",
+  same_person: "The Responsible and the Backup must be different people.",
+  membership_incomplete:
+    "This person's project membership needs a Party and a Project Role before they can be Unit Lead, Responsible or Backup. Complete it on the Contacts step.",
+  member_not_active: "Only active members of this project can be assigned to a unit. Reload the page.",
+  unit_archived: "This unit is archived, so its people are read-only.",
+  unit_not_reporting: "This unit does not provide that report's input, so it has no Responsible for it.",
+  unit_member_is_lead: "Remove this person as Unit Lead before removing them from the unit.",
+  unit_member_has_responsibility:
+    "Reassign this person's Weekly / Monthly responsibility before removing them from the unit.",
+  assignment_history: "Unit assignments are kept as history and cannot be changed or deleted.",
+  invalid_people: "Each person can be listed once in a unit.",
+  responsibilities_unavailable:
+    "Structure responsibilities are not available on this database yet. Contact your administrator.",
   failed: "The project structure could not be saved. No changes were made.",
 };
 
@@ -82,6 +123,26 @@ const TAG_REASON: Record<string, ProjectStructureErrorReason> = {
   PARENT_ARCHIVED: "parent_archived",
   ACTIVE_CHILDREN: "active_children",
   REPORTING_OVERLAP: "reporting_overlap",
+  UNIT_HAS_ACTIVE_PEOPLE: "unit_has_active_people",
+  WEEKLY_RESPONSIBILITY_EXISTS: "weekly_responsibility_exists",
+  MONTHLY_RESPONSIBILITY_EXISTS: "monthly_responsibility_exists",
+  UNIT_HAS_PEOPLE_HISTORY: "unit_has_people_history",
+  LEAD_NOT_UNIT_MEMBER: "lead_not_unit_member",
+  RESPONSIBLE_NOT_UNIT_MEMBER: "responsible_not_unit_member",
+  BACKUP_WITHOUT_RESPONSIBLE: "backup_without_responsible",
+  SAME_PERSON: "same_person",
+  MEMBERSHIP_INCOMPLETE: "membership_incomplete",
+  MEMBER_NOT_ACTIVE: "member_not_active",
+  UNIT_NOT_FOUND: "not_found",
+  UNIT_ARCHIVED: "unit_archived",
+  UNIT_NOT_REPORTING: "unit_not_reporting",
+  UNIT_MEMBER_IS_LEAD: "unit_member_is_lead",
+  UNIT_MEMBER_HAS_RESPONSIBILITY: "unit_member_has_responsibility",
+  ASSIGNMENT_ENDED: "assignment_history",
+  ASSIGNMENT_IMMUTABLE: "assignment_history",
+  ASSIGNMENT_HISTORY_PRESERVED: "assignment_history",
+  ASSIGNMENT_MUST_START_ACTIVE: "assignment_history",
+  INVALID_INPUT: "invalid_people",
 };
 
 /** Constraint name → reason, for violations that carry no [TAG]. */
@@ -99,6 +160,12 @@ const CONSTRAINT_REASON: Record<string, ProjectStructureErrorReason> = {
   project_structure_levels_number_range: "level_limit",
   project_structure_levels_singular_label_valid: "invalid_levels",
   project_structure_levels_plural_label_valid: "invalid_levels",
+  // Backstops behind the writer's own checks: a concurrent change got there first.
+  project_structure_unit_members_one_lead: "stale",
+  project_structure_unit_members_one_active: "stale",
+  project_structure_report_responsibilities_one_active: "stale",
+  project_structure_report_responsibilities_distinct_people: "same_person",
+  project_structure_unit_members_node_same_project: "unit_has_people_history",
 };
 
 export class ProjectStructureError extends Error {

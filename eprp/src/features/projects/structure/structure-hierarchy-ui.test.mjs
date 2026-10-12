@@ -219,13 +219,14 @@ test("the view opens on the Hierarchy once units exist, otherwise on Manage; one
   for (const html of [withUnits, empty]) assert.equal(count(html, /aria-label="Structure view"/g), 1);
   const code = read("../components/setup/structure/structure-views.tsx");
   assert.match(code, /useState<StructureViewMode>\(\(\) => defaultStructureView\(props\.structure\)\)/, "chosen once per visit");
-  assert.match(code, /<StructureUnitsEditor \{\.\.\.props\} headerAction=\{viewSwitch\} \/>/, "Manage View is the existing editor, same props");
+  // 2C.3D adds only the optional People entry point; the props are passed on unchanged.
+  assert.match(code, /<StructureUnitsEditor \{\.\.\.props\} headerAction=\{viewSwitch\} onEditPeople=/, "Manage View is the existing editor, same props");
   assert.match(code, /switchButtons\.current\[view\]\?\.focus\(\)/, "focus stays on the switch");
 });
 
 test("the Manage View keeps every existing write path; the hierarchy has none", () => {
   const editor = read("../components/setup/structure/structure-units-editor.tsx");
-  assert.match(editor, /\{ headerAction, \.\.\.props \}: ProjectStructureWorkspaceProps & \{ headerAction\?: React\.ReactNode \}/);
+  assert.match(editor, /\{ headerAction, onEditPeople, \.\.\.props \}: ProjectStructureWorkspaceProps & \{\s+headerAction\?: React\.ReactNode;\s+onEditPeople\?: \(node: ProjectStructureNode\) => void;\s+\}/);
   for (const intent of ["create", "details", "reporting", "move", "archive", "restore", "delete"]) assert.ok(editor.includes(`mode: "${intent}"`), intent);
   const view = [read("../components/setup/structure/structure-hierarchy-view.tsx"), read("./structure-hierarchy.ts"), read("../components/setup/structure/structure-views.tsx")].join("\n");
   assert.doesNotMatch(view, /createNode|updateNode|moveNode|archiveNode|restoreNode|deleteNode|setReportingFlags|configureLevels|supabase|\.rpc\(|\.from\(/);

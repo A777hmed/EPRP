@@ -5,7 +5,7 @@ import { Check, ChevronDown, ChevronRight, Circle, MoreHorizontal, Plus } from "
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { structureStepChecks } from "@/config/project-workflow";
-import type { ProjectStructure } from "@/types/project-structure";
+import type { ProjectStructure, ProjectStructureNode } from "@/types/project-structure";
 import type { ProjectStructureWorkspaceProps } from "../../../structure/structure-workspace-contract";
 import {
   archivedNodes, buildStructureTree, canAcceptChild, canArchiveNode, canDeleteNode, canRestoreNode,
@@ -16,10 +16,14 @@ import { StructureUnitDialog } from "./structure-unit-dialog";
 
 /**
  * Structure units, reporting scope and workflow feedback over container-owned
- * data/actions — the Manage View. `headerAction` (the view switch) is the
- * only addition; it is rendered, never passed on.
+ * data/actions — the Manage View. `headerAction` (the view switch) is
+ * rendered, never passed on; `onEditPeople` (2C.3D) opens the shared
+ * Responsibility dialog owned by the views container.
  */
-export function StructureUnitsEditor({ headerAction, ...props }: ProjectStructureWorkspaceProps & { headerAction?: React.ReactNode }) {
+export function StructureUnitsEditor({ headerAction, onEditPeople, ...props }: ProjectStructureWorkspaceProps & {
+  headerAction?: React.ReactNode;
+  onEditPeople?: (node: ProjectStructureNode) => void;
+}) {
   const { project, structure, canManage } = props;
   const [intent, setIntent] = React.useState<StructureUnitIntent | null>(null);
   const [showArchived, setShowArchived] = React.useState(false);
@@ -105,6 +109,7 @@ export function StructureUnitsEditor({ headerAction, ...props }: ProjectStructur
                   {childLevel && <DropdownMenuItem className="min-h-11 whitespace-normal" disabled={!childRule.ok} title={!childRule.ok ? unitRuleMessage(childRule.reason) : undefined} onSelect={() => setIntent({ mode: "create", levelNumber: childLevel.levelNumber, parentId: node.id })}>Add {childLevel.singularLabel} under {node.name}</DropdownMenuItem>}
                   <DropdownMenuItem className="min-h-11" onSelect={() => setIntent({ mode: "details", node })}>Edit {labels.singular}</DropdownMenuItem>
                   {active && <DropdownMenuItem className="min-h-11" onSelect={() => setIntent({ mode: "reporting", node })}>Reporting input</DropdownMenuItem>}
+                  {active && onEditPeople && <DropdownMenuItem className="min-h-11" onSelect={() => onEditPeople(node)}>People &amp; responsibilities</DropdownMenuItem>}
                   {active && node.parentId && <DropdownMenuItem className="min-h-11" onSelect={() => setIntent({ mode: "move", node })}>Move {labels.singular}</DropdownMenuItem>}
                   <DropdownMenuSeparator />
                   {active ? <DropdownMenuItem className="min-h-11" disabled={!archiveRule.ok} title={!archiveRule.ok ? unitRuleMessage(archiveRule.reason) : undefined} onSelect={() => setIntent({ mode: "archive", node })}>Archive {labels.singular}</DropdownMenuItem>

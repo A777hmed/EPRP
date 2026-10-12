@@ -13,6 +13,12 @@ import {
   countLabel,
   type HierarchyNode,
 } from "../../../structure/structure-hierarchy";
+import {
+  REPORT_KIND_LABEL,
+  responsibilityGaps,
+  type ReportPeopleSummary,
+  type StructureTeamDirectory,
+} from "../../../structure/structure-responsibilities";
 
 export interface StructureHierarchyViewProps {
   project: StructureWorkspaceProject;
@@ -22,6 +28,10 @@ export interface StructureHierarchyViewProps {
   onManage: () => void;
   /** Rendered in the header's action area (the view switch). */
   headerAction?: React.ReactNode;
+  /** The project's active members (2C.3D). Without it the cards show units only. */
+  people?: StructureTeamDirectory;
+  /** Opens the shared Responsibility dialog for a unit. */
+  onEditPeople?: (nodeId: string) => void;
 }
 
 /**
@@ -30,11 +40,18 @@ export interface StructureHierarchyViewProps {
  * deeper levels connected beneath it. It reads the same structure the
  * Manage View edits; nothing is stored or copied here.
  *
- * Units, not people: the People Organization Chart is a separate, later view
- * built from project membership and Reports To.
+ * Units first: with the people directory (2C.3D) each card adds a concise,
+ * read-only people summary (Unit Lead, member count, the Weekly / Monthly
+ * Responsible where the unit owes input); details live in the Responsibility
+ * dialog. The People Organization Chart remains a separate, later view built
+ * from project membership and Reports To.
  */
-export function StructureHierarchyView({ project, structure, canManage, onManage, headerAction }: StructureHierarchyViewProps) {
-  const hierarchy = buildStructureHierarchy(structure);
+export function StructureHierarchyView({
+  project, structure, canManage, onManage, headerAction, people, onEditPeople,
+}: StructureHierarchyViewProps) {
+  const hierarchy = buildStructureHierarchy(structure, people ? { directory: people, reporting: project.reporting } : undefined);
+  const gaps = people && structure.assignments ? responsibilityGaps(project.reporting, structure) : undefined;
+  const responsibleNeeded = gaps ? new Set([...gaps.weekly, ...gaps.monthly].map((node) => node.id)).size : 0;
   const [collapsed, setCollapsed] = React.useState<ReadonlySet<string>>(() => new Set());
   const branches = branchIds(hierarchy.roots);
   const regionId = React.useId();
@@ -62,7 +79,11 @@ export function StructureHierarchyView({ project, structure, canManage, onManage
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold">Step 2 · Structure Hierarchy</h3>
-          <p className="mt-1 text-xs text-muted-foreground">How this project&apos;s Structure Units are organized, level by level. It shows units, not people.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {people
+              ? "How this project's Structure Units are organized, level by level, with each unit's Lead, members and reporting Responsibles."
+              : "How this project's Structure Units are organized, level by level. It shows units, not people."}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {headerAction}
@@ -128,7 +149,7 @@ export function StructureHierarchyView({ project, structure, canManage, onManage
                     "after:absolute after:top-0 after:left-1/2 after:h-4 after:border-l after:border-muted-foreground/40"
                   )}
                 >
-                  <HierarchyBranchNode node={root} depth={0} collapsed={collapsed} onToggle={toggle} regionId={regionId} />
+                  <HierarchyBranchNode node={root} depth={0} collapsed={collapsed} onToggle={toggle} regionId={regionId} onEditPeople={onEditPeople} />
                 </li>
               ))}
             </ul>
@@ -142,24 +163,33 @@ export function StructureHierarchyView({ project, structure, canManage, onManage
           <span>Weekly input: {countLabel(hierarchy.weeklyInputCount, "unit", "units")}{!project.reporting.weeklyEnabled && " · reporting disabled"}</span>
           <span>Monthly input: {countLabel(hierarchy.monthlyInputCount, "unit", "units")}{!project.reporting.monthlyEnabled && " · reporting disabled"}</span>
           {hierarchy.archivedCount > 0 && <span>{countLabel(hierarchy.archivedCount, "archived unit", "archived units")} hidden · shown in the Manage View</span>}
+          {responsibleNeeded > 0 && <span className="text-destructive">{countLabel(responsibleNeeded, "unit needs", "units need")} a required Responsible</span>}
         </p>
       )}
     </section>
   );
 }
 
-function HierarchyBranchNode({ node, depth, collapsed, onToggle, regionId }: {
+function HierarchyBranchNode({ node, depth, collapsed, onToggle, regionId, onEditPeople }: {
   node: HierarchyNode;
   depth: number;
   collapsed: ReadonlySet<string>;
   onToggle: (id: string) => void;
   regionId: string;
+  onEditPeople?: (nodeId: string) => void;
 }) {
   const expanded = !collapsed.has(node.id);
   const childrenId = `${regionId}-children-${node.id}`;
   return (
     <>
-      <StructureNodeCard node={node} depth={depth} expanded={expanded} controls={childrenId} onToggle={() => onToggle(node.id)} />
+      <StructureNodeCard
+        node={node}
+        depth={depth}
+        expanded={expanded}
+        controls={childrenId}
+        onToggle={() => onToggle(node.id)}
+        onEditPeople={onEditPeople && (() => onEditPeople(node.id))}
+      />
       {node.children.length > 0 && expanded && (
         <ul id={childrenId} className="mt-2 space-y-2" aria-label={`${node.name}: ${countLabel(node.children.length, node.children[0]?.levelSingular, node.childLevelPlural)}`}>
           {node.children.map((child) => (
@@ -175,7 +205,7 @@ function HierarchyBranchNode({ node, depth, collapsed, onToggle, regionId }: {
                 "after:absolute after:top-5 after:left-2 after:w-3 after:border-t after:border-muted-foreground/40"
               )}
             >
-              <HierarchyBranchNode node={child} depth={depth + 1} collapsed={collapsed} onToggle={onToggle} regionId={regionId} />
+              <HierarchyBranchNode node={child} depth={depth + 1} collapsed={collapsed} onToggle={onToggle} regionId={regionId} onEditPeople={onEditPeople} />
             </li>
           ))}
         </ul>
@@ -186,17 +216,18 @@ function HierarchyBranchNode({ node, depth, collapsed, onToggle, regionId }: {
 
 /**
  * One structure unit. Zones, top to bottom: identity (level, name, code),
- * operational reporting input, then branch size. Phase 2C.3D adds unit
- * responsibilities (lead, members, Weekly / Monthly responsible, backup)
- * as a further zone below reporting input — the card is laid out for it,
- * but nothing about people is shown or implied now.
+ * operational reporting input, the people summary (2C.3D: Unit Lead, member
+ * count, Weekly / Monthly Responsible only where the unit owes that input),
+ * then branch size and the People action. Concise and read-only: details
+ * and editing live in the Responsibility dialog.
  */
-export function StructureNodeCard({ node, depth, expanded, controls, onToggle }: {
+export function StructureNodeCard({ node, depth, expanded, controls, onToggle, onEditPeople }: {
   node: HierarchyNode;
   depth: number;
   expanded: boolean;
   controls: string;
   onToggle: () => void;
+  onEditPeople?: () => void;
 }) {
   const hasChildren = node.children.length > 0;
   const branch = hasChildren ? countLabel(node.children.length, node.children[0]?.levelSingular, node.childLevelPlural) : undefined;
@@ -237,12 +268,53 @@ export function StructureNodeCard({ node, depth, expanded, controls, onToggle }:
           {node.monthlyInputRequired && <li className="rounded border bg-accent px-1.5 py-0.5 text-accent-foreground">Monthly input</li>}
         </ul>
       )}
-      {hasChildren && (
-        <p className="mt-1.5 text-xs text-muted-foreground tabular-nums">
-          {branch}
-          {!expanded && ` · ${countLabel(node.descendantCount, "unit", "units")} hidden`}
-        </p>
+      {node.people && (
+        <div className="mt-1.5 space-y-0.5 border-t pt-1.5 text-xs" data-unit-people>
+          <p className="break-words">
+            {node.people.leadName
+              ? <>Lead <span className="font-medium">{node.people.leadName}</span></>
+              : <span className="text-warning">Lead not assigned</span>}
+            <span className="text-muted-foreground tabular-nums"> · {countLabel(node.people.memberCount, "member", "members")}</span>
+          </p>
+          {(["weekly", "monthly"] as const).map((kind) => node.people?.[kind] && (
+            <ReportPeopleLine key={kind} label={REPORT_KIND_LABEL[kind]} summary={node.people[kind] as ReportPeopleSummary} />
+          ))}
+        </div>
+      )}
+      {(hasChildren || onEditPeople) && (
+        <div className="mt-1.5 flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground tabular-nums">
+            {hasChildren && branch}
+            {hasChildren && !expanded && ` · ${countLabel(node.descendantCount, "unit", "units")} hidden`}
+          </p>
+          {onEditPeople && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="-mr-1.5 h-8 shrink-0 px-2 text-xs"
+              aria-label={`People for ${node.name}`}
+              onClick={onEditPeople}
+            >
+              People
+            </Button>
+          )}
+        </div>
       )}
     </article>
   );
+}
+
+function ReportPeopleLine({ label, summary }: { label: string; summary: ReportPeopleSummary }) {
+  if (summary.responsibleName) {
+    return (
+      <p className="break-words">
+        {label} <span className="font-medium">{summary.responsibleName}</span>
+        {summary.backupName && <span className="text-muted-foreground"> · Backup {summary.backupName}</span>}
+      </p>
+    );
+  }
+  return summary.required
+    ? <p className="text-destructive">{label} Responsible required</p>
+    : <p className="text-muted-foreground">{label} Responsible not assigned</p>;
 }

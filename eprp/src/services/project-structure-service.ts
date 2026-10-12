@@ -15,15 +15,24 @@ import {
   STRUCTURE_NODE_NAME_MAX,
   type StructureIssue,
 } from "@/features/projects/structure/structure-rules";
+import {
+  unitPeopleIssues,
+  type MembershipFacts,
+} from "@/features/projects/structure/structure-responsibilities";
 import type {
   ConfigureStructureLevelsInput,
   CreateStructureNodeInput,
   ProjectStructure,
   ProjectStructureLevel,
   ProjectStructureNode,
+  SaveUnitResponsibilitiesInput,
   StructureLevelNumber,
   StructureNodeVersion,
   StructureReportingFlagsInput,
+  StructureReportKind,
+  StructureReportResponsibility,
+  StructureResponsibilityKind,
+  StructureUnitMember,
   UpdateStructureNodeInput,
 } from "@/types/project-structure";
 import {
@@ -73,6 +82,12 @@ export interface ProjectStructureService {
   restoreNode(node: StructureNodeVersion): Promise<ProjectStructureNode>;
   /** Only a unit with no children; refused by the database once referenced. */
   deleteNode(node: StructureNodeVersion): Promise<void>;
+  /**
+   * ONE unit's complete desired people (Phase 2C.3D): members, Lead, Weekly /
+   * Monthly Responsible and Backup. Only the differences are applied; removed
+   * rows are ended (history), never deleted. Returns the new project version.
+   */
+  saveUnitResponsibilities(input: SaveUnitResponsibilitiesInput): Promise<{ version: string }>;
 }
 
 /* ------------------------------ in-memory mock ----------------------------- */
@@ -82,6 +97,8 @@ export interface StructureProjectInfo {
   structureFamily?: "psm" | "other";
   status: string;
   version: string;
+  /** The project's memberships (active and ended), for the unit people rules. */
+  members?: MembershipFacts[];
 }
 
 /**
@@ -154,6 +171,8 @@ export function createInMemoryProjectStructureService(options: InMemoryStructure
   const newId = options.newId ?? (() => `structure-${++sequence}`);
   const levels = new Map<string, ProjectStructureLevel[]>();
   const nodes = new Map<string, ProjectStructureNode>();
+  const unitMembers: StructureUnitMember[] = [];
+  const reportResponsibilities: StructureReportResponsibility[] = [];
 
   let turn: Promise<unknown> = Promise.resolve();
   const exclusive = <T>(operation: () => Promise<T>): Promise<T> => {
@@ -169,6 +188,14 @@ export function createInMemoryProjectStructureService(options: InMemoryStructure
     levels: sortLevels(levels.get(projectId) ?? []),
     nodes: sortNodes([...nodes.values()].filter((node) => node.projectId === projectId)),
   });
+  const assignmentsOf = (projectId: string) => ({
+    unitMembers: unitMembers.filter((row) => row.projectId === projectId),
+    reportResponsibilities: reportResponsibilities.filter((row) => row.projectId === projectId),
+  });
+  /** The same explicit refusals as the database's unit-people guards. */
+  const hasActivePeople = (nodeId: string) => unitMembers.some((row) => row.nodeId === nodeId && !row.endedAt);
+  const hasActiveReport = (nodeId: string, kind: StructureReportKind) =>
+    reportResponsibilities.some((row) => row.nodeId === nodeId && row.reportKind === kind && !row.endedAt);
   const clone = <T>(value: T): T => structuredClone(value);
 
   const info = async (projectId: string) => {
@@ -211,7 +238,7 @@ export function createInMemoryProjectStructureService(options: InMemoryStructure
     getStructure: (projectId) =>
       exclusive(async () => {
         const project = await info(projectId);
-        return clone({ projectId, version: project.version, ...snapshot(projectId) });
+        return clone({ projectId, version: project.version, ...snapshot(projectId), assignments: assignmentsOf(projectId) });
       }),
 
     configureLevels: (input) =>
@@ -314,6 +341,12 @@ export function createInMemoryProjectStructureService(options: InMemoryStructure
         if (!isActiveNode(node) && (next.weeklyReportingRequired || next.monthlyReportingRequired)) {
           throw new ProjectStructureError("archived_reporting");
         }
+        if (node.weeklyReportingRequired && !next.weeklyReportingRequired && hasActiveReport(node.id, "weekly")) {
+          throw new ProjectStructureError("weekly_responsibility_exists");
+        }
+        if (node.monthlyReportingRequired && !next.monthlyReportingRequired && hasActiveReport(node.id, "monthly")) {
+          throw new ProjectStructureError("monthly_responsibility_exists");
+        }
         if (reportingOverlapAfter(snapshot(node.projectId).nodes, { nodeId: node.id, ...flags }).length > 0) {
           throw new ProjectStructureError("reporting_overlap");
         }
@@ -324,6 +357,7 @@ export function createInMemoryProjectStructureService(options: InMemoryStructure
       exclusive(async () => {
         await assertWritable(nodes.get(ref.id)?.projectId ?? "");
         const node = current(ref);
+        if (isActiveNode(node) && hasActivePeople(node.id)) throw new ProjectStructureError("unit_has_active_people");
         if (!canArchiveNode(snapshot(node.projectId).nodes, node.id).ok && isActiveNode(node)) {
           throw new ProjectStructureError("active_children");
         }
@@ -349,9 +383,69 @@ export function createInMemoryProjectStructureService(options: InMemoryStructure
         const project = await info(projectId);
         if (project.status === "archived") throw new ProjectStructureError("project_archived");
         const node = current(ref);
+        if (unitMembers.some((row) => row.nodeId === node.id)) throw new ProjectStructureError("unit_has_people_history");
         if (!canDeleteNode(snapshot(node.projectId).nodes, node.id).ok) throw new ProjectStructureError("has_children");
         nodes.delete(node.id);
         await options.projects.advance(node.projectId);
+      }),
+
+    saveUnitResponsibilities: (input) =>
+      exclusive(async () => {
+        const project = await assertWritable(input.projectId);
+        if (input.expectedVersion !== project.version) throw new ProjectStructureError("stale");
+        const found = nodes.get(input.nodeId);
+        const node = found?.projectId === input.projectId ? found : undefined;
+        const issues = unitPeopleIssues(input, node, project.members ?? []);
+        if (issues.length > 0 || !node) throw new ProjectStructureError(issues[0]?.reason ?? "not_found");
+
+        // Only the differences, in the database's dependency order: end
+        // responsibilities, then the Lead, then members; add in reverse.
+        const timestamp = stamp();
+        const end = (row: { endedAt?: string; updatedAt: string }) => {
+          row.endedAt = timestamp;
+          row.updatedAt = timestamp;
+        };
+        const members = new Set(input.memberIds);
+        const slots: [StructureReportKind, StructureResponsibilityKind, string | undefined][] = [
+          ["weekly", "responsible", input.weeklyResponsibleId],
+          ["weekly", "backup", input.weeklyBackupId],
+          ["monthly", "responsible", input.monthlyResponsibleId],
+          ["monthly", "backup", input.monthlyBackupId],
+        ];
+        const wanted = (row: StructureReportResponsibility) =>
+          slots.some(([kind, responsibility, memberId]) =>
+            row.reportKind === kind && row.responsibility === responsibility && row.memberId === memberId);
+        for (const row of reportResponsibilities) {
+          if (row.nodeId === node.id && !row.endedAt && !wanted(row)) end(row);
+        }
+        for (const row of unitMembers) {
+          if (row.nodeId === node.id && !row.endedAt && row.unitRole === "lead" && row.memberId !== input.leadMemberId) end(row);
+        }
+        for (const row of unitMembers) {
+          if (row.nodeId === node.id && !row.endedAt && row.unitRole === "member" && !members.has(row.memberId)) end(row);
+        }
+        const active = (memberId: string, unitRole: StructureUnitMember["unitRole"]) =>
+          unitMembers.find((row) => row.nodeId === node.id && row.memberId === memberId && row.unitRole === unitRole && !row.endedAt);
+        const add = (memberId: string, unitRole: StructureUnitMember["unitRole"]) => {
+          unitMembers.push({
+            id: newId(), projectId: node.projectId, nodeId: node.id, memberId, unitRole,
+            createdAt: timestamp, updatedAt: timestamp,
+          });
+        };
+        for (const memberId of members) if (!active(memberId, "member")) add(memberId, "member");
+        if (input.leadMemberId && !active(input.leadMemberId, "lead")) add(input.leadMemberId, "lead");
+        for (const [reportKind, responsibility, memberId] of slots) {
+          if (!memberId) continue;
+          const exists = reportResponsibilities.some((row) => row.nodeId === node.id && !row.endedAt
+            && row.reportKind === reportKind && row.responsibility === responsibility && row.memberId === memberId);
+          if (exists) continue;
+          reportResponsibilities.push({
+            id: newId(), projectId: node.projectId, nodeId: node.id, memberId,
+            unitMemberId: (active(memberId, "member") as StructureUnitMember).id,
+            reportKind, responsibility, createdAt: timestamp, updatedAt: timestamp,
+          });
+        }
+        return { version: await options.projects.advance(input.projectId) };
       }),
   };
 }
@@ -371,7 +465,7 @@ export const projectStructureService: ProjectStructureService = isSupabaseConfig
           const { projectService } = await import("./project-service");
           const project = await projectService.getProjectById(projectId);
           return project
-            ? { structureFamily: project.structureFamily, status: project.status, version: project.updatedAt }
+            ? { structureFamily: project.structureFamily, status: project.status, version: project.updatedAt, members: project.members }
             : undefined;
         },
         advance: async (projectId) => {

@@ -371,6 +371,28 @@ Who works on a project, which company they represent, their project role and the
   - the project-version compare-and-swap.
 - Authenticated callers hold SELECT only: there is no direct INSERT, UPDATE or DELETE, so the stale-version check cannot be bypassed.
 
+### 8.9 Structure Responsibilities (Phase 2C.3D Wave 1, Other projects)
+
+Connects the project team (§8.8) to an Other project's own structure units (Project Structure, Phase 2C.1c). Four concepts stay separate: **project membership** and **Reports To** (§8.8), **unit membership / leadership**, and **Weekly / Monthly reporting responsibility**. PSM projects keep their Project Assignment model (§8.4–§8.5) unchanged.
+
+| Entity | Rule |
+|---|---|
+| **Unit Member** | An active project member works in a structure unit. Many-to-many: a member may be in several units, a unit has many members. One active row per person per unit |
+| **Unit Lead** | At most one active Lead per unit, held as an extra row beside the person's Unit Member row, so a Lead is always also a member. Needs a **complete** membership (Party and Project Role). Missing = a **warning** |
+| **Weekly / Monthly Responsible** | One active Responsible per unit per report, only on a unit flagged to provide that report's input (the unit flags stay the only place an Other project declares who owes input). Must be an active member **of that same unit** with a complete membership. Missing, when the project uses that report and the unit is flagged = a **Project Setup blocker** on Project Team & Responsibilities |
+| **Weekly / Monthly Backup** | Optional standing alternate per report; needs an active Responsible for the same unit and report; a different person; same eligibility as the Responsible |
+
+- **Authority-free:** none of these roles grants platform or project authority, or any report-writing right. Temporary dated **delegation** is a separate, later model (not `project_delegations`).
+- **Lifecycle:** rows are created active; `ended_at` is the only lifecycle field; ended rows are history (never edited or deleted). Replacing a person ends their row and creates a new one.
+- **Explicit refusals, never cascades:** a project membership cannot end while the person has active unit rows; a unit member row cannot end while that person leads the unit or holds its responsibility; a unit cannot be archived while it has active people, or lose its Weekly / Monthly flag while that report's responsibility is active; a unit with any people history cannot be hard-deleted (archive it).
+- **Incomplete legacy members** (Needs party / Needs project role) may be normal unit members, but cannot be Lead, Responsible or Backup until their membership is completed.
+
+**As built.** Migration `20261012100000_structure_responsibilities.sql`:
+- Tables `project_structure_unit_members` (`unit_role` member / lead) and `project_structure_report_responsibilities` (`report_kind` weekly / monthly, `responsibility` responsible / backup, held through the person's member row of the same unit). Same-project integrity by composite foreign keys; one-active rules by partial unique indexes; the Backup rule by a constraint trigger checked at commit.
+- Guards: new triggers on the two tables, on `project_structure_nodes` and on `project_members` (no existing guard edited), each refusing with a tagged domain message.
+- Writes go **only** through `save_structure_unit_responsibilities()`: one unit's complete desired people per call; a hardened SECURITY DEFINER function (empty `search_path`, EXECUTE for authenticated only) with explicit authority (System Admin / Project Control Admin, or Project Control / Planning assigned to the project), archived refusal, the setup lock and the project-version compare-and-swap. It applies only the differences and ends rows in dependency order. Authenticated callers hold SELECT only.
+- No authorization helper and no other table's policy reads either table (migration post-check and source test). No backfill: both tables started empty.
+
 ---
 
 ## 9. Group E — Organization Chart
@@ -1087,6 +1109,7 @@ This document is **specification**. `docs/engineering/` describes what exists in
 | **Project classification** (Phase 2C.1) | Migration `20261001000001_project_setup_classification.sql`. `projects.structure_family` (`psm` · `other` · NULL for legacy), `projects.project_category_detail`, `project_types.allows_custom_name`. Trigger `enforce_project_classification` locks the family once set and validates the category. Table `project_classification_corrections` holds the history (§21.5). RPC `correct_project_structure_family()` is the System Administrator correction. Function `is_psm_family_project_type()` applies the PSM/PSAIM category rule. **Applied to the local development database only (runtime rehearsal `108_runtime_2c1_classification.sql`: 33 PASS / 0 FAIL). NOT applied to production.** | §6.1 classification; §21.5. Other-project structure (Phase 2C.1c) is modelled in `20261003000001_project_structure_foundation.sql` (`project_structure_levels`, `project_structure_nodes`), applied to the local development database (checked read-only, 2026-10-07) |
 | **Project Parties** (Phases 2C.3A, 2C.3B) | Table `project_parties`. 2C.3A (`20261006123219_project_parties_foundation.sql`): EPROM, Owner and subcontractor company names. **Applied to the local development database and browser-UAT verified; not deployed remotely or to production.** 2C.3B (`20261007120000_project_parties_professional_information.sql`): subcontractor Short Name, Scope / Package, Contract Reference and Engagement Status. **Applied to the local development database and browser-UAT verified for PSM and Other Project; not deployed remotely or to production.** | §6.4 |
 | **Project Team Membership** (Phase 2C.3C) | Table `project_members` (`20261007150000_project_team_membership.sql`) with backfill of the approved Preflight V2 dataset (46 memberships). Finalized by `20261011090000_project_team_controlled_writes.sql` (the three RPCs are the only write path). **Complete locally:** both migrations applied to the local development database; automated verification complete; browser UAT done on the Other Project path; a true PSM browser smoke test is pending, with PSM / shared behaviour covered by automated tests. **Not deployed remotely or to production.** See `15_DEVELOPMENT_ROADMAP.md` 2C.3C. | §8.8 |
+| **Structure Responsibilities** (Phase 2C.3D Wave 1) | Tables `project_structure_unit_members` and `project_structure_report_responsibilities`, written only by `save_structure_unit_responsibilities()` (`20261012100000_structure_responsibilities.sql`). **Applied to the local development database; automated verification complete; browser UAT pending.** Not deployed remotely or to production | §8.9 |
 | Contacts | Global People master (`contacts`) — **matches the amended §8.1–§8.2** | §8.2 Person (global) + §8.8 membership |
 | Assignments and delegation | Specified; **not applied** | §8.4–§8.6 |
 | Organization Chart | Charts, positions and history exist | §9 |
