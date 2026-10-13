@@ -26,6 +26,7 @@ import { FileBarChart, FileText, Printer, Search, SearchX } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 
+import { BackdropRegion } from "@/components/backdrop";
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState, StatusBadge } from "@/components/shared";
 import { useMasterData } from "@/features/master-data";
@@ -395,16 +396,20 @@ export function ExecutiveRegisterView(props: ExecutiveViewerProps) {
 
   return (
     <div className="monthly-list-view exec-register">
-      <div className="monthly-list-header">
-        <div>
-          <p className="monthly-eyebrow">Executive reporting</p>
-          <h1>Executive Reports</h1>
-          <span>
-            Consolidated portfolio reporting periods, across every project you can access. Each period opens the
-            existing multi-project Executive Report — this register does not create or edit one.
-          </span>
+      {/* Header only, and quieter than Weekly / Monthly — the filters, the
+          register table and the report it opens carry no backdrop. */}
+      <BackdropRegion variant="review" strength="subtle" layout="corner" className="report-register-intro">
+        <div className="monthly-list-header">
+          <div>
+            <p className="monthly-eyebrow">Executive reporting</p>
+            <h1>Executive Reports</h1>
+            <span>
+              Consolidated portfolio reporting periods, across every project you can access. Each period opens the
+              existing multi-project Executive Report — this register does not create or edit one.
+            </span>
+          </div>
         </div>
-      </div>
+      </BackdropRegion>
 
       <div className="monthly-list-toolbar">
         <label className="monthly-search-field">

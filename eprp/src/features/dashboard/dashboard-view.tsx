@@ -36,6 +36,7 @@ import {
   Upload,
 } from "lucide-react";
 
+import { BackdropRegion } from "@/components/backdrop";
 import { EmptyState } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -291,82 +292,86 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="dash-stage">
-      {/* ------------------------------ Header ------------------------------- */}
-      <header className="dash-top">
-        <div className="dash-top-title">
-          <h1>Dashboard</h1>
-          <p>
-            {filters.projectId
-              ? "Single project view — every panel below is scoped to this project."
-              : "Portfolio view across every project you have access to."}
-          </p>
-        </div>
-
-        <div className="dash-top-controls">
-          <select
-            aria-label="Project"
-            value={filters.projectId}
-            onChange={(event) =>
-              setFilters({ ...filters, projectId: event.target.value, departmentId: "" })
-            }
-          >
-            <option value="">All Projects</option>
-            {data.projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Department"
-            value={filters.departmentId}
-            onChange={(event) => setFilters({ ...filters, departmentId: event.target.value })}
-          >
-            <option value="">All Departments</option>
-            {data.departments.map((department) => (
-              <option key={department.id} value={department.id}>
-                {department.name}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Time period"
-            value={filters.period}
-            onChange={(event) => setFilters({ ...filters, period: event.target.value as TimePeriod })}
-          >
-            {PERIODS.map((period) => (
-              <option key={period} value={period}>
-                {TIME_PERIOD_LABEL[period]}
-              </option>
-            ))}
-          </select>
-
-          <div className="dash-date">
-            <span>{formatToday()}</span>
-            <CalendarDays aria-hidden />
+      {/* The intro — header and quick actions — is the only Dashboard region
+          with a backdrop; it ends above the KPI strip so the data stays clean. */}
+      <BackdropRegion variant="refinery" strength="strong" className="dash-intro">
+        {/* ------------------------------ Header ------------------------------- */}
+        <header className="dash-top">
+          <div className="dash-top-title">
+            <h1>Dashboard</h1>
+            <p>
+              {filters.projectId
+                ? "Single project view — every panel below is scoped to this project."
+                : "Portfolio view across every project you have access to."}
+            </p>
           </div>
-          <button
-            type="button"
-            className="dash-refresh"
-            aria-label="Refresh dashboard data"
-            title="Refresh dashboard data"
-            onClick={() => void data.reload()}
-          >
-            <RefreshCw aria-hidden />
-          </button>
-        </div>
-      </header>
 
-      {/* A utility strip, not a card — these leave the page rather than report
-          on it, and they respect the write authority the routes enforce. */}
-      <nav className="dash-shortcuts" aria-label="Quick actions">
-        {canManage && <Shortcut href="/weekly-reports/new" icon={<FilePlus2 aria-hidden />} label="New Weekly" />}
-        {canManage && <Shortcut href="/monthly-reports/new" icon={<FileBarChart aria-hidden />} label="New Monthly" />}
-        {canManage && <Shortcut href="/calendar" icon={<CalendarPlus aria-hidden />} label="Event" />}
-        <Shortcut href="/documents" icon={<Upload aria-hidden />} label="Documents" />
-        <Shortcut href="/projects" icon={<ClipboardList aria-hidden />} label="Projects" />
-        <Shortcut href="/executive-reports" icon={<ArrowUpRight aria-hidden />} label="Executive" />
-      </nav>
+          <div className="dash-top-controls">
+            <select
+              aria-label="Project"
+              value={filters.projectId}
+              onChange={(event) =>
+                setFilters({ ...filters, projectId: event.target.value, departmentId: "" })
+              }
+            >
+              <option value="">All Projects</option>
+              {data.projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Department"
+              value={filters.departmentId}
+              onChange={(event) => setFilters({ ...filters, departmentId: event.target.value })}
+            >
+              <option value="">All Departments</option>
+              {data.departments.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {department.name}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Time period"
+              value={filters.period}
+              onChange={(event) => setFilters({ ...filters, period: event.target.value as TimePeriod })}
+            >
+              {PERIODS.map((period) => (
+                <option key={period} value={period}>
+                  {TIME_PERIOD_LABEL[period]}
+                </option>
+              ))}
+            </select>
+
+            <div className="dash-date">
+              <span>{formatToday()}</span>
+              <CalendarDays aria-hidden />
+            </div>
+            <button
+              type="button"
+              className="dash-refresh"
+              aria-label="Refresh dashboard data"
+              title="Refresh dashboard data"
+              onClick={() => void data.reload()}
+            >
+              <RefreshCw aria-hidden />
+            </button>
+          </div>
+        </header>
+
+        {/* A utility strip, not a card — these leave the page rather than report
+            on it, and they respect the write authority the routes enforce. */}
+        <nav className="dash-shortcuts" aria-label="Quick actions">
+          {canManage && <Shortcut href="/weekly-reports/new" icon={<FilePlus2 aria-hidden />} label="New Weekly" />}
+          {canManage && <Shortcut href="/monthly-reports/new" icon={<FileBarChart aria-hidden />} label="New Monthly" />}
+          {canManage && <Shortcut href="/calendar" icon={<CalendarPlus aria-hidden />} label="Event" />}
+          <Shortcut href="/documents" icon={<Upload aria-hidden />} label="Documents" />
+          <Shortcut href="/projects" icon={<ClipboardList aria-hidden />} label="Projects" />
+          <Shortcut href="/executive-reports" icon={<ArrowUpRight aria-hidden />} label="Executive" />
+        </nav>
+      </BackdropRegion>
 
       <KpiStrip totals={totals} onSelectCard={setSummaryModalKind} />
 
@@ -689,14 +694,16 @@ function Shortcut({ href, icon, label }: { href: string; icon: React.ReactNode; 
 function DashboardSkeleton() {
   return (
     <div className="dash-stage" aria-label="Loading dashboard" aria-busy="true">
-      <div className="dash-top">
-        <div className="dash-top-title">
-          <Skeleton className="h-7 w-40" />
-          <Skeleton className="mt-2 h-3 w-72 max-w-full" />
+      <BackdropRegion variant="refinery" strength="strong" className="dash-intro">
+        <div className="dash-top">
+          <div className="dash-top-title">
+            <Skeleton className="h-7 w-40" />
+            <Skeleton className="mt-2 h-3 w-72 max-w-full" />
+          </div>
+          <Skeleton className="h-8 w-[560px] max-w-full" />
         </div>
-        <Skeleton className="h-8 w-[560px] max-w-full" />
-      </div>
-      <Skeleton className="h-6 w-[400px] max-w-full rounded-md" />
+        <Skeleton className="h-6 w-[400px] max-w-full rounded-md" />
+      </BackdropRegion>
       <div className="dash-kpis">
         {Array.from({ length: 5 }, (_, index) => (
           <Skeleton key={index} className="h-[112px] rounded-xl" />

@@ -5544,3 +5544,223 @@ span.dash-plotkey { cursor: default; }
 }
 .wd-scope-list label:has(input:checked) { border-color: #0d59a8; background: #eaf3fc; color: #0d4384; }
 .wd-scope-list input { accent-color: #0d59a8; }
+
+/* ==========================================================================
+   Background illustrations — the backdrop layer (`src/components/backdrop`).
+
+   A soft, branded backdrop painted BEHIND a page header or an empty state.
+   It is decoration: it never takes layout, never takes a click, never reaches
+   print, and never sits behind dense working content — forms, operational
+   tables, org-chart nodes, report workspaces, previews, dialogs. The surfaces
+   allowed to use it are pinned by `backdrop.test.mjs`.
+
+   Colour: the art carries no colour of its own. Every shape names a tone
+   (`bd-ink`, `bd-blue`, …) resolved here for light and dark, so one drawing
+   serves both themes. Strength is ONE opacity on the whole layer — group
+   opacity, so overlapping shapes never double up — and each step is a token,
+   so dark can run a little stronger against its darker ground.
+
+   Readability: the art is anchored away from where text starts (right for a
+   header, the edges for an empty state) and masked out toward it. A header
+   too narrow to keep the art beside its text moves it into the top-right
+   corner beside the title instead of hiding it.
+   ========================================================================== */
+
+:root {
+  --bd-ink: #0d4384;
+  --bd-blue: #2a6fb5;
+  --bd-sky: #8db6df;
+  --bd-warm: #d9862a;
+  --bd-sand: #eebd84;
+  --bd-line: #0d4384;
+  /* Fills that occlude what sits behind a board. The page ground by default;
+     a region on another surface overrides it (the Dashboard uses its canvas). */
+  --bd-paper: var(--background);
+  /* Light 12–16 %: the upper part of the agreed 10–16 % range. At 10 % the
+     art read as a ghost in the live app — present but not noticed. */
+  --bd-strength-subtle: .12;
+  --bd-strength-standard: .14;
+  --bd-strength-strong: .16;
+  --bd-strength-feature: .20;
+}
+
+/* Dark inverts the value order — the most visible tone is the LIGHTEST — and
+   mutes the warm accent so it reads as warmth, never as a status amber. */
+.dark {
+  --bd-ink: #c8daf2;
+  --bd-blue: #66a9ec;
+  --bd-sky: #6f93ba;
+  --bd-warm: #d9a066;
+  --bd-sand: #c9a983;
+  --bd-line: #b6cbe6;
+  --bd-strength-subtle: .14;
+  --bd-strength-standard: .16;
+  --bd-strength-strong: .18;
+  --bd-strength-feature: .22;
+}
+
+/* The region is a size container, so a band places its art by the width of
+   the header itself — not the viewport, which the project sidebars make a
+   poor guide (they take a third of a laptop screen). */
+.epr-backdrop-region { position: relative; isolation: isolate; container: bd-region / inline-size; }
+
+.epr-backdrop {
+  position: absolute;
+  z-index: -1;
+  inset: calc(var(--bd-bleed-top, 0px) * -1) calc(var(--bd-bleed-x, 0px) * -1) 0 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  opacity: var(--bd-strength, var(--bd-strength-standard));
+}
+.epr-backdrop[data-backdrop-strength="subtle"] { --bd-strength: var(--bd-strength-subtle); }
+.epr-backdrop[data-backdrop-strength="standard"] { --bd-strength: var(--bd-strength-standard); }
+.epr-backdrop[data-backdrop-strength="strong"] { --bd-strength: var(--bd-strength-strong); }
+.epr-backdrop[data-backdrop-strength="feature"] { --bd-strength: var(--bd-strength-feature); }
+
+.epr-backdrop-art { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+/* Band — behind a page or section header, in one of two placements chosen by
+   the header's own width:
+
+   - Corner (narrower than 1000px — every phone, and laptops with the project
+     sidebars open). The description runs the full width, so the art moves up
+     into the top-right corner beside the eyebrow and title, sized to end where
+     the description starts (`--bd-head`), and fades toward the title.
+   - Beside (1000px and wider). Lower-right at the header's height, in a box
+     that starts after the text column (`--bd-clear`; PageHeader's description
+     is max-w-2xl), so it never sits behind the description. A narrow header
+     scales the whole scene down rather than cropping its planning team, and a
+     short fade softens its left edge.
+
+   A `corner` layout keeps the corner placement at every width, for a header
+   whose description runs unbounded on one line or whose actions fill its
+   lower right (the report registers, the Calendar).
+
+   The bleed reaches into the page's own padding (always less than that
+   padding, so nothing overflows) to give the art a little more room. */
+.epr-backdrop:is([data-backdrop-layout="band"], [data-backdrop-layout="corner"]) {
+  --bd-bleed-top: 12px;
+  --bd-bleed-x: 10px;
+  --bd-head: 50px;
+  --bd-clear: 640px;
+  -webkit-mask-image: linear-gradient(to right, transparent 30%, #000 60%);
+  mask-image: linear-gradient(to right, transparent 30%, #000 60%);
+}
+.epr-backdrop:is([data-backdrop-layout="band"], [data-backdrop-layout="corner"]) .epr-backdrop-art {
+  inset: 0 0 auto auto;
+  width: 100%;
+  height: calc(var(--bd-bleed-top) + var(--bd-head));
+}
+@media (min-width: 640px) {
+  .epr-backdrop:is([data-backdrop-layout="band"], [data-backdrop-layout="corner"]) { --bd-bleed-top: 18px; --bd-bleed-x: 18px; --bd-head: 54px; }
+}
+@media (min-width: 1024px) {
+  .epr-backdrop:is([data-backdrop-layout="band"], [data-backdrop-layout="corner"]) { --bd-bleed-top: 26px; --bd-bleed-x: 26px; }
+}
+@container bd-region (min-width: 1000px) {
+  .epr-backdrop[data-backdrop-layout="band"] {
+    -webkit-mask-image: linear-gradient(to right, transparent calc(var(--bd-clear) - 16px), #000 calc(var(--bd-clear) + 48px));
+    mask-image: linear-gradient(to right, transparent calc(var(--bd-clear) - 16px), #000 calc(var(--bd-clear) + 48px));
+  }
+  .epr-backdrop[data-backdrop-layout="band"] .epr-backdrop-art {
+    inset: auto 0 0 auto;
+    width: calc(100% - var(--bd-clear));
+    height: min(100%, 168px);
+  }
+}
+
+/* Panel — an empty / first-run state, where the illustration is the main
+   visual. Fitted to the panel on its ground line, with a clear zone around
+   the centred icon, message and action. */
+.epr-backdrop[data-backdrop-layout="panel"] {
+  inset: 0;
+  -webkit-mask-image: radial-gradient(ellipse 34% 52% at 50% 44%, transparent 58%, #000 100%);
+  mask-image: radial-gradient(ellipse 34% 52% at 50% 44%, transparent 58%, #000 100%);
+}
+
+/* Tones. Lines keep one hairline weight at any size (non-scaling stroke). */
+.epr-backdrop .bd-ink { fill: var(--bd-ink); }
+.epr-backdrop .bd-blue { fill: var(--bd-blue); }
+.epr-backdrop .bd-sky { fill: var(--bd-sky); }
+.epr-backdrop .bd-warm { fill: var(--bd-warm); }
+.epr-backdrop .bd-sand { fill: var(--bd-sand); }
+.epr-backdrop .bd-paper { fill: var(--bd-paper); }
+.epr-backdrop .bd-outline { stroke: var(--bd-line); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.epr-backdrop .bd-line,
+.epr-backdrop .bd-line-soft {
+  fill: none;
+  stroke: var(--bd-line);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.epr-backdrop .bd-line-soft { stroke-width: 1; stroke-dasharray: 4 5; opacity: .7; }
+.epr-backdrop .bd-dots { fill: none; stroke: var(--bd-ink); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 0 24; opacity: .55; }
+.epr-backdrop .bd-limb { fill: none; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
+.epr-backdrop .bd-limb-ink { stroke: var(--bd-ink); }
+.epr-backdrop .bd-limb-blue { stroke: var(--bd-blue); }
+.epr-backdrop .bd-limb-sky { stroke: var(--bd-sky); }
+.epr-backdrop .bd-limb-warm { stroke: var(--bd-warm); }
+.epr-backdrop .bd-limb-sand { stroke: var(--bd-sand); }
+.epr-backdrop .bd-ring { fill: none; stroke-width: 7; }
+.epr-backdrop .bd-ring-sky { stroke: var(--bd-sky); }
+.epr-backdrop .bd-ring-blue { stroke: var(--bd-blue); }
+.epr-backdrop .bd-ring-warm { stroke: var(--bd-warm); }
+
+/* Dashboard intro — title, scope controls and quick actions: the one
+   Dashboard region the backdrop may use. It ends above the KPI strip, so the
+   KPIs and panels stay clean. The grid gap matches `.dash-stage`, so wrapping
+   the header and quick actions does not move either. */
+.dash-intro { display: grid; gap: 13px; min-width: 0; --bd-paper: var(--dash-canvas); }
+/* The intro's title is one line with no eyebrow, and its text column is the
+   short title block. Below 1000px the scope controls wrap under the title, so
+   the corner beside the title is free; wider, they share the title's row and
+   the art sits behind them — they are opaque, so it shows around them. */
+.dash-intro > .epr-backdrop[data-backdrop-layout="band"] { --bd-head: 38px; --bd-clear: 560px; }
+/* 720–999px: the controls have their own row, so the corner is free from the
+   title block (380px — the single-project description is the longer one) down
+   to the controls, 70px below the title's top. The art fills it, ending just
+   above them, instead of staying title-height. */
+@container bd-region (min-width: 720px) and (max-width: 999px) {
+  .dash-intro > .epr-backdrop[data-backdrop-layout="band"] {
+    -webkit-mask-image: linear-gradient(to right, transparent 364px, #000 420px);
+    mask-image: linear-gradient(to right, transparent 364px, #000 420px);
+  }
+  .dash-intro > .epr-backdrop[data-backdrop-layout="band"] .epr-backdrop-art {
+    width: calc(100% - 380px);
+    height: calc(var(--bd-bleed-top) + 66px);
+  }
+}
+
+/* Report registers (Monthly, Executive) — an eyebrow and a 1.5rem title above
+   a description that runs unbounded on one line, so the art keeps to the
+   corner (`layout="corner"`) and ends just above that line, which starts 60px
+   below the eyebrow at every width. The heavy title is ~215px wide at every
+   width, so the fade is fixed past it rather than proportional: on a phone
+   the scene crops away from the title instead of sitting behind it. */
+.report-register-intro > .epr-backdrop[data-backdrop-layout="corner"] {
+  --bd-head: 56px;
+  -webkit-mask-image: linear-gradient(to right, transparent 224px, #000 272px);
+  mask-image: linear-gradient(to right, transparent 224px, #000 272px);
+}
+
+/* Calendar — the art takes the header's upper whitespace, ending above the
+   view switch and Add Event at the header's foot (40px down). Once a narrow
+   header wraps them under the title, it may reach the description instead.
+   Its boards occlude with the Calendar's own ground. */
+.cal-intro { --bd-paper: var(--dash-ground); }
+.cal-intro > .epr-backdrop[data-backdrop-layout="corner"] { --bd-head: 36px; }
+@container bd-region (max-width: 619px) {
+  .cal-intro > .epr-backdrop[data-backdrop-layout="corner"] { --bd-head: 52px; }
+}
+
+/* Decoration is never part of a document, and never fights a user's
+   high-contrast colours. */
+@media print {
+  .epr-backdrop { display: none !important; }
+}
+@media (forced-colors: active) {
+  .epr-backdrop { display: none; }
+}

@@ -6,8 +6,14 @@ import {
   FolderKanban,
   Inbox,
   Plus,
+  type LucideIcon,
 } from "lucide-react";
 
+import {
+  BackdropRegion,
+  type BackdropStrength,
+  type BackdropVariant,
+} from "@/components/backdrop";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -72,6 +78,63 @@ const statusTones: { tone: StatusTone; label: string }[] = [
 ];
 
 const projectStatuses = Object.keys(PROJECT_STATUS_META) as ProjectStatus[];
+
+/** The three variants at the strengths their review pages use. */
+const BACKDROP_BANDS: {
+  variant: BackdropVariant;
+  strength: BackdropStrength;
+  eyebrow: string;
+  title: string;
+  description: string;
+}[] = [
+  {
+    variant: "refinery",
+    strength: "strong",
+    eyebrow: "Refinery & planning · strong",
+    title: "Dashboard intro",
+    description: "The main backdrop: planning in front of the plant it serves.",
+  },
+  {
+    variant: "planning",
+    strength: "subtle",
+    eyebrow: "Planning & schedule · subtle",
+    title: "Project Setup header",
+    description: "Schedule, milestones and dependencies — ready for Milestones and Tasks.",
+  },
+  {
+    variant: "collaboration",
+    strength: "standard",
+    eyebrow: "Reporting & collaboration · standard",
+    title: "Reporting landing",
+    description: "Coordination, reporting and reporting lines.",
+  },
+];
+
+const BACKDROP_PANELS: {
+  variant: BackdropVariant;
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}[] = [
+  {
+    variant: "refinery",
+    icon: FolderKanban,
+    title: "No projects yet",
+    description: "Refinery & planning as a first-run panel.",
+  },
+  {
+    variant: "planning",
+    icon: CalendarClock,
+    title: "No milestones yet",
+    description: "Planning & schedule as a first-run panel.",
+  },
+  {
+    variant: "collaboration",
+    icon: FileText,
+    title: "No reports yet",
+    description: "Reporting & collaboration as a first-run panel.",
+  },
+];
 
 export default function DesignSystemPage() {
   return (
@@ -286,6 +349,50 @@ export default function DesignSystemPage() {
               </Button>
             }
           />
+        </Section>
+
+        <Section
+          title="Background illustrations"
+          description="A soft branded backdrop behind a page header (band) or a first-run empty state (panel). Never behind forms, tables, org-chart nodes, report workspaces, previews or print."
+        >
+          <div className="space-y-6">
+            {BACKDROP_BANDS.map((band) => (
+              <div
+                key={band.variant}
+                className="space-y-4 overflow-hidden rounded-xl border bg-background px-4 pt-8 pb-5 sm:px-8"
+              >
+                <BackdropRegion variant={band.variant} strength={band.strength}>
+                  <PageHeader
+                    eyebrow={band.eyebrow}
+                    title={band.title}
+                    description={band.description}
+                    actions={<Button variant="outline">Header action</Button>}
+                  />
+                </BackdropRegion>
+                <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                  Section content starts here and carries no backdrop.
+                </p>
+              </div>
+            ))}
+            <div className="grid gap-4 lg:grid-cols-3">
+              {BACKDROP_PANELS.map((panel) => (
+                <EmptyState
+                  key={panel.variant}
+                  icon={panel.icon}
+                  title={panel.title}
+                  description={panel.description}
+                  backdrop={panel.variant}
+                  action={<Button variant="outline">First action</Button>}
+                />
+              ))}
+            </div>
+            <EmptyState
+              icon={FileText}
+              title="No weekly reports yet"
+              description="A full-width first-run state, as on the Weekly Reports register."
+              backdrop="collaboration"
+            />
+          </div>
         </Section>
 
         <Section

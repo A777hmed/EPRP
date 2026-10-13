@@ -12,6 +12,7 @@ import {
   TrendingDown,
 } from "lucide-react";
 
+import { BackdropRegion } from "@/components/backdrop";
 import { Button } from "@/components/ui/button";
 import {
   EmptyState,
@@ -165,25 +166,29 @@ export function ProjectsView() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Overview"
-        title="Projects"
-        description="Project master data: status, progress, responsibility, and reporting configuration."
-        actions={
-          // `projects_insert` -> `can_create_project()` ->
-          // `has_global_operational_authority()`. The register itself is now
-          // scoped by `projects_select`, so what a reader sees here is already
-          // their own project universe — only the way to add one is withheld.
-          canCreateProject ? (
-            <Button asChild>
-              <Link href="/projects/new">
-                <Plus data-icon="inline-start" aria-hidden="true" />
-                Add Project
-              </Link>
-            </Button>
-          ) : undefined
-        }
-      />
+      {/* Header only — the statistics, filters and project list below carry
+          no backdrop. */}
+      <BackdropRegion variant="refinery" strength="subtle">
+        <PageHeader
+          eyebrow="Overview"
+          title="Projects"
+          description="Project master data: status, progress, responsibility, and reporting configuration."
+          actions={
+            // `projects_insert` -> `can_create_project()` ->
+            // `has_global_operational_authority()`. The register itself is now
+            // scoped by `projects_select`, so what a reader sees here is already
+            // their own project universe — only the way to add one is withheld.
+            canCreateProject ? (
+              <Button asChild>
+                <Link href="/projects/new">
+                  <Plus data-icon="inline-start" aria-hidden="true" />
+                  Add Project
+                </Link>
+              </Button>
+            ) : undefined
+          }
+        />
+      </BackdropRegion>
 
       <section aria-label="Project statistics">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

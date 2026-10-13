@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 
+import { BackdropRegion, type BackdropVariant } from "@/components/backdrop";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -59,6 +60,15 @@ export interface ProjectSectionViewProps {
   projectId: string;
   section: ProjectSectionId;
 }
+
+/**
+ * Sections whose page header carries a background illustration. The header
+ * only — the section body (the org chart's nodes and lines included) stays
+ * clean.
+ */
+const SECTION_BACKDROP: Partial<Record<ProjectSectionId, BackdropVariant>> = {
+  "organization-chart": "collaboration",
+};
 
 /**
  * `/projects/[projectId]/[section]` — renders one section of a project in the
@@ -153,34 +163,45 @@ export function ProjectSectionView({
 
   const definition = localizeProjectSection(getProjectSection(section), terms);
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow={`${project.code} · ${project.shortName ?? project.name}`}
-        title={definition.label}
-        description={definition.description}
-        actions={
-          <>
+  const header = (
+    <PageHeader
+      eyebrow={`${project.code} · ${project.shortName ?? project.name}`}
+      title={definition.label}
+      description={definition.description}
+      actions={
+        <>
+          <Button variant="outline" asChild>
+            <Link href={projectSectionHref(project.id, "overview")}>
+              Project Overview
+            </Link>
+          </Button>
+          {/* Edit Project is `can_manage_project_setup()`, which the database
+              defines as `can_manage_project_operations()`. It was offered to
+              every reader, so a Department User was invited into a form whose
+              every save RLS refused. */}
+          {authority.canManageOperations && (
             <Button variant="outline" asChild>
-              <Link href={projectSectionHref(project.id, "overview")}>
-                Project Overview
+              <Link href={`/projects/${project.id}/edit`}>
+                <PenLine data-icon="inline-start" aria-hidden="true" />
+                Edit Project
               </Link>
             </Button>
-            {/* Edit Project is `can_manage_project_setup()`, which the database
-                defines as `can_manage_project_operations()`. It was offered to
-                every reader, so a Department User was invited into a form whose
-                every save RLS refused. */}
-            {authority.canManageOperations && (
-              <Button variant="outline" asChild>
-                <Link href={`/projects/${project.id}/edit`}>
-                  <PenLine data-icon="inline-start" aria-hidden="true" />
-                  Edit Project
-                </Link>
-              </Button>
-            )}
-          </>
-        }
-      />
+          )}
+        </>
+      }
+    />
+  );
+  const backdrop = SECTION_BACKDROP[section];
+
+  return (
+    <div className="space-y-6">
+      {backdrop ? (
+        <BackdropRegion variant={backdrop} strength="subtle">
+          {header}
+        </BackdropRegion>
+      ) : (
+        header
+      )}
 
       <SectionBody
         project={project}

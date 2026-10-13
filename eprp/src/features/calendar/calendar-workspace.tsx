@@ -18,6 +18,7 @@ import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
+import { BackdropRegion } from "@/components/backdrop";
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState } from "@/components/shared";
 import { DetailModal } from "@/components/shared/detail-modal";
@@ -148,48 +149,52 @@ function CalendarWorkspaceContent({ canManage, initialDate, initialProject, init
 
   return (
     <div className="cal-stage">
-      <header className="cal-header">
-        <div className="cal-header-title">
-          <p className="monthly-eyebrow">Tools &amp; Analytics</p>
-          <h1>Calendar</h1>
-          <span>Meetings, MOM/KOM, milestones and report due dates across your projects.</span>
-        </div>
-
-        <div className="cal-header-actions">
-          <div className="cal-view-switch" role="tablist" aria-label="Calendar view">
-            {VIEWS.map((value, index) => (
-              <button
-                key={value}
-                ref={(node) => { viewTabRefs.current[index] = node; }}
-                type="button"
-                role="tab"
-                id={`calendar-view-tab-${value}`}
-                aria-controls={`calendar-view-panel-${value}`}
-                aria-selected={view === value}
-                tabIndex={view === value ? 0 : -1}
-                className={view === value ? "is-active" : undefined}
-                onClick={() => setView(value)}
-                onKeyDown={(event) => {
-                  if (event.key === "ArrowLeft") {
-                    event.preventDefault();
-                    moveViewTab(index, -1);
-                  } else if (event.key === "ArrowRight") {
-                    event.preventDefault();
-                    moveViewTab(index, 1);
-                  }
-                }}
-              >
-                {VIEW_LABEL[value]}
-              </button>
-            ))}
+      {/* The header only — the toolbar, chips, grid and events below carry
+          no backdrop. */}
+      <BackdropRegion variant="planning" layout="corner" className="cal-intro">
+        <header className="cal-header">
+          <div className="cal-header-title">
+            <p className="monthly-eyebrow">Tools &amp; Analytics</p>
+            <h1>Calendar</h1>
+            <span>Meetings, MOM/KOM, milestones and report due dates across your projects.</span>
           </div>
-          {canManage && (
-            <Button onClick={() => openCreate()}>
-              <Plus aria-hidden /> Add Event
-            </Button>
-          )}
-        </div>
-      </header>
+
+          <div className="cal-header-actions">
+            <div className="cal-view-switch" role="tablist" aria-label="Calendar view">
+              {VIEWS.map((value, index) => (
+                <button
+                  key={value}
+                  ref={(node) => { viewTabRefs.current[index] = node; }}
+                  type="button"
+                  role="tab"
+                  id={`calendar-view-tab-${value}`}
+                  aria-controls={`calendar-view-panel-${value}`}
+                  aria-selected={view === value}
+                  tabIndex={view === value ? 0 : -1}
+                  className={view === value ? "is-active" : undefined}
+                  onClick={() => setView(value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowLeft") {
+                      event.preventDefault();
+                      moveViewTab(index, -1);
+                    } else if (event.key === "ArrowRight") {
+                      event.preventDefault();
+                      moveViewTab(index, 1);
+                    }
+                  }}
+                >
+                  {VIEW_LABEL[value]}
+                </button>
+              ))}
+            </div>
+            {canManage && (
+              <Button onClick={() => openCreate()}>
+                <Plus aria-hidden /> Add Event
+              </Button>
+            )}
+          </div>
+        </header>
+      </BackdropRegion>
 
       <div className="cal-toolbar">
         <div className="cal-nav">

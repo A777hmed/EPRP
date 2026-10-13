@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, FolderX, Loader2, Lock, Save } from "lucide-react";
 import { toast } from "sonner";
 
+import { BackdropRegion } from "@/components/backdrop";
 import { Button } from "@/components/ui/button";
 import {
   EmptyState,
@@ -404,21 +405,25 @@ function SetupShell({
     if (readOnly) throw new Error(PROJECT_SETUP_ARCHIVED_MESSAGE);
   };
 
+  // The header is the only Setup region with a backdrop — never the step's
+  // forms, trees or editors below it.
   const header = (
-    <PageHeader
-      // Progress lives in the workflow tracker below, not in a step counter.
-      eyebrow={project ? project.code : "New Project · Not saved yet"}
-      title={definition.label}
-      description={definition.description}
-      actions={
-        <Button variant="outline" asChild>
-          <Link href={project ? `/projects/${project.id}` : "/projects"}>
-            <ArrowLeft data-icon="inline-start" aria-hidden="true" />
-            {project ? "Back to Project" : "Back to Projects"}
-          </Link>
-        </Button>
-      }
-    />
+    <BackdropRegion variant="planning" strength="subtle">
+      <PageHeader
+        // Progress lives in the workflow tracker below, not in a step counter.
+        eyebrow={project ? project.code : "New Project · Not saved yet"}
+        title={definition.label}
+        description={definition.description}
+        actions={
+          <Button variant="outline" asChild>
+            <Link href={project ? `/projects/${project.id}` : "/projects"}>
+              <ArrowLeft data-icon="inline-start" aria-hidden="true" />
+              {project ? "Back to Project" : "Back to Projects"}
+            </Link>
+          </Button>
+        }
+      />
+    </BackdropRegion>
   );
 
   /* ------------------------- Step 1: create or edit ------------------------ */

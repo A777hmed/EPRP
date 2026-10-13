@@ -23,6 +23,7 @@ import { Eye, FilePlus2, Printer, Search, SearchX } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
+import { BackdropRegion } from "@/components/backdrop";
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState, StatusBadge } from "@/components/shared";
 import { REPORT_STATUS_META } from "@/lib/constants";
@@ -175,13 +176,17 @@ export function MonthlyReportsView() {
 
   return (
     <div className="monthly-list-view monthly-register-view">
-      <div className="monthly-list-header">
-        <div>
-          <p className="monthly-eyebrow">Reporting register</p>
-          <h1>Monthly Reports</h1>
-          <span>Consolidated Monthly Progress Reports across every project you can access. Raised and edited from each project&rsquo;s own Reporting area.</span>
+      {/* Header only, matching Weekly Reports — the counters, filters and
+          register table below carry no backdrop. */}
+      <BackdropRegion variant="collaboration" layout="corner" className="report-register-intro">
+        <div className="monthly-list-header">
+          <div>
+            <p className="monthly-eyebrow">Reporting register</p>
+            <h1>Monthly Reports</h1>
+            <span>Consolidated Monthly Progress Reports across every project you can access. Raised and edited from each project&rsquo;s own Reporting area.</span>
+          </div>
         </div>
-      </div>
+      </BackdropRegion>
 
       <div className="monthly-counter-row">
         {(

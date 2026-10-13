@@ -6,9 +6,9 @@ import {
   CalendarDays,
   CalendarRange,
   Eye,
-  FileBarChart,
   PenLine,
   Plus,
+  Presentation,
 } from "lucide-react";
 
 import { EmptyState, LoadingState, StatusBadge } from "@/components/shared";
@@ -105,17 +105,54 @@ function RowActions({
 function CreateReportButton({
   href,
   label,
+  size = "sm",
 }: {
   href: string;
   label: string;
+  /** `default` in a first-run panel, where it is the one thing to do. */
+  size?: "sm" | "default";
 }) {
   return (
-    <Button size="sm" asChild>
+    <Button size={size} asChild>
       <Link href={href} prefetch={false}>
         <Plus aria-hidden="true" />
         {label}
       </Link>
     </Button>
+  );
+}
+
+/*
+ * The three first-run panels are one family: the same size, the same
+ * hierarchy and the same Reporting backdrop family — `collaboration` for the
+ * two authored reports, `review` (the management-review scene) for the
+ * derived Executive view. The boards in the art occlude with the card they
+ * sit on, not the page ground.
+ */
+const FIRST_RUN_PANEL = "[--bd-paper:var(--card)]";
+const PANEL_HEIGHT = "flex min-h-80 items-center justify-center";
+
+const TAB_TRIGGER = "group/tab gap-1.5 px-1.5 sm:px-3 max-sm:[&>svg]:hidden";
+
+const WEEKLY_CREATE_LABEL = "New Weekly Report";
+/** The Monthly create form's label on the Monthly tab and its row action. */
+const MONTHLY_CREATE_LABEL = "New Monthly Report";
+
+/** A tab's entry count, once known and only when there is something to count. */
+function TabCount({ count, noun }: { count: number | null; noun: [string, string] }) {
+  if (!count) return null;
+  return (
+    <>
+      <span
+        aria-hidden="true"
+        className="min-w-5 rounded-full bg-foreground/[0.07] px-1.5 text-center text-[0.7rem] leading-5 font-semibold tabular-nums text-muted-foreground group-data-[state=active]/tab:bg-primary/10 group-data-[state=active]/tab:text-primary"
+      >
+        {count}
+      </span>
+      <span className="sr-only">
+        , {count} {count === 1 ? noun[0] : noun[1]}
+      </span>
+    </>
   );
 }
 
@@ -133,8 +170,6 @@ function WeeklyTab({
     [reports]
   );
 
-  const createHref = `/projects/${projectId}/reports/weekly/new`;
-
   if (ordered.length === 0) {
     return (
       <EmptyState
@@ -145,10 +180,16 @@ function WeeklyTab({
             ? "Raise the first Weekly Report for this project to start collecting department input."
             : "Weekly Reports raised for this project will appear here. They are raised by Project Control or the Report Coordinator."
         }
-        className="py-10"
+        size="lg"
+        className={FIRST_RUN_PANEL}
+        backdrop="collaboration"
         action={
           canManageReporting ? (
-            <CreateReportButton href={createHref} label="New Weekly Report" />
+            <CreateReportButton
+              href={`/projects/${projectId}/reports/weekly/new`}
+              label={WEEKLY_CREATE_LABEL}
+              size="default"
+            />
           ) : undefined
         }
       />
@@ -157,11 +198,6 @@ function WeeklyTab({
 
   return (
     <div className="space-y-3">
-      {canManageReporting && (
-        <div className="flex justify-end">
-          <CreateReportButton href={createHref} label="New Weekly Report" />
-        </div>
-      )}
       <ul className="divide-y rounded-lg border">
       {ordered.map((report) => (
         <li
@@ -206,9 +242,7 @@ function MonthlyTab({
   loading: boolean;
   canManageReporting: boolean;
 }) {
-  if (loading) return <LoadingState label="Loading Monthly Reports…" />;
-
-  const createHref = `/projects/${projectId}/reports/monthly/new`;
+  if (loading) return <LoadingState label="Loading Monthly Reports…" className={PANEL_HEIGHT} />;
 
   if (reports.length === 0) {
     return (
@@ -220,10 +254,16 @@ function MonthlyTab({
             ? "Create the first Monthly reporting period for this project. It compiles the Weekly items already selected for Monthly reporting."
             : "Monthly Reports created for this project will appear here. They are created by Project Control or the Report Coordinator."
         }
-        className="py-10"
+        size="lg"
+        className={FIRST_RUN_PANEL}
+        backdrop="collaboration"
         action={
           canManageReporting ? (
-            <CreateReportButton href={createHref} label="New Monthly Report" />
+            <CreateReportButton
+              href={`/projects/${projectId}/reports/monthly/new`}
+              label={MONTHLY_CREATE_LABEL}
+              size="default"
+            />
           ) : undefined
         }
       />
@@ -232,11 +272,6 @@ function MonthlyTab({
 
   return (
     <div className="space-y-3">
-      {canManageReporting && (
-        <div className="flex justify-end">
-          <CreateReportButton href={createHref} label="New Monthly Report" />
-        </div>
-      )}
       <ul className="divide-y rounded-lg border">
       {reports.map((report) => {
         const status = REPORT_STATUS_META[report.status];
@@ -286,7 +321,17 @@ function MonthlyTab({
  * to satisfy it, offers the project-scoped Monthly create — the real
  * preceding action rather than a fabricated Executive one. Portfolio
  * Executive remains a separate global concept and is untouched here.
+ *
+ * The action opens the Monthly create form. It is worded "Create Monthly
+ * Report" rather than the Monthly tab's "New Monthly Report" so the label
+ * names the prerequisite: the Executive view follows from a Monthly.
  */
+function executivePeriods(reports: MonthlyReport[]): string[] {
+  return [...new Set(reports.map((report) => report.reportingMonth.slice(0, 7)))].sort(
+    (a, b) => b.localeCompare(a)
+  );
+}
+
 function ExecutiveTab({
   projectId,
   reports,
@@ -298,28 +343,29 @@ function ExecutiveTab({
   loading: boolean;
   canManageReporting: boolean;
 }) {
-  if (loading) return <LoadingState label="Loading Executive periods…" />;
+  if (loading) return <LoadingState label="Loading Executive periods…" className={PANEL_HEIGHT} />;
 
-  const months = [...new Set(reports.map((report) => report.reportingMonth.slice(0, 7)))].sort(
-    (a, b) => b.localeCompare(a)
-  );
+  const months = executivePeriods(reports);
 
   if (months.length === 0) {
     return (
       <EmptyState
-        icon={FileBarChart}
+        icon={Presentation}
         title="No Executive reporting periods"
         description={
           canManageReporting
             ? "A project Executive view is derived from this project's Monthly reporting. Create a Monthly reporting period and its Executive view appears here."
             : "A project Executive view becomes available when this project has a Monthly reporting period."
         }
-        className="py-10"
+        size="lg"
+        className={FIRST_RUN_PANEL}
+        backdrop="review"
         action={
           canManageReporting ? (
             <CreateReportButton
               href={`/projects/${projectId}/reports/monthly/new`}
               label="Create Monthly Report"
+              size="default"
             />
           ) : undefined
         }
@@ -404,6 +450,35 @@ export function ProjectReportingWorkspace({
     };
   }, [project.id]);
 
+  const executiveCount = React.useMemo(
+    () => (monthlyLoading ? null : executivePeriods(monthlyReports).length),
+    [monthlyLoading, monthlyReports]
+  );
+
+  /* Once a tab has entries its create action moves up beside the tab strip;
+     while it has none, the first-run panel offers it instead. Executive has
+     no create of its own. */
+  const rowAction = (() => {
+    if (!canManageReporting) return null;
+    if (tab === "weekly" && weeklyReports.length > 0) {
+      return (
+        <CreateReportButton
+          href={`/projects/${project.id}/reports/weekly/new`}
+          label={WEEKLY_CREATE_LABEL}
+        />
+      );
+    }
+    if (tab === "monthly" && !monthlyLoading && monthlyReports.length > 0) {
+      return (
+        <CreateReportButton
+          href={`/projects/${project.id}/reports/monthly/new`}
+          label={MONTHLY_CREATE_LABEL}
+        />
+      );
+    }
+    return null;
+  })();
+
   return (
     <>
       {/*
@@ -426,20 +501,40 @@ export function ProjectReportingWorkspace({
           if (isReportingTab(value)) selectTab(value);
         }}
       >
-        <TabsList className="grid h-auto w-full grid-cols-3">
-          <TabsTrigger value="weekly">Weekly</TabsTrigger>
-          <TabsTrigger value="monthly">Monthly</TabsTrigger>
-          <TabsTrigger value="executive">Executive</TabsTrigger>
-        </TabsList>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* The platform's fitted tab strip; on a phone, three equal columns
+              for reach, without the icons so label and count fit. */}
+          <TabsList className="grid w-full grid-cols-3 sm:inline-flex sm:w-fit">
+            <TabsTrigger value="weekly" className={TAB_TRIGGER}>
+              <CalendarDays aria-hidden="true" />
+              Weekly
+              <TabCount count={weeklyReports.length} noun={["report", "reports"]} />
+            </TabsTrigger>
+            <TabsTrigger value="monthly" className={TAB_TRIGGER}>
+              <CalendarRange aria-hidden="true" />
+              Monthly
+              <TabCount
+                count={monthlyLoading ? null : monthlyReports.length}
+                noun={["report", "reports"]}
+              />
+            </TabsTrigger>
+            <TabsTrigger value="executive" className={TAB_TRIGGER}>
+              <Presentation aria-hidden="true" />
+              Executive
+              <TabCount count={executiveCount} noun={["period", "periods"]} />
+            </TabsTrigger>
+          </TabsList>
+          {rowAction && <div className="ml-auto">{rowAction}</div>}
+        </div>
 
-        <TabsContent value="weekly" className="mt-4">
+        <TabsContent value="weekly" className="mt-2">
           <WeeklyTab
             projectId={project.id}
             reports={weeklyReports}
             canManageReporting={canManageReporting}
           />
         </TabsContent>
-        <TabsContent value="monthly" className="mt-4">
+        <TabsContent value="monthly" className="mt-2">
           <MonthlyTab
             projectId={project.id}
             reports={monthlyReports}
@@ -447,7 +542,7 @@ export function ProjectReportingWorkspace({
             canManageReporting={canManageReporting}
           />
         </TabsContent>
-        <TabsContent value="executive" className="mt-4">
+        <TabsContent value="executive" className="mt-2">
           <ExecutiveTab
             projectId={project.id}
             reports={monthlyReports}

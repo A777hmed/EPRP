@@ -11,6 +11,7 @@ import {
   Printer,
   SearchX,
 } from "lucide-react";
+import { BackdropRegion } from "@/components/backdrop";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -356,11 +357,15 @@ export function WeeklyReportsView() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Reporting"
-        title="Weekly Reports"
-        description="Consolidated Weekly progress reports across every project you can access. Raised and edited from each project's own Reporting area."
-      />
+      {/* Landing header only — the summary, filters and register table below
+          carry no backdrop. */}
+      <BackdropRegion variant="collaboration">
+        <PageHeader
+          eyebrow="Reporting"
+          title="Weekly Reports"
+          description="Consolidated Weekly progress reports across every project you can access. Raised and edited from each project's own Reporting area."
+        />
+      </BackdropRegion>
 
       <section aria-label="Weekly report summary">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -480,6 +485,7 @@ export function WeeklyReportsView() {
           icon={FileText}
           title="No weekly reports yet"
           description="No Weekly Report has been raised on a project you can access yet. Reports are created from a project's own Reporting area, not from this register."
+          backdrop="collaboration"
         />
       ) : visible.length === 0 ? (
         <EmptyState
