@@ -64,6 +64,9 @@ src/
 
 The Organization Chart is not a top-level route — it is the
 `organization-chart` section of the project workspace
-(`/projects/[projectId]/organization-chart`), backed by `features/organization`.
+(`/projects/[projectId]/organization-chart`). It opens on the People
+Organization Chart (2C.3F, `features/projects/components/people-chart`,
+derived from Project Team Reports To); the Phase 2A position chart, backed by
+`features/organization`, is its "Position Chart" tab.
 
 Legacy `/reports/*` paths redirect to the new top-level report routes (see `next.config.ts`).

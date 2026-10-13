@@ -77,8 +77,11 @@ const accentFor = (entry: ResponsibilityEntry) =>
   RESPONSIBILITY_ACCENTS[entry.fixedField ?? "additional"] ??
   RESPONSIBILITY_ACCENTS.additional;
 
-/** Small pill beside the role name. Quiet by design — it labels, not shouts. */
-function ResponsibilityBadge({
+/**
+ * Small pill beside the role name. Quiet by design — it labels, not shouts.
+ * Also used by the People Organization Chart cards.
+ */
+export function ResponsibilityBadge({
   tone,
   children,
 }: {

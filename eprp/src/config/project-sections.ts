@@ -85,7 +85,7 @@ export const projectSections: ProjectSection[] = [
     id: "organization-chart",
     label: "Organization Chart",
     icon: Network,
-    description: "Build and manage the project organization structure.",
+    description: "The project's people and who they report to, from the Project Team.",
   },
   {
     id: "departments",

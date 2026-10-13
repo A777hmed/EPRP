@@ -398,6 +398,10 @@ The chart and the assignment model must remain consistent, but consistency is a 
 
 Position assignment history is preserved permanently. The platform must be able to reconstruct the structure in force at any past date — which is what allows a past report to be read against the authority structure that produced it.
 
+### 10.5 People Organization Chart (Phase 2C.3F, as built)
+
+The project's Organization Chart page opens on the **People Organization Chart**: the active Project Team arranged by project-level Reports To (`06_DATABASE_SCHEMA.md` §8.8), the canonical people reporting hierarchy. It is derived, read-only and identical for PSM, Other and legacy projects. It never draws on the PSM department hierarchy, the Other Project Structure, responsibility assignments or the parties, and like every chart it grants no permission (§10.3). The positions model in §10.1–§10.4 is kept unchanged as the page's "Position Chart" tab — a separate hierarchy that does not define who reports to whom.
+
 ---
 
 ## 11. Workflow hierarchy

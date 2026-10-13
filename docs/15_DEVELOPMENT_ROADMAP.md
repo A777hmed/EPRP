@@ -35,7 +35,7 @@ and a lifecycle transition correctly refused).
 | 2 | Project master data | ✅ Complete |
 | 2A | Organization Chart *(added — see note)* | ✅ Complete |
 | 2B | Configurable hierarchy and scoped assignments *(added — see note)* | ✅ Complete |
-| 2C | Project Setup classification and planning foundation *(added — see Phase 2C)* | ⚠️ In progress — **2C.1 DONE** (browser-UAT verified); **2C.1c delivered** (Other Project structure, commits `494367f`–`6b7fba4`; Structure Hierarchy UX implemented locally, browser visual UAT pending); **2C.3A / 2C.3B verified**; **2C.3C complete locally** — migrations applied, automated verification complete, browser UAT on the Other Project path done, true PSM browser smoke pending; **2C.3D Wave 1 complete locally** — migration applied, automated verification complete, browser UAT on ZZ-STRUCT-UI-01 done; **2C.3D Wave 2 complete locally (LOCAL ONLY)** — migration applied, automated verification complete, browser smoke done on MDP-PSAIM-01 (legacy / PSAIM shared PSM Contacts path); true classified PSM browser UAT pending; **2C.3E implemented locally (LOCAL ONLY)** — migration applied, automated verification complete, browser UAT pending; 2C.2 not started. All 2C migrations are applied to the local development database only (NOT production) |
+| 2C | Project Setup classification and planning foundation *(added — see Phase 2C)* | ⚠️ In progress — **2C.1 DONE** (browser-UAT verified); **2C.1c delivered** (Other Project structure, commits `494367f`–`6b7fba4`; Structure Hierarchy UX implemented locally, browser visual UAT pending); **2C.3A / 2C.3B verified**; **2C.3C complete locally** — migrations applied, automated verification complete, browser UAT on the Other Project path done, true PSM browser smoke pending; **2C.3D Wave 1 complete locally** — migration applied, automated verification complete, browser UAT on ZZ-STRUCT-UI-01 done; **2C.3D Wave 2 complete locally (LOCAL ONLY)** — migration applied, automated verification complete, browser smoke done on MDP-PSAIM-01 (legacy / PSAIM shared PSM Contacts path); true classified PSM browser UAT pending; **2C.3E complete (LOCAL ONLY)** — migration applied, automated verification and browser UAT done, committed and pushed (`5c086f7`); **2C.3F complete locally (LOCAL ONLY)** — no migration, automated verification and browser UAT done, not yet committed; 2C.2 not started. All 2C migrations are applied to the local development database only (NOT production) |
 | 3 | Data foundation | ✅ Complete — all 47 migrations applied |
 | 4 | Weekly Workspace UI | ⚠️ Partial (~95%) — final Weekly UX, multiple authored updates, insights, plans and print delivered; attachments/history outstanding |
 | 5 | Weekly data and department submission | ⚠️ Partial — department ownership now enforced in the UI |
@@ -56,8 +56,9 @@ complete locally** — browser UAT done on the Other Project path, true PSM
 browser smoke pending; **2C.3D Wave 1 complete locally** — browser UAT
 done on ZZ-STRUCT-UI-01; **2C.3D Wave 2 complete locally** — browser
 smoke done on MDP-PSAIM-01 (legacy / PSAIM shared PSM path), true
-classified PSM browser UAT pending; **2C.3E implemented locally** —
-browser UAT pending). Every 2C migration is
+classified PSM browser UAT pending; **2C.3E complete** — browser UAT
+done, pushed at `5c086f7`; **2C.3F complete locally** — People
+Organization Chart, browser UAT done, not yet committed). Every 2C migration is
 applied to the local development database only; production deployment is
 pending.
 
@@ -303,6 +304,8 @@ Project-scoped reporting structure, listed under "Main modules" in `01_PROJECT_V
 
 **Known gap:** the mock service enforces locking with nine explicit guards, but the Supabase service relies solely on a database trigger that has never run. Verify during Phase 3.
 
+**Since 2C.3F (2026-10-13):** this position chart is the **"Position Chart" tab** of the Organization Chart page, unchanged. The page opens on the People Organization Chart, derived from the Project Team's Reports To — the canonical people reporting hierarchy. Whether the position chart is later retired or reconciled with it is not decided.
+
 ---
 
 ## Phase 2C — Project Setup classification and planning foundation ⚠️ IN PROGRESS *(added)*
@@ -316,13 +319,13 @@ Makes Project Setup the project-definition layer: what kind of project this is, 
 | 2C.1 | Project classification (2C.1a) + Project Setup shell & workflow (2C.1b) | ✅ **DONE / VERIFIED** — checkpoint commit `72c9d07`, 2026-10-03 |
 | 2C.1c | Other Project dynamic structure (replaces the "Project Structure" placeholder) | ✅ **Delivered** — commits `494367f`–`6b7fba4` (2026-10-03 → 2026-10-06). Migration `20261003000001_project_structure_foundation.sql` is applied to the local development database (verified read-only against `supabase_migrations.schema_migrations`, 2026-10-07), with structure data present locally. Runtime scripts: `110_runtime_2c1c_structure.sql`, `111_runtime_2c1c_service_concurrency.mjs`. A formal browser-UAT checkpoint is not recorded in this document. Not deployed remotely or to production. **Structure Hierarchy UX implemented locally (2026-10-11)** — no database or schema change; browser visual UAT on the final polished version pending (see below) |
 | 2C.2 | Planning / progress foundation | ❌ Not started |
-| 2C.3 | Responsibilities, Project Parties and Organization Chart setup | ⚠️ In progress — 2C.3A done; 2C.3B verified (local); 2C.3C complete locally (Other Project browser UAT done; true PSM browser smoke pending); 2C.3D Wave 1 (Other Project Structure Responsibilities) complete locally (browser UAT done on ZZ-STRUCT-UI-01); 2C.3D Wave 2 (PSM linkage) complete locally (LOCAL ONLY; browser smoke done on MDP-PSAIM-01 (legacy / PSAIM shared PSM Contacts path); true classified PSM browser UAT pending); 2C.3E (authority-bearing assignment rules, archived setup read-only) implemented locally (LOCAL ONLY; browser UAT pending); 2C.3F (People Organization Chart) not started |
+| 2C.3 | Responsibilities, Project Parties and Organization Chart setup | ⚠️ In progress — 2C.3A done; 2C.3B verified (local); 2C.3C complete locally (Other Project browser UAT done; true PSM browser smoke pending); 2C.3D Wave 1 (Other Project Structure Responsibilities) complete locally (browser UAT done on ZZ-STRUCT-UI-01); 2C.3D Wave 2 (PSM linkage) complete locally (LOCAL ONLY; browser smoke done on MDP-PSAIM-01 (legacy / PSAIM shared PSM Contacts path); true classified PSM browser UAT pending); 2C.3E (authority-bearing assignment rules, archived setup read-only) complete (LOCAL ONLY; browser UAT done; pushed at `5c086f7`); 2C.3F (People Organization Chart) complete locally (LOCAL ONLY; no migration; browser UAT done; not yet committed) |
 | 2C.3A | Project Parties foundation + Project Information (owner-authorized scope) | ✅ **DONE** — commit `5e88ef5`. Migration `20261006123219_project_parties_foundation.sql` applied to the local development database and browser-UAT verified (PSM and Other); not deployed remotely or to production |
 | 2C.3B | Professional Project Information — subcontractor Registered Company Name, Short Name / Acronym, Scope / Package, Subcontract / Contract Reference, Engagement Status (shared by PSM and Other) | ✅ **Verified, 2026-10-07** — migration `20261007120000_project_parties_professional_information.sql` applied to the local development database and browser-UAT verified for PSM and Other Project; not deployed remotely/production. Final validation-timing polish: 85 focused / 538 source tests, typecheck, lint and production build PASS. No people, responsibility, structure, reporting or chart changes |
 | 2C.3C | Project Team Membership and Project Reports To — one global People master + project-scoped, authority-free membership grouped by Project Party; leadership presented from the existing fixed roles | ✅ **Complete locally, 2026-10-11.** Migrations `20261007150000_project_team_membership.sql` and `20261011090000_project_team_controlled_writes.sql` (the three RPCs become the only write path) are applied to the local development database; backfill verified identical to the approved Preflight V2 (46 / EPROM 30 / Owner 7 / Needs party 9 / Needs project role 46). Automated verification complete: runtime 63/63, 582 source tests, typecheck, lint, production build. Browser UAT on the Other Project path (ZZ-STRUCT-UI-01, 2026-10-08) done. **True PSM browser smoke pending:** the only classified PSM project, PSM-02, does not yet meet the prerequisites to open Contacts; PSM / shared behaviour is covered by automated UI, domain and runtime tests. Not deployed remotely or to production |
 | 2C.3D | Structure Responsibilities — **Wave 1:** Other Project Structure Responsibilities (authority-free Unit membership and Unit Lead; Weekly / Monthly Responsible and per-report Backup, drawn from the unit's own active members). **Wave 2:** PSM linkage to canonical project membership (assignment pickers use active project members; same-project / active-membership guards for new or edited PSM assignments; the PSM hierarchy, the `project_contacts` responsibility system and Department Manager authority are unchanged) | ⚠️ **Wave 1 implemented locally, 2026-10-12.** Migration `20261012100000_structure_responsibilities.sql` applied to the local development database (both new tables start empty — no backfill); runtime `116_runtime_2c3d_structure_responsibilities.sql` 96/96; automated verification complete (full source suite, typecheck, lint, production build). **Browser UAT on ZZ-STRUCT-UI-01 done** (see the checkpoint below). **Wave 2 complete locally, 2026-10-12 — LOCAL ONLY.** Migration `20261012150000_psm_membership_linkage.sql` applied to the local development database (no backfill; no data changed); runtime `117_runtime_2c3d_psm_membership_linkage.sql` 29/29; automated verification complete. **Browser smoke done on MDP-PSAIM-01** (legacy / PSAIM shared PSM Contacts path); a true classified PSM browser UAT is pending (see the Wave 2 checkpoint below). Not deployed remotely or to production |
-| 2C.3E | Authority-bearing assignment rules and archived setup read-only | ⚠️ **Implemented locally, 2026-10-12 — LOCAL ONLY.** Migrations `20261012180000_setup_authority_and_archived_read_only.sql`, `20261013090000_responsibility_holder_membership.sql` and `20261013120000_member_eligibility_for_responsibilities.sql` applied to the local development database (no data changed); runtime `118` 66/66, `119` 19/19 and `120` 28/28; automated verification complete. **Browser UAT pending** (see the 2C.3E checkpoint below). Not deployed remotely or to production |
-| 2C.3F | People Organization Chart, derived from project membership and Project Reports To | ❌ Not started |
+| 2C.3E | Authority-bearing assignment rules and archived setup read-only | ✅ **Complete — LOCAL ONLY. Committed and pushed at `5c086f7`.** Migrations `20261012180000_setup_authority_and_archived_read_only.sql`, `20261013090000_responsibility_holder_membership.sql` and `20261013120000_member_eligibility_for_responsibilities.sql` applied to the local development database (no data changed); runtime `118` 66/66, `119` 19/19 and `120` 28/28; automated verification complete. **Browser UAT done** (see the 2C.3E checkpoint below). Not deployed remotely or to production |
+| 2C.3F | People Organization Chart, derived from project membership and Project Reports To | ✅ **Complete locally, 2026-10-13 — LOCAL ONLY; not yet committed.** No migration and no data change. The Organization Chart page opens on the People chart; the Phase 2A position chart stays, unchanged, as a "Position Chart" tab. Automated verification complete (source suite, typecheck, lint, production build). **Browser UAT done** on MDP-PSAIM-01, ZZ-STRUCT-UI-01 and the archived PSAIM-001 (see the 2C.3F checkpoint below). Not deployed remotely or to production |
 
 **Open boundary decision — must be settled before 2C.2 starts.** The scope of
 2C.2 against existing planning work is not defined in these documents:
@@ -580,7 +583,7 @@ Data model: `06_DATABASE_SCHEMA.md` §8.1, §8.2, §8.8.
 
 ### 2C.3E — Authority-bearing assignment rules + archived Project Setup read-only (checkpoint, 2026-10-12)
 
-**Status: implemented locally — LOCAL ONLY. Migration applied to the LOCAL development database; automated verification complete; browser UAT pending. Not deployed remotely or to production.** Permission rules: `05_PERMISSION_MODEL.md` §3.7. Data model: `06_DATABASE_SCHEMA.md` §8.11.
+**Status: complete — LOCAL ONLY. Migration applied to the LOCAL development database; automated verification and browser UAT complete; committed and pushed at `5c086f7`. Not deployed remotely or to production.** Permission rules: `05_PERMISSION_MODEL.md` §3.7. Data model: `06_DATABASE_SCHEMA.md` §8.11.
 
 **Assessment (read-only, before implementation).**
 - **Authority sources already matched the approved model:**
@@ -623,6 +626,8 @@ Data model: `06_DATABASE_SCHEMA.md` §8.1, §8.2, §8.8.
 - Re-run with all the guards: `114` 63/63, `116` 96/96, `117` 29/29, `118` 66/66. Read-only `113` passes. Read-only `93` still reports 3 failures that predate 2C.3E: `is_psm_family_project_type` is not SECURITY DEFINER (2C.1), plus two Weekly / Monthly reporting policy checks.
 - Source suite 686/686 (this includes 20 tests in an unrelated, untracked file), typecheck, lint and a production build.
 
+**Browser UAT: complete.** The phase was then committed and pushed at `5c086f7`. UAT on the archived PSAIM-001 found that responsibility cards still showed an active-looking Replace Person link (the backend already refused the change). That link was removed on archived projects before the commit.
+
 **Consequences and known limits.**
 - **Hard deletes:** deleting a contact, department, system, discipline, portfolio group, phase or account still referenced by an archived project is refused, because the cascade would rewrite archived history. Archive or deactivate it instead.
 - **Discipline moves:** moving a discipline that an archived project uses (Global Administration) is refused the same way.
@@ -634,6 +639,71 @@ Data model: `06_DATABASE_SCHEMA.md` §8.1, §8.2, §8.8.
 - **Delegations:** delegation rows are still not wired to authority.
 
 **Not in 2C.3E.** 2C.3F (People Organization Chart), delegation authority wiring, Replace Person v2, the malformed-row clean-up, Milestones, Tasks.
+
+### 2C.3F — People Organization Chart (checkpoint, 2026-10-13)
+
+**Status: complete locally — LOCAL ONLY. No migration and no data change; automated verification and browser UAT complete; not yet committed. Not deployed remotely or to production.** Data model: `06_DATABASE_SCHEMA.md` §8.8 (Reports To) and §9 (the position chart).
+
+**Assessment (read-only, before implementation).**
+- **The route was already taken.** `/projects/[id]/organization-chart` served the Phase 2A **position** chart (`features/organization`):
+  - positions, not people, with their own parent → child tree in `organization_positions`;
+  - templates, Excel import, drag-and-drop re-parenting and a Draft → Active → Locked lifecycle.
+
+  Local data held one draft chart (MDP-PSAIM-01): 17 template positions, no holders, no assignment history.
+- **No People chart existed.** Reports To was only edited and listed on the Project Team (Setup → Contacts).
+- **Conflict reported and decided (2026-10-13).** The page opens on the People chart. The 2A position chart stays, unchanged, as a secondary "Position Chart" tab, labelled as a separate model that does not define who reports to whom.
+
+**Delivered.**
+- **Model** (`src/features/projects/people-chart.ts`, pure). Built only from **active** `project_members` and their `reports_to_member_id`. Never from the PSM department hierarchy, the Other Project Structure, `project_contacts`, the parties or the position chart. One engine for PSM, Other and legacy projects.
+  - **Ended memberships** are left out, and counted in a one-line note.
+  - **No Reports To:** shown at the top level and flagged "No Reports To". The Project Manager and Project Sponsor are exempt, as in the Project Team warnings.
+  - **Stale or self Reports To:** a Reports To naming an ended or unknown member, or the member themselves, is shown at the top level and flagged.
+  - **Reporting loops** (corrupt legacy data) are found without recursion and broken for display at the loop's most senior member. Every member of the loop is flagged; a branch reporting into the loop keeps its lines. The chart never loops.
+  - **Sibling order:** Sponsor, Project Manager, Client Representative, Project Control Manager, Reporting Coordinator; then party (EPROM, Client, Subcontractors in their order, Needs party); then name.
+- **Card.**
+  - Project Role, name, job title (People Directory) and company (when it differs from the party).
+  - The party chip, plus the fixed responsibilities and project positions held, as descriptive badges.
+  - "Needs party", "Needs project role" and Reports To issues as small badges. Reports To is announced to screen readers.
+- **Layout** (`src/features/projects/components/people-chart/`).
+  - **Root:** a project card (code, name, PSM / Other / Not classified, people and reporting-line counts, Archived badge).
+  - **Chart:** top-down, with straight connectors. A manager's leaf reports hang in two columns either side of the line (three or more, or two or more next to sub-teams), with sub-teams side by side below. The canvas scrolls sideways when wider than the page.
+  - **Outline:** an indented view with left rails, the default below 768 px.
+  - **Collapse:** collapse / expand per manager, plus Expand all / Collapse all.
+  - **Party accents:** EPROM / Client / Subcontractor on the card edge, avatar tint and party chip only. These are the same icons and theme tokens as the Project Responsibility sections, in light and dark.
+  - **Data quality:** a compact "Reporting data to complete" note.
+- **No second editor.** Reports To stays on the Project Team.
+  - The only action is an "Edit on Project Team" link, shown under the Project Team's own edit authority (`canManageOperations`), so never on an archived project.
+  - An archived project's chart stays visible: "This project is archived. The chart is read-only."
+- **No authority.** The chart states that reporting lines grant no access. The model reads no authority rule, and placement on the chart changes nothing (tested against `resolveProjectAuthority`).
+
+**Verification (automated only — not browser verification).**
+- `people-chart.test.mjs` — 13 tests:
+  - root renders with no team; one and several top-level people;
+  - nested hierarchy and collapse; active only, ended excluded;
+  - missing / stale Reports To; missing Party / Project Role;
+  - self-reference and loops; PSM, Other and legacy share one model;
+  - archived visible and read-only; no authority from placement;
+  - the People / Position Chart tabs; the layout rule.
+- Source suite 707/707 (this includes 20 tests in an unrelated, untracked file), typecheck, lint and a production build.
+- A static visual check of the real components with the app's compiled CSS: light and dark, desktop and phone width. This is **not** the live app.
+
+**Browser UAT (2026-10-13): complete.**
+- **MDP-PSAIM-01** (legacy, active):
+  - the People tab opened by default;
+  - 5 people, 0 reporting lines (no member has a Reports To yet);
+  - Chart and Outline both rendered correctly;
+  - the data-quality badges and messages rendered correctly;
+  - the Phase 2A Position Chart tab remained intact.
+- **ZZ-STRUCT-UI-01** (Other Project, 4 people, 2 reporting lines):
+  - the Reports To hierarchy rendered correctly: Mahmoud Rashed (Demo) → Khaled Fahmy → Khaled Fahmy (Demo);
+  - Dina Samir (Demo) remained at the top level with "No Reports To";
+  - branch collapse / expand worked, and the hidden descendant count was correct.
+- **PSAIM-001** (archived):
+  - the People chart remained visible, with the Archived badge;
+  - "This project is archived. The chart is read-only." was shown;
+  - there was no "Edit on Project Team" action, no mutation control and no raw error.
+
+**Not in 2C.3F.** Editing Reports To from the chart, printing or exporting the People chart, retiring or reconciling the Phase 2A position chart, Milestones, Tasks, the global background / visual system.
 
 ---
 

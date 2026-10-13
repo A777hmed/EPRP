@@ -781,6 +781,8 @@ Leadership altitude throughout: fewer figures, larger, each consequential. Excep
 
 ## 15. Organization Chart UI
 
+**As built (2C.3F).** The page opens on the read-only **People Organization Chart**, the Project Team arranged by Reports To. It has a project root card, a top-down chart with an Outline alternative, collapsible branches and party accents only, and links to the Project Team for edits. The positions editor described below is the page's "Position Chart" tab.
+
 ### 15.1 A visual editor
 
 A canvas presenting the project's structure of authority as an interactive tree: pan, zoom, zoom-to-fit, and a minimap for large charts. Positions render as compact cards showing title, holder, department and scope.
