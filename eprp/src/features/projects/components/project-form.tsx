@@ -1,20 +1,15 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertTriangle,
-  Building2,
   Info,
   Loader2,
-  Lock,
-  PenLine,
   Plus,
   Save,
   Star,
   Trash2,
-  UserRound,
 } from "lucide-react";
 import {
   useForm,
@@ -30,7 +25,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -69,14 +63,11 @@ import {
 } from "@/features/projects/form-meta";
 import {
   projectResponsibilities,
-  responsibilityPerson,
   type ResponsibilityEntry,
 } from "@/features/projects/responsibilities";
 import {
   isFixedResponsibilityOccupied,
   isProjectPositionOccupied,
-  REPLACE_PERSON_HELP_TEXT,
-  REPLACE_PERSON_POSITION_HELP_TEXT,
 } from "@/features/projects/responsibility-guard";
 import { projectSectionHref } from "@/config/project-sections";
 import type { ProjectLinkContext } from "@/features/projects/project-link-context";
@@ -98,6 +89,14 @@ import { RhfField } from "./form-field";
 import { ProjectFormSection } from "./project-form-section";
 import { ProjectPartiesFields, touchSubcontractorFields } from "./project-parties-fields";
 import { usePeopleMasterAuthority } from "@/features/auth/people-master-authority";
+import {
+  groupResponsibilities,
+  holderGroup,
+  holderPartyLabel,
+} from "@/features/projects/responsibility-groups";
+import { ResponsibilityCard, ResponsibilityGroupSection } from "./responsibility-cards";
+import { isSetupReadOnly } from "@/features/projects/setup-save";
+import { memberPickerPool, type MemberPickerPool } from "../project-team";
 import { ProjectScopeSummary } from "./project-scope-summary";
 import { LogoUploadField } from "./logo-upload-field";
 import { GovernedPerformancePanel } from "./governed-performance-panel";
@@ -328,256 +327,9 @@ const fixedFieldOf = (
   entry.fixedField as FieldPath<ProjectFormValues>;
 
 /**
- * One resting row: role, person, company, and an optional note.
- *
- * Deliberately plain text rather than disabled inputs — a row the user is not
- * editing should read like a record, not like a form someone switched off.
- */
-/**
- * Role-themed accent per card, drawn from the theme's own chart palette so it
- * follows light and dark without hardcoded colour. Class names are written out
- * in full because Tailwind reads them statically — composing them from a
- * variable would leave the utilities ungenerated.
- *
- * The five fixed roles each take a distinct hue; every additional position
- * shares one, so the grid reads as "the fixed five, plus the extras" at a
- * glance. Presentation only — nothing here affects ordering or behaviour.
- */
-const RESPONSIBILITY_ACCENTS: Record<
-  string,
-  { stripe: string; tint: string; icon: string }
-> = {
-  projectManagerId: {
-    stripe: "bg-chart-2",
-    tint: "bg-chart-2/15",
-    icon: "text-chart-2",
-  },
-  projectControlManagerId: {
-    stripe: "bg-chart-1",
-    tint: "bg-chart-1/15",
-    icon: "text-chart-1",
-  },
-  clientRepresentativeId: {
-    stripe: "bg-chart-3",
-    tint: "bg-chart-3/15",
-    icon: "text-chart-3",
-  },
-  reportingCoordinatorId: {
-    stripe: "bg-primary",
-    tint: "bg-primary/15",
-    icon: "text-primary",
-  },
-  projectSponsorId: {
-    stripe: "bg-chart-5",
-    tint: "bg-chart-5/15",
-    icon: "text-chart-5",
-  },
-  additional: {
-    stripe: "bg-chart-4",
-    tint: "bg-chart-4/15",
-    icon: "text-chart-4",
-  },
-};
-
-const accentFor = (entry: ResponsibilityEntry) =>
-  RESPONSIBILITY_ACCENTS[entry.fixedField ?? "additional"] ??
-  RESPONSIBILITY_ACCENTS.additional;
-
-/** Small pill beside the role name. Quiet by design — it labels, not shouts. */
-function ResponsibilityBadge({
-  tone,
-  children,
-}: {
-  tone: "muted" | "additional" | "warning" | "governed";
-  children: React.ReactNode;
-}) {
-  return (
-    <span
-      className={cn(
-        "shrink-0 rounded-full border px-1.5 py-px text-[10px] font-medium leading-4",
-        tone === "muted" && "text-muted-foreground",
-        tone === "additional" && "border-chart-4/40 text-chart-4",
-        tone === "warning" && "border-warning/40 text-warning",
-        tone === "governed" && "border-primary/40 text-primary"
-      )}
-    >
-      {children}
-    </span>
-  );
-}
-
-/**
- * One resting card: role, person, job title, company.
- *
- * Elevated rather than flat — a darker face than the section behind it, a soft
- * border and a small shadow — so the list reads as a set of records instead of
- * a stack of rows. Text only; a card the user is not editing should not look
- * like a form that has been switched off.
- */
-function ResponsibilityRow({
-  entry,
-  contacts,
-  onEdit,
-  onDelete,
-  busy,
-  locked,
-  teamHref,
-}: {
-  entry: ResponsibilityEntry;
-  contacts: Contact[];
-  onEdit: () => void;
-  onDelete?: () => void;
-  busy: boolean;
-  /** Already holds a person — a raw setup save may not reassign it. */
-  locked: boolean;
-  /** Team & Responsibilities, where Replace Person actually lives. */
-  teamHref?: string;
-}) {
-  const person = responsibilityPerson(entry, contacts);
-  const unfilled = !entry.contactId;
-  const accent = accentFor(entry);
-  const helpText =
-    entry.kind === "additional"
-      ? REPLACE_PERSON_POSITION_HELP_TEXT
-      : REPLACE_PERSON_HELP_TEXT;
-
-  return (
-    <div className="relative flex min-w-0 flex-col overflow-hidden rounded-xl border bg-background p-3 pl-4 shadow-sm">
-      {/* Role-themed edge, the card's only strong colour. */}
-      <span
-        className={cn("absolute inset-y-0 left-0 w-1", accent.stripe)}
-        aria-hidden="true"
-      />
-
-      <div className="flex items-start gap-2.5">
-        <span
-          className={cn(
-            "grid size-9 shrink-0 place-items-center rounded-full",
-            accent.tint,
-            accent.icon
-          )}
-          aria-hidden="true"
-        >
-          <UserRound className="size-4.5" />
-        </span>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <p className="min-w-0 truncate text-sm font-semibold">
-              {entry.roleLabel}
-            </p>
-            {entry.kind === "additional" ? (
-              <ResponsibilityBadge tone="additional">
-                Additional
-              </ResponsibilityBadge>
-            ) : (
-              !entry.required && (
-                <ResponsibilityBadge tone="muted">Optional</ResponsibilityBadge>
-              )
-            )}
-            {entry.required && unfilled && (
-              <ResponsibilityBadge tone="warning">Required</ResponsibilityBadge>
-            )}
-            {locked && (
-              <ResponsibilityBadge tone="governed">Governed</ResponsibilityBadge>
-            )}
-          </div>
-
-          <p
-            className={cn(
-              "mt-0.5 truncate text-sm",
-              unfilled && "text-muted-foreground"
-            )}
-          >
-            {person.name ?? (unfilled ? "Not assigned" : "Unknown contact")}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {person.position ?? (unfilled ? "—" : "No job title")}
-          </p>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-7"
-            disabled={busy || locked}
-            aria-label={
-              locked
-                ? `${entry.roleLabel} is already assigned — reassign it from Replace Person`
-                : `Edit ${entry.roleLabel}`
-            }
-            title={locked ? helpText : undefined}
-            onClick={onEdit}
-          >
-            <PenLine className="size-3.5" aria-hidden="true" />
-          </Button>
-          {/* Fixed roles are part of the project shape, so they are editable
-              but never removable — only `onDelete` distinguishes them here. */}
-          {onDelete && (
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="size-7"
-              disabled={busy || locked}
-              aria-label={
-                locked
-                  ? `${entry.roleLabel} cannot be removed while assigned`
-                  : `Remove ${entry.roleLabel}`
-              }
-              title={locked ? helpText : undefined}
-              onClick={onDelete}
-            >
-              <Trash2 className="size-3.5" aria-hidden="true" />
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Building2 className="size-3.5 shrink-0" aria-hidden="true" />
-        <span className="truncate">
-          {person.organization ?? (unfilled ? "—" : "No organization")}
-        </span>
-      </div>
-
-      {entry.notes && (
-        <p className="mt-1 truncate text-xs text-muted-foreground">
-          {entry.notes}
-        </p>
-      )}
-
-      {/* Explains the disabled controls above in place, so a locked card reads
-          as governed rather than broken. */}
-      {locked && (
-        <p className="mt-2 flex items-start gap-1.5 text-pretty text-xs text-muted-foreground">
-          <Lock className="mt-px size-3 shrink-0" aria-hidden="true" />
-          <span>
-            {teamHref ? (
-              <>
-                Already assigned —{" "}
-                <Link
-                  href={teamHref}
-                  className="underline underline-offset-2"
-                >
-                  use Replace Person in Team &amp; Responsibilities
-                </Link>{" "}
-                to change it.
-              </>
-            ) : (
-              helpText
-            )}
-          </span>
-        </p>
-      )}
-    </div>
-  );
-}
-
-/**
- * Project Responsibility as one list.
+ * Project Responsibility, grouped by the party each holder represents (EPROM,
+ * Client, Subcontractor; then holders whose party is not recorded, and
+ * unassigned roles) — presentation only.
  *
  * The five fixed roles and the saved additional positions render identically;
  * what differs is where each is stored and therefore how it saves. A fixed
@@ -622,13 +374,29 @@ function ResponsibilityList({
   /** Team & Responsibilities, where Replace Person actually lives. */
   teamHref?: string;
 }) {
-  return (
-    <div className="space-y-3">
-      {/* Two columns from `sm` up, one below. A card is short enough that two
-          fit side by side without crowding, which roughly halves the height
-          this section used to occupy. */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {entries.map((entry) => {
+  /*
+   * An EXISTING project offers its ACTIVE Project Team as the candidates for
+   * every role and position (2C.3E): a person joins the team first. A new
+   * project has no team yet, so its creation flow is unchanged.
+   */
+  const memberPool = React.useMemo(
+    () => (savedProject ? memberPickerPool(savedProject) : undefined),
+    [savedProject]
+  );
+  /*
+   * Cards grouped by holder party. A row being edited stays in the group it
+   * was saved in, so its editor never jumps while a person is picked.
+   */
+  const groups = React.useMemo(
+    () => groupResponsibilities(entries, { savedProject, editingKey: editingRow }),
+    [entries, savedProject, editingRow]
+  );
+  /* 2C.3E: an archived project's setup is read-only — its cards offer no
+     Replace Person action (Team & Responsibilities refuses it there too). */
+  const archived = isSetupReadOnly(savedProject);
+
+  /** One entry: its resting card, or its editor in place across the group. */
+  const renderEntry = (entry: ResponsibilityEntry) => {
           const editing = editingRow === entry.key;
           /*
            * One editor at a time. Without this, opening a second row would
@@ -645,27 +413,32 @@ function ResponsibilityList({
             );
             if (!editing || locked) {
               return (
-                <ResponsibilityRow
+                <ResponsibilityCard
                   key={entry.key}
                   entry={entry}
                   contacts={contacts}
                   busy={saving || blockedByOtherEditor}
                   locked={locked}
                   teamHref={teamHref}
+                  party={holderPartyLabel(savedProject, entry.contactId)}
+                  needsParty={holderGroup(savedProject, entry.contactId) === "party_not_recorded"}
+                  archived={archived}
                   onEdit={() => onEditRow(entry.key)}
                 />
               );
             }
             return (
-              /* The editor needs the full width, so it spans both columns and
-                 the resting cards reflow around it. */
+              /* The editor needs the full width, so it spans the group's
+                 columns and the resting cards reflow around it. */
               <div
                 key={entry.key}
-                className="space-y-2 rounded-xl border border-primary/40 bg-background p-3 shadow-sm sm:col-span-2 lg:col-span-3"
+                className="space-y-2 rounded-xl border border-primary/40 bg-background p-3 shadow-sm col-span-full"
                 data-field-name={entry.fixedField}
               >
                 <PersonField
                   control={control}
+                  allowCreate={!savedProject}
+                  memberPool={memberPool}
                   name={fixedFieldOf(entry)}
                   label={entry.roleLabel}
                   required={entry.required}
@@ -700,13 +473,16 @@ function ResponsibilityList({
           const locked = isProjectPositionOccupied(entry.positionId);
           if (!editing || locked) {
             return (
-              <ResponsibilityRow
+              <ResponsibilityCard
                 key={entry.key}
                 entry={entry}
                 contacts={contacts}
                 busy={saving || blockedByOtherEditor}
                 locked={locked}
                 teamHref={teamHref}
+                party={holderPartyLabel(savedProject, entry.contactId)}
+                needsParty={holderGroup(savedProject, entry.contactId) === "party_not_recorded"}
+                archived={archived}
                 onEdit={() => onEditRow(entry.key)}
                 onDelete={locked ? undefined : () => onDeleteRow(index)}
               />
@@ -716,7 +492,7 @@ function ResponsibilityList({
           return (
             <div
               key={entry.key}
-              className="space-y-3 rounded-xl border border-primary/40 bg-background p-3 shadow-sm sm:col-span-2 lg:col-span-3"
+              className="space-y-3 rounded-xl border border-primary/40 bg-background p-3 shadow-sm col-span-full"
               data-field-name="additionalPositions"
             >
               <div className="grid gap-3 sm:grid-cols-2">
@@ -731,6 +507,8 @@ function ResponsibilityList({
                 />
                 <PersonField
                   control={control}
+                  allowCreate={!savedProject}
+                  memberPool={memberPool}
                   name={`additionalPositions.${index}.contactId`}
                   label="Person"
                   required
@@ -779,7 +557,20 @@ function ResponsibilityList({
               </div>
             </div>
           );
-        })}
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-6">
+        {groups.map((group) => (
+          <ResponsibilityGroupSection
+            key={group.key}
+            groupKey={group.key}
+            count={group.entries.length}
+          >
+            {group.entries.map(renderEntry)}
+          </ResponsibilityGroupSection>
+        ))}
       </div>
 
       {/* Only the caveat stays at the foot; the action itself now lives in the
@@ -918,12 +709,28 @@ function ClientShortNameField({
 function PersonField({
   placeholder = "Search or select person…",
   allowClear = false,
+  allowCreate = true,
+  memberPool,
   onMutated,
   onValueChange,
   ...props
 }: BaseFieldProps & {
   placeholder?: string;
   allowClear?: boolean;
+  /**
+   * Offer "Add new person" / Manage People. Off on an EXISTING project
+   * (2C.3D Wave 2): a new person joins it on its Project Team first; one
+   * created here would hold a role, or fail to save as a position, without
+   * being on the project.
+   */
+  allowCreate?: boolean;
+  /**
+   * An existing project's ACTIVE Project Team: only its members are offered,
+   * with Party / Project Role / Position and the Needs badges. A holder who
+   * is not a member stays shown as the current value. Absent = every person
+   * (a new project, which has no team yet).
+   */
+  memberPool?: MemberPickerPool;
   onMutated?: () => void;
   onValueChange?: (value: string, previousValue: string) => void;
 }) {
@@ -956,7 +763,20 @@ function PersonField({
                 clearLabel={`Clear ${props.label}`}
                 controlProps={controlProps}
                 onMutated={onMutated}
-                allowManage={canEditPeople}
+                allowManage={canEditPeople && allowCreate}
+                filter={memberPool ? (record) => memberPool.isCandidate(record.id) : undefined}
+                optionSublabel={
+                  memberPool
+                    ? (record) => memberPool.sublabel(record.id, (record as Contact).position)
+                    : undefined
+                }
+                optionBadges={memberPool ? (record) => memberPool.badges(record.id) : undefined}
+                searchPlaceholder={memberPool ? "Search the project team…" : undefined}
+                emptyLabel={
+                  memberPool
+                    ? "No active Project Team members yet. Add people to the Project Team first."
+                    : undefined
+                }
               />
             </div>
             {/* Opens the person already chosen here, rather than sending the

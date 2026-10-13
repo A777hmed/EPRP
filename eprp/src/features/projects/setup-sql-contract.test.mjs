@@ -117,8 +117,14 @@ test("legacy update uses a loaded version and one RPC, never a pre-save table wr
   assert.match(update, /p_expected_updated_at: expectedUpdatedAt/);
   assert.match(update, /rpc\("save_project_setup_patch"/);
   assert.doesNotMatch(update, /\.from\(|await replace|ensureResponsibilityContacts/);
+  // One loaded-version write; 2C.3E refuses an archived project before it.
   const links = source("./link-record-to-project.ts");
-  assert.equal([...links.matchAll(/updateProject\(project\.id, \{[^}]+\}, project\.updatedAt\)/g)].length, 4);
+  assert.equal([...links.matchAll(/projectService\.updateProject\(/g)].length, 1);
+  assert.match(links, /if \(isSetupReadOnly\(project\)\) throw new Error\(PROJECT_SETUP_ARCHIVED_MESSAGE\);\s+return projectService\.updateProject\(project\.id, patch, project\.updatedAt\);/);
+  // Departments, systems and Programs & Studies only: a person is never linked
+  // as a department assignment from here (2C.3D Wave 2).
+  assert.equal([...links.matchAll(/await updateLinkedProject\(project, \{ (departments|disciplines): next \}\)/g)].length, 3);
+  assert.doesNotMatch(links, /team: next|linkContact/);
   assert.match(service, /finalVersion\.updated_at !== row\.updated_at/);
 });
 

@@ -103,7 +103,10 @@ export function SystemDetailView({
 
   // Adding a contact from here keeps the project trail and pre-scopes the
   // person to this system.
-  const addContactHref = withProjectContext("/contacts/new", {
+  // Reached from a project, a new person joins that project on its Project
+  // Team first (2C.3D Wave 2): a person created here could not be put on the
+  // project, so Add Contact is offered only outside a project.
+  const addContactHref = context.projectId ? undefined : withProjectContext("/contacts/new", {
     ...context,
     sourceType: "system",
     parentId: system.id,
@@ -119,12 +122,14 @@ export function SystemDetailView({
           // `has_global_operational_authority()` — see department-detail-view.
           actions.canMutate ? (
             <>
+              {addContactHref && (
               <Button variant="outline" asChild>
                 <Link href={addContactHref}>
                   <UserPlus data-icon="inline-start" aria-hidden="true" />
                   Add Contact
                 </Link>
               </Button>
+              )}
               <Button variant="outline" asChild>
                 <Link
                   href={withProjectContext(`/systems/${system.id}/edit`, context)}
@@ -191,12 +196,14 @@ export function SystemDetailView({
           description="People in the department that owns this system."
           className="xl:col-span-2"
           action={
+            addContactHref ? (
             <Button variant="outline" size="sm" asChild>
               <Link href={addContactHref}>
                 <UserPlus data-icon="inline-start" aria-hidden="true" />
                 Add Contact
               </Link>
             </Button>
+            ) : undefined
           }
         >
           {relatedContacts.length === 0 ? (

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FolderX, Lock } from "lucide-react";
+import { Archive, FolderX, Lock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState, PageHeader } from "@/components/shared";
@@ -87,6 +87,30 @@ export function ProjectFormView({ projectId }: ProjectFormViewProps) {
    * `/projects/new` (no `projectId`) is a different policy — `can_create_project`
    * — and is left alone.
    */
+  // 2C.3E: an archived project is read-only for everyone — say so, rather
+  // than that the viewer does not manage it.
+  if (isEdit && authority.resolved && authority.archived) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow={project?.code}
+          title={project?.name ?? "Project"}
+          description="Archived projects are read-only."
+        />
+        <EmptyState
+          icon={Archive}
+          title="This project is archived"
+          description="Its details and setup can be viewed but not changed. Review it from the Project Overview."
+          action={
+            <Button variant="outline" asChild>
+              <Link href={`/projects/${projectId}`}>Project Overview</Link>
+            </Button>
+          }
+          className="py-8"
+        />
+      </div>
+    );
+  }
   if (isEdit && authority.resolved && !authority.canManageOperations) {
     return (
       <div className="space-y-6">

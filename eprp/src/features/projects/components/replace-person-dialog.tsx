@@ -31,7 +31,7 @@ import {
   type ReplacePersonUnit,
 } from "@/services/project-service";
 import type { Contact, Project } from "@/types";
-import { hasProjectAssignment } from "../assignment-rules";
+import { isSetupReadOnly, PROJECT_SETUP_ARCHIVED_MESSAGE } from "../setup-save";
 
 export interface ReplacePersonDialogProps {
   project: Project;
@@ -95,8 +95,11 @@ export function ReplacePersonDialog({
    * `getContactById` (not the base MasterRecordBase records) is what carries
    * `email` for the Review Impact section below.
    */
-  // 2C.3D Wave 2: a department assignment's replacement must also be an
-  // ACTIVE member of the project's team (the database refuses anyone else).
+  // Every replacement — fixed responsibility, project position (2C.3E) and
+  // department assignment (2C.3D Wave 2) — must be an ACTIVE member of THIS
+  // project's team, and that is sufficient: no other project row is needed.
+  // The database refuses anyone else. The person being replaced stays shown
+  // above as the current holder, member or not.
   const activeMemberContacts = React.useMemo(
     () => new Set((project.members ?? []).filter((member) => !member.endedAt).map((member) => member.contactId)),
     [project.members]
@@ -106,16 +109,17 @@ export function ReplacePersonDialog({
       .filter(
         (record) =>
           record.id !== currentContactId &&
-          hasProjectAssignment(project, record.id) &&
-          (unit.kind !== "department_assignment" || activeMemberContacts.has(record.id))
+          activeMemberContacts.has(record.id)
       )
       .map((record) => getContactById(record.id))
       .filter((contact): contact is Contact => Boolean(contact));
-  }, [activeRecords, currentContactId, project, unit.kind, activeMemberContacts]);
+  }, [activeRecords, currentContactId, activeMemberContacts]);
 
   const selectedContact = candidates.find((c) => c.id === toContactId);
   const trimmedReason = reason.trim();
-  const canConfirm = Boolean(toContactId) && trimmedReason.length > 0 && !pending;
+  // 2C.3E: an archived project is read-only; the dialog can never save it.
+  const archived = isSetupReadOnly(project);
+  const canConfirm = !archived && Boolean(toContactId) && trimmedReason.length > 0 && !pending;
 
   const handleOpenChange = (next: boolean) => {
     if (pending) return;
@@ -195,6 +199,9 @@ export function ReplacePersonDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          {archived && (
+            <p role="status" className="text-sm text-muted-foreground">{PROJECT_SETUP_ARCHIVED_MESSAGE}</p>
+          )}
           <div className="rounded-lg border bg-muted/30 p-3 text-sm">
             <p className="text-xs text-muted-foreground">
               Current {responsibilityLabel}

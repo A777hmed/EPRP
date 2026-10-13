@@ -6,9 +6,18 @@ import type {
   MasterRecordBase,
   Project,
   ProjectDisciplineLink,
-  ProjectTeamMember,
 } from "@/types";
 import type { ProjectLinkContext } from "./project-link-context";
+import { isSetupReadOnly, PROJECT_SETUP_ARCHIVED_MESSAGE } from "./setup-save";
+
+/**
+ * The only write this module makes. An archived project's setup is read-only
+ * (2C.3E), so linking refuses before writing; a no-op link never gets here.
+ */
+function updateLinkedProject(project: Project, patch: Partial<Project>) {
+  if (isSetupReadOnly(project)) throw new Error(PROJECT_SETUP_ARCHIVED_MESSAGE);
+  return projectService.updateProject(project.id, patch, project.updatedAt);
+}
 
 /**
  * Attach a freshly created (or edited) master record to the project the user
@@ -37,7 +46,9 @@ export async function linkRecordToProject(
     case "discipline":
       return linkDiscipline(project, record.id, context);
     case "contact":
-      return linkContact(project, record.id, context);
+      // Never linked from here (2C.3D Wave 2): a department assignment needs
+      // an active Project Team member and is made on the Contacts step only.
+      return false;
     default:
       return false;
   }
@@ -75,7 +86,7 @@ async function linkDepartment(
     ...project.departments,
     { departmentId, leadName: "", reportingRequired: true, systems: [] },
   ];
-  await projectService.updateProject(project.id, { departments: next }, project.updatedAt);
+  await updateLinkedProject(project, { departments: next });
   return true;
 }
 
@@ -110,7 +121,7 @@ async function linkSystem(
         }
       : candidate
   );
-  await projectService.updateProject(project.id, { departments: next }, project.updatedAt);
+  await updateLinkedProject(project, { departments: next });
   return true;
 }
 
@@ -138,36 +149,6 @@ async function linkDiscipline(
     ...links,
     { disciplineId, departmentId, systemId },
   ];
-  await projectService.updateProject(project.id, { disciplines: next }, project.updatedAt);
-  return true;
-}
-
-async function linkContact(
-  project: Project,
-  contactId: string,
-  context: ProjectLinkContext
-): Promise<boolean> {
-  const systemId =
-    context.sourceType === "system" ? context.parentId : undefined;
-  const disciplineId =
-    context.sourceType === "discipline" ? context.parentId : undefined;
-  const departmentId = resolveDepartmentId(context);
-  if (!departmentId) return false;
-
-  const team = project.team ?? [];
-  const exists = team.some(
-    (member) =>
-      member.contactId === contactId &&
-      member.departmentId === departmentId &&
-      (member.systemId ?? undefined) === (systemId ?? undefined) &&
-      (member.disciplineId ?? undefined) === (disciplineId ?? undefined)
-  );
-  if (exists) return false;
-
-  const next: ProjectTeamMember[] = [
-    ...team,
-    { contactId, departmentId, systemId, disciplineId },
-  ];
-  await projectService.updateProject(project.id, { team: next }, project.updatedAt);
+  await updateLinkedProject(project, { disciplines: next });
   return true;
 }

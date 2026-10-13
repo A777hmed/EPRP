@@ -3,12 +3,15 @@ import { mockContacts } from "@/data/mock/master-data.mock";
 import { mockProjects } from "@/data/mock/projects.mock";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
-  hasProjectAssignment,
   PSM_MEMBER_REQUIRED_MESSAGE,
   teamMembershipIssues,
 } from "@/features/projects/assignment-rules";
 import { persistProjectParties } from "@/features/projects/project-parties";
+import { isSetupReadOnly, PROJECT_SETUP_ARCHIVED_MESSAGE } from "@/features/projects/setup-save";
 import {
+  HOLDER_MEMBER_REQUIRED_MESSAGE,
+  responsibilityHolderIssues,
+  isActiveProjectMember,
   PARTY_TEAM_HISTORY_MESSAGE,
   partyHasTeamHistory,
 } from "@/features/projects/project-team";
@@ -268,11 +271,18 @@ const mockProjectService: ProjectService = {
     if (existing.updatedAt !== expectedUpdatedAt) {
       throw new Error("Project Setup changed since this page loaded. Reload before saving.");
     }
+    // 2C.3E: mirrors block_archived_project_setup. Archiving itself is an
+    // update of a project that is not archived yet, so it still passes.
+    if (isSetupReadOnly(existing)) throw new Error(PROJECT_SETUP_ARCHIVED_MESSAGE);
     const parties = persistProjectParties(existing.parties, input.parties, () => crypto.randomUUID());
     assertNoRemovedPartyHasHistory(existing, parties);
     // 2C.3D Wave 2: a new or edited department assignment needs an active member.
     if (input.team && teamMembershipIssues({ team: input.team, members: existing.members }, existing).length > 0) {
       throw new Error(PSM_MEMBER_REQUIRED_MESSAGE);
+    }
+    // 2C.3E: mirrors guard_fixed_holder_replacement / guard_project_position_membership.
+    if (responsibilityHolderIssues(existing, input).length > 0) {
+      throw new Error(HOLDER_MEMBER_REQUIRED_MESSAGE);
     }
     const updated: Project = {
       ...existing,
@@ -324,6 +334,7 @@ const mockProjectService: ProjectService = {
     if (!input.reason.trim()) throw new ProjectTypeCorrectionError("reason_required");
     const existing = store.get(input.projectId);
     if (!existing) throw new ProjectTypeCorrectionError("not_found");
+    if (isSetupReadOnly(existing)) throw new ProjectTypeCorrectionError("project_archived");
     // Mirrors the database's Other -> PSM structure guard (2C.1c-a) against the
     // mock structure store, so mock mode never allows what the database refuses.
     const activeStructureUnits = await structureUnitsBlockingCorrection(existing, input);
@@ -399,6 +410,9 @@ const mockProjectService: ProjectService = {
     if (!project) {
       throw new ReplacePersonError("not_found", "Project not found.");
     }
+    if (isSetupReadOnly(project)) {
+      throw new ReplacePersonError("project_archived", PROJECT_SETUP_ARCHIVED_MESSAGE);
+    }
     if (!mockContacts.some((c) => c.id === fromContactId)) {
       throw new ReplacePersonError("not_found", "The person being replaced was not found.");
     }
@@ -430,15 +444,10 @@ const mockProjectService: ProjectService = {
           "This responsibility is no longer held by the selected person. Reload and try again."
         );
       }
-      // Mirrors guard_fixed_project_responsibility_membership() — a fixed
-      // responsibility (and, below, a project_positions row) may only be
-      // assigned to someone already on the project team, elsewhere in the
-      // fixed roles, or matches the DB's own trigger predicate.
-      if (!hasProjectAssignment(updated, toContactId)) {
-        throw new ReplacePersonError(
-          "not_project_member",
-          "The replacement person must already be part of this project before they can hold this responsibility."
-        );
+      // Mirrors replace_project_responsibility() (2C.3E): an ACTIVE member of
+      // this project's team is eligible — no other project row is needed.
+      if (!isActiveProjectMember(updated, toContactId)) {
+        throw new ReplacePersonError("not_project_member", HOLDER_MEMBER_REQUIRED_MESSAGE);
       }
       updated = { ...updated, [field]: toContactId };
       rowsUpdated = 1;
@@ -580,11 +589,10 @@ const mockProjectService: ProjectService = {
           "The replacement person already holds this position."
         );
       }
-      if (!hasProjectAssignment(updated, toContactId)) {
-        throw new ReplacePersonError(
-          "not_project_member",
-          "The replacement person must already be part of this project before they can hold this position."
-        );
+      // Mirrors replace_project_responsibility() (2C.3E): an ACTIVE member of
+      // this project's team is eligible — no other project row is needed.
+      if (!isActiveProjectMember(updated, toContactId)) {
+        throw new ReplacePersonError("not_project_member", HOLDER_MEMBER_REQUIRED_MESSAGE);
       }
       updated = {
         ...updated,

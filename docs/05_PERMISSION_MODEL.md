@@ -25,8 +25,9 @@ deliberately.
 
 This is a specification of the **target** model; unless a section says
 otherwise, nothing here is implemented. Sections that describe implemented,
-as-built rules are explicitly marked **Implemented** — currently only §3.6
-(Phase 2C.1 project classification authority).
+as-built rules are explicitly marked **Implemented** — currently §3.6
+(Phase 2C.1 project classification authority) and §3.7 (Phase 2C.3E Project
+Setup authority and archived projects).
 
 ---
 
@@ -237,6 +238,70 @@ Rules:
 4. **PSM/PSAIM categories are reserved.** An Other project can never use one,
    and adding a category whose code or name is reserved for PSM/PSAIM from an
    Other project is refused before anything is created.
+
+### 3.7 Project Setup authority and archived projects (Phase 2C.3E)
+
+**Implemented** and enforced in the database
+(`20261012180000_setup_authority_and_archived_read_only.sql`). It states the
+authority sources that exist today; no role boundary above is widened.
+
+**Authority comes only from these explicit sources.**
+
+| Source | Grants | Read by |
+|---|---|---|
+| System Administrator / Project Control Admin (platform role) | Project Setup and operations on every project | `has_global_operational_authority()` |
+| The project's named **Project Control Manager** (Project Control / Planning) | Project Setup, operations and the reporting workflow on **that project only**; view-only elsewhere | `is_project_control_planning()` |
+| The project's named **Reporting Coordinator** | The reporting workflow on that project only; **no** Project Setup authority | `is_report_coordinator()` |
+| PSM **Department Manager** (`role = team_member`, `assignment_role = department_manager`) | Department approve / return on that project and department | `is_weekly_department_manager()` |
+| PSM Team Member Lead / Team Member | Department-user scope on that project and department | `is_department_user()` |
+
+**Authority-free (descriptive only):**
+- project membership, Party, Project Role and Reports To;
+- functional title and project positions;
+- delegation rows (not yet wired to authority);
+- Other-project Unit Lead, Unit Member, Weekly / Monthly Responsible and Backup.
+
+No authorization helper or policy reads them. The migration post-check, the
+runtime script and a source test each prove this. The six malformed legacy MDP
+rows (`role = project_manager` with a department and
+`assignment_role = department_manager`) grant no Department Manager authority.
+
+Rules:
+
+1. **Authority follows the named holder.** When a transaction commits, the
+   Project Control and Reporting Coordinator authority rows must name the
+   project's current holder of that role.
+   - Changing or removing the holder changes authority in the same transaction.
+   - A direct write that would leave authority with anyone else is refused.
+2. **Project Control stays inside its project.** It cannot write another
+   project's setup or grant a platform role (only a System Administrator
+   writes accounts and roles).
+3. **A held responsibility moves only to an active Project Team member.**
+   - Replacing the holder of a fixed responsibility, and receiving a project
+     position, need an active member of the same project. This applies to
+     Replace Person, Project Information and any direct write.
+   - Active membership is **sufficient**: no other assignment or role on the
+     project is required first. Non-members, ended members and members of
+     another project are refused.
+   - Membership itself still grants nothing; a filled responsibility carries
+     only that responsibility's own authority.
+   - On an existing project, the Replace Person and Project Information
+     pickers offer active members only, and Project Information never
+     creates a Person; a new person joins the Project Team first.
+   - Not replacements, and unchanged: a new project's first holders, filling
+     a vacant responsibility, clearing one.
+4. **Archived projects are read-only.** Every Project Setup write is refused
+   for every role, whatever the route. This covers:
+   - Project Information, Departments, Systems, Programs & Studies;
+   - Contacts and department assignments, delegations, positions, sites and
+     parties;
+   - the Project Team, the Other structure and its responsibilities;
+   - Replace Person and the System Administrator's Project Type correction.
+
+   Setup managers still see every step, read-only, with a clear notice.
+   Archiving itself is allowed; there is no un-archive path.
+5. **Users never see the database's wording.** Refusals are shown as plain
+   sentences.
 
 ---
 

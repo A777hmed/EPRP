@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { ManagedPersonSelect } from "@/features/master-data";
 import { projectTeamService, type MemberWriteResult } from "@/services/project-team-service";
+import { isSetupReadOnly, PROJECT_SETUP_ARCHIVED_MESSAGE } from "../../setup-save";
 import type { Contact, MasterRecordBase, Project, ProjectMember } from "@/types";
 import {
   activeMembers,
@@ -96,6 +97,11 @@ export function ProjectTeamMemberDialog({
   const legacy = Boolean(member && (!member.partyId || !member.projectRole));
 
   const save = async () => {
+    // 2C.3E: an archived project is read-only; refuse before any write.
+    if (isSetupReadOnly(project)) {
+      toast.error(PROJECT_SETUP_ARCHIVED_MESSAGE);
+      return;
+    }
     setAttempted(true);
     if (Object.keys(issues).length > 0) return;
     setSaving(true);

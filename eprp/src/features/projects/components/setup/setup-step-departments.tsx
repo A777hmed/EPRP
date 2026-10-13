@@ -24,6 +24,8 @@ export interface SetupStepDepartmentsProps {
   departments: Department[];
   departmentName: (id: string) => string;
   onDraftChange: (patch: Partial<Project>) => void;
+  /** 2C.3E: an archived project — no Add Department (it would link a new record to it). */
+  readOnly?: boolean;
 }
 
 /**
@@ -37,6 +39,7 @@ export function SetupStepDepartments({
   departments,
   departmentName,
   onDraftChange,
+  readOnly = false,
 }: SetupStepDepartmentsProps) {
   const assignments = project.departments;
   const selectedIds = assignments.map((a) => a.departmentId);
@@ -75,6 +78,7 @@ export function SetupStepDepartments({
       title="Departments on this project"
       description="Pick the contributing departments, then set each one's lead and reporting duty."
       action={
+        readOnly ? undefined : (
         <Button variant="outline" size="sm" asChild>
           <Link
             href={withProjectContext("/departments/new", {
@@ -87,6 +91,7 @@ export function SetupStepDepartments({
             Add Department
           </Link>
         </Button>
+        )
       }
     >
       <div className="space-y-1.5">

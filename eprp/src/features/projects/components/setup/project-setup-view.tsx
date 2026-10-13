@@ -35,6 +35,7 @@ import { projectService } from "@/services/project-service";
 import { saveProjectSetupRelation } from "@/services/project-setup-save";
 import {
   isSetupDraftDirty,
+  PROJECT_SETUP_ARCHIVED_MESSAGE,
   reconcileSetupSave,
   relationForSetupStep,
   type SetupRelation,
@@ -69,6 +70,7 @@ import type {
 import { canCorrectProjectType } from "../../classification";
 import { DraftWorkflowNav, ProjectWorkflowNav } from "../project-workflow-nav";
 import { ProjectInfoWorkspace } from "./project-info-workspace";
+import { ArchivedSetupNotice } from "./archived-setup-notice";
 import { OtherProjectResponsibilities } from "./other-project-responsibilities";
 import { SetupChecklist } from "./setup-checklist";
 import { SetupStepContacts } from "./setup-step-contacts";
@@ -217,8 +219,12 @@ export function ProjectSetupView({
    * readable through the project sections, which is where a non-manager is
    * pointed. `/projects/new` (no `projectId`) is governed by `can_create_project`
    * and is left to the existing create path.
+   *
+   * 2C.3E: an ARCHIVED project is managed by nobody, yet its setup managers
+   * still see the wizard — read-only (`readOnly` below), never refused as if
+   * they had no authority, and never with live controls.
    */
-  if (projectId && authority.resolved && !authority.canManageOperations) {
+  if (projectId && authority.resolved && !authority.holdsOperations) {
     return (
       <div className="space-y-6">
         <PageHeader
@@ -267,6 +273,7 @@ export function ProjectSetupView({
       initialDisciplineId={initialDisciplineId}
       onInfoSaved={handleInfoSaved}
       canManage={authority.resolved && authority.canManageOperations}
+      readOnly={authority.resolved && authority.archived}
     />
   );
 }
@@ -279,6 +286,7 @@ function SetupShell({
   initialDisciplineId,
   onInfoSaved,
   canManage,
+  readOnly,
 }: {
   project: Project | null;
   usedCodes: string[];
@@ -287,6 +295,12 @@ function SetupShell({
   onInfoSaved: (updated: Project) => void;
   /** Project Setup authority, already resolved by the page. */
   canManage: boolean;
+  /**
+   * 2C.3E: an archived project — every step stays visible, nothing is saved.
+   * Controls are disabled (a disabled fieldset) or not offered; the services
+   * and the database refuse any write that gets through regardless.
+   */
+  readOnly: boolean;
 }) {
   const router = useRouter();
   // Presentation only: who may be offered "Correct Project Type".
@@ -384,6 +398,12 @@ function SetupShell({
   const applyDraft = (patch: Partial<Project>) =>
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
 
+  // 2C.3E: every Project Information save handler refuses on an archived
+  // project, whatever the screen offers.
+  const assertWritable = () => {
+    if (readOnly) throw new Error(PROJECT_SETUP_ARCHIVED_MESSAGE);
+  };
+
   const header = (
     <PageHeader
       // Progress lives in the workflow tracker below, not in a step counter.
@@ -405,6 +425,7 @@ function SetupShell({
 
   if (step === "info") {
     const handleSubmit = async (values: ProjectFormValues) => {
+      assertWritable();
       if (project) {
         // Project Info payload only — `ProjectInfoUpdate` excludes
         // departments, disciplines, and team at the type level, so this save
@@ -440,6 +461,7 @@ function SetupShell({
     const handleSavePositions = async (
       positions: ProjectFormValues["additionalPositions"]
     ): Promise<ProjectFormValues["additionalPositions"]> => {
+      assertWritable();
       if (!project) return positions;
       const updated = await projectService.updateProject(project.id, {
         positions: positions
@@ -468,6 +490,7 @@ function SetupShell({
      * locks the family from then on.
      */
     const handleClassify = async (input: ClassifyProjectInput) => {
+      assertWritable();
       if (!project) throw new Error("The project must exist before it is classified.");
       const updated = await projectService.updateProject(
         project.id,
@@ -483,6 +506,7 @@ function SetupShell({
      * Goes through the correction RPC alone — never a project update.
      */
     const handleCorrectProjectType = async (target: CorrectProjectTypeTarget) => {
+      assertWritable();
       if (!project) throw new Error("The project must exist before it is corrected.");
       const corrected = await projectService.correctProjectType({
         projectId: project.id,
@@ -494,6 +518,7 @@ function SetupShell({
     };
 
     const handleSaveDraft = async (values: ProjectFormValues) => {
+      assertWritable();
       if (project) {
         const updated = await projectService.updateProject(
           project.id,
@@ -522,6 +547,10 @@ function SetupShell({
         {project && (
           <ProjectWorkflowNav project={project} activeStep={step} structure={structureState} />
         )}
+        {readOnly && <ArchivedSetupNotice />}
+        {/* 2C.3E: a disabled fieldset disables every control inside the form —
+            fields, pickers, Save, Save Draft — while the values stay legible. */}
+        <SetupEditScope readOnly={readOnly}>
         <ProjectForm
           // New project: the tracker is driven by the live form values and
           // stays visible on the Project Type screen as well.
@@ -544,9 +573,9 @@ function SetupShell({
           }
           onSubmit={handleSubmit}
           onSaveDraft={handleSaveDraft}
-          onSavePositions={project ? handleSavePositions : undefined}
+          onSavePositions={project && !readOnly ? handleSavePositions : undefined}
           onClassify={
-            savedBaseline && !savedBaseline.structureFamily ? handleClassify : undefined
+            savedBaseline && !savedBaseline.structureFamily && !readOnly ? handleClassify : undefined
           }
           onCorrectProjectType={
             canCorrectProjectType(identity, savedBaseline) ? handleCorrectProjectType : undefined
@@ -555,11 +584,14 @@ function SetupShell({
             router.push(project ? `/projects/${project.id}` : "/projects")
           }
         />
+        </SetupEditScope>
         {/* Preserve the editor across saves; it reconciles the new baseline
             while retaining unrelated and in-flight edits. Not for an Other
             project: its structure is not Departments → Systems; it has its
-            own Project Structure step. */}
-        {project && setupFlowFor({ structureFamily, saved }) !== "other" && (
+            own Project Structure step. Not on an archived project (2C.3E):
+            it is a second editor for Departments, Systems, Programs & Studies
+            and Contacts, which stay visible read-only on their own steps. */}
+        {project && !readOnly && setupFlowFor({ structureFamily, saved }) !== "other" && (
           <ProjectInfoWorkspace
             key={project.id}
             project={project}
@@ -641,8 +673,9 @@ function SetupShell({
       structureState={structureState}
       canManageStructure={canManage && savedBaseline.status !== "archived"}
       canManageTeam={canManage && savedBaseline.status !== "archived"}
-      canEditPeople={canEditPeopleMaster(identity)}
+      canEditPeople={canEditPeopleMaster(identity) && !readOnly}
       onProjectChanged={reloadProject}
+      readOnly={readOnly}
     />
   );
 }
@@ -668,6 +701,7 @@ function LoadedSteps({
   canManageTeam,
   canEditPeople,
   onProjectChanged,
+  readOnly,
 }: {
   project: Project;
   current: Project;
@@ -694,6 +728,8 @@ function LoadedSteps({
   /** May edit the global People master — hides Edit / Add Person otherwise. */
   canEditPeople: boolean;
   onProjectChanged: () => void;
+  /** 2C.3E: archived — every step visible, nothing saved. */
+  readOnly: boolean;
 }) {
   const router = useRouter();
   const { records: clientRecords } = useMasterData("client");
@@ -725,6 +761,10 @@ function LoadedSteps({
     : duplicateManagerIssues(current);
 
   const save = async (): Promise<boolean> => {
+    if (readOnly) {
+      toast.error(PROJECT_SETUP_ARCHIVED_MESSAGE);
+      return false;
+    }
     const relation = relationForSetupStep(step);
     if (!relation) {
       if (dirty) toast.error("Save edits on their own setup step before continuing.");
@@ -807,7 +847,9 @@ function LoadedSteps({
   }
 
   // A locked step is unreachable until everything before it is done.
-  if (!status.unlocked) {
+  // An archived project's setup is history: every step stays viewable, even
+  // one its incomplete setup would otherwise keep locked (2C.3E).
+  if (!status.unlocked && !readOnly) {
     const blockerId = status.blockedBy ?? "info";
     const blockerAvailable = workflow.byId[blockerId]?.available !== false;
     return (
@@ -845,6 +887,7 @@ function LoadedSteps({
     <div className="space-y-6">
       {header}
       <ProjectWorkflowNav project={current} activeStep={step} structure={structureState} />
+      {readOnly && <ArchivedSetupNotice />}
 
       {step === "structure" && (
         <ProjectStructureStep
@@ -857,32 +900,39 @@ function LoadedSteps({
         />
       )}
       {step === "departments" && (
-        <SetupStepDepartments
-          project={current}
-          context={context}
-          departments={workflow.departments}
-          departmentName={workflow.departmentName}
-          onDraftChange={applyDraft}
-        />
+        <SetupEditScope readOnly={readOnly}>
+          <SetupStepDepartments
+            project={current}
+            context={context}
+            departments={workflow.departments}
+            departmentName={workflow.departmentName}
+            onDraftChange={applyDraft}
+            readOnly={readOnly}
+          />
+        </SetupEditScope>
       )}
       {step === "systems" && (
-        <SetupStepSystems
-          project={current}
-          context={context}
-          systems={workflow.systems}
-          departmentName={workflow.departmentName}
-          onDraftChange={applyDraft}
-        />
+        <SetupEditScope readOnly={readOnly}>
+          <SetupStepSystems
+            project={current}
+            context={context}
+            systems={workflow.systems}
+            departmentName={workflow.departmentName}
+            onDraftChange={applyDraft}
+          />
+        </SetupEditScope>
       )}
       {step === "disciplines" && (
-        <SetupStepDisciplines
-          project={current}
-          context={context}
-          disciplines={workflow.disciplines}
-          departmentName={workflow.departmentName}
-          onDraftChange={applyDraft}
-          terms={workflow.terms}
-        />
+        <SetupEditScope readOnly={readOnly}>
+          <SetupStepDisciplines
+            project={current}
+            context={context}
+            disciplines={workflow.disciplines}
+            departmentName={workflow.departmentName}
+            onDraftChange={applyDraft}
+            terms={workflow.terms}
+          />
+        </SetupEditScope>
       )}
       {/* Project Team (2C.3C): the same membership model for PSM, Other and
           legacy projects. Saved immediately against the saved project. */}
@@ -899,19 +949,21 @@ function LoadedSteps({
       )}
       {/* PSM / legacy department scope assignments stay as they are. */}
       {step === "contacts" && !isOther && (
-        <SetupStepContacts
-          project={current}
-          savedProject={project}
-          context={context}
-          contacts={workflow.contacts}
-          disciplines={workflow.disciplines}
-          departmentName={workflow.departmentName}
-          onDraftChange={applyDraft}
-          terms={workflow.terms}
-          initialDisciplineId={initialDisciplineId}
-          canEditPeople={canEditPeople}
-          clientName={clientName}
-        />
+        <SetupEditScope readOnly={readOnly}>
+          <SetupStepContacts
+            project={current}
+            savedProject={project}
+            context={context}
+            contacts={workflow.contacts}
+            disciplines={workflow.disciplines}
+            departmentName={workflow.departmentName}
+            onDraftChange={applyDraft}
+            terms={workflow.terms}
+            initialDisciplineId={initialDisciplineId}
+            canEditPeople={canEditPeople}
+            clientName={clientName}
+          />
+        </SetupEditScope>
       )}
       {step === "team" && isOther && (
         <OtherProjectResponsibilities
@@ -969,6 +1021,22 @@ function LoadedSteps({
               </Link>
             </Button>
           )}
+          {readOnly ? (
+            // 2C.3E: archived — navigation only; nothing to save or finish.
+            nextStep ? (
+              <Button asChild>
+                <Link href={projectWorkflowHref(project.id, nextStep)}>
+                  Next
+                  <ArrowRight data-icon="inline-end" aria-hidden="true" />
+                </Link>
+              </Button>
+            ) : (
+              <Button variant="outline" asChild>
+                <Link href={`/projects/${project.id}`}>Back to Project</Link>
+              </Button>
+            )
+          ) : (
+          <>
           <Button variant="outline" onClick={save} disabled={saving || !dirty}>
             <Save data-icon="inline-start" aria-hidden="true" />
             Save
@@ -1010,8 +1078,29 @@ function LoadedSteps({
               )}
             </Button>
           )}
+          </>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * 2C.3E: the PSM / legacy setup editors (Project Information, Departments,
+ * Systems, Programs & Studies, department assignments) have no read-only mode
+ * of their own. On an archived project a disabled fieldset disables every
+ * control inside them — inputs, pickers, buttons, dialog triggers — while the
+ * values stay legible. Other-project editors use their own `canManage`.
+ */
+function SetupEditScope({ readOnly, children }: { readOnly: boolean; children: React.ReactNode }) {
+  return (
+    <fieldset
+      disabled={readOnly}
+      data-archived-setup={readOnly ? "read-only" : undefined}
+      className="min-w-0"
+    >
+      {children}
+    </fieldset>
   );
 }

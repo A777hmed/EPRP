@@ -75,6 +75,17 @@ export function setupSaveMessage(message: string): string {
   return tagged ? tagged[1] : message;
 }
 
+/**
+ * 2C.3E: an archived project's setup is history — visible, never changed. The
+ * database refuses every setup write with [PROJECT_ARCHIVED] and this sentence;
+ * the application refuses first, with the same words.
+ */
+export const PROJECT_SETUP_ARCHIVED_MESSAGE = "This project is archived; its setup is read-only.";
+
+export function isSetupReadOnly(project: Pick<Project, "status"> | null | undefined): boolean {
+  return project?.status === "archived";
+}
+
 /** A write acknowledgement alone is insufficient; confirm the read-back version. */
 export async function confirmSetupSave(
   write: () => Promise<string>,

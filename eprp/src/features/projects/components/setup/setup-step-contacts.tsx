@@ -41,10 +41,7 @@ import {
   REPLACE_PERSON_MANAGER_HELP_TEXT,
 } from "../../responsibility-guard";
 import {
-  activeMembers,
-  memberNeedsParty,
-  memberNeedsProjectRole,
-  partyLabel,
+  memberPickerPool,
 } from "../../project-team";
 import { DepartmentTeamAssignments } from "./department-team-assignments";
 import { LinkedRecordRow } from "./linked-record-row";
@@ -108,33 +105,15 @@ export function SetupStepContacts({
 
   // Active memberships of the SAVED project: memberships save on their own,
   // straight away, so this is the canonical Project Team.
-  const memberByContact = React.useMemo(
-    () => new Map(activeMembers(savedProject.members).map((member) => [member.contactId, member])),
-    [savedProject.members]
+  const memberPool = React.useMemo(
+    () => memberPickerPool(savedProject, clientName),
+    [savedProject, clientName]
   );
-  const partyById = React.useMemo(
-    () => new Map((savedProject.parties ?? []).flatMap((party) => (party.id ? [[party.id, party] as const] : []))),
-    [savedProject.parties]
-  );
-  const isActiveMember = (record: MasterRecordBase) => memberByContact.has(record.id);
-  /** Party · Project Role · Position, as far as each is recorded. */
-  const memberSublabel = (record: MasterRecordBase) => {
-    const member = memberByContact.get(record.id);
-    return [
-      member?.partyId ? partyLabel(partyById.get(member.partyId), clientName) : undefined,
-      member?.projectRole?.trim() || undefined,
-      (record as Contact).position,
-    ].filter(Boolean).join(" · ") || undefined;
-  };
-  const memberBadges = (record: MasterRecordBase) => {
-    const member = memberByContact.get(record.id);
-    // Only an already-selected legacy assignment can show a non-member.
-    if (!member) return ["Not on the Project Team"];
-    return [
-      ...(memberNeedsParty(member) ? ["Needs party"] : []),
-      ...(memberNeedsProjectRole(member) ? ["Needs project role"] : []),
-    ];
-  };
+  const isActiveMember = (record: MasterRecordBase) => memberPool.isCandidate(record.id);
+  const memberSublabel = (record: MasterRecordBase) =>
+    memberPool.sublabel(record.id, (record as Contact).position);
+  // Only an already-selected legacy assignment can show a non-member.
+  const memberBadges = (record: MasterRecordBase) => memberPool.badges(record.id);
 
   // Disciplines actually linked to this project, with their department.
   const projectDisciplines = React.useMemo(() => {
@@ -466,7 +445,7 @@ export function SetupStepContacts({
                         {contactMeta(person.contactId, person.departmentIds)}
                         {/* A legacy assignment stays readable; changing it
                             needs an active membership (2C.3D Wave 2). */}
-                        {!memberByContact.has(person.contactId) && (
+                        {!memberPool.isCandidate(person.contactId) && (
                           <StatusBadge tone="warning" hideDot className="ml-1.5 align-middle">
                             Not on the Project Team
                           </StatusBadge>

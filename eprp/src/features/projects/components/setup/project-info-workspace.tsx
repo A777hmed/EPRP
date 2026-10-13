@@ -72,11 +72,15 @@ import { SetupStepSystems } from "./setup-step-systems";
 type SectionId = "departments" | "systems" | "disciplines" | "contacts";
 
 /** Where each section's "Add" action creates a new master record. */
-const ADD_PATH: Record<SectionId, string> = {
+/**
+ * Contacts has no Add here (2C.3D Wave 2): a new person joins the project on
+ * its Project Team first, then is assigned on the Contacts step. Creating a
+ * Person from Project Info could not put them on the project.
+ */
+const ADD_PATH: Record<Exclude<SectionId, "contacts">, string> = {
   departments: "/departments/new",
   systems: "/systems/new",
   disciplines: "/disciplines/new",
-  contacts: "/contacts/new",
 };
 
 export interface ProjectInfoWorkspaceProps {
@@ -368,8 +372,8 @@ export function ProjectInfoWorkspace({
                 {section.summary}
               </p>
               <div className="mt-auto flex flex-wrap gap-1.5">
-                {/* Creating a Person needs People-master authority (2C.3C). */}
-                {(section.id !== "contacts" || canEditPeople) && (
+                {/* No Add for Contacts: people join on the Project Team. */}
+                {section.id !== "contacts" && (
                   <Button variant="outline" size="sm" asChild>
                     <Link
                       href={withProjectContext(ADD_PATH[section.id], {

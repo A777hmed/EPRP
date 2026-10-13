@@ -184,6 +184,102 @@ export function teamSections(project: Pick<Project, "parties" | "members">): Tea
   return sections;
 }
 
+/* --------------- Replacing a held responsibility (2C.3E) ------------------ */
+
+/** The database's [HOLDER_MEMBER_REQUIRED] refusal, word for word. */
+export const HOLDER_MEMBER_REQUIRED_MESSAGE =
+  "Only an active member of this project's team can take over this responsibility. Add the person to the Project Team first.";
+
+/** An ACTIVE membership of THIS project (never another project's, never an ended one). */
+export function isActiveProjectMember(
+  project: Pick<Project, "members">,
+  contactId: string | null | undefined
+): boolean {
+  return Boolean(contactId) && activeMembers(project.members).some((member) => member.contactId === contactId);
+}
+
+/**
+ * The people a save would make responsibility holders without being ACTIVE
+ * members of the project (mirrors guard_fixed_holder_replacement and
+ * guard_project_position_membership):
+ * - a HELD fixed responsibility moving to someone else;
+ * - a project position, new or moving to someone else.
+ * Active membership is sufficient — no other project row is needed. Filling
+ * a VACANT fixed responsibility and clearing one are unchanged (a new
+ * project names its first holders that way); an unchanged holder is never
+ * re-checked.
+ */
+export function responsibilityHolderIssues(
+  existing: Pick<Project, FixedResponsibilityField | "positions" | "members">,
+  input: Partial<Pick<Project, FixedResponsibilityField | "positions">>
+): string[] {
+  const refused: string[] = [];
+  for (const { field } of FIXED_RESPONSIBILITIES) {
+    if (!(field in input)) continue;
+    const previous = existing[field];
+    const next = input[field];
+    if (previous && next && next !== previous && !isActiveProjectMember(existing, next)) refused.push(next);
+  }
+  for (const position of input.positions ?? []) {
+    const previous = (existing.positions ?? []).find((candidate) => candidate.id && candidate.id === position.id);
+    if (position.contactId && position.contactId !== previous?.contactId
+        && !isActiveProjectMember(existing, position.contactId)) {
+      refused.push(position.contactId);
+    }
+  }
+  return refused;
+}
+
+/* ----------------------- Person pickers on a project ---------------------- */
+
+/** Badge for a kept selection whose person is not an active member. */
+export const NOT_ON_PROJECT_TEAM = "Not on the Project Team";
+
+/**
+ * The ACTIVE Project Team of an existing project as a person-picker pool
+ * (2C.3D Wave 2 / 2C.3E): who may be offered, and how each is described.
+ * Used by the PSM assignment pickers and the Project Information role /
+ * position pickers. Presentation only: Party / Project Role are shown, never
+ * required, and membership grants no authority. A non-member already
+ * selected stays readable (the picker keeps it) and is marked.
+ */
+export interface MemberPickerPool {
+  isCandidate: (contactId: string) => boolean;
+  /** Party · Project Role · Position, as far as each is recorded. */
+  sublabel: (contactId: string, position?: string) => string | undefined;
+  /** "Needs party" / "Needs project role"; {@link NOT_ON_PROJECT_TEAM} for a non-member. */
+  badges: (contactId: string) => string[];
+}
+
+export function memberPickerPool(
+  project: Pick<Project, "members" | "parties">,
+  clientName?: string
+): MemberPickerPool {
+  const byContact = new Map(activeMembers(project.members).map((member) => [member.contactId, member]));
+  const partyById = new Map(
+    (project.parties ?? []).flatMap((party) => (party.id ? [[party.id, party] as const] : []))
+  );
+  return {
+    isCandidate: (contactId) => byContact.has(contactId),
+    sublabel: (contactId, position) => {
+      const member = byContact.get(contactId);
+      return [
+        member?.partyId ? partyLabel(partyById.get(member.partyId), clientName) : undefined,
+        member?.projectRole?.trim() || undefined,
+        position,
+      ].filter(Boolean).join(" · ") || undefined;
+    },
+    badges: (contactId) => {
+      const member = byContact.get(contactId);
+      if (!member) return [NOT_ON_PROJECT_TEAM];
+      return [
+        ...(memberNeedsParty(member) ? ["Needs party"] : []),
+        ...(memberNeedsProjectRole(member) ? ["Needs project role"] : []),
+      ];
+    },
+  };
+}
+
 /** "EPROM" / client name / subcontractor short-or-registered name. */
 export function partyLabel(party: ProjectParty | undefined, clientName?: string): string {
   if (!party) return "Needs party";

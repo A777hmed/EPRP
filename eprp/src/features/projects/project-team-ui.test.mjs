@@ -145,9 +145,10 @@ const source = (path) => readFileSync(new URL(path, import.meta.url), "utf8").re
 test("Contacts step renders the same Project Team for every project type; PSM keeps its scope builder", () => {
   const view = source("./components/setup/project-setup-view.tsx");
   assert.match(view, /\{step === "contacts" && \(\s*<ProjectTeamWorkspace/);
-  assert.match(view, /step === "contacts" && !isOther && \(\s*<SetupStepContacts[\s\S]*?canEditPeople=\{canEditPeople\}/);
+  assert.match(view, /step === "contacts" && !isOther && \(\s*<SetupEditScope readOnly=\{readOnly\}>\s*<SetupStepContacts[\s\S]*?canEditPeople=\{canEditPeople\}/);
   assert.match(view, /canManageTeam=\{canManage && savedBaseline\.status !== "archived"\}/);
-  assert.match(view, /canEditPeople=\{canEditPeopleMaster\(identity\)\}/);
+  // 2C.3E: no person Edit / Add Person on an archived project either.
+  assert.match(view, /canEditPeople=\{canEditPeopleMaster\(identity\) && !readOnly\}/);
 });
 
 test("direct Edit / Add Person controls are gated on People-master authority everywhere on project setup", () => {
@@ -155,7 +156,9 @@ test("direct Edit / Add Person controls are gated on People-master authority eve
   assert.match(authority, /return !configured \|\| identity\.isGlobalAuthority;/);
   const form = source("./components/project-form.tsx");
   assert.match(form, /const canEditPeople = usePeopleMasterAuthority\(\);/);
-  assert.match(form, /allowManage=\{canEditPeople\}\s+\/>\s+<\/div>[\s\S]*?\{canEditPeople && \(\s+<MasterRecordEditButton\s+kind="contact"/);
+  // (On an existing project no person is created here at all — 2C.3D Wave 2.)
+  // (2C.3E: on an existing project the candidates are the active Project Team.)
+  assert.match(form, /allowManage=\{canEditPeople && allowCreate\}[\s\S]*?\/>\s+<\/div>[\s\S]*?\{canEditPeople && \(\s+<MasterRecordEditButton\s+kind="contact"/);
   const contactsStep = source("./components/setup/setup-step-contacts.tsx");
   // 2C.3D Wave 2: the PSM pickers choose from the active Project Team only, so
   // they create nobody — no Add Contact, no "Add new person" — for anyone. A
@@ -164,7 +167,8 @@ test("direct Edit / Add Person controls are gated on People-master authority eve
   assert.equal((contactsStep.match(/allowManage=\{false\}/g) ?? []).length, 2);
   assert.match(contactsStep, /canEdit=\{canEditPeople\}/);
   const info = source("./components/setup/project-info-workspace.tsx");
-  assert.match(info, /\(section\.id !== "contacts" \|\| canEditPeople\)/);
+  // Project Info never creates a Person: Contacts has no Add for anyone.
+  assert.match(info, /\{section\.id !== "contacts" && \(/);
   const multi = source("../master-data/components/managed-multi-select.tsx");
   assert.match(multi, /allowManage = true,/);
   const dialog = source("./components/setup/project-team-member-dialog.tsx");

@@ -105,7 +105,8 @@ test("3. Other never falls back to Departments / Systems / Disciplines", () => {
     "Project Manager assigned", "Project Control Manager assigned", "Reporting Coordinator assigned",
   ]);
   const view = read("../components/setup/project-setup-view.tsx");
-  assert.match(view, /step === "contacts" && !isOther && \(\s*<SetupStepContacts/);
+  // (2C.3E: inside the archived read-only scope.)
+  assert.match(view, /step === "contacts" && !isOther && \(\s*<SetupEditScope readOnly=\{readOnly\}>\s*<SetupStepContacts/);
   assert.match(view, /step === "team" && !isOther && \(\s*<SetupStepTeam/);
   // 2C.3C: every project type gets the same Project Team on Contacts; the
   // department builder above stays PSM / legacy only.
@@ -211,9 +212,10 @@ test("9. later steps stay locked until Project Structure is complete; direct rou
   assert.equal(done[2].unlocked, true);
   assert.ok(done.every((status) => status.complete));
   // The page refuses a locked step whatever the URL, and only offers Save &
-  // Continue once the step is complete.
+  // Continue once the step is complete. 2C.3E: an ARCHIVED project's steps
+  // are all viewable read-only (nothing can be saved there).
   const view = read("../components/setup/project-setup-view.tsx");
-  assert.match(view, /if \(!status\.unlocked\) \{[\s\S]+?<SectionCard title="Step locked">/);
+  assert.match(view, /if \(!status\.unlocked && !readOnly\) \{[\s\S]+?<SectionCard title="Step locked">/);
   assert.match(view, /disabled=\{saving \|\| !status\.complete\}/);
   assert.match(view, /const workflow = useProjectWorkflow\(current, \{ structure: structureState \}\);/);
 });

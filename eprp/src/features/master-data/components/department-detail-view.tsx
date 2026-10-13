@@ -111,7 +111,10 @@ export function DepartmentDetailView({
 
   // Creating a contact from here keeps the project trail and pre-scopes the
   // person to this department.
-  const addContactHref = withProjectContext("/contacts/new", {
+  // Reached from a project, a new person joins that project on its Project
+  // Team first (2C.3D Wave 2): a person created here could not be put on the
+  // project, so Add Contact is offered only outside a project.
+  const addContactHref = context.projectId ? undefined : withProjectContext("/contacts/new", {
     ...context,
     sourceType: "department",
     parentId: department.id,
@@ -129,12 +132,14 @@ export function DepartmentDetailView({
           // itself stays readable, which is the useful read-only context.
           actions.canMutate ? (
             <>
+              {addContactHref && (
               <Button variant="outline" asChild>
                 <Link href={addContactHref}>
                   <UserPlus data-icon="inline-start" aria-hidden="true" />
                   Add Contact
                 </Link>
               </Button>
+              )}
               <Button variant="outline" asChild>
                 <Link
                   href={withProjectContext(
@@ -304,12 +309,14 @@ export function DepartmentDetailView({
             title="Contacts"
             description="People in this department."
             action={
+              addContactHref ? (
               <Button variant="outline" size="sm" asChild>
                 <Link href={addContactHref}>
                   <UserPlus data-icon="inline-start" aria-hidden="true" />
                   Add Contact
                 </Link>
               </Button>
+              ) : undefined
             }
           >
             {relatedContacts.length === 0 ? (

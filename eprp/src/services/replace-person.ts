@@ -98,7 +98,8 @@ export type ReplacePersonErrorReason =
   | "last_membership_referenced"
   | "stale_assignment"
   | "duplicate_assignment"
-  | "manager_conflict";
+  | "manager_conflict"
+  | "project_archived";
 
 export class ReplacePersonError extends Error {
   constructor(

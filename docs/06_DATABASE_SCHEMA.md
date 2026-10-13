@@ -408,6 +408,46 @@ Links PSM / legacy department assignments (§8.4–§8.5) to the canonical proje
 - `guard_project_member_psm_responsibilities` (BEFORE UPDATE on `project_members`) refuses ending with `[MEMBER_HAS_PROJECT_RESPONSIBILITY]` or `[MEMBER_HAS_PSM_ASSIGNMENTS]`. On an archived project it defers to the existing write guard.
 - Both are hardened SECURITY DEFINER functions (empty `search_path`, EXECUTE revoked from clients). A post-check re-proves that no authorization helper or other table's policy reads `project_members`, and that Department Manager authority still requires `role = team_member`.
 
+### 8.11 Authority-bearing assignments and archived setup (Phase 2C.3E)
+
+The permission rules are in `05_PERMISSION_MODEL.md` §3.7. In the data:
+
+- **Authority-bearing rows.** Project Setup authority is read only from:
+  - `profiles.role` (System Administrator / Project Control Admin);
+  - the unscoped `project_contacts` rows with `role` `project_control_manager` or `reporting_coordinator`;
+  - PSM `team_member` department assignments.
+
+  The first two must equal `projects.project_control_manager_id` / `reporting_coordinator_id` when a transaction commits.
+- **Descriptive rows** are read by no authorization helper or policy: `project_members`, `project_parties`, `project_positions`, `project_delegations`, `project_structure_unit_members`, `project_structure_report_responsibilities`, and the Reports To, functional title and Project Role columns.
+- **Archived projects** (`status = archived`) keep every setup row and its history. No row of theirs can be inserted, changed or deleted, and the project row itself cannot change.
+
+**As built.** Migration `20261012180000_setup_authority_and_archived_read_only.sql` adds guard triggers only. It changes no table, column, policy, authority predicate or existing function, and writes no row.
+- `block_archived_project_setup` (BEFORE, row level):
+  - on `projects` (UPDATE) and on the seven setup tables (`project_departments`, `project_disciplines`, `project_contacts`, `project_delegations`, `project_positions`, `project_sites`, `project_parties`; INSERT / UPDATE / DELETE);
+  - refuses with `[PROJECT_ARCHIVED] This project is archived; its setup is read-only.`;
+  - covers every path: the setup save RPCs, `replace_project_responsibility()`, `correct_project_structure_family()`, master-data cascades and direct writes;
+  - the team, Other structure and structure responsibilities already refused on their own and are unchanged;
+  - archiving an active project is allowed, and deleting a whole project still cascades.
+- `guard_project_authority_rows` (constraint trigger, DEFERRABLE INITIALLY DEFERRED):
+  - on `project_contacts` (INSERT / UPDATE) and on `projects` (UPDATE of the two holder columns);
+  - refuses with `[AUTHORITY_HOLDER_MISMATCH]` any transaction that ends with an unscoped Project Control / Reporting Coordinator row naming anyone but the current holder.
+- Follow-up migration `20261013090000_responsibility_holder_membership.sql`:
+  - `guard_fixed_holder_replacement` (BEFORE UPDATE of the five fixed holder columns on `projects`) and `guard_position_holder_replacement` (BEFORE UPDATE OF `contact_id` on `project_positions`);
+  - when a HELD responsibility moves to another person, the new holder must have an ACTIVE membership of the same project, or the write is refused with `[HOLDER_MEMBER_REQUIRED]`;
+  - covers Replace Person, the setup saves and direct writes;
+  - filling a vacant one, clearing one and a new project's first holders are unchanged;
+  - `replace_project_responsibility()` itself is not redefined.
+- Final alignment, migration `20261013120000_member_eligibility_for_responsibilities.sql`: an ACTIVE membership of the same project is **sufficient** eligibility; no pre-existing `project_contacts` row is required.
+  - `replace_project_responsibility()`: only its two eligibility pre-checks (fixed responsibility, project position) change, from "has a project row" to "is an active member" (`[NOT_PROJECT_MEMBER]`). History, authority, compare-and-swap and every other check are unchanged.
+  - `guard_fixed_project_responsibility_membership()`: a holder needs a project row (unchanged; a new project names its first holders this way) OR an active membership.
+  - `guard_project_position_membership()`: a new position holder needs an active membership (was: a project row). An unchanged row is not re-checked.
+  - Each check locks the membership row, so a membership cannot end underneath a new holder.
+- All guard functions are hardened SECURITY DEFINER functions (empty `search_path`, EXECUTE revoked from clients). A post-check re-proves that the authority sources are unchanged and that no helper or policy reads descriptive data.
+- **Consequences.**
+  - A hard delete of a contact, department, system, discipline, portfolio group, phase or account still referenced by an archived project is refused, because its `set null` cascade would rewrite archived history. Archive or deactivate the record instead.
+  - Moving a discipline that an archived project uses is refused the same way.
+  - The one stale Reporting Coordinator row on the archived ZZ-P0TEST-PRJ fixture is left as it is.
+
 ---
 
 ## 9. Group E — Organization Chart
@@ -1125,6 +1165,7 @@ This document is **specification**. `docs/engineering/` describes what exists in
 | **Project Parties** (Phases 2C.3A, 2C.3B) | Table `project_parties`. 2C.3A (`20261006123219_project_parties_foundation.sql`): EPROM, Owner and subcontractor company names. **Applied to the local development database and browser-UAT verified; not deployed remotely or to production.** 2C.3B (`20261007120000_project_parties_professional_information.sql`): subcontractor Short Name, Scope / Package, Contract Reference and Engagement Status. **Applied to the local development database and browser-UAT verified for PSM and Other Project; not deployed remotely or to production.** | §6.4 |
 | **Project Team Membership** (Phase 2C.3C) | Table `project_members` (`20261007150000_project_team_membership.sql`) with backfill of the approved Preflight V2 dataset (46 memberships). Finalized by `20261011090000_project_team_controlled_writes.sql` (the three RPCs are the only write path). **Complete locally:** both migrations applied to the local development database; automated verification complete; browser UAT done on the Other Project path; a true PSM browser smoke test is pending, with PSM / shared behaviour covered by automated tests. **Not deployed remotely or to production.** See `15_DEVELOPMENT_ROADMAP.md` 2C.3C. | §8.8 |
 | **Structure Responsibilities** (Phase 2C.3D Wave 1) | Tables `project_structure_unit_members` and `project_structure_report_responsibilities`, written only by `save_structure_unit_responsibilities()` (`20261012100000_structure_responsibilities.sql`). **Complete locally: applied to the local development database; automated verification complete; browser UAT done on ZZ-STRUCT-UI-01.** Not deployed remotely or to production | §8.9 |
+| **Authority-bearing assignments and archived setup** (Phase 2C.3E) | Archived-setup guard and commit-time Project Control / Reporting Coordinator holder guard (`20261012180000_setup_authority_and_archived_read_only.sql`); replacement-holder membership guards (`20261013090000_responsibility_holder_membership.sql`); member-sufficient eligibility (`20261013120000_member_eligibility_for_responsibilities.sql`); no schema, policy or data change. **Implemented locally (LOCAL ONLY): applied to the local development database; automated verification complete; browser UAT pending.** Not deployed remotely or to production | §8.11 |
 | **PSM linkage to project membership** (Phase 2C.3D Wave 2) | Two guard triggers (`20261012150000_psm_membership_linkage.sql`); no schema, policy or data change. **Complete locally (LOCAL ONLY): applied to the local development database; automated verification complete; browser smoke done on MDP-PSAIM-01 (legacy / PSAIM shared PSM Contacts path); true classified PSM browser UAT pending.** Not deployed remotely or to production. The six malformed MDP rows remain an unresolved data-quality issue | §8.10 |
 | Contacts | Global People master (`contacts`) — **matches the amended §8.1–§8.2** | §8.2 Person (global) + §8.8 membership |
 | Assignments and delegation | Specified; **not applied** | §8.4–§8.6 |

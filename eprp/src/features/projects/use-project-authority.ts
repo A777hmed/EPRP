@@ -41,6 +41,14 @@ export interface ProjectAuthority {
   canManageReporting: boolean;
   /** This project concerns the viewer at all — the read predicate. */
   canAccessProject: boolean;
+  /**
+   * Holds Project Setup / operations authority here, whatever the project's
+   * lifecycle state (2C.3E). On an archived project this account may VIEW
+   * Project Setup read-only; `canManageOperations` stays false.
+   */
+  holdsOperations: boolean;
+  /** Archived: historical and read-only for every role (2C.3E). */
+  archived: boolean;
   /** False until identity settles, so no action flashes before it is known. */
   resolved: boolean;
 }
@@ -49,8 +57,49 @@ const UNRESOLVED: ProjectAuthority = {
   canManageOperations: false,
   canManageReporting: false,
   canAccessProject: false,
+  holdsOperations: false,
+  archived: false,
   resolved: false,
 };
+
+/**
+ * The rule behind {@link useProjectAuthority}, pure so it can be tested.
+ *
+ * Authority comes ONLY from the explicit sources the database reads: a global
+ * role, or the project's named Project Control Manager / Reporting
+ * Coordinator (`isProjectControlPlanning` / `isProjectConsolidator`).
+ * Project membership, Party, Project Role, Reports To, positions and
+ * Other-project Unit Lead / Member / Responsible / Backup are never consulted.
+ *
+ * Access & Visibility hotfix — an archived project is historical and
+ * read-only (§D of the original hotfix ticket), for EVERY role, including the
+ * two global authorities. Before this, neither `canManageOperations` nor
+ * `canManageReporting` had any archived awareness at all, so "+ New Weekly
+ * Report" / "+ New Monthly Report" (`project-reporting-workspace.tsx`) and
+ * every Project Setup / Milestones / Deliverables action gated on this hook
+ * stayed offered on an archived project's own pages. This is PRESENTATION
+ * authority only — see the header comment. Since 2C.3E the database also
+ * refuses every archived Project Setup write (block_archived_project_setup);
+ * reporting already refused (`can_manage_reporting_workflow()`).
+ */
+export function resolveProjectAuthority(
+  project: Project,
+  identity: { contactId?: string | null; isGlobalAuthority: boolean }
+): ProjectAuthority {
+  const { contactId, isGlobalAuthority } = identity;
+  const archived = project.status === "archived";
+  const holdsOperations = isProjectControlPlanning(project, contactId, { isGlobalAuthority });
+  return {
+    canManageOperations: !archived && holdsOperations,
+    canManageReporting:
+      !archived && (isGlobalAuthority || isProjectConsolidator(project, contactId)),
+    canAccessProject:
+      isGlobalAuthority || hasProjectAssignment(project, contactId),
+    holdsOperations,
+    archived,
+    resolved: true,
+  };
+}
 
 export function useProjectAuthority(
   project: Project | null | undefined
@@ -59,36 +108,6 @@ export function useProjectAuthority(
 
   return React.useMemo(() => {
     if (!project || !identity.resolved) return UNRESOLVED;
-
-    const { contactId, isGlobalAuthority } = identity;
-
-    /*
-     * Access & Visibility hotfix — an archived project is historical and
-     * read-only (§D of the original hotfix ticket), for EVERY role,
-     * including the two global authorities. Before this, neither
-     * `canManageOperations` nor `canManageReporting` had any archived
-     * awareness at all, so "+ New Weekly Report" / "+ New Monthly Report"
-     * (`project-reporting-workspace.tsx`) and every Project Setup/
-     * Milestones/Deliverables action gated on this hook stayed offered on
-     * an archived project's own pages. This is PRESENTATION authority only
-     * — see the header comment — so this closes the button, not the write
-     * boundary; `can_manage_reporting_workflow()` / `can_manage_project_
-     * operations()` do not themselves check project status at the database
-     * layer today, which is a separate, deeper gap flagged in this
-     * session's completion report rather than closed here (closing it
-     * needs a new migration, which is out of scope for a button fix).
-     */
-    const archived = project.status === "archived";
-
-    return {
-      canManageOperations:
-        !archived &&
-        isProjectControlPlanning(project, contactId, { isGlobalAuthority }),
-      canManageReporting:
-        !archived && (isGlobalAuthority || isProjectConsolidator(project, contactId)),
-      canAccessProject:
-        isGlobalAuthority || hasProjectAssignment(project, contactId),
-      resolved: true,
-    };
+    return resolveProjectAuthority(project, identity);
   }, [project, identity]);
 }

@@ -111,6 +111,7 @@ export type ProjectTypeCorrectionErrorReason =
   | "not_classified"
   | "same_type"
   | "structure_exists"
+  | "project_archived"
   | "failed";
 
 /**
@@ -132,6 +133,7 @@ export const PROJECT_TYPE_CORRECTION_MESSAGES: Record<ProjectTypeCorrectionError
   same_type: "The project already has this Project Type.",
   structure_exists:
     "Archive this project's structure units before changing it to a PSM Project.",
+  project_archived: "This project is archived, so its Project Type cannot be corrected.",
   failed: "The Project Type could not be corrected. No changes were made.",
 };
 
@@ -149,6 +151,8 @@ const TAG_REASON: Record<string, ProjectTypeCorrectionErrorReason> = {
   NOT_CLASSIFIED: "not_classified",
   SAME_TYPE: "same_type",
   STRUCTURE_EXISTS: "structure_exists",
+  // 2C.3E: archived Project Setup is read-only at the database.
+  PROJECT_ARCHIVED: "project_archived",
 };
 
 export class ProjectTypeCorrectionError extends Error {

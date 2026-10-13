@@ -268,7 +268,11 @@ test("mock project service mirrors the database: new / edited assignments need m
 
 test("PSM pickers offer active project members only, create nobody, and show the Needs badges", () => {
   const step = source("./components/setup/setup-step-contacts.tsx");
-  assert.match(step, /activeMembers\(savedProject\.members\)\.map\(\(member\) => \[member\.contactId, member\]\)/);
+  // The ACTIVE Project Team of the saved project, through the shared pool
+  // (also used by the Project Information pickers since 2C.3E).
+  assert.match(step, /memberPickerPool\(savedProject, clientName\)/);
+  const team = source("./project-team.ts");
+  assert.match(team, /const byContact = new Map\(activeMembers\(project\.members\)\.map\(\(member\) => \[member\.contactId, member\]\)\);/);
   // Department Manager: home-department rule kept, plus membership.
   assert.match(step, /\(record as Contact\)\.departmentId === activeDepartmentId &&\s+isActiveMember\(record\)/);
   // Team Members: everyone but the manager, members only.
@@ -276,9 +280,10 @@ test("PSM pickers offer active project members only, create nobody, and show the
   assert.equal((step.match(/optionSublabel=\{memberSublabel\}/g) ?? []).length, 2);
   assert.equal((step.match(/optionBadges=\{memberBadges\}/g) ?? []).length, 2);
   assert.equal((step.match(/allowManage=\{false\}/g) ?? []).length, 2);
-  for (const text of ['"Needs party"', '"Needs project role"', '"Not on the Project Team"', "partyLabel(", "projectRole"]) {
-    assert.ok(step.includes(text), text);
+  for (const text of ['"Needs party"', '"Needs project role"', 'NOT_ON_PROJECT_TEAM = "Not on the Project Team"', "partyLabel(", "projectRole"]) {
+    assert.ok(team.includes(text), text);
   }
+  assert.match(step, /\{!memberPool\.isCandidate\(person\.contactId\) && \(/);
   assert.doesNotMatch(step, /Add Contact|MasterDataDialog|createPresetValues/);
   // Assignment rules unchanged: the same helpers seat the manager and keep rows.
   assert.match(step, /setAssignment\(\s+\{ \.\.\.project, team: nextTeam \},\s+activeDepartmentId,\s+contactId,\s+\{ assignmentRole: "department_manager" \}\s+\)/);
@@ -288,12 +293,13 @@ test("PSM pickers offer active project members only, create nobody, and show the
   assert.doesNotMatch(select, /optionBadges\?\.\([^)]*\)\s*\)?\s*\.filter|filter\([^)]*optionBadges/);
 });
 
-test("both setup saves check membership before the database, and Replace Person offers members only for department assignments", () => {
+test("both setup saves check membership before the database, and Replace Person offers active members only (department assignments included)", () => {
   const view = source("./components/setup/project-setup-view.tsx");
   assert.match(view, /\.\.\.validateAssignments\(current\), \.\.\.teamMembershipIssues\(\{ team: current\.team, members: project\.members \}, project\)/);
   const workspace = source("./components/setup/project-info-workspace.tsx");
   assert.match(workspace, /\.\.\.teamMembershipIssues\(\{ team: draft\.team, members: project\.members \}, project\)/);
   const dialog = source("./components/replace-person-dialog.tsx");
-  assert.match(dialog, /\(unit\.kind !== "department_assignment" \|\| activeMemberContacts\.has\(record\.id\)\)/);
+  // (Since the 2C.3E follow-up, for EVERY replacement kind, not only department assignments.)
+  assert.match(dialog, /record\.id !== currentContactId &&\s+activeMemberContacts\.has\(record\.id\)/);
   assert.match(dialog, /\(project\.members \?\? \[\]\)\.filter\(\(member\) => !member\.endedAt\)/);
 });

@@ -563,101 +563,6 @@ async function replaceDepartments(
   if (error) throw new Error(error.message);
 }
 
-function responsibilityRows(
-  projectId: string,
-  input: Partial<ProjectInput>
-) {
-  return RESPONSIBILITY_ROLES.filter(({ key }) => key in input)
-    .map(({ role, key }) => ({
-      project_id: projectId,
-      contact_id: input[key],
-      role,
-      department_id: null,
-      system_id: null,
-      discipline_id: null,
-      assignment_role: null,
-      functional_title: null,
-      reports_to_contact_id: null,
-    }))
-    .filter(
-      (row): row is typeof row & { contact_id: string } =>
-        Boolean(row.contact_id)
-    );
-}
-
-/**
- * Create missing responsibility-membership rows before fixed project columns
- * are written. Existing rows are retained so an update never removes the last
- * backing membership before its replacement is valid.
- */
-async function ensureResponsibilityContacts(
-  projectId: string,
-  input: Partial<ProjectInput>
-): Promise<void> {
-  const sb = client();
-  const rows = responsibilityRows(projectId, input);
-  if (rows.length === 0) return;
-
-  const roles = [...new Set(rows.map((row) => row.role))];
-  const { data, error } = await sb
-    .from("project_contacts")
-    .select("contact_id,role")
-    .eq("project_id", projectId)
-    .in("role", roles);
-  if (error) throw new Error(error.message);
-
-  const existing = new Set(
-    ((data ?? []) as Pick<ProjectContactRow, "contact_id" | "role">[]).map(
-      (row) => `${row.role}:${row.contact_id}`
-    )
-  );
-  const missing = rows.filter(
-    (row) => !existing.has(`${row.role}:${row.contact_id}`)
-  );
-  if (missing.length === 0) return;
-
-  const { error: insertError } = await sb
-    .from("project_contacts")
-    .insert(missing);
-  if (insertError) throw new Error(insertError.message);
-}
-
-/** Remove only obsolete fixed-role rows, after the project row changed. */
-async function pruneResponsibilityContacts(
-  projectId: string,
-  input: Partial<ProjectInput>
-): Promise<void> {
-  const changed = RESPONSIBILITY_ROLES.filter(({ key }) => key in input);
-  if (changed.length === 0) return;
-
-  const sb = client();
-  const desiredByRole = new Map(
-    changed.map(({ role, key }) => [role, input[key] ?? null])
-  );
-  const { data, error } = await sb
-    .from("project_contacts")
-    .select("id,contact_id,role")
-    .eq("project_id", projectId)
-    .in(
-      "role",
-      changed.map(({ role }) => role)
-    );
-  if (error) throw new Error(error.message);
-
-  const obsoleteIds = (
-    (data ?? []) as Pick<ProjectContactRow, "id" | "contact_id" | "role">[]
-  )
-    .filter((row) => desiredByRole.get(row.role) !== row.contact_id)
-    .map((row) => row.id);
-  if (obsoleteIds.length === 0) return;
-
-  const { error: deleteError } = await sb
-    .from("project_contacts")
-    .delete()
-    .in("id", obsoleteIds);
-  if (deleteError) throw new Error(deleteError.message);
-}
-
 async function replaceDisciplineLinks(
   projectId: string,
   links: ProjectDisciplineLink[]
@@ -834,6 +739,11 @@ const REPLACE_PERSON_TAG_REASON: Record<string, ReplacePersonError["reason"]> = 
   // active member of the project's team.
   PSM_MEMBER_REQUIRED: "not_project_member",
   PSM_PERSON_INACTIVE: "invalid_replacement",
+  // 2C.3E: archived Project Setup is read-only.
+  PROJECT_ARCHIVED: "project_archived",
+  // 2C.3E: a held fixed responsibility / position moves only to an active
+  // member of this project's team.
+  HOLDER_MEMBER_REQUIRED: "not_project_member",
 };
 
 function mapReplacePersonError(error: {
@@ -1176,19 +1086,26 @@ export const supabaseProjectService: ProjectService = {
     if (error) throw new Error(error.message);
     const row = data as ProjectRow;
 
-    // A fixed holder cannot be stored until the same-project membership row
-    // exists. Keep every committed state valid: stage the project with null
-    // holders, add the memberships, then set the fixed columns.
-    await ensureResponsibilityContacts(row.id, input);
+    /*
+     * The fixed holders, set in ONE transaction by the setup patch: it adds
+     * each holder's project row before naming them and removes any other.
+     * Project Control / Reporting Coordinator authority must always match the
+     * named holder at commit (2C.3E guard_project_authority_rows), so the
+     * authority row can no longer be staged in a separate request.
+     */
     const fixedColumns = onlyResponsibilityColumns(columns);
     if (Object.keys(fixedColumns).length > 0) {
-      const { error: responsibilityError } = await client()
-        .from("projects")
-        .update(fixedColumns)
-        .eq("id", row.id);
-      if (responsibilityError) throw new Error(responsibilityError.message);
+      const { data: staged, error: stagedError } = await client().from("projects")
+        .select("updated_at").eq("id", row.id).single();
+      if (stagedError) throw new Error(stagedError.message);
+      const { error: responsibilityError } = await client().rpc("save_project_setup_patch", {
+        p_project: row.id,
+        p_expected_updated_at: staged.updated_at,
+        p_columns: fixedColumns,
+        p_relations: {},
+      });
+      if (responsibilityError) throw new Error(setupSaveMessage(responsibilityError.message));
     }
-    await pruneResponsibilityContacts(row.id, input);
 
     await replaceDepartments(row.id, input.departments);
     await replaceDisciplineLinks(row.id, input.disciplines ?? []);
