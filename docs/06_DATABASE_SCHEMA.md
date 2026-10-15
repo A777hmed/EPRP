@@ -94,22 +94,26 @@ Non-negotiable. Every entity below obeys them.
 
 ## 4. Entity group map
 
-Seventeen groups. Every entity belongs to exactly one.
+Eighteen groups. Every entity belongs to exactly one.
 
 ```text
 TIER 0 — PLATFORM
   Q. Audit and history        P. Account and user profile
 
-TIER 1 — ORGANIZATION  (global master data — seven kinds only, §5)
+TIER 1 — ORGANIZATION  (global master data — §5)
   A. Client · Project Type · Job Title · KPI Definition ·
-     Risk & Criticality Matrices · Lifecycle Template · Knowledge Base
-     (plus organization-level Report Templates and default Branding, §16)
+     Risk & Criticality Matrices · Lifecycle Template · Knowledge Base ·
+     Resource Category (added 2026-10-14, §10A.8)
+     (plus organization-level Report Templates and default Branding, §16,
+      and Planning Setup Templates, §10A.1)
 
 TIER 2 — PROJECT  (the project owns all of this outright)
   B. Project core and structure     C. Dynamic hierarchy
   D. Contacts and assignments       E. Organization Chart
   F. Project Lifecycle              G. Comment Register
   N. Calendar, meetings, activities
+  R. Master Planning & Control (§10A — planning hierarchy, baselines,
+     snapshots, governed milestones, manpower)
 
 TIER 3 — REPORTING  (four levels)
   H. Weekly     I. Monthly     J. Executive Summary · Chairman Report
@@ -124,7 +128,7 @@ TIER 4 — RECORDS
 
 ## 5. Group A — Global master data
 
-Tier 1. **Exactly seven kinds are shared across projects.** Everything else a project uses, the project owns.
+Tier 1. **Exactly seven kinds are shared across projects** — eight from 2026-10-14, with Resource Category (below the table). Everything else a project uses, the project owns.
 
 | Entity | Purpose | Key attributes |
 |---|---|---|
@@ -140,6 +144,12 @@ Tier 1. **Exactly seven kinds are shared across projects.** Everything else a pr
 **Terminology since Phase 2C.1.** The "Project Type" master in the table above is shown in the product as **Project Category**. Its storage keeps the legacy name (`project_types`, referenced by `projects.project_type_id`) and is not renamed. "Project Type" in the product now means only **PSM Project / Other Project**, a set-once attribute of the project (§6.1; stored as `projects.structure_family`). Read `project_types` / `project_type_id` as Project Category wherever they appear. See `02_PLATFORM_ARCHITECTURE.md` §4.2, §4.5.
 
 **Why these seven and no others.** They are precisely the definitions that must mean the same thing everywhere for portfolio comparison to be valid: a KPI must compute identically on every project, a risk severity must mean the same on every project, and a project type must classify consistently. Anything project-specific is owned by the project.
+
+**Eighth kind — Resource Category (approved 2026-10-14).** Manpower must be
+comparable across projects and aggregated by discipline, craft or engineering
+team, so Resource Category is admin-managed global master data
+(`02_PLATFORM_ARCHITECTURE.md` §26.9, §10A.8 here). Same lifecycle as the
+others: archived, never deleted while referenced.
 
 **Lifecycle:** created by an authorized administrator, edited, and **archived** when withdrawn from new selection. Existing references stay valid and readable. **Never deleted while referenced** (rule 10).
 
@@ -384,6 +394,7 @@ Connects the project team (§8.8) to an Other project's own structure units (Pro
 | **Weekly / Monthly Backup** | Optional standing alternate per report; needs an active Responsible for the same unit and report; a different person; same eligibility as the Responsible |
 
 - **Authority-free:** none of these roles grants platform or project authority, or any report-writing right. Temporary dated **delegation** is a separate, later model (not `project_delegations`).
+  - **Amended 2026-10-14 (`02_PLATFORM_ARCHITECTURE.md` §26.12), effective when roadmap slice 13.18 is implemented:** the **Weekly Responsible and Weekly Backup** may enter and update **only their own unit's Weekly reporting section**. Reporting write only — no project, planning, approval, return or setup authority, and nothing on any other unit. Unit Member, Unit Lead and the Monthly roles stay authority-free (Monthly scope is open decision B2). Until 13.18, the statement above stands unchanged.
 - **Lifecycle:** rows are created active; `ended_at` is the only lifecycle field; ended rows are history (never edited or deleted). Replacing a person ends their row and creates a new one.
 - **Explicit refusals, never cascades:** a project membership cannot end while the person has active unit rows; a unit member row cannot end while that person leads the unit or holds its responsibility; a unit cannot be archived while it has active people, or lose its Weekly / Monthly flag while that report's responsibility is active; a unit with any people history cannot be hard-deleted (archive it).
 - **Incomplete legacy members** (Needs party / Needs project role) may be normal unit members, but cannot be Lead, Responsible or Backup until their membership is completed.
@@ -546,6 +557,158 @@ An editable model of how a project progresses. **Not a fixed timeline and not a 
 
 **No stage is required by the platform.** Client Approval, gate reviews and similar checkpoints are **optional stages added when the project actually has them.** A project with no such stage is fully valid.
 
+### 10.9 Reconciliation with Master Planning & Control (2026-10-14)
+
+`02_PLATFORM_ARCHITECTURE.md` §26 makes the **planning hierarchy** (§10A) the
+only source of project progress and of milestone schedule data. This group is
+amended accordingly:
+
+| Was | Now |
+|---|---|
+| §10.2 — a Lifecycle Stage carries a **Weight** that contributes to overall project progress | Lifecycle Stages carry **no progress weight**. Physical progress comes only from the weighted planning hierarchy (§10A, `02` §26.4) |
+| §10.5 — a Milestone is owned by the Project Lifecycle | A milestone is a **true milestone activity** in the planning hierarchy (§10A.3), governed where needed by a **Governed Milestone** (§10A.8). The lifecycle owns no milestone |
+| §10.7 — Dashboards read "weighted project progress" and milestones from the lifecycle | Dashboards, Calendar, Weekly, Monthly and Executive read progress and milestones from the Published Planning Snapshot (`02` §26.13) |
+
+The Project Lifecycle is **not built**. If it is built later, it is a
+presentation of stages as spans that may reference planning nodes; it holds no
+weight, no milestone identity and no progress of its own.
+
+---
+
+## 10A. Group R — Master Planning & Control
+
+The logical entities behind `02_PLATFORM_ARCHITECTURE.md` §26 (approved
+2026-10-14). Rules, formulas and the worked example live there; this group
+defines the entities. **Specification.** Parts already exist from Phase 13 —
+§10A.9 maps every entity to what is built and states what must change.
+
+```text
+Project ── Planning Configuration
+   │
+   ├── Planning Node ──< Planning Node …            (configurable depth, local weights)
+   │        └──< Activity  (task | true milestone)  ──0..1── Governed Milestone (register)
+   │                 └──< Activity Relationship (later)
+   ├── Planning Baseline (BL0, BL1 …) ── captured plan · baseline curve
+   ├── Schedule Version (import batch, one per import) ──< Import Row (raw) ──> Planning Decision (log)
+   ├── Planned Manpower entry ── Resource Category (global) · Project Party
+   └── Published Planning Snapshot
+            ├──< Snapshot Node · Snapshot Activity · Snapshot Milestone
+            ├──< Curve Point · Snapshot Planned Manpower
+            └── pinned by Weekly / Monthly Reports
+
+Weekly Report ──< Actual Manpower entry          (official on Weekly approval)
+```
+
+### 10A.1 Planning Configuration
+
+- **Owner:** Project (one per project)
+- **Attributes:** Onboarding mode (new project · existing active project · no formal schedule) · schedule source (EPRP entry · P6 Excel export · EPRP Excel template; native XER later) · planning level labels (levels 1–8) and Control Account level · weight source (EPRP · imported) · default earning method · manpower planning enabled and measures (headcount · man-hours · both) · look-ahead weeks (default 2) · reporting-unit source (PSM hierarchy or Other structure units) · planning enabled
+- **Working days** come from the project's reporting configuration (working week); a holiday calendar is a later extension.
+- **Lifecycle:** edited by Project Control; read-only when the project is archived.
+- **Guided and Advanced setup (2026-10-14, `02` §26.20).** Both edit **this one entity**: Guided Setup turns plain business questions into these attributes; Advanced mode edits them directly. Guided answers are not stored separately. **No attribute here is a calculated value** — PV, EV, SPI, effective contribution and S-curves are never part of the configuration.
+- **Planning Setup Template** (optional): an organization-level, admin-managed set of recommended defaults for a project type or category — like the Report Templates of §16. It is **copied** into this entity at setup, never linked; every copied value stays editable; it never branches behaviour.
+
+### 10A.2 Planning Node
+
+- **Owner:** Project
+- **Identity:** Stable identifier. Code unique within the project. External WBS code, when imported, unique within the project and the only import match key.
+- **Attributes:** Code · name · description · parent node · level · classification (Study, Engineering, Inspection, Procurement, Construction, … — *not* a level and never "milestone") · **local weight** · Control Account flag · reporting-unit mapping (PSM: Department, optionally System and Program & Study; Other: one Project Structure unit) · governed deliverable link · source (import or EPRP) · display order · archived
+- **Derived, never stored as authoritative:** effective weight, PV, EV, SV, SPI, roll-up dates
+- **Rules:** `02` §26.3 H1–H10 and §26.4 W1–W4. A node with published history is archived, never deleted.
+
+### 10A.3 Activity
+
+- **Owner:** Project, under exactly one Planning Node
+- **Identity:** Stable identifier. External Activity ID, when imported, unique within the project and the only import match key.
+- **Attributes:** Code · external ID · name · **kind** (task · true milestone) · **earning method** (Percent Complete · 0/100 · 50/50 · Milestone) · local weight · forecast start/finish · actual start/finish · original and remaining duration · confirmed % complete · responsible project member (optional; grants nothing) · reporting-unit override · source · origin import row · archived
+- **Rules:** a true milestone has zero duration, uses the Milestone method, carries 0% weight by default (`02` §26.4 W5) and is always a leaf. Completeness rules C1–C2. Baseline dates live in the Planning Baseline (§10A.5), never edited on the activity.
+
+### 10A.4 Activity Relationship *(later)*
+
+- **Owner:** Activity (successor)
+- **Attributes:** Predecessor · successor · type (FS, SS, FF, SF) · lag
+- **Rule:** stored when the schedule provides it, for display and look-ahead context. EPRP does not schedule.
+
+### 10A.5 Planning Baseline
+
+- **Owner:** Project
+- **Identity:** Project + baseline number (BL0, BL1, …)
+- **Attributes:** Number · kind (original · re-baseline) · status (draft → requested → approved, or rejected) · reason · prepared by / at · approved by / at · the captured dates, local weights and planned manpower of every node and activity · its baseline curve
+- **Rules:** BL0 is immutable for ever. Approval by Project Control Admin or System Administrator only (`05` §3.8). An approved baseline never changes. The **current approved baseline (BLn)** is the latest approved one and is derived, never flagged. Each approved baseline is a **Baseline Revision** (BL0, BL1, BL2, …). A Re-baseline may be *prepared from* a Schedule Version, but **no import creates or changes a baseline** (`02` §26.22.1).
+
+### 10A.6 Schedule Version (import batch), Import Row and Planning Decision
+
+- **Schedule Version** *(2026-10-14, `02` §26.22; the import batch)* — Owner: Project. Identity: project + EPRP version number (sequential). Every import creates one; **none is ever overwritten**. Attributes: Schedule Version reference (the source's own label, e.g. "Rev 01", "Update 05") · source format (EPRP Excel template · P6 Excel export; native XER from 13.21) · original file and raw rows · import time · imported by · **Data Date** · status (uploaded → validated → under review → accepted, or rejected with a reason) · decided by / at · **previous accepted Schedule Version** · **baseline in force** (BL0 / BLn) at review and at acceptance · change count per diff category · **kind** (operational · Historical Correction) and, for a correction, its mandatory reason and the historical version or period corrected. **A Schedule Version never changes BL0 or BLn.** At most one per project is under review at a time (owner-approved policy).
+  - **Operational** versions must be dated on or after the latest accepted operational version.
+  - A **back-dated** version is accepted only as a **Historical Correction** (decision B10, closed 2026-10-14). It never becomes the current operational version, never alters a Published Planning Snapshot or an approved report, and reaches the Working Plan only through a new current-dated operational version. Report reissue goes through Report Revision (`02` §26.22.2).
+- **Import Row** — Owner: Import Batch. Every parsed row exactly as received. **Insert-only, never edited, never deleted.**
+- **Planning Decision** — Owner: the Working Plan item it concerns. **Append-only.** Attributes: target (node, activity, weight, milestone link) · action (accept · reject · adjust · normalise · re-match · remove · restore) · field · previous value · new value · reason · actor · time · Schedule Version and row when import-sourced.
+- **Rules:** `02` §26.10 and §26.22. Nothing changes the Working Plan without a Planning Decision or a direct Project Control edit that is itself logged.
+  - The diff is always against the **latest accepted** Schedule Version.
+  - Matching uses external Activity ID and WBS code only; a changed ID is removed + added unless explicitly re-matched.
+  - An item absent from an accepted version becomes **Removed from current schedule** (archived, never deleted). A protected item — linked to a governed milestone, a governed deliverable, or, when Tasks exist, an open task — cannot be removed without explicit resolution.
+
+### 10A.7 Published Planning Snapshot
+
+- **Owner:** Project
+- **Identity:** Project + version. Several versions may share a Data Date; the highest is in force.
+- **Attributes:** Version · **Data Date** (required) · BL0 and BLn references · source (**Schedule Version**, Opening Position, manual) and the logged Project Control edits applied after that Schedule Version · published by / at · **engine version** · coverage · legacy flag (published before 13.12). Together these answer "where did these numbers come from?" (`02` §26.22.7); a later Schedule Version never rewrites a snapshot.
+- **Frozen contents, each owned by the snapshot and immutable:**
+
+| Entity | Holds |
+|---|---|
+| **Snapshot Node** | Per node: local and effective weight, PV%, EV%, SV, SPI, schedule condition, reporting-unit mapping |
+| **Snapshot Activity** | Per activity: BL0, BLn, forecast and actual dates; earning method; local and effective weight; PV% and EV% at the Data Date; kind; external ID; mapping |
+| **Snapshot Milestone** | Every true milestone and governed milestone: code, name, type, criticality, key flag, BL0/BLn/forecast/actual dates, slip against BLn and BL0, schedule condition |
+| **Curve Point** | Curve kind (baseline · current/forecast · earned), scope (project or node), week date, cumulative PV% or EV% |
+| **Snapshot Planned Manpower** | Week × resource category × party (× node): planned headcount and man-hours |
+
+- **Lifecycle:** written once by the governed publish act; **never updated, never deleted.** Opening Position snapshots (existing projects onboarded mid-execution) remain as built.
+
+### 10A.8 Governed Milestone and manpower
+
+| Entity | Owner | Definition |
+|---|---|---|
+| **Governed Milestone** | Project | The Master Milestone register entry (13.2–13.2d): code, name, description, type (technical · contractual · commercial), category, **criticality**, **key-milestone flag**, responsible project member, client approval required, payment terms, deliverables. Linked **one-to-one** to a true milestone Activity when the project has a planning hierarchy. Its update stream holds payment facts, client decisions and — for unlinked milestones only — schedule state (`02` §26.6 rule 5, pending B1). Physical weight and planned-progress % are deprecated (physical progress belongs to the planning tree) |
+| **Resource Category** | Organization (global master, §5) | Name · code · kind (discipline · craft · engineering team) · description · active |
+| **Planned Manpower entry** | Project (Working Plan) | Week · resource category · party (Project Party) · optional node or activity · planned headcount · planned man-hours · source |
+| **Actual Manpower entry** | Weekly Report | Week · resource category · party · reporting unit · actual headcount · actual man-hours · recorded by (decision B5). **Official when the Weekly is approved; immutable thereafter** |
+| **Portfolio weight** | Project (attribute) | Assigned project weight for portfolio aggregation, set by Project Control Admin, with its reason (`02` §26.15) |
+
+### 10A.9 As-built mapping — keep, harden, deprecate, add
+
+| Logical entity | As built (Phase 13 planning foundation, 13.2–13.4) | Required change |
+|---|---|---|
+| Planning Configuration | `project_planning_settings` (onboarding mode, default source) | **Harden:** level labels and Control Account level, weight source, default earning method, manpower settings, look-ahead weeks, reporting-unit source; Guided and Advanced setup over it (§10A.1) |
+| Planning Node | `planning_work_items` (parent, level, classification, weight, scope columns, deliverable link) | **Harden:** weight becomes *local*, sum validation, Control Account flag, Other-project unit mapping, external WBS key. **Deprecate** its milestone flag and the "milestone" classification |
+| Activity | `planning_activities` (external ID, dates, %, weight, PV/EV values, milestone flag) | **Harden:** kind, earning method, attachment to a node required, local weight. Imported activities are currently written with no node |
+| Planning Baseline | `planning_baselines` (named captures of work items) | **Harden:** BL0/BLn, request/approve, activities and manpower captured, baseline curve |
+| Schedule Version / Import Row | `planning_import_batches` (status uploaded · validated · rejected · published; Data Date; uploaded / validated by) / `planning_import_rows` | **Keep** (raw, insert-only). **Harden into Schedule Versions** (13.16): version number and reference, under-review and accepted states (acceptance separate from publishing), previous accepted version, baseline in force, change counts; batch diff against the latest accepted version; WBS mapping; re-match and restoration |
+| Planning Decision | `planning_confirmations` | **Keep / extend** actions (reject, normalise, re-match, remove) |
+| Published Planning Snapshot | `planning_snapshots` (+ Data Date) · `planning_snapshot_activities` · `publish_planning_snapshot()` | **Harden:** engine version, BL references, run the engine at publish and freeze results. **Add:** Snapshot Node, Snapshot Milestone, Curve Point, Snapshot Planned Manpower |
+| Opening Position | `planning_opening_positions` | **Keep** |
+| Milestone link | `planning_milestone_links` (work item or activity) | **Harden:** one-to-one, activity targets only (true milestones), link UI |
+| Governed Milestone | `master_milestones` · `milestone_updates` · `weekly_milestone_drafts` | **Keep** identity, governance, reconciliation, payments, Weekly observations. **Add:** key flag. **Deprecate:** physical weight, planned-progress %, register-based physical progress |
+| Resource Category · Planned / Actual Manpower · Activity Relationship | — | **Add** (relationships later) |
+| Portfolio weight | `portfolio_groups` exists (grouping only, not weighting) | **Add** the project weight attribute |
+
+**Deprecated as authoritative inputs** (data kept readable as history; not
+dropped): the project record's planned / actual progress and forecast finish;
+typed Weekly and Monthly planned / actual progress and stored Monthly SPI for
+planning-governed projects; the Weekly "man-hours to date" figure; free-text
+Weekly milestone rows, next-week rows and major activities that duplicate
+planning facts on planning-governed projects; Monthly plan items read as
+milestones; a stored calendar event of type "milestone".
+
+### 10A.10 Rules
+
+1. **One performance source.** Every progress, PV, EV, SV and SPI figure outside the Planning workspace resolves to a Published Planning Snapshot (`02` §26.2).
+2. **Local weights are entered; effective weights are derived.**
+3. **Raw imports, Planning Decisions, approved baselines and snapshots are immutable.**
+4. **Matching is by stable external identifier, never by name** (rule 2 of §3 applies with full force to imports).
+5. **Archived projects are read-only** for every entity in this group.
+6. **Manpower never enters SPI.**
+
 ---
 
 ## 11. Group G — Comment Register
@@ -597,7 +760,9 @@ Discussion attached to a specific item — an activity, a risk, a report section
 
 ## 12. Group H — Weekly reporting
 
-Weekly is the operational source of truth. **It is the only tier that accepts original operational entry.**
+Weekly is the operational source of truth for **reporting entry**. **It is the only tier that accepts original operational entry.**
+
+**Planning and performance facts are not owned by the Weekly** *(2026-10-14, `02_PLATFORM_ARCHITECTURE.md` §26)*. PV, EV, SPI, governed progress, schedule dates and milestone schedule state belong to the **Published Planning Snapshot** (§10A.7), the canonical source. A Weekly pins it and may explain, confirm and enrich those facts (§12.4 rule 5), but never owns their values.
 
 ### 12.1 Weekly Report
 
@@ -636,6 +801,23 @@ All owned by the Weekly Report.
 2. Periods are **contiguous and non-overlapping**; a missing period is visibly missing.
 3. Approval **freezes content and takes a snapshot**.
 4. Locking is **irreversible**; correction is a new revision.
+5. **Planning facts (2026-10-14, `02` §26.11).** A Weekly Report **pins** a Published Planning Snapshot (§10A.7), re-pinnable until approval and frozen at approval. For a planning-governed project, overall progress (planned and actual), activities in the period, milestones and look-ahead are **derived from the pinned snapshot**, not entered; contributors attach confirmations and explanations to them through the existing Risk, Issue, Action and Comment entities, which gain optional references to the activity, node or milestone they explain. **Actual Manpower entries** (§10A.8) are Weekly content. The §12.1 "overall progress" attribute and the §12.3 Activity and Look-Ahead entities remain the entry path only for projects that are **not planning-governed** (`02` §26.14).
+6. **Sections are reporting units** (`02` §26.12): a Department Submission on PSM projects; the equivalent unit submission on Other Projects is keyed to a Project Structure unit.
+
+### 12.5 Collaborative section comments (2026-10-14)
+
+Logical note for `02_PLATFORM_ARCHITECTURE.md` §26.21. A **section comment** is
+an ordinary **Comment** (§11.4) attached to a reporting section of a Weekly
+Report.
+
+- **Owner:** the Weekly Report section it is written in (Department Submission on PSM; unit submission on Other Projects)
+- **Attributes:** Comment type (General Comment · Progress Explanation · Constraint · Recovery Action · Technical Note · Client / Department Input — managed configuration) · text · author · timestamp · project · report and period · reporting section / unit · optional planning reference (activity · node · milestone) · reviewed by / at · include in Monthly
+- **Section summary:** the reviewing user's summary of their section's comments, owned by the same section submission.
+- **Rules:**
+  1. **A comment is never a planning fact.** It never changes PV, EV, SPI, milestone schedule state, manpower planning facts or a Published Planning Snapshot.
+  2. History, soft delete and attribution follow `05_PERMISSION_MODEL.md` §4. A comment is immutable once its report is approved.
+  3. A planning reference is a pointer, never a copy, and it must stay within the comment's project.
+  4. A comment that must be tracked to closure may be promoted to a Comment Register entry (§11.4), or linked to the tracked Issue or Action (§12.3).
 
 ---
 
@@ -679,6 +861,8 @@ The Monthly Report **remains fully editable while its status is editable** (Draf
 2. **Coverage is declared, never averaged away.** A three-of-four-week month says so.
 3. Compiled figures **never contradict their sources**. Divergence is a defect.
 4. Approval snapshots the compilation; later Weekly revisions **flag** the Monthly rather than altering it.
+5. **Month-end planning (2026-10-14, `02` §26.11).** A Monthly Report pins the month-end Published Planning Snapshot and freezes the pin at approval. Its progress, S-curve, SPI, schedule condition, **milestone movement** (month-start vs month-end snapshot) and next-month look-ahead come from snapshots, never from the live register or from typed figures; its actual manpower comes from the month's approved Weeklies. The "KPI Trend Point" for schedule performance cites snapshots rather than re-aggregating Weekly figures.
+6. **Comments (2026-10-14, `02` §26.21).** Approved Weekly section comments and narrative are carried forward **by reference** as Compiled Items where relevant — never retyped, never edited here. The Monthly adds its own **Monthly Comments** and section summaries, scoped to the same PSM section or Other-project unit, under the rules of §12.5.
 
 ---
 
@@ -787,6 +971,7 @@ Portfolio Dashboard   Executive Summary   Chairman Report
 3. **Missing input is reported, not defaulted.** Absence is never zero.
 4. Its consumers **read it**; none recomputes the same figures independently.
 5. Comparison across projects is valid **only through global master data** — KPI Definitions, Risk and Criticality Matrices, Project Types. Project-owned departments and systems are not comparable across projects (§23).
+6. **Progress and SPI are never averaged (2026-10-14, `02` §26.15).** A Portfolio KPI Value for progress or SPI is weighted by one portfolio weight basis (budgeted man-hours, otherwise the assigned project weight), and is published only when every in-scope project is eligible; otherwise the Portfolio Summary carries the SPI-band distribution and the excluded projects instead.
 
 ---
 
@@ -921,6 +1106,16 @@ All derived; none stored as authoritative.
 
 **Rules:** every figure resolves to its source report · coverage is always visible · the project Dashboard Workspace may show the in-progress cycle **only when visibly labelled as unapproved**, and it never feeds a portfolio figure.
 
+**Planning sources (2026-10-14, `02` §26.13).** "Project progress planned vs actual", "lifecycle stage progress", upcoming milestones and the activity schedule read the **Published Planning Snapshot** (§10A.7), never typed report figures or report plan items. A snapshot figure resolves to its snapshot (project, version, Data Date) as a report figure resolves to its report.
+
+The **Portfolio Dashboard's** current performance panels (progress, SPI, schedule
+condition) read each project's **latest** Published Planning Snapshot and
+aggregate them under `02` §26.15. The **Portfolio Summary** (§15) remains the
+approved, period-closed compilation from approved Monthly Reports, and is what
+the Executive Summary and Chairman Report read. The two differ only in *as of
+when*: the latest published position vs the last approved month. Each states
+its basis.
+
 ---
 
 ## 18. Group N — Calendar, meetings and activities
@@ -931,12 +1126,16 @@ The Calendar **owns nothing**. It is a view over dated obligations owned elsewhe
 
 | Source | Contributes |
 |---|---|
-| Project Lifecycle | Stage start and due dates · milestone target dates |
+| Published Planning Snapshot (§10A.7) — *amended 2026-10-14* | True milestones and linked governed milestones (actual if achieved, else forecast; BLn in detail) · planning activities' forecast start and finish · look-ahead work as its own entry type |
+| Governed Milestone register (§10A.8) | Unlinked governed milestones only |
+| Project Lifecycle | Stage start and due dates, if the lifecycle is ever built (§10.9). It owns no milestone |
 | Reporting cycle | Cycle open, submission cut-off, review, approval, publication dates |
 | Meetings | Scheduled date and time |
 | Approvals | Pending approval due dates |
 | Delegations | Start and end dates |
-| Activities | Planned start and finish |
+| Activities (§18.3 — projects not planning-governed only) | Planned start and finish |
+
+**Never a calendar source:** Weekly or Monthly plan items read as milestones (`02` §26.2 F5).
 
 **The home dashboard shows the scheduled activities for the selected month**, assembled from these sources.
 
@@ -959,6 +1158,7 @@ The Calendar **owns nothing**. It is a view over dated obligations owned elsewhe
 
 - **Owner:** Project, referenced by the Weekly Report of the period it is reported in
 - **Attributes:** Title · description · department · system · work item · lifecycle stage · owner · planned and actual dates · status · progress percent · remarks
+- **Two activity concepts, kept apart (2026-10-14).** On a **planning-governed** project the scheduled, weighted, earning activity is the **Planning Activity** (§10A.3), and the Weekly reports it as a planning fact. This reported Activity remains for projects that are **not planning-governed**, and its progress percent never contributes to project progress on a planning-governed project.
 
 ---
 
@@ -1070,9 +1270,10 @@ An entity-specific audit record with the §21.1 properties.
 ## 22. Relationship map
 
 ```text
-GLOBAL MASTER DATA (seven kinds)
+GLOBAL MASTER DATA (seven kinds + Resource Category from 2026-10-14)
   Client · Project Type · Job Title · KPI Definition ·
-  Risk Matrix · Criticality Matrix · Lifecycle Template · Knowledge Base
+  Risk Matrix · Criticality Matrix · Lifecycle Template · Knowledge Base ·
+  Resource Category
         │ referenced (never owned by a project)
         ▼
 Project ──┬── Project Department ──┬── Project System ── Project Work Item
@@ -1082,6 +1283,10 @@ Project ──┬── Project Department ──┬── Project System ──
           │                    └── Delegation
           │
           ├── Organization Chart ── Position ── Assignment History
+          │
+          ├── MASTER PLANNING & CONTROL (§10A) ── Planning Node ──< Activity ──0..1── Governed Milestone
+          │        ├── Planning Baseline (BL0, BL1 …) · Schedule Version ──< Import Row · Planning Decision
+          │        └── PUBLISHED PLANNING SNAPSHOT ──► pinned by Weekly / Monthly; read by every consumer
           │
           ├── Project Lifecycle ──┬── Lifecycle Stage ──┬── Dependency
           │        ▲              │                     └── Lifecycle Link
@@ -1174,6 +1379,7 @@ This document is **specification**. `docs/engineering/` describes what exists in
 | Assignments and delegation | Specified; **not applied** | §8.4–§8.6 |
 | Organization Chart | Charts, positions and history exist | §9 |
 | **Project Lifecycle** | **Does not exist** | §10 in full |
+| **Master Planning & Control** (Phase 13) | Planning foundation migrations `20260913000001`, `20260914000001`, `20260915000001` (planning settings, work items, activities, raw import, confirmations, baselines, snapshots with Data Date, snapshot activities, Opening Positions, milestone links); Master Milestones `20260819000003`, `20260822000003`, `20260822000004`; Weekly milestone drafts `20260824121615`. Roll-up is **flat** (activity weights treated as project-absolute; node weights unused); imported activities are not attached to a node; planned % is copied from the import; no BL0/BLn approval, curves, manpower or batch diff. **Archived read-only guard added by 13.9** (`20261014090000_planning_control_archived_read_only.sql`, `block_archived_project_planning` on all 16 Planning / Milestone / Deliverable tables; local development database only) | §10A in full — keep / harden / deprecate / add per §10A.9; delivery order in `15_DEVELOPMENT_ROADMAP.md` 13.8–13.21 |
 | **Comment Register** | **Does not exist** as an entity | §11 |
 | Weekly | Reports, submissions, activities and entries exist; approval and locking not enforced | §12 |
 | **Monthly** | **Does not exist** | §13 |
@@ -1204,6 +1410,7 @@ Decisions 1–6 from §1.1 are settled. These remain.
 | **4** | **Sensitive content** | Universal read (§17.1) means nothing in the platform is private. | Confirm no content requires restriction, or define an explicitly-restricted classification as a later addition. |
 | **5** | **Report Template ownership** | Modelled as organization-owned with project copies, matching Lifecycle Template. | Confirm templates belong in the global set even though decision 2 listed seven kinds without them. |
 | **6** | **Action vocabulary versus roles** | §17.2 defines six actions; `02` §8 defines eight roles; `05` §8 defines the operating role table. | Compatible — roles grant action sets — but the mapping must be written once, authoritatively, when `05` is next revised. |
+| **7** | **Master Planning & Control open items** | B1–B9 in `02_PLATFORM_ARCHITECTURE.md` §26.19 (B10 closed 2026-10-14) | Each blocks only the roadmap slice named there; none blocks 13.9 |
 
 ---
 

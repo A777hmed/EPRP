@@ -35,7 +35,7 @@ and a lifecycle transition correctly refused).
 | 2 | Project master data | ✅ Complete |
 | 2A | Organization Chart *(added — see note)* | ✅ Complete |
 | 2B | Configurable hierarchy and scoped assignments *(added — see note)* | ✅ Complete |
-| 2C | Project Setup classification and planning foundation *(added — see Phase 2C)* | ⚠️ In progress — **2C.1 DONE** (browser-UAT verified); **2C.1c delivered** (Other Project structure, commits `494367f`–`6b7fba4`; Structure Hierarchy UX implemented locally, browser visual UAT pending); **2C.3A / 2C.3B verified**; **2C.3C complete locally** — migrations applied, automated verification complete, browser UAT on the Other Project path done, true PSM browser smoke pending; **2C.3D Wave 1 complete locally** — migration applied, automated verification complete, browser UAT on ZZ-STRUCT-UI-01 done; **2C.3D Wave 2 complete locally (LOCAL ONLY)** — migration applied, automated verification complete, browser smoke done on MDP-PSAIM-01 (legacy / PSAIM shared PSM Contacts path); true classified PSM browser UAT pending; **2C.3E complete (LOCAL ONLY)** — migration applied, automated verification and browser UAT done, committed and pushed (`5c086f7`); **2C.3F complete locally (LOCAL ONLY)** — no migration, automated verification and browser UAT done, not yet committed; 2C.2 not started. All 2C migrations are applied to the local development database only (NOT production) |
+| 2C | Project Setup classification and planning foundation *(added — see Phase 2C)* | ✅ **Implementation complete for the current scope — carry-over UAT only; not an active development phase.** Carry-over UAT still **OPEN**: 2C.1c visual UAT · true PSM browser UAT for 2C.3C · true PSM browser UAT for 2C.3D Wave 2. — **2C.1 DONE** (browser-UAT verified); **2C.1c delivered** (Other Project structure, commits `494367f`–`6b7fba4`; Structure Hierarchy UX implemented locally, browser visual UAT pending); **2C.3A / 2C.3B verified**; **2C.3C complete locally** — migrations applied, automated verification complete, browser UAT on the Other Project path done, true PSM browser smoke pending; **2C.3D Wave 1 complete locally** — migration applied, automated verification complete, browser UAT on ZZ-STRUCT-UI-01 done; **2C.3D Wave 2 complete locally (LOCAL ONLY)** — migration applied, automated verification complete, browser smoke done on MDP-PSAIM-01 (legacy / PSAIM shared PSM Contacts path); true classified PSM browser UAT pending; **2C.3E complete (LOCAL ONLY)** — migration applied, automated verification and browser UAT done, committed and pushed (`5c086f7`); **2C.3F complete (LOCAL ONLY)** — no migration, automated verification and browser UAT done, committed and pushed (`f833ba1`); 2C.2 superseded by Phase 13 (13.11, recorded 2026-10-14). All 2C migrations are applied to the local development database only (NOT production) |
 | 3 | Data foundation | ✅ Complete — all 47 migrations applied |
 | 4 | Weekly Workspace UI | ⚠️ Partial (~95%) — final Weekly UX, multiple authored updates, insights, plans and print delivered; attachments/history outstanding |
 | 5 | Weekly data and department submission | ⚠️ Partial — department ownership now enforced in the UI |
@@ -47,20 +47,40 @@ and a lifecycle transition correctly refused).
 | 10a | Control Center + Calendar | ⚠️ Partial — Dashboard rebuilt on real data (mock removed), regrouped sidebar with notched active indicator, and a project-scoped Calendar (`project_events`) with Day/Week/Month/Agenda and full CRUD. Attachments on events are NOT implemented: the platform has no attachment storage at all (`attachment-service.ts` is `notImplemented`, no table, no bucket) |
 | 11 | A4/PDF output | ⚠️ Partial — dedicated Weekly A4 preview/print delivered; other report types remain untouched |
 | 12 | Hardening and future integrations | ❌ Not started |
-| 13 | Master Planning & Control *(added — see note)* | ⚠️ In progress — **13.1 & 13.2 CLOSED**, **13.3 implemented** (verified in UI), **13.2c + 13.2d implemented** (verified on the local rehearsal database); **13.4 Wave 1 implemented with isolated database validation green and authenticated UI review pending**; 13.4 Wave 2 and 13.5–13.7 not started |
+| 13 | Master Planning & Control *(added — see note)* | ⚠️ **CURRENT ACTIVE PHASE** — in progress — **13.1 & 13.2 CLOSED**, **13.3 implemented** (verified in UI), **13.2c + 13.2d implemented** (verified on the local rehearsal database); **13.4 Wave 1 implemented with isolated database validation green and authenticated UI review pending**. **13.8 Master Planning & Control specification DOCUMENTED 2026-10-14** (`02` §26 — docs only, no code or database change). **13.9 archived / read-only safety guards CLOSED 2026-10-15 (browser UAT passed; LOCAL ONLY, not deployed)**; 13.10–13.21 not started; they supersede the unstarted 13.4 Wave 2 and 13.5–13.7 (see Phase 13) |
 
-**Current phase: Phase 2C — Project Setup classification and planning
-foundation.** 2C.1 — DONE / VERIFIED · 2C.1c — DELIVERED (applied locally) ·
-2C.2 — NOT STARTED · 2C.3 — IN PROGRESS (2C.3A, 2C.3B verified; **2C.3C
-complete locally** — browser UAT done on the Other Project path, true PSM
-browser smoke pending; **2C.3D Wave 1 complete locally** — browser UAT
-done on ZZ-STRUCT-UI-01; **2C.3D Wave 2 complete locally** — browser
-smoke done on MDP-PSAIM-01 (legacy / PSAIM shared PSM path), true
-classified PSM browser UAT pending; **2C.3E complete** — browser UAT
-done, pushed at `5c086f7`; **2C.3F complete locally** — People
-Organization Chart, browser UAT done, not yet committed). Every 2C migration is
-applied to the local development database only; production deployment is
-pending.
+**CURRENT ACTIVE PHASE: Phase 13 — Master Planning & Control** (since
+2026-10-14). **13.8 Specification — DOCUMENTED** in
+[`02_PLATFORM_ARCHITECTURE.md` §26](02_PLATFORM_ARCHITECTURE.md#26-master-planning--control--approved-architecture-2026-10-14)
+(with `03` §4.7/§5.5/§21.4, `05` §3.8, `06` §10A). **13.9 — archived /
+read-only safety guards — CLOSED 2026-10-15** (browser UAT passed; LOCAL
+ONLY — migration applied to the local development database only, not
+deployed; see the 13.9 checkpoint at the end of Phase 13). **Next slice: 13.10
+— Planning Engine core — NOT STARTED; it starts only on explicit
+instruction.** The slice plan (13.8–13.21), in dependency order, is in Phase 13
+below.
+
+**Phase 2C — implementation complete for the current scope; carry-over UAT
+only.** It is **not** a competing active development phase. 2C.1 — DONE /
+VERIFIED · 2C.1c — DELIVERED (applied locally) · 2C.2 — SUPERSEDED by 13.11
+(2026-10-14) · 2C.3A, 2C.3B — verified · 2C.3C — complete locally (browser UAT
+done on the Other Project path) · 2C.3D Wave 1 — complete locally (browser UAT
+done on ZZ-STRUCT-UI-01) · 2C.3D Wave 2 — complete locally (browser smoke done
+on MDP-PSAIM-01, the legacy / PSAIM shared PSM path) · 2C.3E — complete, pushed
+at `5c086f7` · 2C.3F — complete, pushed at `f833ba1`.
+
+**Carry-over UAT — still OPEN, not complete:**
+
+1. **2C.1c** — browser visual UAT of the final polished Structure Hierarchy UX.
+2. **2C.3C** — true PSM browser UAT (smoke). The only classified PSM project,
+   PSM-02, does not yet meet the prerequisites to open Contacts.
+3. **2C.3D Wave 2** — true classified PSM browser UAT.
+
+Carry-over UAT can be completed independently at any time. It **does not block
+Phase 13 implementation** unless a dependency is discovered; if one is, it is
+recorded here and the dependent Phase 13 slice waits for it. Separately from
+UAT, every 2C migration is applied to the local development database only, and
+production deployment remains pending under its own approval.
 
 *Earlier current phase, kept for history:* **P0 — architecture-review blockers**
 (deployed in two waves, 2026-08-21/22; see P0 status below). Scope, ordering and the
@@ -308,7 +328,15 @@ Project-scoped reporting structure, listed under "Main modules" in `01_PROJECT_V
 
 ---
 
-## Phase 2C — Project Setup classification and planning foundation ⚠️ IN PROGRESS *(added)*
+## Phase 2C — Project Setup classification and planning foundation ✅ IMPLEMENTATION COMPLETE (current scope) — carry-over UAT open *(added)*
+
+> **Status (2026-10-14).** Implementation is complete for the current scope.
+> Phase 2C is no longer an active development phase; **Phase 13 is the current
+> active phase.** Three carry-over UAT items remain **open** — 2C.1c visual
+> UAT, true PSM browser UAT for 2C.3C, and true PSM browser UAT for 2C.3D
+> Wave 2 (see "Status at a glance"). They can be completed independently and do
+> not block Phase 13 unless a dependency is discovered. 2C.2 is superseded by
+> 13.11.
 
 Makes Project Setup the project-definition layer: what kind of project this is, then its structure, then its planning, people and organization. Architecture: [`02_PLATFORM_ARCHITECTURE.md` §4.5](02_PLATFORM_ARCHITECTURE.md#45-project-type-and-project-category-phase-2c1); permissions: [`05_PERMISSION_MODEL.md` §3.6](05_PERMISSION_MODEL.md#36-project-classification-authority-phase-2c1); data: [`06_DATABASE_SCHEMA.md` §6.1, §21.5, §24](06_DATABASE_SCHEMA.md#61-project).
 
@@ -318,17 +346,18 @@ Makes Project Setup the project-definition layer: what kind of project this is, 
 |---|---|---|
 | 2C.1 | Project classification (2C.1a) + Project Setup shell & workflow (2C.1b) | ✅ **DONE / VERIFIED** — checkpoint commit `72c9d07`, 2026-10-03 |
 | 2C.1c | Other Project dynamic structure (replaces the "Project Structure" placeholder) | ✅ **Delivered** — commits `494367f`–`6b7fba4` (2026-10-03 → 2026-10-06). Migration `20261003000001_project_structure_foundation.sql` is applied to the local development database (verified read-only against `supabase_migrations.schema_migrations`, 2026-10-07), with structure data present locally. Runtime scripts: `110_runtime_2c1c_structure.sql`, `111_runtime_2c1c_service_concurrency.mjs`. A formal browser-UAT checkpoint is not recorded in this document. Not deployed remotely or to production. **Structure Hierarchy UX implemented locally (2026-10-11)** — no database or schema change; browser visual UAT on the final polished version pending (see below) |
-| 2C.2 | Planning / progress foundation | ❌ Not started |
-| 2C.3 | Responsibilities, Project Parties and Organization Chart setup | ⚠️ In progress — 2C.3A done; 2C.3B verified (local); 2C.3C complete locally (Other Project browser UAT done; true PSM browser smoke pending); 2C.3D Wave 1 (Other Project Structure Responsibilities) complete locally (browser UAT done on ZZ-STRUCT-UI-01); 2C.3D Wave 2 (PSM linkage) complete locally (LOCAL ONLY; browser smoke done on MDP-PSAIM-01 (legacy / PSAIM shared PSM Contacts path); true classified PSM browser UAT pending); 2C.3E (authority-bearing assignment rules, archived setup read-only) complete (LOCAL ONLY; browser UAT done; pushed at `5c086f7`); 2C.3F (People Organization Chart) complete locally (LOCAL ONLY; no migration; browser UAT done; not yet committed) |
+| 2C.2 | Planning / progress foundation | ⏭️ **Superseded by Phase 13 (13.11)** — folded into Phase 13; numbering confirmed by the owner 2026-10-14 (see the boundary note below). Not a separate implementation track |
+| 2C.3 | Responsibilities, Project Parties and Organization Chart setup | ✅ Implementation complete — **carry-over UAT open:** true PSM browser UAT for 2C.3C and for 2C.3D Wave 2 — 2C.3A done; 2C.3B verified (local); 2C.3C complete locally (Other Project browser UAT done; true PSM browser smoke pending); 2C.3D Wave 1 (Other Project Structure Responsibilities) complete locally (browser UAT done on ZZ-STRUCT-UI-01); 2C.3D Wave 2 (PSM linkage) complete locally (LOCAL ONLY; browser smoke done on MDP-PSAIM-01 (legacy / PSAIM shared PSM Contacts path); true classified PSM browser UAT pending); 2C.3E (authority-bearing assignment rules, archived setup read-only) complete (LOCAL ONLY; browser UAT done; pushed at `5c086f7`); 2C.3F (People Organization Chart) complete (LOCAL ONLY; no migration; browser UAT done; committed and pushed at `f833ba1`) |
 | 2C.3A | Project Parties foundation + Project Information (owner-authorized scope) | ✅ **DONE** — commit `5e88ef5`. Migration `20261006123219_project_parties_foundation.sql` applied to the local development database and browser-UAT verified (PSM and Other); not deployed remotely or to production |
 | 2C.3B | Professional Project Information — subcontractor Registered Company Name, Short Name / Acronym, Scope / Package, Subcontract / Contract Reference, Engagement Status (shared by PSM and Other) | ✅ **Verified, 2026-10-07** — migration `20261007120000_project_parties_professional_information.sql` applied to the local development database and browser-UAT verified for PSM and Other Project; not deployed remotely/production. Final validation-timing polish: 85 focused / 538 source tests, typecheck, lint and production build PASS. No people, responsibility, structure, reporting or chart changes |
 | 2C.3C | Project Team Membership and Project Reports To — one global People master + project-scoped, authority-free membership grouped by Project Party; leadership presented from the existing fixed roles | ✅ **Complete locally, 2026-10-11.** Migrations `20261007150000_project_team_membership.sql` and `20261011090000_project_team_controlled_writes.sql` (the three RPCs become the only write path) are applied to the local development database; backfill verified identical to the approved Preflight V2 (46 / EPROM 30 / Owner 7 / Needs party 9 / Needs project role 46). Automated verification complete: runtime 63/63, 582 source tests, typecheck, lint, production build. Browser UAT on the Other Project path (ZZ-STRUCT-UI-01, 2026-10-08) done. **True PSM browser smoke pending:** the only classified PSM project, PSM-02, does not yet meet the prerequisites to open Contacts; PSM / shared behaviour is covered by automated UI, domain and runtime tests. Not deployed remotely or to production |
 | 2C.3D | Structure Responsibilities — **Wave 1:** Other Project Structure Responsibilities (authority-free Unit membership and Unit Lead; Weekly / Monthly Responsible and per-report Backup, drawn from the unit's own active members). **Wave 2:** PSM linkage to canonical project membership (assignment pickers use active project members; same-project / active-membership guards for new or edited PSM assignments; the PSM hierarchy, the `project_contacts` responsibility system and Department Manager authority are unchanged) | ⚠️ **Wave 1 implemented locally, 2026-10-12.** Migration `20261012100000_structure_responsibilities.sql` applied to the local development database (both new tables start empty — no backfill); runtime `116_runtime_2c3d_structure_responsibilities.sql` 96/96; automated verification complete (full source suite, typecheck, lint, production build). **Browser UAT on ZZ-STRUCT-UI-01 done** (see the checkpoint below). **Wave 2 complete locally, 2026-10-12 — LOCAL ONLY.** Migration `20261012150000_psm_membership_linkage.sql` applied to the local development database (no backfill; no data changed); runtime `117_runtime_2c3d_psm_membership_linkage.sql` 29/29; automated verification complete. **Browser smoke done on MDP-PSAIM-01** (legacy / PSAIM shared PSM Contacts path); a true classified PSM browser UAT is pending (see the Wave 2 checkpoint below). Not deployed remotely or to production |
 | 2C.3E | Authority-bearing assignment rules and archived setup read-only | ✅ **Complete — LOCAL ONLY. Committed and pushed at `5c086f7`.** Migrations `20261012180000_setup_authority_and_archived_read_only.sql`, `20261013090000_responsibility_holder_membership.sql` and `20261013120000_member_eligibility_for_responsibilities.sql` applied to the local development database (no data changed); runtime `118` 66/66, `119` 19/19 and `120` 28/28; automated verification complete. **Browser UAT done** (see the 2C.3E checkpoint below). Not deployed remotely or to production |
-| 2C.3F | People Organization Chart, derived from project membership and Project Reports To | ✅ **Complete locally, 2026-10-13 — LOCAL ONLY; not yet committed.** No migration and no data change. The Organization Chart page opens on the People chart; the Phase 2A position chart stays, unchanged, as a "Position Chart" tab. Automated verification complete (source suite, typecheck, lint, production build). **Browser UAT done** on MDP-PSAIM-01, ZZ-STRUCT-UI-01 and the archived PSAIM-001 (see the 2C.3F checkpoint below). Not deployed remotely or to production |
+| 2C.3F | People Organization Chart, derived from project membership and Project Reports To | ✅ **Complete, 2026-10-13 — LOCAL ONLY. Committed and pushed at `f833ba1`.** No migration and no data change. The Organization Chart page opens on the People chart; the Phase 2A position chart stays, unchanged, as a "Position Chart" tab. Automated verification complete (source suite, typecheck, lint, production build). **Browser UAT done** on MDP-PSAIM-01, ZZ-STRUCT-UI-01 and the archived PSAIM-001 (see the 2C.3F checkpoint below). Not deployed remotely or to production |
 
-**Open boundary decision — must be settled before 2C.2 starts.** The scope of
-2C.2 against existing planning work is not defined in these documents:
+**Boundary decision — SETTLED 2026-10-14** (resolution below; the original
+question is kept for history). The scope of 2C.2 against existing planning
+work was not defined in these documents:
 
 - Phase 13 (Master Planning & Control) owns Master Milestones and Deliverables,
   reporting integration, and schedule import and views (13.1–13.7).
@@ -341,6 +370,18 @@ Makes Project Setup the project-definition layer: what kind of project this is, 
 
 Before 2C.2 is planned, decide and record which planning capabilities 2C.2
 adds at setup time, and which remain Phase 13. Neither phase is redefined here.
+
+**Boundary settled 2026-10-14 — numbering confirmed by the owner.** The
+approved Master Planning & Control implementation slices are **13.8–13.21**.
+Every planning capability — planning levels, local weights, earning methods,
+baselines, snapshots, manpower, import — belongs to **Phase 13** (`02` §26).
+The setup-time planning configuration once intended for 2C.2 (planning levels,
+local weights, earning methods, reporting-unit mapping, look-ahead weeks) is
+folded into **13.11**. Project Setup keeps only the onboarding mode and the
+**read-only** Governed Performance block fed by the latest Published Planning
+Snapshot (13.14); it never accepts typed Planned % / Actual % / Variance / SPI.
+**2C.2 has no remaining scope, is superseded by 13.11, and is not maintained as
+a separate implementation track.**
 
 ### 2C.1 — delivered
 
@@ -642,7 +683,7 @@ Data model: `06_DATABASE_SCHEMA.md` §8.1, §8.2, §8.8.
 
 ### 2C.3F — People Organization Chart (checkpoint, 2026-10-13)
 
-**Status: complete locally — LOCAL ONLY. No migration and no data change; automated verification and browser UAT complete; not yet committed. Not deployed remotely or to production.** Data model: `06_DATABASE_SCHEMA.md` §8.8 (Reports To) and §9 (the position chart).
+**Status: complete — LOCAL ONLY. No migration and no data change; automated verification and browser UAT complete; committed and pushed at `f833ba1`. Not deployed remotely or to production.** Data model: `06_DATABASE_SCHEMA.md` §8.8 (Reports To) and §9 (the position chart).
 
 **Assessment (read-only, before implementation).**
 - **The route was already taken.** `/projects/[id]/organization-chart` served the Phase 2A **position** chart (`features/organization`):
@@ -1195,6 +1236,13 @@ Master Milestones and Master Deliverables as the single governed source of
 truth for project milestones, with Weekly and Monthly as reporting channels
 over them rather than places where milestones are invented.
 
+**Scope widened 2026-10-14.** Phase 13 is now the whole Master Planning &
+Control platform: the planning hierarchy, weights, the performance engine (PV,
+EV, SPI, S-curves), baselines, Published Planning Snapshots, manpower, schedule
+import and every consumer — per
+[`02_PLATFORM_ARCHITECTURE.md` §26](02_PLATFORM_ARCHITECTURE.md#26-master-planning--control--approved-architecture-2026-10-14).
+The delivery slices are 13.8–13.21 (end of this phase).
+
 The full architecture, the ten frozen rules (R1–R10) and the locked decision
 register (D1–D8) are held in the Phase 13 architecture review. This section
 records only the phase numbering and delivery status.
@@ -1214,13 +1262,30 @@ but are not the same increment. Use the numbering in this file.
 | 13.3 | Master Deliverables | ✅ **Implemented** — verified in the live UI 2026-08-20; one deferred test (M5) |
 | 13.2c | Master Milestone completion | ✅ **Implemented** — verified on the local rehearsal database 2026-08-22 (29/29 shape, 42/42 runtime, 32/32 derivation); one defect found and fixed. Not yet driven through the UI |
 | 13.2d | Milestone progress reconciliation | ✅ **Implemented** — verified on the local rehearsal database 2026-08-22 (40/40 runtime, 40/40 derivation). R5 amended; reconciliation is Project Control only (excludes Reporting Coordinator); conflict tolerance fixed at 0 points. Not yet driven through the UI |
-| 13.4 | Reporting Integration | ⚠️ **Wave 1 implemented; isolated database validation green** — Weekly selects active governed milestones and drafts report observations; two clean migration replays and all SQL regressions passed. Authenticated UI review remains pending. Monthly Wave 2 not started |
-| 13.5 | Schedule Import (Primavera) | 🔒 Gated — needs written sign-off |
-| 13.6 | Schedule Views | 🔒 Gated |
-| 13.7 | Executive & Dashboard | ❌ Not started |
+| 13.4 | Reporting Integration | ⚠️ **Wave 1 implemented; isolated database validation green** — Weekly selects active governed milestones and drafts report observations; two clean migration replays and all SQL regressions passed. Authenticated UI review remains pending. **Monthly Wave 2 superseded by 13.19** (2026-10-14) |
+| 13.5 | Schedule Import (Primavera) | ⏭️ **Superseded 2026-10-14** — Excel and P6 Excel export by **13.16**; native XER by **13.21** (gated, written sign-off) |
+| 13.6 | Schedule Views | 🔒 Gated. **Re-scoped 2026-10-14:** S-curves and the WBS roll-up are delivered in 13.14; 13.6 keeps only a Gantt / timeline view, unscheduled, not before 13.16 |
+| 13.7 | Executive & Dashboard | ⏭️ **Superseded 2026-10-14** — Dashboard by **13.14**, Executive and portfolio by **13.20** |
+| 13.8 | **Master Planning & Control specification** | ✅ **DOCUMENTED 2026-10-14** — `02` §26 (+ `03` §4.7/§5.5/§21.4, `05` §3.8, `06` §10A, `08`, `07` and `specs/weekly-report.md` notes). Docs only |
+| 13.9 | Archived / read-only safety guards | ✅ **CLOSED 2026-10-15 — browser UAT passed. LOCAL ONLY (not deployed).** Migration `20261014090000_planning_control_archived_read_only.sql` applied to the local development database only; see the 13.9 checkpoint |
+| 13.10 | Planning Engine core (pure) | ❌ Not started — next slice |
+| 13.11 | Working Plan hardening — hierarchy, levels, local weights, activity kinds and earning methods, reporting-unit mapping (supersedes 2C.2) | ❌ Not started |
+| 13.12 | Snapshot v2 + baselines (BL0/BLn, re-baseline approval) + curves | ❌ Not started — needs decisions B3, B8 |
+| 13.13 | Manpower / resource foundation | ❌ Not started |
+| 13.14 | Core consumers — Governed Performance, Project Progress, Dashboard, Calendar | ❌ Not started |
+| 13.15 | Milestone governance / linkage | ❌ Not started — blocked by decision B1 |
+| 13.16 | Import v2 — EPRP Excel template + P6 Excel export, with Schedule Versions and history | ❌ Not started (B10 closed 2026-10-14) |
+| 13.17 | Automatic Weekly — PSM | ❌ Not started |
+| 13.18 | Other Project reporting sections | ❌ Not started — blocked by decisions B2, B9 |
+| 13.19 | Monthly — freeze, S-curve, milestone movement, manpower | ❌ Not started |
+| 13.20 | Executive + portfolio aggregation | ❌ Not started |
+| 13.21 | Native P6 XER import | 🔒 Gated — needs written sign-off |
 
-**Acceptance gate:** 13.5 and 13.6 do not start until 13.1–13.4 are implemented,
-tested and accepted. 13.1–13.4 must be fully usable without Primavera.
+**Acceptance gate (amended 2026-10-14).** The platform must stay fully usable
+without any import: Project Control entry is a first-class way to build and
+update the Working Plan. Import (13.16) does not start until 13.11, 13.12 and
+13.15 are accepted. 13.21 additionally needs written sign-off. 13.17 does not
+start until the **13.4 Wave 1 authenticated UI review** is green.
 
 ### 13.1 — Reference Input metadata ✅
 
@@ -1961,3 +2026,143 @@ either architecture.
 review is green and the product owner explicitly decides whether automatic
 approval may ever cross the current Reporting-Coordinator / Project-Control
 authority split. Migration replay and SQL runtime gates are green.
+
+*(2026-10-14: Wave 2 is superseded by 13.19, which inherits this gate.)*
+
+---
+
+### 13.8–13.21 — Master Planning & Control slices (approved 2026-10-14)
+
+**The contract:** [`02_PLATFORM_ARCHITECTURE.md` §26](02_PLATFORM_ARCHITECTURE.md#26-master-planning--control--approved-architecture-2026-10-14).
+Entities: `06` §10A. Permissions: `05` §3.8. Reporting: `03` §4.7, §5.5, §21.4.
+
+**Why this replaces the earlier Phase 13 tail.** The read-only assessment of
+2026-10-14 found that the planning foundation already in the repository
+(planning work items, activities, raw import, confirmations, baselines,
+snapshots with a Data Date, Opening Positions, Weekly/Monthly pinning) and the
+governed milestone register are sound, but:
+- the roll-up is flat (no local weights; node weights unused);
+- imported activities are never attached to a WBS node;
+- planned % is copied from the import instead of being calculated from baseline dates;
+- five progress sources and two SPI definitions coexist;
+- Calendar and the Executive still read report plan items as milestones;
+- an approved Monthly's milestone section reads live data;
+- archived projects are not read-only for milestone and planning tables.
+
+The slices below fix that **by hardening, not rewriting**.
+
+**Rules for every slice.** One slice at a time, each started only on explicit
+instruction. Each ends with the `CLAUDE.md` completion report (lint, type-check,
+production build, changed files, completed and deferred requirements) and an
+update to this roadmap. Database slices also need migration replay and runtime
+SQL verification on the local stack; a green build is not database
+verification. Open decisions are B1–B9 in `02` §26.19. **B10 (back-dated
+Schedule Versions → Historical Correction workflow) and the one-under-review
+policy were closed by the owner on 2026-10-14.**
+
+**Recorded 2026-10-14 without changing the slice order:** Guided Planning
+Setup (`02` §26.20) belongs to 13.11, extended by the slices whose
+configuration it asks about. Collaborative Weekly/Monthly comments (`02`
+§26.21) belong to 13.17, 13.18 and 13.19. Schedule Versions and revision
+history (`02` §26.22) belong to 13.16 (Import v2), with snapshot provenance and
+Baseline Revisions in 13.12 and milestone proposals in 13.15; Import v2 is
+**not** started now. **13.9 remains the next slice.** *(2026-10-15: 13.9 is
+now implemented locally — see the 13.9 checkpoint; 13.10 is next.)*
+
+| # | Slice | Scope | Depends on | Blocked by | Done when |
+|---|---|---|---|---|---|
+| **13.8** | Specification | `02` §26 and the related amendments | — | — | ✅ Documented 2026-10-14 |
+| **13.9** | Archived / read-only safety guards | Data-boundary refusal of every write on an archived project for the governed milestone and deliverable registers and their update streams, Weekly milestone drafts, every planning table, import and publish; archive-aware milestone authority in the UI | 13.8 | — | Runtime SQL proves the refusal per table and route, for every role including administrators; reads unaffected; no other behaviour change |
+| **13.10** | Planning Engine core (pure) | Pure module: effective weights, weight and completeness validation (W1–W3, C1–C2), PV distribution per earning method, EV per method, roll-up, SV, SPI, curves, schedule-condition function (thresholds passed in) | 13.8 | B7 | `02` §26.5 is reproduced exactly as a test fixture, and both calculation paths agree; no schema or UI change; the existing flat roll-up is untouched |
+| **13.11** | Working Plan hardening (supersedes 2C.2) | Local-weight semantics; level labels; Control Account flag; activity kind and earning method; activity attached to a node; reporting-unit mapping (PSM and Other structure units); logged normalisation; Master Plan editor showing local weight and calculated contribution; archived read-only. **Planning Setup — Guided and Advanced modes over one Planning Configuration** (`02` §26.20, `07` §10.10); later slices add their own guided questions (baseline 13.12, manpower 13.13, schedule source 13.16, look-ahead and report sections 13.17 / 13.18) | 13.9, 13.10 | — | Sums validated per parent; existing weights preserved and **never silently reinterpreted** (existing projects are reviewed into the local model before their first v2 publish) |
+| **13.12** | Snapshot v2 + baselines + curves | Publish runs the engine and freezes nodes, activities, milestone states and curves, with engine version; publish validation; BL0/BLn with request (Project Control) and approval (Project Control Admin / System Admin) as **Baseline Revisions**; baseline curves; **snapshot provenance** (source Schedule Version, edits applied after it, Data Date, BL0, BLn, engine version, publisher, time — `02` §26.22.7); the rule that no import re-baselines; legacy snapshots labelled | 13.10, 13.11 | B3, B8 | A published snapshot reproduces `02` §26.5; re-baselining never changes a published snapshot; legacy snapshots read unchanged |
+| **13.13** | Manpower / resource foundation | Resource Category master data; planned manpower in the Working Plan (entry and template); frozen in snapshots and baselines; actual-manpower record defined for the Weekly | 13.12 | B5 (actual entry only) | Planned histogram published and reproducible from a snapshot; manpower never enters SPI |
+| **13.14** | Core consumers | Governed Performance (read-only; Opening Position record/promote moves to the Planning workspace only), Project Progress (KPI strip, WBS roll-up, S-curves, milestones, manpower), Dashboard project and portfolio views (portfolio **distribution only** until 13.20), Calendar milestones from snapshot and register; stop writing and displaying the project record's progress; remove the Actual % ÷ Planned % SPI from these surfaces | 13.12, 13.13 | B4 | Every figure cites its snapshot; no surface reads plan items as milestones; projects without a plan read "Reported — not planning governed" / SPI "N/A" |
+| **13.15** | Milestone governance / linkage | One-to-one link from a true milestone activity to a governed milestone, with link UI; linked milestones read dates from the snapshot; Schedule Versions may propose forecast / actual dates for linked milestones, never BL0 / BLn (`02` §26.22.6); key flag and criticality label; identity change history; deprecate register physical weight and planned-progress % | 13.12 | **B1** (amends `02` §24.6) | Linked and unlinked milestones resolve per `02` §26.6 rule 5; payments, client decisions and reconciliation unchanged |
+| **13.16** | Import v2 — EPRP Excel + P6 Excel, with **Schedule Versions** (`02` §26.22) | Every import a preserved Schedule Version (reference, Data Date, status, previous accepted version, baseline in force, change counts); one under review at a time; staging, validation, mapping (WBS → nodes, IDs, resources, weight semantics); diff against the **latest accepted** version by category; Project Control acceptance with logged exceptions; field ownership; re-match and restoration; removed items archived as "Removed from current schedule", with protected items needing explicit resolution; the **Historical Correction** workflow for back-dated versions (never current, never alters a snapshot or an approved report; carried forward only via a new current-dated version); milestone matching; the Schedule History list; fixes the review panel counting an existing activity as already confirmed | 13.11, 13.12, 13.15 | — (B10 closed) | A re-import shows every difference and changes nothing un-accepted; no match on titles; raw rows and every earlier version preserved; no import changes BL0 / BLn or any published snapshot |
+| **13.17** | Automatic Weekly — PSM | Pin and re-pin until approval; derived planning facts per section; confirm/explain through Weekly entries that reference the activity, node or milestone; **collaborative section comments** — typed, attributed, never planning facts; engineers add and edit their own; the Department Manager reviews and summarises (`02` §26.21); actual manpower entry; typed progress, duplicate activity rows and plan rows retired for planning-governed projects | 13.12–13.16; 13.4 Wave 1 UI review green | B5 | A PSM Weekly needs no typed progress; approval freezes the pin; history of retired rows stays readable |
+| **13.18** | Other Project reporting sections | Unit-keyed Weekly sections from the Project Structure; Weekly Responsible / Backup reporting-write scope on their own unit only; unit-scoped section comments (`02` §26.21) | 13.17 | **B2, B9** | Responsible / Backup can write only their own unit's section and nothing else, proved at the data boundary |
+| **13.19** | Monthly (supersedes 13.4 Wave 2) | Month-end pin frozen at approval; S-curves; SPI and schedule condition; milestone movement; manpower; next-month look-ahead; Other-project Monthly sections if B2 allows; **approved Weekly comments carried forward by reference, plus Monthly-specific comments and section summaries — no retyping** (`02` §26.21); the Wave 2 automatic-approval decision | 13.17 (13.18 for Other) | B2 (Monthly part); Wave 2 gate | An approved Monthly's planning content never changes after approval |
+| **13.20** | Executive + portfolio aggregation (supersedes 13.7) | Executive position, milestones and movement from approved Monthly pins; weighted portfolio progress and SPI with eligibility and exclusions; portfolio weight assignment | 13.19 | B6 | No averaged SPI or progress anywhere; every aggregate declares basis and exclusions |
+| **13.21** | Native P6 XER import | XER parsing into the 13.16 pipeline and its Schedule Versions (WBS, relationships, resources; source baseline columns are information only, never an EPRP baseline) | 13.16 | Written sign-off | — |
+| — | **Tasks design** | Design only, per `02` §26.16 | 13.20 | — | Phase number assigned when it is planned |
+
+---
+
+### 13.9 — Archived / read-only safety guards (checkpoint, 2026-10-15)
+
+**Status: CLOSED 2026-10-15 — implemented, verified and browser-UAT passed.
+LOCAL ONLY: not deployed remotely or to production.**
+Migration `20261014090000_planning_control_archived_read_only.sql` is applied
+to the local development database (`supabase_db_eprp`) only.
+
+**Gap closed.**
+- Every Planning, Master Milestone and Master Deliverable write was authorised
+  by `can_manage_project_operations()`, which is not archive-aware.
+- `useMilestoneAuthority` (Milestones and Deliverables registers) ignored the
+  project's archived state.
+- So an archived project's plan, imports, baselines, Opening Positions,
+  snapshots, milestones, milestone progress, Weekly milestone drafts and
+  deliverables could still be changed, including through the SECURITY DEFINER
+  `publish_planning_snapshot()`.
+
+**Delivered.**
+
+*Database.* `guard_archived_project_planning()` runs as the BEFORE INSERT /
+UPDATE / DELETE row trigger `block_archived_project_planning` on 16 tables:
+- Planning: `project_planning_settings`, `planning_import_batches`,
+  `planning_import_rows`, `planning_work_items`, `planning_activities`,
+  `planning_confirmations`, `planning_baselines`, `planning_milestone_links`,
+  `planning_snapshots`, `planning_snapshot_activities`,
+  `planning_opening_positions`;
+- Milestones: `master_milestones`, `milestone_updates`,
+  `weekly_milestone_drafts`;
+- Deliverables: `master_deliverables`, `deliverable_updates`.
+
+The guard follows the 2C.3E pattern:
+- refusal `[PROJECT_ARCHIVED]` / 42501, for every role and the owner path;
+- it fires first among each table's BEFORE row triggers;
+- both ends of an UPDATE are checked;
+- an unknown table fails closed;
+- it is not client-callable.
+
+What stays unchanged: no policy, table or existing function (policy and
+predicate fingerprints are proved unchanged), and no row is written.
+
+*Services.* `describeFailure()` now reports the archived refusal as "This
+project is archived; its planning, milestones and deliverables are read-only."
+before the permission wording. This applies to the milestone, deliverable and
+planning services.
+
+*Screens.*
+- `useMilestoneAuthority` withdraws Add / Edit / Archive / Submit update /
+  Reconcile / approval on an archived project, for every role, through a new
+  pure resolver.
+- The Planning workspace, Milestones and Deliverables show an "Archived ·
+  read-only" notice.
+- Approval queues say the update "stays undecided".
+- Planning actions were already gated on the archive-aware project authority.
+
+**Verification.**
+
+| Check | Result |
+|---|---|
+| Migration post-checks (guard on all 16 tables, fires first, not client-callable, operations predicate unchanged, 2C.3E guards present) | PASS on apply |
+| `121_runtime_13_9_planning_control_archived.sql` — archived writes refused for assigned Project Control, Project Control Admin and System Administrator (import, publish, Opening Position, baseline, WBS, milestones, progress, drafts, deliverables); owner path refused; archived and legacy reads; active writes for the same actors; authority unchanged; lifecycle; catalog | **206 / 206 PASS** (local, rolled back) |
+| Source suite (`node --import …test-runtime.mjs --test "src/**/*.test.mjs"`) | **731 / 731 PASS** (11 new in `planning-control-archived.test.mjs`) |
+| `npx tsc --noEmit` · `npx eslint src --max-warnings=0` · `npx next build` | PASS · PASS · PASS |
+| Earlier SQL regression suites (88, 89, 96, 100–103, 105–107, 118; 97 excluded because it commits), re-run 2026-10-15 | **No 13.9 regression.** As-is, 88, 89, 96, 100–103, 105–107 abort or fail because their shared fixtures ZZ-P0TEST-PRJ and PSAIM-001 are **archived** in the local data (2C.3E and now 13.9 correctly refuse writes to them; 89, 100–103, 105 already failed on the 2C.3E guard before 13.9). With both fixtures temporarily active inside a rolled-back transaction, results are **identical with 13.9 on and off**: 88 41/1 · 89 40/0 · 96 27/0 · 101 19/0 · 103 9/0 · 105 18/0 · 106 7/1 · 107 8/0 · 118 66/0; 100 and 102 stop identically on a pre-existing Opening Position data condition. The two single failures (88 "identity read is Tier A", 106 "draft-only project has no published snapshot") are pre-existing and also fail without 13.9 |
+| `121_runtime_13_9_planning_control_archived.sql` re-run after the Docker restart | **206 / 206 PASS** |
+| Browser UAT (2026-10-15) | **PASS.** Archived PSAIM-001: Project Setup, Planning & Control show "Archived · read-only"; Governed Performance and snapshot v1 stay visible; Master Plan, Planning Data (no Import), Baselines & Snapshots (no Publish / Opening Position), Milestones (no Add / Edit / Submit / Reconcile) and Deliverables (no Add / Edit / Submit) are read-only. Active MDP-PSAIM-01: no notice; Project Setup editable; Add Work Item / Edit, Import modal, Publish Snapshot, Add Milestone and Add Deliverable all offered |
+
+**Notes.**
+- There is **no un-archive path**, unchanged since 2C.3E; archiving itself still works.
+- Pending milestone and deliverable updates on archived projects stay undecided permanently.
+- Deleting master data (contacts, systems, project documents) referenced by an
+  archived project's planning, milestone or deliverable rows is now refused,
+  because the FK SET NULL cascade is itself a refused write. This is
+  consistent with 2C.3E.
+- `TRUNCATE` is not a row event and is outside this guard; it is not
+  reachable through the API.
+
+**Not in 13.9:** the Planning Engine (13.10) and every later slice.

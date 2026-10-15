@@ -12,6 +12,8 @@ import {
 import { EmptyState, LoadingState, StatCard, type StatCardProps } from "@/components/shared";
 import { planningService } from "@/services/planning-service";
 import type { PlanningSnapshot, Project, ProjectPlanningSettings } from "@/types";
+import { isPlanningControlReadOnly } from "../../planning-control-archived";
+import { ArchivedPlanningNotice } from "./archived-planning-notice";
 import { BaselinesSnapshotsPanel } from "./baselines-snapshots-panel";
 import { MasterPlanPanel } from "./master-plan-panel";
 import { PlanningDataPanel } from "./planning-data-panel";
@@ -58,6 +60,7 @@ export function PlanningWorkspace({
 
   return (
     <div className="space-y-4">
+      {isPlanningControlReadOnly(project) && <ArchivedPlanningNotice />}
       {!loading && (
         <div className="grid gap-3 sm:grid-cols-2">
           {stats.map((stat) => (

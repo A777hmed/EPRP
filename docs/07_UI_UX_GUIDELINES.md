@@ -516,6 +516,12 @@ A single figure showing overall project completion, with its working exposed.
 
 **Rules:** derived from **weighted lifecycle stage progress and reported work progress** · never entered by hand · **always explainable** — opening it shows each contributing stage, its weight and its contribution · states its basis and coverage · reports *Unknown* rather than a confident figure when inputs are missing.
 
+> **Superseded in part, 2026-10-14 (`02_PLATFORM_ARCHITECTURE.md` §26).** The
+> figure is the **earned progress (EV%) of the latest Published Planning
+> Snapshot**, and "explainable" opens the frozen WBS roll-up — each planning
+> node's local weight, effective project contribution, PV and EV. Lifecycle
+> stages carry no weight. The presentation rules above are otherwise unchanged.
+
 ### 9.8 Project health indicators
 
 Health is derived, explainable and honest (`06` §14.6).
@@ -660,6 +666,33 @@ Two integrations are **planned and not yet available**. The interface is designe
 
 The schedule follows the platform rule (§3.2): **every authenticated user may open it and see everything.** Creating, editing, importing and synchronizing depend on permission; the controls remain visible and disabled with their reason.
 
+### 10.10 Planning Setup — Guided and Advanced (2026-10-14)
+
+UX principle for the Planning Setup work of roadmap slice 13.11. Specification: `02_PLATFORM_ARCHITECTURE.md` §26.20.
+
+- **Guided first.** Setup opens as a short sequence of plain business questions — "Do you already have a project schedule?", "How is the project broken down?", "How is progress earned?", and so on. Each question offers clear choices and shows a sensible default.
+- **No jargon required.** A user never needs to know a planning term before answering. Terms such as Control Account or earning method appear only as secondary explanation.
+- **Show the result.** After the questions, a summary shows the configuration the answers produced, in plain language, with a route to change any of it.
+- **Advanced mode** edits the same configuration directly, for Planning Engineers. It is a view switch, not a separate tool: nothing is lost when moving between modes.
+- **Calculated values are never asked for.** No step asks for or offers to type PV, EV, SPI, effective contribution or S-curve values; screens state that EPRP calculates them.
+- **Recommended setups are visibly defaults.** Values pre-filled from a project-type template are labelled as recommended and remain editable.
+- Follows §10.9: read-only users see the configuration; controls they cannot use stay visible and disabled with their reason. Archived projects are read-only.
+
+### 10.11 Schedule History / Versions (principle only, 2026-10-14)
+
+Specification: `02_PLATFORM_ARCHITECTURE.md` §26.22. The full UI is **not** designed yet; it belongs to roadmap slice 13.16.
+
+- Planning users get a **Schedule History** view listing every Schedule Version: reference, Data Date, imported by, source, status, change count, accepted or rejected, related snapshot, and the baseline active at the time.
+- Selecting a version will show its **structured diff** by category.
+- **Wording:**
+  - "Schedule Version" and "Schedule Update" for imports;
+  - "Baseline Revision" (BL0, BL1, …) for approved baselines;
+  - "Report Revision" for reports;
+  - never the bare word "Revision".
+- **Uploading a schedule never looks like re-baselining.** Re-baseline is a separate, clearly labelled action with its own approval.
+- **Historical Corrections are visibly distinct.** A back-dated version can be accepted only through the explicit Historical Correction action, which asks for a reason and the period being corrected. It is labelled as a correction in the history and is never shown as the current schedule.
+- **Only one version under review at a time.** While one is under review, a new upload waits, and the history says so.
+
 ---
 
 ## 11. Weekly UI
@@ -702,6 +735,17 @@ Weekly and Monthly contributions may be completed two ways:
 
 Editable sections show edit affordances only where the status permits (Draft, Collecting, Returned). Once approved, sections render as immutable content with an explicit indicator, and the only forward action is **Create Revision**.
 
+### 11.7 Planning facts and section comments (2026-10-14)
+
+Specification: `02_PLATFORM_ARCHITECTURE.md` §26.11 and §26.21.
+
+- **Planning facts are read-only rows.** On a planning-governed project, they are derived from the pinned Planning Snapshot: planned, started, completed, late, milestones, look-ahead, progress and manpower. They carry no edit control.
+- **Comments sit beside the facts they explain.** From a fact or a section, an authorized user adds a typed comment — General Comment, Progress Explanation, Constraint, Recovery Action, Technical Note, or Client / Department Input — that optionally references that activity, node or milestone.
+- **Comments are visibly narrative.** They never look like, or sit in the same control as, a planning value.
+- **Authorship is always visible**, with edit history.
+- **Review and summary.** The section's responsible user sees the section's comments together, marks them reviewed and writes the section summary.
+- **Scope.** Comment controls appear only in the user's own section, per §3.2.
+
 ---
 
 ## 12. Monthly UI
@@ -730,6 +774,12 @@ Status ribbon · coverage panel · progress trend and planned-versus-actual · a
 ### 12.4 Source revision awareness
 
 When a compiled Weekly is later revised, the Monthly displays a clear, non-blocking notice identifying what changed and offering to open it. **The Monthly is never silently updated.** Issuing a Monthly revision is a deliberate act.
+
+### 12.5 Carried-forward and Monthly comments (2026-10-14)
+
+- Approved Weekly section comments appear where relevant as **compiled** content: marked with their source week, not editable here (§12.1), and never retyped.
+- Monthly-specific comments and section summaries are ordinary **Monthly-authored** content, scoped to the same section or unit.
+- Neither kind changes a planning figure. Specification: `02_PLATFORM_ARCHITECTURE.md` §26.21.
 
 ---
 

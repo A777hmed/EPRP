@@ -32,11 +32,14 @@ export function ApprovalQueue({
   queue,
   names,
   canManage,
+  archived = false,
   onDecided,
 }: {
   queue: { milestone: MasterMilestone; update: MilestoneUpdate }[];
   names: Record<string, string>;
   canManage: boolean;
+  /** 13.9: the project is archived, so a pending update stays undecided. */
+  archived?: boolean;
   onDecided: () => void;
 }) {
   if (queue.length === 0) {
@@ -59,6 +62,7 @@ export function ApprovalQueue({
           update={entry.update}
           names={names}
           canManage={canManage}
+          archived={archived}
           onDecided={onDecided}
         />
       ))}
@@ -71,12 +75,15 @@ function PendingCard({
   update,
   names,
   canManage,
+  archived = false,
   onDecided,
 }: {
   milestone: MasterMilestone;
   update: MilestoneUpdate;
   names: Record<string, string>;
   canManage: boolean;
+  /** 13.9: the project is archived, so a pending update stays undecided. */
+  archived?: boolean;
   onDecided: () => void;
 }) {
   const [note, setNote] = React.useState("");
@@ -188,7 +195,9 @@ function PendingCard({
 
       {!canManage ? (
         <p className="mt-3 text-sm text-muted-foreground">
-          Waiting on Project Control.
+          {archived
+            ? "Archived project — this update stays undecided."
+            : "Waiting on Project Control."}
         </p>
       ) : (
         <div className="mt-4 space-y-3 border-t pt-3">

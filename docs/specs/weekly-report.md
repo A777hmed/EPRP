@@ -19,7 +19,13 @@ reconciled deliberately, not discovered mid-build.
 ## 1. Platform scope
 
 - EPRP is an **internal EPROM multi-project engineering reporting platform**.
-- The **Weekly Report is the operational source of truth**.
+- The **Weekly Report is the operational source of truth** for reporting
+  entry — department input, narrative, confirmations and explanations.
+  *(Qualified 2026-10-14, [`02_PLATFORM_ARCHITECTURE.md`](../02_PLATFORM_ARCHITECTURE.md) §26.)*
+  The **Published Planning Snapshot** is the canonical source of planning and
+  performance facts — PV, EV, SPI, governed progress, schedule dates and
+  milestone schedule state. A Weekly pins it and may explain, confirm and
+  enrich those facts, but does not own their values (see the §5 note).
 - **Monthly Reports compile from finalized Weekly Reports.** Monthly work is
   out of scope here (see §9), but every Weekly rule below must keep that
   compilation possible — nothing in Weekly may overwrite the history Monthly
@@ -120,6 +126,20 @@ Draft → Collecting → Under Review → Approved → Finalized → Locked
   not silently show a fabricated value. (Resolves reference open question 5.)
 - Schedule Variance and SPI stay derived from planned/actual so they can never
   drift — this is already how the schema works and it is now the rule.
+
+> **Superseded in part, 2026-10-14
+> ([`02_PLATFORM_ARCHITECTURE.md`](../02_PLATFORM_ARCHITECTURE.md) §26).**
+> For a **planning-governed** project, Planned Progress, Actual (earned)
+> Progress, Schedule Variance and SPI are **not entered or carried forward**:
+> they come from the Published Planning Snapshot the report pins (§26.11), and
+> **SPI is only EV ÷ PV from the weighted planning model** (§26.7 rule 3) — the
+> "actual ÷ planned" SPI above is retired. For a project that is **not
+> planning-governed**, typed progress remains, labelled "Reported — not planning
+> governed", and **SPI is "N/A"** (§26.14). Man-hours become planned (from the
+> snapshot) vs actual (recorded in the Weekly) by resource category and party
+> (§26.9), replacing the single "man-hours to date" figure. The recommended
+> overall status below is replaced, for planning-governed projects, by the
+> single schedule-condition rule of §26.7 rule 4.
 
 **Recommended overall status** — computed from Schedule Variance (SV):
 

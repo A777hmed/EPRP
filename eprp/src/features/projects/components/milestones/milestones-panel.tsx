@@ -68,6 +68,7 @@ import {
 import { MilestoneReconcileDialog } from "./milestone-reconcile-dialog";
 import { useHierarchyTerms } from "../../use-hierarchy-terms";
 import { useMilestoneAuthority } from "../../use-milestone-authority";
+import { ArchivedPlanningNotice } from "../planning/archived-planning-notice";
 import { ApprovalQueue } from "./approval-queue";
 import { MilestoneFormDialog } from "./milestone-form-dialog";
 import { MilestoneHistoryDialog } from "./milestone-history-dialog";
@@ -284,6 +285,7 @@ export function MilestonesPanel({ project }: { project: Project }) {
 
   return (
     <div className="space-y-4">
+      {authority.archived && <ArchivedPlanningNotice />}
       <div className="flex flex-wrap items-center gap-2">
         <SummaryChip label="Milestones" value={summary.total} />
         <SummaryChip label="In progress" value={summary.inProgress} tone="info" />
@@ -547,6 +549,7 @@ export function MilestonesPanel({ project }: { project: Project }) {
             queue={queue}
             names={options.names}
             canManage={authority.canManage}
+            archived={authority.archived}
             onDecided={() => void load()}
           />
         </TabsContent>

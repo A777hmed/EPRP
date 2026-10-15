@@ -50,7 +50,15 @@ Also inspect the existing code, routes, components, database migrations, and ref
 - Implement one roadmap phase at a time. Do not start future phases automatically.
 - Reuse existing components and types before creating new ones.
 - Keep data linked to `projectId`; do not duplicate project master data in reports.
-- Weekly data is the operational source of truth. Monthly Reports compile approved Weekly data; Executive Reports compile approved project/monthly data.
+- The Published Planning Snapshot is the canonical source of planning and
+  performance facts: planned and earned progress, PV, EV, variance, SPI,
+  schedule dates and milestone schedule state (`docs/02_PLATFORM_ARCHITECTURE.md`
+  §26). Weekly is the operational reporting-entry, narrative and confirmation
+  layer: it may pin a Published Planning Snapshot and add explanations,
+  constraints, actions and comments, but it does not own canonical
+  PV/EV/SPI/progress. Monthly Reports compile approved Weekly data with their
+  pinned month-end snapshot; Executive Reports compile approved project/monthly
+  data.
 - Platform entry is the default. Excel is an exception for offline or external contributors.
 - Keep original comments and snapshots immutable; add updates or links instead of overwriting history.
 - Locked reports are read-only. Changes require a new revision.

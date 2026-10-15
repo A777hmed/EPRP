@@ -178,6 +178,8 @@ Cross-project comparison is only meaningful through **global master data** — K
 2. **Coverage is declared** on every aggregate — how many projects contributed, for which period, and which are missing.
 3. **A project not reporting is shown as not reporting**, never as healthy or as zero.
 4. Every project cell **drills through** to that project's dashboard.
+5. **Schedule position and progress come from each project's latest Published Planning Snapshot** — PV, EV, variance, SPI and schedule condition (`02_PLATFORM_ARCHITECTURE.md` §26.13). A project that is not planning-governed is labelled "Reported — not planning governed", with SPI "N/A".
+6. **Portfolio progress and SPI are never averaged.** They are weighted by one portfolio weight basis and shown only when every in-scope project is eligible; otherwise the panel shows projects by SPI band, with exclusions and reasons (`02` §26.15).
 
 ---
 
@@ -214,6 +216,19 @@ The working surface for the team and for project control. The most detailed dash
 A single completion figure derived from **weighted lifecycle stage progress and reported work progress**.
 
 **Rules:** never entered by hand · **always explainable** — opening it shows each contributing stage, its weight and its contribution · states its basis and coverage · reports **Unknown** rather than a confident figure when inputs are missing.
+
+> **Amended 2026-10-14 (`02_PLATFORM_ARCHITECTURE.md` §26).** Project completion
+> is the **earned progress (EV%) of the latest Published Planning Snapshot**,
+> beside its planned progress (PV%), variance, SPI and schedule condition.
+> "Explainable" means opening it shows the frozen WBS roll-up — each planning
+> node's local weight, effective project contribution, PV and EV. Lifecycle
+> stages carry no weight (`06` §10.9). With no published snapshot the figure is
+> "No published plan", or reported progress labelled "Reported — not planning
+> governed" (`02` §26.14).
+>
+> The **Progress** and **Milestones** panels of §6.1 read the same snapshot:
+> next key milestone, overdue and due-soon milestones, items due this week,
+> planned vs actual manpower and the S-curve summary (`02` §26.13).
 
 ### 6.3 Rules
 
@@ -421,12 +436,19 @@ Its interaction design is specified in [`07`](07_UI_UX_GUIDELINES.md) §10. Its 
 
 **These consumers read the schedule. None holds its own copy of a date.**
 
+> **The schedule's source (2026-10-14).** Planning activities and milestones on
+> every view above come from the **Published Planning Snapshot** — true
+> milestones and linked governed milestones as points, activities as spans by
+> forecast dates — plus unlinked governed milestones from the Master Milestone
+> register. Weekly and Monthly plan items are never shown as milestones
+> (`02_PLATFORM_ARCHITECTURE.md` §26.13).
+
 ### 12.4 Import and integration readiness
 
 | Capability | Status |
 |---|---|
-| **Excel schedule import** | Specified — validate, preview, confirm, report (`07` §10.7) |
-| **Primavera synchronization** | **Future ready** |
+| **Excel schedule import** | Specified — validate, preview, confirm, report (`07` §10.7). Pipeline and rules: `02` §26.10 (EPRP Excel template and P6 Excel export, roadmap 13.16) |
+| **Primavera synchronization** | **Future ready.** Native P6 XER import is a separately signed-off slice (roadmap 13.21) |
 | **Google Calendar** | **Future ready** |
 
 Design rules that make later integration possible without rework are in §19.
@@ -455,7 +477,7 @@ Design rules that make later integration possible without rework are in §19.
 1. **Client Approval is never mandatory.** A project with no such stage is fully valid (`06` §10.8).
 2. **A template is copied, never linked.** Editing a project's lifecycle never affects the template or another project.
 3. **Stages are archived, never deleted**, because reports and activities reference them.
-4. **Weighted stage progress feeds project completion** (§6.2), and the weighting is visible.
+4. ~~**Weighted stage progress feeds project completion** (§6.2), and the weighting is visible.~~ **Superseded 2026-10-14:** project completion comes only from the weighted planning hierarchy in the Published Planning Snapshot (§6.2 amendment; `02` §26.4). Stages carry no weight.
 5. **A milestone is a point; a stage is a span.** They render distinctly and neither substitutes for the other.
 6. **No dashboard assumes a stage exists.** A timeline renders whatever the project has configured, including nothing.
 

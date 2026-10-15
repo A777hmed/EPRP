@@ -49,6 +49,7 @@ import {
 } from "../../deliverable-state";
 import { useHierarchyTerms } from "../../use-hierarchy-terms";
 import { useMilestoneAuthority } from "../../use-milestone-authority";
+import { ArchivedPlanningNotice } from "../planning/archived-planning-notice";
 import { useMilestoneScopeOptions } from "../milestones/scope-options";
 import { DeliverableApprovalQueue } from "./deliverable-approval-queue";
 import { DeliverableFormDialog } from "./deliverable-form-dialog";
@@ -268,6 +269,7 @@ export function DeliverablesPanel({ project }: { project: Project }) {
 
   return (
     <div className="space-y-4">
+      {authority.archived && <ArchivedPlanningNotice />}
       <div className="flex flex-wrap items-center gap-2">
         <SummaryChip label="Deliverables" value={summary.total} />
         <SummaryChip
@@ -416,6 +418,7 @@ export function DeliverablesPanel({ project }: { project: Project }) {
             queue={queue}
             names={options.names}
             canManage={authority.canManage}
+            archived={authority.archived}
             onDecided={() => void load()}
           />
         </TabsContent>

@@ -1,5 +1,9 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  isArchivedProjectRefusal,
+  PLANNING_CONTROL_ARCHIVED_MESSAGE,
+} from "@/features/projects/planning-control-archived";
 
 /**
  * Turning a database failure into something a user should read.
@@ -99,6 +103,11 @@ export interface FailureOptions {
  * Order matters: a recognised constraint is the most specific and most useful
  * thing to say, so it wins over the permission wording even when both could
  * apply.
+ *
+ * Phase 13.9: the archived-project freeze is checked before the permission
+ * wording. It also raises 42501, and telling the user "you do not have
+ * permission" for a project that is simply archived would send them looking
+ * for an authority problem that does not exist.
  */
 export async function describeFailure(
   options: FailureOptions
@@ -106,6 +115,9 @@ export async function describeFailure(
   logFailure(options.scope, options.operation, options.error);
 
   if (options.known) return new Error(options.known);
+  if (isArchivedProjectRefusal(options.error)) {
+    return new Error(PLANNING_CONTROL_ARCHIVED_MESSAGE);
+  }
   if (isPermissionDenied(options.error)) {
     return new Error(await permissionMessage(options.deniedMessage));
   }

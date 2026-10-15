@@ -14,6 +14,8 @@ It sits beneath [`01_PROJECT_VISION.md`](01_PROJECT_VISION.md), which defines th
 
 > **Locked decisions.** [§24](#24-locked-decisions--p0-architecture-review-2026-08-20) records the decisions locked at the P0 architecture review of 2026-08-20 and is the source of truth for the phases that follow it. Three of them amend text earlier in this document — §5 rule 4, §9.2 step 2, and §8.1/§8.3 — and each amendment is named there. **Where §24 and an earlier section disagree, §24 governs.**
 
+> **Master Planning & Control.** [§26](#26-master-planning--control--approved-architecture-2026-10-14) records the Master Planning & Control architecture approved on 2026-10-14 — planning hierarchy, weights, the performance engine (PV, EV, SPI), baselines, snapshots, manpower, import, and how every consumer reads them. **On planning, performance, milestone-date and manpower matters, §26 governs over every earlier section, including §24.** The statements it changes are listed in §26.18.
+
 ---
 
 ## 2. Architectural principles
@@ -469,7 +471,8 @@ Approval workflow   the report advances only when its submissions allow
 Department entry
       │  submitted and accepted per department
       ▼
-WEEKLY REPORT ─────────────── the operational source of truth
+WEEKLY REPORT ─────────────── the operational source of truth for reporting entry
+      │                        (performance facts: Published Planning Snapshot, §26)
       │  approved weeks only
       ▼
 MONTHLY REPORT ────────────── consolidated position for the period
@@ -506,6 +509,15 @@ Without the snapshot, correcting a Weekly through a revision would silently rewr
 3. A tier may **exclude** — the Executive Summary is deliberately selective — but exclusion is recorded, not silent.
 4. **Revisions do not propagate automatically.** A revised Weekly does not alter an approved Monthly. It flags the Monthly as having revised source, and a person decides whether to issue a Monthly revision.
 5. **Every figure remains traceable to the department, period, and account that produced it**, at every tier.
+
+> **Amended by §26 (2026-10-14).** Weekly remains the operational source of
+> truth for **reporting** entry — narrative, department input, confirmations,
+> explanations, actions, decisions and actual manpower. **Project performance**
+> (planned and earned progress, variance, SPI, schedule dates, milestone
+> schedule state) is owned by the **Published Planning Snapshot**: each Weekly
+> and Monthly pins the snapshot for its period and explains it, and never
+> re-enters it (§26.2 F6, §26.11). Performance figures are traceable to the
+> snapshot (project, version, Data Date) rather than to a department entry.
 
 ---
 
@@ -660,6 +672,11 @@ The Calendar owns nothing. It is a **derived view** over dated obligations alrea
 
 Creating calendar entities that duplicate those dates would immediately produce two disagreeing answers to when something is due.
 
+> **Milestone source (§26, 2026-10-14).** Calendar milestones are read from the
+> latest Published Planning Snapshot (true milestones and linked governed
+> milestones) and, for unlinked governed milestones, from the Master Milestone
+> register — never from Weekly or Monthly plan items (§26.13).
+
 ---
 
 ## 18. Notification ownership
@@ -783,6 +800,14 @@ The authoritative reference. Every entity in the platform appears here.
 | Project Health | — | **Derived** | — | Never authoritative when stored |
 | Setup completeness | — | **Derived** | — | Never stored as status |
 | Calendar | — | **Derived** | — | Owns nothing |
+| Resource Category *(§26.9)* | 1 | Organization | — | Admin-managed; archive when referenced |
+| Working Plan — planning node, activity, planned manpower *(§26)* | 2 | Project | — | Changed only by governed acts; archived, never deleted once published |
+| Raw planning import *(§26.10)* | 2 | Project | **Yes** | Insert-only; never edited |
+| Planning baseline BL0 / BLn *(§26.6)* | 2 | Project | **On approval** | BL0 immutable for ever; re-baseline creates a new one |
+| Published Planning Snapshot *(§26.8)* | 2 | Project | **Yes** | The only source of project performance |
+| Governed milestone (Master Milestone) | 2 | Project | — | Identity and governance; update stream append-only |
+| Actual manpower *(§26.9)* | 3 | Weekly Report | **On approval** | Official when the Weekly is approved |
+| PV / EV / SV / SPI, schedule condition | — | **Derived**, frozen in the snapshot | — | Never entered; never recomputed by a consumer |
 
 ---
 
@@ -810,6 +835,7 @@ An implementation conforms to this architecture when all of the following hold. 
 18. Notification delivery respects the same permission boundaries as direct access.
 19. Removal is a recoverable state, not an erasure.
 20. The platform functions fully with every external integration unavailable.
+21. Planning, project performance, milestone schedule data and manpower conform to §26.19.
 
 ---
 
@@ -823,7 +849,10 @@ Recorded so each is resolved deliberately rather than absorbed silently, per `CL
 | 2 | The permission matrix exists as configuration but is consulted in only three places | Permissions enforced per §9.3 and §24.5. **P0.3**; the remainder is P1 |
 | 2a | Project Control / Reporting Coordinator authority is implemented three times, and the three disagree | One canonical consolidator rule shared by database and application, per §24.3. **P0.6** |
 | 2b | Monthly compiles from Weekly reports at any state, including drafts | Approved / Finalized / Locked Weekly data only, per §12.3 rule 1 and §24.4. **P0.4** |
-| 2c | Milestone and deliverable data is read by the Dashboard and Executive tiers from report plan items rather than from the governed registers | One register per fact, per §24.4. **Phase 13.4** — not P0 |
+| 2c | Milestone and deliverable data is read by the Dashboard and Executive tiers from report plan items rather than from the governed registers | One register per fact, per §24.4. **Phase 13.4** — not P0. *Update 2026-10-14:* the Dashboard now reads the register; **Executive and Calendar still read plan items.** Closed by 13.14 (Calendar) and 13.20 (Executive) under §26.13 |
+| 2i | Five competing progress sources exist (project record, Weekly header, Monthly header, Planning Snapshot roll-up, milestone-register physical %), and SPI has two definitions (EV ÷ PV, and typed Actual % ÷ Planned %) | One performance source — the Published Planning Snapshot — and one SPI, per §26.2 F4 and §26.7. **Phase 13.14** (consumers), **13.17** (Weekly), **13.19** (Monthly) |
+| 2j | Planning roll-up is flat: activity weights are treated as project-absolute, planning-node weights are ignored, imported activities are not attached to the WBS, and planned % is copied from the import rather than calculated from baseline dates | Hierarchical local weights and the time-phased engine of §26.4. **Phase 13.10–13.12** |
+| 2k | Archived projects are not read-only for Master Milestones, Master Deliverables or any planning table at the data boundary (the operations predicate is not archive-aware) | §26.3 H10. **Phase 13.9** — *closed locally 2026-10-15* by `20261014090000_planning_control_archived_read_only.sql` (guard trigger on all 16 tables; local development database only, not deployed) |
 | ~~2e~~ | ~~Executive narrative has two different visibility rules~~ | **Resolved** by the §24.2.3 lock and migration `20260820000004`. `executive_reports` now opens from Approved onward via the shared definition; `executive_notes`, having no lifecycle, is scoped to Executive authors and project members. Write authority unchanged. Runtime validation deferred with the rest of P0 |
 | 2f | Approved Executive reports are readable platform-wide at the data boundary, but every `/executive-reports` route is still gated to three roles by `canViewExecutivePortfolio()` | The UI gate should match §24.2.3, so a View-Only reader can open approved Executive output. **P1 UI work** — deliberately outside P0 |
 | 2h | Monthly Reports KPI card still counts a report under "Approved / Finalized" after it has been archived — persists through a hard refresh, so it is a derivation defect, not a cache artefact. Both listed reports correctly show Archived | The KPI must exclude archived reports, or state that it includes them. **Deferred by owner 2026-08-22 to the final Monthly UI/UX cleanup.** Display-only: no data, policy or lifecycle rule is wrong |
@@ -1039,6 +1068,14 @@ Restated here because P0 found live violations of §12.3 and principle 7:
 | Project and portfolio executive position | Compiled from approved data of the tier below |
 | Reported progress | The reporting tiers. A stored progress figure on the project record is a cache, never authoritative (principle 7) |
 
+> **Amended by §26 (2026-10-14).** *Milestone identity, and its current state*:
+> identity and governance remain the Master Milestone register; the schedule
+> state of a milestone **linked** to a true milestone activity comes from the
+> Published Planning Snapshot (§26.6 rule 5 — pending owner confirmation B1).
+> *Reported progress* is replaced by **Project performance — the Published
+> Planning Snapshot** (§26.2 F4). Typed report progress survives only for
+> projects that are not planning-governed, labelled as such (§26.14).
+
 **24.4.1 One definition of "approved".** Three rules depend on it —
 compilation (§12.3 rule 1), visibility (§24.2.1) and aggregation — and they must
 never disagree. The set is **`approved`, `finalized`, `locked`**, and it is
@@ -1079,6 +1116,15 @@ pre-flight guidance, not enforcement, and do not satisfy §9.3.
 metadata model, the Master Milestone identity/state split, and the Master
 Deliverable identity/state split with its two distinct approvals are not
 reopened except to fix a confirmed P0 defect.
+
+> **Proposed amendment (§26.6 rule 5, 2026-10-14) — pending explicit owner
+> confirmation (§26.19 B1).** The identity/state split is kept. The only change
+> proposed is *where the schedule state of a linked milestone comes from*: a
+> governed milestone linked one-to-one to a true milestone activity reads its
+> BL0, BLn, forecast and actual dates from the Published Planning Snapshot.
+> Unlinked governed milestones, payment facts and client decisions are
+> unchanged. Until confirmed, this freeze stands as written and slice 13.15
+> does not start.
 
 ### 24.7 P0 scope, and what it deliberately excludes
 
@@ -1173,9 +1219,982 @@ for others like it rather than assuming the three fields always agree.
    metadata; the files live in Supabase Storage. Clearing rows without clearing
    the bucket leaves orphaned files, and clearing the bucket is a separate
    operation.
+3. **Archived projects refuse row-by-row clean-up (2C.3E and 13.9).** The
+   archived guards refuse every INSERT / UPDATE / DELETE of an archived
+   project's setup, Planning, Milestone and Deliverable rows — for the owner
+   too. Deleting the whole project row still cascades, but `milestone_updates`
+   and `weekly_reports` RESTRICT a project delete. Clearing them first is
+   itself refused while the project is archived. The reset must therefore
+   either delete such projects in an order the guards allow, or disable the
+   guard triggers deliberately as owner for the duration of the reset — a
+   recorded act, never a routine script.
 
 ### 25.5 Done when
 
 A restored copy of the delivered database contains no invented project, report
 or comment; carries the same policy, function and trigger counts as before the
 reset; retains the agreed master data; and admits its administrator.
+
+---
+
+## 26. Master Planning & Control — approved architecture (2026-10-14)
+
+**Status: SPECIFICATION — approved by the project owner on 2026-10-14. Not
+implemented.** This section is the single implementation contract for project
+planning, project performance (progress, PV, EV, variance, SPI, S-curves),
+milestone schedule data, manpower, and schedule import. The delivery slices that
+implement it are roadmap Phase 13, sub-phases **13.8–13.21**
+([`15_DEVELOPMENT_ROADMAP.md`](15_DEVELOPMENT_ROADMAP.md) Phase 13).
+
+**Authority.** On planning, performance, milestone-date and manpower matters,
+**§26 governs** over every earlier section of this document, including §24.
+Each earlier statement it changes is named in §26.18 rather than amended
+silently. The logical entities are in
+[`06_DATABASE_SCHEMA.md`](06_DATABASE_SCHEMA.md) §10A; the permissions are in
+[`05_PERMISSION_MODEL.md`](05_PERMISSION_MODEL.md) §3.8; the reporting behaviour
+is in [`03_REPORTING_ARCHITECTURE.md`](03_REPORTING_ARCHITECTURE.md) §4.7, §5.5
+and §21.4.
+
+**It is not a greenfield design.** It hardens and extends the Phase 13 planning
+foundation already in the repository (planning work items, activities, raw
+import, confirmations, baselines, published snapshots with a Data Date, Opening
+Positions, Weekly/Monthly snapshot pinning) and the governed Master Milestone
+register (13.2–13.2d). What is kept, hardened and deprecated is listed in
+`06` §10A.9.
+
+### 26.1 Glossary
+
+| Term | Meaning |
+|---|---|
+| **Working Plan** | The project's governed, editable plan: planning nodes, activities, local weights, dates and progress, as Project Control has entered or accepted them. Never read by any report, dashboard or calendar. |
+| **Published Planning Snapshot** ("snapshot") | An immutable, data-dated capture of the Working Plan **and the performance figures calculated from it**. The only source of project performance for every consumer. |
+| **Data Date** | The cut-off a snapshot reports as of. Actuals are on or before it; forecasts for incomplete work are on or after it. Never the publish timestamp. |
+| **Planning node** | One element of the planning hierarchy above activities: a WBS element, Control Account or Work Package. A node contains other nodes and/or activities. |
+| **Planning level** | A depth in the planning hierarchy, with a project-configured label (e.g. "Control Account", "Unit", "Work Package"). |
+| **Control Account** | A planning node flagged as the level at which performance is reported and explained (e.g. RBI). |
+| **Work Package** | A planning node that holds activities. |
+| **Activity** | A leaf of the planning hierarchy that carries work: dates, earning method, progress. |
+| **True milestone** | A zero-duration leaf activity marking an event (e.g. *RBI Final Report Approved*, *Mechanical Completion*, *Client Approval Obtained*). Never a parent. A package that contains work (RBI, VDU, CDU) is a node, **never** a milestone. |
+| **Governed milestone** | A Master Milestone register entry (13.2): the governance record (code, type, criticality, responsible person, client approval, payment terms, deliverables) for a key, contractual or commercial milestone. |
+| **Local weight** | The share, in percent, of its parent that a node or activity carries. The only weight a user enters. |
+| **Effective project contribution** ("effective weight") | The share of the whole project a node or activity carries: the product of the local weights on its path. Always calculated, never entered. |
+| **Earning method** | How an activity earns progress: Percent Complete, 0/100, 50/50 or Milestone (§26.4). |
+| **Planned Value (PV)** | The weighted planned progress at a date, measured against the current approved baseline (BLn). Expressed in percent of the project (or of a node). |
+| **Earned Value (EV)** | The weighted progress actually earned at the Data Date, by earning method. Same unit as PV. |
+| **Variance (SV)** | EV − PV, in percentage points. |
+| **SPI** | EV ÷ PV. The only SPI EPRP shows. |
+| **Original baseline (BL0)** | The first formally approved baseline. Immutable for ever; never overwritten by a schedule update; kept for contractual / original variance. |
+| **Current approved baseline (BLn)** | The latest approved baseline (BL0 until the first approved re-baseline; then BL1, BL2, …). PV and SPI are measured against it. Created only by a Re-baseline, never by an import. |
+| **Baseline Revision** | One approved baseline in the series BL0, BL1, BL2, … The only sense in which a *baseline* is "revised". |
+| **Schedule Version** | One preserved import of the project's schedule (Primavera P6 or Excel), with its own reference, Data Date, status and history (§26.22). A project has many over its life; none is ever overwritten. A Schedule Version **never** changes BL0 or BLn. |
+| **Schedule Update** | A Schedule Version issued for routine progress at a new Data Date (e.g. "Update 05"). A kind of Schedule Version, not a separate concept. |
+| **Schedule Version reference** | The source's own label for a version — e.g. "Rev 00", "Rev 01", "Update 06". A label only: a source "Rev" is a Schedule Version, **not** a Baseline Revision. |
+| **Latest accepted Schedule Version** | The most recent **operational** Schedule Version Project Control accepted. The reference every new operational version is compared against. A Historical Correction never becomes it. |
+| **Historical Correction** | A back-dated Schedule Version accepted only through the explicit correction workflow: mandatory reason, actor and time, reference to the corrected version or period. It never becomes the current operational version, never alters a snapshot or an approved report, and reaches the Working Plan only through a new current-dated version (§26.22.2). |
+| **Removed from current schedule** | The governed state of an activity or node that disappeared from an accepted Schedule Version: archived from the Working Plan, never deleted, still valid in every snapshot and report that captured it (§26.22). |
+| **Forecast** | The expected dates of incomplete work at the Data Date — the current schedule, from the latest accepted Schedule Version plus logged Project Control edits. |
+| **Actual** | Actual start/finish dates and earned progress, on or before the Data Date. |
+| **Re-baseline** | The governed act that creates BLn+1: prepared by Project Control / Planning, approved by Project Control Admin or System Administrator (§26.6). It may be *prepared from* a Schedule Version, but **importing a schedule never re-baselines**. |
+| **Normalisation** | An explicit, logged decision that makes a parent's child weights total 100% (proportional rescale, or equal split when none are entered). Never automatic. |
+| **Reporting unit** | A section of the Weekly/Monthly report: Department → System → Program & Study on PSM projects; a configured Project Structure unit on Other Projects. |
+| **Planning fact** | A statement derived from the pinned snapshot for a reporting period (planned, started, completed, late, milestone due, look-ahead, planned manpower, progress). Read-only in reports. |
+| **Confirmation / explanation** | What people add to a planning fact in a report: confirmation, variance explanation, constraint, recovery action, decision needed. |
+| **Look-ahead** | Work forecast to start, finish or be in progress in the N weeks after the period (default 2, per project). |
+| **Schedule condition** | One derived reading of schedule health (On Track / At Risk / Behind / Unknown) from SPI, key-milestone slip and forecast finish (§26.7). |
+| **Planning-governed** | A project whose performance comes from a Published Planning Snapshot. Otherwise "**Reported — not planning governed**" (§26.14). |
+| **Resource category** | Admin-managed master data classifying manpower: discipline, craft or engineering team. |
+| **Portfolio weight basis** | The single quantity used to weight projects in a portfolio aggregate: budgeted man-hours, or a Project-Control-Admin-assigned project weight (§26.15). |
+| **Guided Setup / Advanced mode** | Two ways to edit the **same** Planning Configuration: plain business questions, or the canonical fields directly (§26.20). |
+| **Report comment** | Narrative in a Weekly or Monthly section — explanation, constraint, recovery action, note or input. Never a planning fact (§26.21). |
+
+**"Revision" is always qualified** in EPRP wording, because three different
+things carry the word: a **Baseline Revision** (BL1, BL2, …), a **Report
+Revision** (`03` §12), and a source schedule's own "Rev" label, which in EPRP
+is only a **Schedule Version reference**. The bare word "Revision" is not used
+on its own in the user interface.
+
+### 26.2 Canonical data flow
+
+```text
+ Primavera P6 Excel export / EPRP Excel template            Project Control entry
+              │                                                      │
+              ▼                                                      │
+ RAW IMPORT (immutable) → STAGING → VALIDATION → MAPPING → DIFF       │
+              │                                                      │
+              ▼  Project Control acceptance (logged)                 ▼
+ ┌────────────────────────────── WORKING PLAN ─────────────────────────────┐
+ │ planning nodes · activities (tasks, true milestones) · local weights    │
+ │ baselines BL0 / BLn · forecast · actuals · planned manpower             │
+ │ governed milestones (Master Milestone register) linked to milestones    │
+ └─────────────────────────────────────────────────────────────────────────┘
+              │  publish (Project Control) — validation must pass
+              ▼
+ PUBLISHED PLANNING SNAPSHOT (immutable, data-dated, engine-versioned)
+   frozen WBS roll-up · activities · milestone states · curves · planned manpower
+              │
+   ┌──────────┼───────────┬───────────┬───────────┬────────────┬──────────┐
+   ▼          ▼           ▼           ▼           ▼            ▼          ▼
+ Project   Project     Calendar    Weekly      Monthly     Executive  Dashboard /
+ Setup     Progress                (pins)      (pins)      (via         Portfolio
+ (read-only)                                               Monthly)
+```
+
+**Rules.**
+
+| # | Rule |
+|---|---|
+| F1 | **No consumer reads the Working Plan or the raw import.** Every performance figure, schedule date and milestone schedule state shown outside the Planning workspace comes from a Published Planning Snapshot. |
+| F2 | **The Working Plan changes only through governed acts** — Project Control entry, or accepted import differences — and every change is logged with actor, time and (for changes to imported values) reason. |
+| F3 | **No consumer recomputes performance.** The snapshot freezes the calculated results; consumers read them. A dashboard figure always equals the snapshot figure it cites. |
+| F4 | **No manually entered project progress is authoritative.** Planned %, Actual %, Variance and SPI are never typed into Project Setup, the project record, or a report for a planning-governed project. The only exception is §26.14. |
+| F5 | **No competing milestone list.** Milestone schedule data comes from the snapshot (and, for unlinked governed milestones, from the register); report plan items are never read as milestones. |
+| F6 | **Reporting tiers keep their role.** Weekly remains the only tier for operational *reporting* entry — narrative, confirmations, explanations, constraints, actions, decisions, actual manpower. It **pins and explains** planning facts; it does not re-enter them. Monthly compiles approved Weekly plus the month-end snapshot. |
+| F7 | **Published history is never rewritten.** A snapshot, a baseline and an approved report are immutable; corrections are a new snapshot, a re-baseline, or a report revision. |
+
+### 26.3 Planning hierarchy
+
+```text
+Project (100%)
+ └─ Planning node  (level 1 — e.g. Control Account "RBI")
+     └─ Planning node  (level 2 — e.g. Unit "VDU")
+         └─ … further configured levels …
+             └─ Work Package
+                 ├─ Activity        (task: duration, earning method, progress)
+                 └─ ◆ True milestone (zero duration, leaf)
+```
+
+| # | Rule |
+|---|---|
+| H1 | **Depth and level labels are configured per project** (up to 8 levels), never hardcoded and never tied to the PSM organization structure. Same configuration pattern as the Other-project structure levels (Phase 2C.1c). |
+| H2 | A node may be flagged **Control Account**: the level where performance is reported, explained and charted. A project may have Control Accounts at different depths. |
+| H3 | **Activities attach to exactly one planning node** once the project has a planning hierarchy. A node's direct children — nodes and activities together — share that node's 100%. |
+| H4 | **A true milestone is a leaf.** Start = finish, zero duration, never a parent, no children. A node that contains work is never a milestone. |
+| H5 | **Planning node classification is not a level.** The existing classification (Study, Engineering, Inspection, Procurement, Construction, …) describes the work; it does not define depth and does not carry weight. "Milestone" is not a node classification. |
+| H6 | **Planning and Project Structure are separate trees that may be mapped.** A node may map to one reporting unit (PSM: Department, optionally System and Program & Study; Other: one Project Structure unit). Children inherit the mapping unless they override it. Unmapped work reports in a project-level section. The mapping drives report sections and filtering; it never changes the planning hierarchy or its weights. |
+| H7 | **Same-project and acyclic** — a node, activity, link or mapping may only reference records of its own project; the hierarchy can never loop. |
+| H8 | **Archive, never delete.** A node or activity that has ever been published is archived; it stays in every snapshot that captured it. |
+| H9 | **Stable identity.** Imported nodes match on the external WBS code, imported activities on the external Activity ID — never on titles (§26.10). EPRP-created items carry their own stable code. |
+| H10 | **Archived projects are read-only** for the whole Working Plan, publishing, import, baselines and governed milestones, for every role and every route. |
+
+**PSM and Other Projects** use the same hierarchy model. Only the reporting-unit
+mapping (H6) differs, because their Project Structures differ.
+
+### 26.4 Weights and the performance calculation
+
+**What users enter.** A **local weight** for each node and activity, in percent
+of its parent. EPRP calculates every other weight and figure.
+
+```text
+Effective weight      EW(x) = Π ( local_weight(a) / 100 )  over x and every ancestor a below the Project
+                      (so EW(Project) = 100%, and the EWs of all leaves sum to 100%)
+
+Activity PV%(t)       planned % complete at date t against BLn, by the PV distribution of its earning method
+Activity EV%          % earned at the Data Date, by its earning method
+
+Node PV% / EV%        Σ child_local_weight × child_PV% (or EV%)  /  100
+Project PV% / EV%     Σ over leaf activities of  EW(activity) × activity PV% (or EV%)
+                      — identical to rolling up level by level
+
+SV                    EV% − PV%                     (percentage points; node or project)
+SPI                   EV% ÷ PV%                     (node or project; "N/A" when PV% = 0)
+```
+
+**Earning methods (initial set)**
+
+| Method | Applies to | EV at the Data Date | PV distribution against BLn |
+|---|---|---|---|
+| **Percent Complete** | Tasks | The confirmed physical % complete | **Linear over the project's working days** between BLn start and BLn finish |
+| **0/100** | Tasks | 0 until actual finish, then 100 | 0 until BLn finish, then 100 |
+| **50/50** | Tasks | 50 at actual start, 100 at actual finish | 50 at BLn start, 100 at BLn finish |
+| **Milestone** | True milestones | 0 until the actual date, then 100 | 0 until the BLn date, then 100 |
+
+Weighted steps and front/back-loaded distributions are later extensions. PV
+for the discrete methods follows the same points as their EV, so a correctly
+progressing 0/100 or 50/50 activity never shows a false variance. Working days
+come from the project's configured working week; a project holiday calendar is
+a later extension.
+
+**Weight rules**
+
+| # | Rule |
+|---|---|
+| W1 | **Project = 100%.** Each parent's direct children (nodes and activities together) must total **100% ±0.01** before a snapshot can be published. |
+| W2 | **Partial or missing weights block publishing.** Publishing names every parent whose children do not total 100% or have a missing weight. |
+| W3 | **Normalisation is explicit and logged.** Project Control may choose, per parent: *proportional rescale* of the entered weights to 100%, or *equal split* when no child weight is entered. The decision, its actor and the resulting weights are recorded and frozen in the snapshot. EPRP never normalises silently. |
+| W4 | **Effective weights are never entered**, never stored as user data, and always shown beside the local weight. |
+| W5 | **True milestones carry 0% local weight** by default. A milestone may carry weight only when its parent work package deliberately earns through milestones; that weight then comes out of the parent's 100% like any other child. |
+| W6 | **Commercial / payment milestones never contribute to physical progress.** They are not part of the weighted planning tree. Commercial progress (payment share received) remains the separate measure of 13.2c and is never added to physical progress. |
+| W7 | **Imported weights are proposals.** A schedule may supply weights; the mapping must declare whether they are local or absolute (absolute weights are converted to local). They enter the Working Plan only through accepted differences (§26.10). Weights are EPRP-governed data. |
+
+**Progress completeness rules**
+
+| # | Rule |
+|---|---|
+| C1 | **Not started is a real 0.** An activity with no actual start earns 0 under every method; that is a fact, not missing data. |
+| C2 | **Started but unmeasured blocks publishing.** A Percent Complete activity with an actual start and no confirmed % complete is named by publish validation. |
+| C3 | **Every v2 snapshot therefore covers 100% of the weighted plan.** Coverage is still recorded with every snapshot, and legacy snapshots (§26.8) keep their declared coverage. |
+| C4 | **Absence is never zero** for a node or project with no published snapshot: it reads "No published plan", never 0%. |
+
+**Project types.** One engine and one SPI definition for every project.
+Projects differ only in which earning methods their activities use (e.g. PSM
+study packages: Percent Complete with milestone-earned report steps;
+construction: Percent Complete or 0/100).
+
+### 26.5 Worked example — Project → RBI → VDU / CDU / Utilities
+
+Data Date **31 Oct 2026**. The project has three Control Accounts: **RBI 10%**,
+HAZOP 50%, SIL 40% (local weights under the Project). HAZOP and SIL are shown
+rolled up; RBI is shown to activity level.
+
+**Effective weights — calculated by EPRP, never typed**
+
+| Element | Local weight | Effective project contribution |
+|---|---|---|
+| RBI | 10% of Project | **10%** |
+| ├ VDU | 40% of RBI | 10% × 40% = **4.0%** |
+| ├ CDU | 35% of RBI | 10% × 35% = **3.5%** |
+| └ Utilities | 25% of RBI | 10% × 25% = **2.5%** |
+
+**Activity level** (PV against BLn; EV by method)
+
+| Activity | Method | Local | Effective | PV% | EV% | PV contribution (pts) | EV contribution (pts) |
+|---|---|---|---|---|---|---|---|
+| VDU-A10 Data collection | Percent Complete | 30 | 1.2% | 100 | 100 | 1.200 | 1.200 |
+| VDU-A20 Damage mechanisms & corrosion loops | Percent Complete | 40 | 1.6% | 80 *(16 of 20 BLn working days elapsed)* | 60 | 1.280 | 0.960 |
+| VDU-A30 Draft RBI report | Percent Complete | 30 | 1.2% | 20 *(4 of 20)* | 0 *(not started)* | 0.240 | 0.000 |
+| ◆ VDU-M10 *VDU RBI Final Report Approved* | Milestone | 0 | 0% | — | — | 0 | 0 |
+| CDU-A10 Data collection | 50/50 | 40 | 1.4% | 100 | 100 *(started and finished)* | 1.400 | 1.400 |
+| CDU-A20 Corrosion assessment | Percent Complete | 60 | 2.1% | 20 | 15 | 0.420 | 0.315 |
+| UTL-A10 Site walkdown | 0/100 | 20 | 0.5% | 100 *(BLn finish passed)* | 100 *(finished)* | 0.500 | 0.500 |
+| UTL-A20 Data collection | Percent Complete | 80 | 2.0% | 0 *(BLn start not reached)* | 5 *(started early)* | 0.000 | 0.100 |
+
+**Roll-up**
+
+| Node | Local | PV% | EV% | SV (pts) | SPI | Contribution to Project PV / EV (pts) |
+|---|---|---|---|---|---|---|
+| VDU | 40 | 0.3×100 + 0.4×80 + 0.3×20 = **68.0** | 0.3×100 + 0.4×60 + 0.3×0 = **54.0** | −14.0 | **0.79** | 2.720 / 2.160 |
+| CDU | 35 | 0.4×100 + 0.6×20 = **52.0** | 0.4×100 + 0.6×15 = **49.0** | −3.0 | **0.94** | 1.820 / 1.715 |
+| Utilities | 25 | 0.2×100 + 0.8×0 = **20.0** | 0.2×100 + 0.8×5 = **24.0** | +4.0 | **1.20** | 0.500 / 0.600 |
+| **RBI** | 10 | 0.40×68 + 0.35×52 + 0.25×20 = **50.40** | 0.40×54 + 0.35×49 + 0.25×24 = **44.75** | −5.65 | **0.89** | **5.040 / 4.475** |
+| HAZOP | 50 | 70.0 | 66.0 | −4.0 | 0.94 | 35.000 / 33.000 |
+| SIL | 40 | 30.0 | 30.0 | 0.0 | 1.00 | 12.000 / 12.000 |
+| **Project** | 100 | **52.04** | **49.475** | **−2.565** | **0.95** | — |
+
+**Two calculation paths, one answer.** Level by level: RBI contributes
+10% × 50.40 = 5.04 points of PV. By effective weights: VDU 4.0% × 68 + CDU
+3.5% × 52 + Utilities 2.5% × 20 = 2.72 + 1.82 + 0.50 = 5.04. The engine must
+produce the same figure both ways (an engine test, not a convention).
+
+**Reading it.** RBI is behind (SPI 0.89, −5.65 pts). The cause is VDU-A20/A30;
+Utilities is ahead. The project overall reads SPI 0.95, −2.57 pts.
+
+**The milestone is reported separately.** VDU-M10 carries no weight, so it does
+not move SPI. With BL0 date 1 Dec, BLn date 15 Dec and forecast 29 Dec it reads
+**+14 days against the current baseline and +28 days against the original** —
+two numbers, never blended — and its schedule condition contributes to the
+project's schedule condition (§26.7).
+
+**When data is incomplete.**
+- *Utilities' weight left blank:* RBI's children total 75%. Publishing is
+  blocked ("RBI: child weights total 75%"). Project Control enters the weight,
+  or explicitly normalises (proportional rescale → VDU 53.333, CDU 46.667), and
+  the choice is logged and frozen.
+- *VDU-A20 started with no confirmed %:* publishing is blocked (C2). It is
+  never counted as 0 and never silently dropped.
+
+### 26.6 Baseline, current, forecast, actual and Data Date
+
+| Concept | Meaning | Changes only by |
+|---|---|---|
+| **Original baseline (BL0)** | First approved baseline — dates, local weights and planned manpower of every activity at approval, and the baseline curve | Never. Immutable for ever |
+| **Current baseline (BLn)** | Latest approved baseline. **PV and SPI are measured against BLn** | An approved re-baseline (creates BLn+1; BLn is retained) |
+| **Forecast** | Expected start/finish of incomplete work at the Data Date — the current schedule | An accepted **Schedule Version** (§26.22) or a logged Project Control edit. **Never changes BL0 or BLn** |
+| **Actual** | Actual start/finish and earned progress, on or before the Data Date | Same |
+| **Data Date** | The cut-off of a snapshot | Fixed per snapshot; required to publish |
+
+**Rules.**
+
+1. **Variance is shown against both baselines and never blended.** Performance
+   (PV, SV, SPI) is against BLn; slip of dates and milestones is shown against
+   BLn **and** against BL0.
+2. **Re-baseline governance.** The assigned Project Control / Planning holder
+   may *request and prepare* a re-baseline, with a reason. **Only a Project
+   Control Admin or System Administrator approves it.** On approval the new BLn
+   is frozen with its own baseline curve; nothing already published changes.
+   Whether the approver may be the same person as the preparer is open
+   (§26.19, B3).
+3. **Data Date integrity.** Actual dates after the Data Date, or a forecast
+   before it for incomplete work, fail publish validation.
+4. **Reconstruction.** "What did the plan and progress look like on date X?" is
+   answered by the latest published snapshot whose Data Date ≤ X: its frozen
+   activities, roll-up, milestone states, curves and planned manpower, plus the
+   baselines it references. Nothing has to be recalculated, and nothing
+   recalculated may replace it.
+5. **Governed milestone dates.** A governed milestone **linked** to a true
+   milestone activity reads BL0, BLn, forecast and actual from the snapshot. An
+   **unlinked** governed milestone (no planning hierarchy yet, or a commercial
+   milestone) keeps its register dates and update stream (13.2–13.2d). Payment
+   and client-decision facts always remain in the milestone update stream. This
+   rule amends §24.6 and is **pending explicit owner confirmation** (§26.19, B1).
+
+### 26.7 S-curves, SPI and schedule condition
+
+| Curve | Calculated from | Written | Changes |
+|---|---|---|---|
+| **Baseline curve** (BL0, and each BLn) | Baseline dates × effective weights, PV distributed by method over a weekly grid to completion | When the baseline is approved | Never |
+| **Current / forecast curve** | Actual progress to the Data Date, then forecast dates for remaining work | With each published snapshot | Never (a later snapshot adds a new curve). **A Schedule Update moves the forecast curve; only an approved Re-baseline creates a new baseline curve** (§26.22) |
+| **Earned (actual) curve** | Project and Control Account EV% at each published snapshot's Data Date | One point per snapshot | Never |
+
+**Rules.**
+
+1. **Points exist only where data exists.** Earned points sit at real Data
+   Dates only; gaps are never interpolated and never plotted as 0. The weekly
+   grid follows the project's reporting day.
+2. **Published history is never rewritten.** Every snapshot records the engine
+   version that produced its figures; a later engine change does not alter an
+   existing snapshot.
+3. **SPI is EV ÷ PV from the weighted model, and nothing else.** EPRP never
+   shows an SPI computed from typed Actual % ÷ Planned %, from elapsed time or
+   dates alone, or as an average of other SPIs. With PV = 0, SPI is "N/A".
+4. **SPI is read with schedule condition.** SPI converges to 1.00 as work
+   completes, even on a late project. The **schedule condition** is therefore
+   one derived reading combining SPI, the slip of key milestones against BLn,
+   and the forecast project (or Control Account) finish against BLn:
+
+   | Condition | Proposed default rule (thresholds to be confirmed, §26.19 B4) |
+   |---|---|
+   | **On Track** | SPI ≥ 0.95, no key milestone forecast later than BLn, forecast finish ≤ BLn finish |
+   | **At Risk** | 0.90 ≤ SPI < 0.95, or a key milestone forecast up to 14 days later than BLn |
+   | **Behind** | SPI < 0.90, or a key milestone forecast more than 14 days late, or forecast finish later than BLn finish |
+   | **Unknown** | No published snapshot, or PV = 0 with no key milestone due |
+
+   One function defines it for every surface. It replaces the separate Weekly
+   and Monthly status bands, which currently disagree.
+
+### 26.8 Published Planning Snapshot — the contract
+
+At its Data Date a v2 snapshot provides:
+
+| Provides | Notes |
+|---|---|
+| Identity and provenance | Project, snapshot version, Data Date, BL0 and BLn references, **source Schedule Version** (or Opening Position, or manual), the logged Project Control edits applied after that Schedule Version, publisher and time, engine version, coverage — enough to answer "where did these numbers come from?" (§26.22) |
+| **Frozen WBS roll-up** | Per node: local and effective weight, PV%, EV%, SV, SPI, schedule condition |
+| **Frozen activities** | Dates (BL0, BLn, forecast, actual), earning method, local and effective weight, PV% and EV% at the Data Date, reporting-unit mapping, external ID |
+| **Frozen milestone states** | Every true milestone and every governed milestone: code, name, type, criticality, key flag, BL0/BLn/forecast/actual dates, slip against each baseline, schedule condition — so a report reproduces milestone status exactly as published |
+| **Curves** | The BLn and BL0 baseline curves it references, its current/forecast curve, and its earned point |
+| **Planned manpower** | The time-phased planned histogram (§26.9) |
+| **Derived on read, from the frozen rows and a period** | Activities planned, started, completed, late or overdue in a period; milestones due, achieved or upcoming; the look-ahead. Deterministic, so nothing more is stored |
+
+**Invariants.**
+
+1. **Immutable.** Written once by the governed publish act and never updated or
+   deleted.
+2. **Validated.** Publishing requires a Data Date, complete weights (W1–W3),
+   complete progress (C2), Data Date integrity (§26.6 rule 3), and an approved
+   BL0 — except an Opening Position snapshot, which declares a position and
+   carries no baseline. BL0 is established by Project Control and approved
+   under the same rule as a re-baseline, pending confirmation (§26.19 B8).
+3. **Resolution.** *Current position* = the latest published snapshot.
+   *Position for a period ending P* = the latest published snapshot with
+   Data Date ≤ P (ties broken by version). Several snapshots may share a Data
+   Date; the highest version is the one in force.
+4. **Authority.** Publishing is Project Control (§26.19 and `05` §3.8).
+5. **Legacy snapshots.** Snapshots published before 13.12 keep their existing
+   flat roll-up and figures, are labelled "legacy calculation", and are never
+   re-derived. **Opening Position** snapshots stay as built: a declared planned
+   and actual % for a project onboarded mid-execution, with SPI "N/A".
+
+### 26.9 Manpower and resources
+
+Manpower is part of planning and **separate from SPI**. Resource variance and
+schedule performance are different measures and are never combined.
+
+| Element | Rule |
+|---|---|
+| **Resource category** | Admin-managed master data (discipline, craft or engineering team). Never hardcoded. Archived, never deleted, when referenced. |
+| **Party** | EPROM, Client/Owner or a subcontractor — the project's own Project Parties (Phase 2C.3A/B). |
+| **Planned manpower** | Time-phased by week: planned headcount and planned man-hours per resource category × party, optionally per planning node or activity. Entered by Project Control or imported; part of the Working Plan; frozen in each snapshot and with each baseline. |
+| **Actual manpower** | Actual headcount and man-hours per week × resource category × party, recorded in the Weekly report and **official when that Weekly is approved**. The approved Weekly is the owner; the snapshot never copies it. |
+| **Outputs** | Weekly and monthly planned-vs-actual histograms, headcount and man-hour variance, cumulative planned vs actual man-hours. |
+| **Weighting** | Budgeted man-hours may later become an explicit weight basis for a parent (§26.4 W3); not in the initial set. They are the preferred portfolio weight basis (§26.15). |
+
+The existing single "man-hours to date" figure on the Weekly report is
+superseded by the actual-manpower record. Who records actual manpower in a
+Weekly is open (§26.19, B5).
+
+### 26.10 Primavera / Excel import
+
+```text
+Raw Import → Staging → Validation → Mapping → Diff → Project Control Acceptance → Working Plan → Published Snapshot
+```
+
+| Stage | Rule |
+|---|---|
+| **Raw Import** | The uploaded file and every parsed row are kept exactly as received, insert-only, for ever. **Every import creates a new Schedule Version**; no earlier version is overwritten (§26.22). |
+| **Staging** | Parsed, typed rows bound to their batch. The Data Date is captured (detected or entered) before acceptance. |
+| **Validation** | Required fields, date order, Data Date integrity, duplicate IDs, unknown WBS parents, hierarchy loops, milestone shape (zero duration), weight semantics. Errors block; warnings are shown. |
+| **Mapping** | Columns to fields; WBS codes to planning nodes; activity IDs to activities; resource IDs to resource categories; milestone activities to governed milestones; weight semantics (local or absolute). |
+| **Diff** | Against the **latest accepted Schedule Version** (§26.22): added, removed (missing from source), changed (dates, durations, %, weights, WBS moves, relationships, resources / manpower, activity status, earning method), and every change touching a governed milestone. Any item Project Control has edited in EPRP since that version is flagged as a conflict for explicit resolution. |
+| **Acceptance** | Project Control accepts the batch with explicit row exceptions; each accepted or rejected difference is logged with actor, time and reason. |
+| **Publish** | A separate act. Acceptance alone publishes nothing. |
+
+**Rules.**
+
+1. **Initial formats:** the EPRP Excel template and the Primavera P6 Excel
+   export. **Native P6 XER is a later, separately signed-off slice (13.21).**
+2. **Stable matching only.** Activities match on the external Activity ID, WBS
+   on the external WBS code, resources on resource ID. **Never on titles.** A
+   renamed ID is treated as removed + added unless Project Control records an
+   explicit, logged re-match.
+3. **Field ownership.** *Schedule-owned* — dates, durations, % complete,
+   relationships — change only through accepted differences. *EPRP-owned* —
+   local weights (unless accepted from the import, W7), reporting-unit mapping,
+   responsible people, governed-milestone attributes, earning method once set
+   in EPRP — are never changed by an import.
+4. **Nothing silently overwrites governed data.** Every change to the Working
+   Plan arrives as a visible, accepted difference.
+5. **Removed from source** is flagged, never deleted. Accepting the removal
+   archives the item. An item linked to a governed milestone cannot be removed
+   until Project Control resolves the link.
+6. **Re-import** of a later schedule update repeats the full pipeline against
+   the current Working Plan. A row is "reviewed" only when its difference in
+   *this* batch has been decided — never because the activity already exists.
+7. **Milestone linking.** A true milestone activity links one-to-one to a
+   governed milestone. An unmatched imported milestone offers "create governed
+   milestone" or "link to existing"; neither happens automatically.
+8. **Relationships** (predecessors) are stored when the source provides them,
+   for display and look-ahead context. EPRP does not schedule (no CPM engine).
+9. **Excel is the exception path, not a second database** (Phase 8 principle):
+   platform entry by Project Control remains a first-class way to build and
+   update the Working Plan.
+
+### 26.11 Automatic Weekly and Monthly derivation
+
+**Weekly.** A Weekly report **pins** a snapshot: the latest published snapshot
+with Data Date ≤ the period end.
+
+| Rule | |
+|---|---|
+| **Re-pin until approval** | While the report is not yet approved, a reporting-workflow manager may re-pin to a newer eligible snapshot (an explicit, recorded act; the report shows when one exists). **Approval freezes the pin** with the rest of the report. |
+| **Declared staleness** | If the pinned Data Date is earlier than the period end, the report says so. EPRP never fabricates figures to fill the gap. |
+| **Look-ahead** | Default 2 weeks after the period end, configurable per project. |
+
+| Planning fact (for period start → end, pinned snapshot) | Definition |
+|---|---|
+| Planned this period | BLn or forecast window overlaps the period and the activity was not finished before the period start |
+| Started / completed this period | Actual start / actual finish inside the period |
+| Late | Not finished and BLn finish earlier than the Data Date, or forecast finish later than BLn finish |
+| Overdue start | BLn start earlier than the Data Date and no actual start |
+| Milestones due | True or governed milestone with BLn or forecast date inside the period |
+| Milestones achieved | Actual date inside the period |
+| Upcoming milestones | Forecast date inside the look-ahead window |
+| Look-ahead | Forecast start, finish or in-progress inside the look-ahead window |
+| Progress | Snapshot PV, EV, SV, SPI and schedule condition — project and each reporting unit (via H6) |
+| Manpower | Planned (snapshot) vs actual (recorded in this Weekly, §26.9) |
+
+**People confirm and explain; they do not re-type.** Planning facts are
+read-only rows. Contributors attach confirmations, variance explanations,
+constraints, recovery actions and decisions to them, using the existing Weekly
+narrative entries (risks, issues, actions, decisions, comments), which gain
+optional references to the activity, node or milestone they explain. Monthly
+carry-forward of those entries keeps working unchanged. The collaborative
+comment layer that carries these explanations is specified in §26.21.
+
+For a **planning-governed** project the following are no longer entered by
+hand: Planned % / Actual %, typed SPI, free-text "major activities" that
+duplicate planned activities, free-text milestone rows, and next-week plan rows
+that duplicate the look-ahead. Their existing rows remain readable history.
+Weekly milestone observations for **unlinked** governed milestones (13.4 Wave 1)
+continue unchanged.
+
+**Monthly** uses:
+
+- approved Weekly narrative and observations (as built, §5 of `03`);
+- the **month-end snapshot** — the latest published snapshot with Data Date ≤
+  the month end — pinned the same way as Weekly and frozen at approval;
+- S-curves to the Data Date, SPI and schedule condition;
+- **milestone movement**: month-start snapshot (latest with Data Date ≤ the
+  previous month end) vs month-end snapshot — achieved, newly late, forecast
+  moved, re-baselined;
+- manpower for the month: planned from the snapshot, actual from the month's
+  approved Weeklies;
+- the next-month look-ahead from the month-end snapshot.
+
+**Approval freezes** the pinned snapshot and the Monthly's own content; because
+snapshots are immutable, the planning facts of an approved Monthly can never
+drift.
+
+### 26.12 One reporting engine for PSM and Other Projects
+
+One Weekly engine and one Monthly engine. The **common core** for every project:
+progress, milestones, activities, look-ahead, manpower, constraints, actions,
+decisions and variance explanation.
+
+**Dynamic sections** come from the project's reporting units:
+
+| Project Type | Sections | Who writes a section |
+|---|---|---|
+| **PSM** | Department → System → Program & Study (as built) | Unchanged: the PSM department roles of `05` §3.7 |
+| **Other Project** | Configured Project Structure units flagged for Weekly input (Phase 2C.1c / 2C.3D) | The unit's **Weekly Responsible and Weekly Backup** — **only their assigned unit's section**, while the report accepts section input |
+
+**Other-project reporting-write scope** (approved 2026-10-14) is reporting
+write only. It grants no Project, Planning, publishing, approval, return or
+setup authority, and no access to any other unit's section. It amends the
+"authority-free" status of the Weekly Responsible / Backup recorded for 2C.3D,
+and takes effect only when slice 13.18 implements it. Until then that status is
+unchanged.
+
+**Planning facts are canonical whatever the project type.** Each section shows
+the facts of the planning work mapped to it (H6); unmapped work appears in a
+project-level section.
+
+### 26.13 Consumer integration matrix
+
+| Consumer | Reads | Shows | Never |
+|---|---|---|---|
+| **Project Setup — Governed Performance** | Latest snapshot | **Read-only** PV, EV, SV, SPI, schedule condition, Data Date, version, coverage; the onboarding mode; a link to the Planning workspace | Any editable Planned / Actual / Variance / SPI field. *As built, this panel can also record and promote an Opening Position (declared planned / actual %); that action moves to the Planning workspace only (13.14), where it already exists* |
+| **Project Progress** | Latest snapshot (history: earlier snapshots) | KPI strip; WBS roll-up with local and effective weights and per-node PV/EV/SPI; S-curves; milestones; manpower histogram | The project record's stored progress; percent-ratio SPI; a manual "update progress" route |
+| **Calendar** | Latest snapshot; unlinked governed milestones from the register | True milestones and governed milestones as points (actual if achieved, else forecast, with BLn in detail); look-ahead work only as a separate entry type | Weekly or Monthly plan items read as milestones |
+| **Weekly** | Its pinned snapshot | §26.11 planning facts per section | Typed progress or SPI for a planning-governed project |
+| **Monthly** | Approved Weeklies + its pinned month-end snapshot | §26.11 Monthly content | The live milestone register; recomputed figures |
+| **Executive — project** | The approved Monthly and its pinned snapshot | Position, schedule condition, key milestones, movement, manpower | Report plan items as milestones; title-and-date de-duplication |
+| **Executive — portfolio** | Approved Project Executive / Monthly positions | §26.15 aggregation | Averaged SPI or progress |
+| **Dashboard — project** | Latest snapshot | PV, EV, SV, SPI, schedule condition, next key milestone, overdue and due-soon milestones, items due this week, planned vs actual manpower, S-curve summary | A typed Weekly/Monthly figure presented as planning-governed |
+| **Dashboard — portfolio** | Latest snapshot per project | §26.15 aggregation, or the distribution when not eligible | Unweighted means |
+
+A Dashboard reading the latest snapshot does not "recompute" (F3): it presents
+frozen figures. Its Weekly/Monthly *reporting-status* panels continue to read
+the reports.
+
+### 26.14 Projects without formal planning
+
+A project with no published snapshot — including onboarding mode "no formal
+schedule" — is **not planning-governed**:
+
+- it may show reported Planned % / Actual % entered on its Weekly or Monthly
+  report, always labelled **"Reported — not planning governed"**;
+- **SPI is "N/A"** (never a ratio of typed percentages); variance may be shown
+  with the same label;
+- it is excluded from portfolio progress and SPI aggregates and listed as such
+  (§26.15);
+- once its first v2 snapshot is published, typed progress locks for every later
+  report.
+
+An **Opening Position** snapshot (a project onboarded mid-execution) is
+planning-governed with declared figures and SPI "N/A". A **legacy** snapshot
+(before 13.12) shows its existing figures, labelled "legacy calculation".
+
+### 26.15 Portfolio aggregation
+
+**Never average SPI or progress percentages directly.** Example: Project A
+(20,000 budgeted man-hours, PV 55%, EV 50%, SPI 0.91) and Project B (2,000
+man-hours, PV 60%, EV 90%, SPI 1.50). The mean SPI reads 1.20; the weighted
+SPI is (10,000 + 1,800) ÷ (11,000 + 1,200) = **0.97**.
+
+| Rule | |
+|---|---|
+| **Weight basis** | Budgeted man-hours (from the project's current baseline) where available; otherwise a Project-Control-Admin-assigned project weight. **One basis per aggregate**: man-hours when every eligible project has them, otherwise assigned weights when every eligible project has one. |
+| **Formulas** | Portfolio EV% = Σ(basis × EV%) ÷ Σ basis · Portfolio PV% = Σ(basis × PV%) ÷ Σ basis · Portfolio SPI = Σ(basis × EV%) ÷ Σ(basis × PV%) |
+| **Eligibility** | Every in-scope project is planning-governed with a non-legacy snapshot whose Data Date is within the staleness window of the portfolio date (proposed default 14 days, §26.19 B6), and carries the chosen basis. |
+| **When not eligible** | No portfolio SPI and no portfolio progress figure. Show the distribution instead: projects by SPI band, median, the worst projects, and every excluded project with its reason. |
+| **Coverage** | Every aggregate declares how many projects contributed, as of which Data Dates, and which were excluded and why (`03` §7.4). |
+
+### 26.16 Future Tasks boundary
+
+Tasks are designed **after** the Planning and Reporting foundation (after
+13.20). They are not part of any slice in this section.
+
+- A task may link to a planning node, an activity, a governed milestone, a
+  Project Structure unit, a responsible project member, a deputy/backup, a
+  delegation period and a participating team — all within the same project.
+- **Tasks never become a project-progress source.** The activity remains the
+  unit that earns progress.
+- Task completion may only **propose** an activity's progress, which Project
+  Control accepts into the Working Plan like any other governed change.
+- Responsibility for a task grants no project, planning or approval authority
+  unless a later approved permission change says so.
+- Archived projects are read-only for tasks as for everything else.
+
+### 26.17 Implementation slices
+
+The delivery order, dependencies and done-when criteria are in
+[`15_DEVELOPMENT_ROADMAP.md`](15_DEVELOPMENT_ROADMAP.md) Phase 13
+(13.8–13.21). In dependency order: specification → archived/read-only guards →
+pure Planning Engine core → Working Plan hardening → Snapshot v2, baselines and
+curves → manpower foundation → core consumers → milestone governance/linkage →
+import v2 → automatic Weekly (PSM) → Other-project reporting sections → Monthly
+→ Executive and portfolio → native XER → Tasks design.
+
+Guided Planning Setup (§26.20) belongs to the Planning Setup work of **13.11**,
+extended by the slices whose configuration it asks about. Collaborative
+Weekly/Monthly comments (§26.21) belong to **13.17** (PSM Weekly), **13.18**
+(Other-project sections) and **13.19** (Monthly). Schedule Versions and their
+history (§26.22) belong to **13.16** (Import v2), with snapshot provenance and
+Baseline Revisions in **13.12**. None of these changes the slice order.
+
+### 26.18 Statements this section amends
+
+| Where | Previously | Now |
+|---|---|---|
+| §12.1 | "WEEKLY REPORT — the operational source of truth" | Weekly remains the source of operational **reporting** entry; project **performance** and schedule facts come from the Published Planning Snapshot, which Weekly pins and explains (F6) |
+| §14.1 | KPI values are owned by the report | Schedule performance values (PV, EV, SV, SPI) are owned by the snapshot; a report **cites** the snapshot it pinned |
+| §17.3 | Calendar derives milestones (unspecified source) | Calendar milestone points come from the snapshot and the register (§26.13) |
+| §24.4 — *Milestone identity, and its current state* | The Master Milestone register and its update stream | Identity and governance: the register. Schedule state of a **linked** milestone: the snapshot (§26.6 rule 5, pending B1) |
+| §24.4 — *Reported progress* | The reporting tiers; the project record is a cache | **Project performance**: the Published Planning Snapshot. The project record is never authoritative; typed report progress applies only under §26.14 |
+| §24.6 | 13.2 identity/state split frozen | Unchanged except for §26.6 rule 5, which is **pending explicit owner confirmation** before 13.15 starts |
+| `03` Laws 1 and 6, §21 | Weekly is the single source; dashboards read approved reports | Amended in `03` §2 and §21.4 |
+| `06` §10 | Lifecycle stage weight feeds project progress; milestone owned by the Project Lifecycle | Amended in `06` §10.9 |
+| `06` §8.9 / `05` §3.7 | Weekly Responsible / Backup grant no report-writing right | Amended for Other projects from 13.18 (§26.12) |
+| `08` §6.2, §13.3 rule 4 | Completion from weighted lifecycle stages | Completion = snapshot EV% (amended in `08`) |
+| `specs/weekly-report.md` §5 | SPI = actual ÷ planned | Superseded by §26.7 rule 3 |
+
+### 26.19 Open decisions and conformance
+
+**Decisions still open** — each blocks only the slice named.
+
+| # | Decision | Blocks |
+|---|---|---|
+| B1 | Confirm the §24.6 amendment: linked governed milestones take their dates from the snapshot (§26.6 rule 5) | 13.15 |
+| B2 | Who approves an Other-project unit section before Project Control review (Unit Lead is authority-free today), and whether Monthly Responsible / Backup receive the same reporting-write scope as Weekly | 13.18 (Weekly), 13.19 (Monthly sections) |
+| B3 | Whether the approver of a re-baseline may be the person who prepared it | 13.12 |
+| B4 | Schedule-condition thresholds (§26.7 rule 4 proposed defaults) | 13.14 |
+| B5 | Who records actual manpower in the Weekly: each section writer for their unit, or the reporting workflow (Reporting Coordinator / Project Control) project-wide | 13.13 (actual entry), 13.17 |
+| B6 | Portfolio staleness window (proposed 14 days) and the "one basis per aggregate" rule | 13.20 |
+| B7 | Confirm PV distribution for the discrete methods (0/100, 50/50, Milestone) follows their earning points as specified in §26.4, with linear PV for Percent Complete — the approved principle states "linear" without distinguishing methods | 13.10 |
+| B8 | Who approves the **original** baseline BL0: the re-baseline rule (Project Control Admin or System Administrator only), as specified in §26.8, or the project's assigned Project Control | 13.12 |
+| B9 | Other projects: confirm that a unit's **active members** are the "engineers" who may author comments in that unit's section (§26.21). Unit membership is authority-free today (`06` §8.9) | 13.18 |
+| ~~B10~~ | **CLOSED 2026-10-14 (owner decision).** Back-dated Schedule Versions are accepted only through the explicit **Historical Correction** workflow. Operational versions must be dated on or after the latest accepted operational version (§26.22.2). Also closed: **one Schedule Version Under Review per project** at a time | — |
+
+**Conformance — an implementation conforms to §26 when:**
+
+1. No surface outside the Planning workspace reads the Working Plan or raw import.
+2. Every performance figure resolves to a snapshot (project, version, Data Date).
+3. Effective weights are calculated; only local weights are entered.
+4. Publishing is refused on incomplete weights, unmeasured started work, missing Data Date or Data Date violations; normalisation is explicit and logged.
+5. SPI is only EV ÷ PV from the weighted model; "N/A" where PV = 0 or the project is not planning-governed.
+6. Snapshots, baselines and curves are immutable and carry their engine version.
+7. Import never changes EPRP-owned fields and never matches on titles; every Working Plan change from an import is an accepted, logged difference.
+8. No consumer treats report plan items as milestones.
+9. Manpower never enters SPI.
+10. Portfolio figures are weighted and eligibility-checked, or replaced by the distribution.
+11. Archived projects refuse every planning, milestone, import and publish write at the data boundary.
+12. Tasks, when built, never feed project progress.
+13. Guided and Advanced Planning Setup write one Planning Configuration; neither asks for, nor accepts, a calculated value (§26.20).
+14. No report comment changes a planning fact or a Published Planning Snapshot (§26.21).
+15. Every import is a preserved Schedule Version, compared against the latest accepted version and accepted or rejected by Project Control, one under review at a time. No Schedule Version changes BL0 or BLn, overwrites an earlier version, or rewrites a published snapshot. A back-dated version is accepted only as a Historical Correction, which never becomes current and never alters a snapshot or an approved report (§26.22).
+16. Items removed from the schedule are archived, never deleted, and protected items cannot be removed without explicit resolution (§26.22.5).
+
+### 26.20 Guided Planning Setup — UX / product principle (approved 2026-10-14)
+
+**Principle.** A user must be able to configure a project's planning without
+first learning planning terminology. EPRP offers a **Guided Setup** that asks
+plain business questions, and an **Advanced mode** that exposes the same
+canonical configuration directly for Planning Engineers. Delivered with the
+Planning Setup work of **13.11**; later slices add their own questions to the
+same guided flow (§26.17, roadmap 13.11).
+
+**Guided questions and the configuration each answer sets**
+
+| Question (plain language) | Answers | Canonical Planning Configuration it sets (`06` §10A.1) |
+|---|---|---|
+| Do you already have a project schedule? | Build in EPRP · Primavera P6 · Excel · No formal schedule | Schedule source (manual entry · P6 Excel export — native XER later, 13.21 · EPRP Excel template) and onboarding mode; "No formal schedule" makes the project **not planning-governed** (§26.14) until a plan is published |
+| How is the project broken down? | A recommended breakdown, or the user's own levels | Planning levels and their labels; which level is the Control Account level (§26.3 H1–H2) |
+| Are weights managed in EPRP or imported from the schedule? | EPRP · Imported | Weight source (§26.4 W7) |
+| Is there an approved baseline? | Yes · Not yet | Whether a BL0 is prepared now for approval (§26.6; approver per B8) |
+| Did the project start before joining EPRP? | Yes · No | Onboarding mode "existing active project" → an Opening Position recorded in the Planning workspace (§26.8 invariant 5) |
+| How is progress earned? | Percent complete · Complete/not complete (0/100) · Half at start, half at finish (50/50) · By milestones | The project's **default** earning method, overridable per node and activity (§26.4) |
+| Is manpower / resource planning required? | Yes · No | Manpower planning enabled (§26.9) |
+| Planned headcount, man-hours, or both? | Headcount · Man-hours · Both | Manpower measures planned (§26.9) |
+| What is the Weekly look-ahead period? | Weeks (default 2) | Look-ahead weeks (§26.11) |
+| Which project / reporting structure should drive report sections? | PSM: Department → System → Program & Study · Other: the configured Project Structure units | Reporting-unit source and the default planning-node mapping (§26.3 H6, §26.12) |
+
+**Rules.**
+
+1. **Calculated values are never questions and never inputs.** PV, EV, SV,
+   SPI, effective project contribution, schedule condition and S-curve values
+   are always calculated by EPRP (§26.4, §26.7). No guided or advanced screen
+   asks for them or accepts them.
+2. **One configuration, two ways in.** Guided and Advanced modes read and write
+   the **same** Planning Configuration. They are not separate systems: switching
+   mode loses nothing, and the guided flow pre-fills its answers from the current
+   configuration. Answers are not kept as a second store; the configuration is
+   the record. The onboarding-mode field shown in Project Setup is the same
+   value, not a copy.
+3. **Recommended setups are defaults, not logic.** A project-type or
+   project-category template may pre-fill answers (for example a typical
+   breakdown and earning method). Templates are configuration data, admin-managed,
+   **copied** into the project and never linked (`06` §3 rule 6). Every
+   pre-filled value stays editable, and no template value is hardcoded or
+   branches platform behaviour (principle 8).
+4. **Changing an answer later follows the governed rules.** For example,
+   switching the weight source or the schedule source after data exists is an
+   explicit, logged Project Control act (§26.2 F2). It never silently rewrites
+   or deletes Working Plan data, baselines or snapshots.
+5. **Authority and archive.** Planning setup is Project Control
+   (`05` §3.8). Archived projects are read-only (§26.3 H10).
+
+### 26.21 Weekly and Monthly collaborative comments (approved 2026-10-14)
+
+**Principle.** Weekly and Monthly carry a controlled **comment / narrative
+layer** where authorized departments and engineers explain, confirm and enrich
+their section of the report. **Comments are not planning facts.** They never
+modify PV, EV, SPI, milestone schedule state, manpower planning facts or any
+Published Planning Snapshot (§26.2 F1–F6). This is the "confirm and explain"
+mechanism of §26.11.
+
+**Comment types (initial set).** General Comment · Progress Explanation ·
+Constraint · Recovery Action · Technical Note · Client / Department Input. The
+set is managed configuration, not a hardcoded list. A Constraint or Recovery
+Action that must be tracked to closure may be linked to, or promoted into, the
+tracked Issue / Action / Comment Register records (`06` §11.4, §12.3); the
+comment itself stays narrative.
+
+**Every comment preserves:** author · timestamp · project · report and its
+period · reporting section / unit · comment type · optional reference to the
+planning activity, node or milestone it explains · its edit history,
+soft-delete and attribution, per the existing comment governance (`05` §4).
+
+**Scope by project type** (the approved PSM vs Other model, §26.12):
+
+| Project Type | A comment is scoped to |
+|---|---|
+| **PSM** | The Department → System → Program & Study reporting section it belongs to |
+| **Other Project** | The configured Project Structure reporting unit |
+
+**Permissions** (detail in `05` §3.8):
+
+- **Engineers** add comments in their permitted section and edit their own,
+  while the report accepts section input. PSM: the department's team members
+  (as built). Other projects: the unit's active members — **pending owner
+  confirmation, B9**.
+- **Department / reporting-responsible users** review and summarise the
+  comments of their assigned section. PSM: the Department Manager. Other
+  projects: the unit's Weekly Responsible / Backup (13.18); Monthly Responsible
+  / Backup per B2.
+- This is **reporting-comment scope only**. It grants no Planning, Project
+  Setup, publishing, approval or return authority, and nothing outside the
+  author's own section.
+
+**Weekly.** Planning facts are system-derived from the pinned snapshot; people
+confirm and explain them with comments. An approved Weekly's comments are
+immutable with the rest of the report.
+
+**Monthly.**
+- Approved Weekly comments and section narrative are **carried forward where
+  relevant**, by reference to their source Weekly — compiled content, not
+  retyped and not edited at the Monthly tier (`03` §5.4).
+- The Monthly adds its own **Monthly-specific comments and section summaries**.
+- Nobody retypes Weekly narrative to produce a Monthly.
+
+### 26.22 Schedule Versions and revision history (approved 2026-10-14)
+
+**Principle.** A project's schedule changes throughout its life. EPRP never
+treats a project as having one fixed imported schedule. Every Primavera P6 or
+Excel import is preserved as its own **Schedule Version**, compared with the
+one before it, and accepted or rejected by Project Control. A Schedule Version
+**never** changes the original baseline (BL0) or the current approved baseline
+(BLn). The approved flow is unchanged:
+
+```text
+Raw Import → Staging / Validation → Diff → Project Control Acceptance → Working Plan → Published Planning Snapshot → Consumers
+```
+
+#### 26.22.1 Three things that must never be confused
+
+| | **Original baseline (BL0)** | **Current approved baseline (BLn)** | **Schedule Version / Schedule Update** |
+|---|---|---|---|
+| What it is | The first formally approved baseline | A formally approved Baseline Revision (BL1, BL2, …) | A normal P6 / Excel update or revision during execution (e.g. "Rev 00", "Rev 01", "Update 05", "Update 06") |
+| How it is created | Approval of the first baseline (§26.6; approver per B8) | **Only** the governed Re-baseline: prepared by Project Control / Planning, approved by Project Control Admin or System Administrator | Every import creates one |
+| What it may change | — | Dates and weights against which PV and SPI are measured, from its approval onward | Forecast / current start and finish, remaining duration, progress / % complete, relationships, resources / manpower, activity status, WBS placement, added and removed activities |
+| What it never changes | — (immutable) | BL0; any published snapshot | **BL0 and BLn** — even when the source file carries baseline columns |
+| Curve | Original baseline curve | A new baseline curve per approved Baseline Revision | Moves the current / forecast curve only |
+
+- **A source file's baseline columns are not a baseline.** If a Schedule
+  Version carries baseline dates that differ from EPRP's BLn, the diff flags
+  the difference for information. It may prompt Project Control to *prepare* a
+  Re-baseline from that version, which then needs approval. Nothing changes
+  automatically.
+- **The first baseline.** BL0 may be prepared from the first accepted Schedule
+  Version (Guided Setup: "Is there an approved baseline?", §26.20) and becomes
+  BL0 only on approval.
+
+#### 26.22.2 The Schedule Version and its lifecycle
+
+Every import creates a preserved **Schedule Version**. It logically records:
+
+- project · EPRP version number (sequential per project) · Schedule Version
+  reference (the source's own label);
+- source type (P6 Excel export · EPRP Excel template; native XER from 13.21) ·
+  the original file and its raw import batch;
+- import time · imported by · **Data Date**;
+- **kind** (operational · Historical Correction) · status · decided by / at ·
+  reason when rejected; for a Historical Correction, the mandatory reason and
+  the historical version or period it corrects;
+- the **previous accepted Schedule Version** it was compared against;
+- the **baseline in force** (BL0 / BLn) when it was reviewed and when it was
+  accepted;
+- the change count per diff category, and the Planning Decisions recorded on
+  its rows.
+
+```text
+Uploaded ──► Validated ──► Under Review ──► Accepted
+   │                            │
+   └────────► Rejected ◄────────┘   (validation failure, or rejection in review — always with a reason)
+```
+
+| Rule | |
+|---|---|
+| **Never overwritten** | A Schedule Version, its file and its raw rows are kept for ever, whatever its status. A rejected version stays readable with its reason. |
+| **One under review at a time** *(owner-approved policy, 2026-10-14)* | A project has at most **one** Schedule Version Under Review — operational or Historical Correction. A newer upload waits until that review closes, then is compared against whatever is then the latest accepted operational version. *Rationale:* every version must be diffed against a **stable** latest accepted version; parallel reviews would create ambiguous diff bases and conflicting acceptance paths. |
+| **History stays readable** | Example: Rev 00 — Accepted · Rev 01 — Accepted · Rev 02 — Accepted · Rev 03 — Under Review. Every entry can be opened with its diff, decisions and related snapshots. |
+| **Accepted is not published** | Acceptance changes the Working Plan; publishing a snapshot is a separate act (§26.8). |
+| **Data Date order** *(B10, closed 2026-10-14)* | A normal (**operational**) Schedule Version must have a Data Date **equal to or later than** the latest accepted operational Schedule Version. A back-dated import is **not rejected outright**: it can be accepted **only** through the Historical Correction workflow below. |
+
+**Historical Correction** (B10, owner decision 2026-10-14). A back-dated
+Schedule Version may be accepted only as an explicit **Historical Correction**:
+
+1. **It requires** a mandatory reason, the recorded actor and time, and a
+   reference to the historical Schedule Version or period it corrects. Its
+   diff is against that historical version.
+2. **It never becomes the current operational Schedule Version**, and it is
+   never the basis of a later diff.
+3. **It never rewrites or replaces** any immutable Published Planning Snapshot.
+4. **It never silently changes** an approved Weekly, Monthly or Executive
+   report.
+5. **If the correction must affect the current Working Plan**, the corrected
+   information is carried forward in a **new current-dated operational
+   Schedule Version**, which goes through the normal diff and acceptance.
+6. **A correction or reissue of a past report** uses the governed **Report
+   Revision** workflow (`03` §12), never snapshot mutation. The original
+   snapshot and report remain readable unchanged.
+7. It counts toward the one-under-review rule, and like every Schedule Version
+   it is preserved for ever.
+
+#### 26.22.3 Diff and acceptance
+
+```text
+New Schedule Version → Raw Import → Validation → Diff against the latest accepted Schedule Version
+   → Project Control review → Accept (with recorded row exceptions) / Reject → Working Plan → Published Planning Snapshot
+```
+
+**The review shows, by category:**
+- added activities and removed activities;
+- changed dates and changed durations;
+- changed progress and changed activity status;
+- WBS moves;
+- changed relationships;
+- changed resources / manpower;
+- changed milestone dates.
+
+It also shows conflicts with Project Control edits made in EPRP since the
+latest accepted version (§26.10), and baseline-column differences (26.22.1).
+A Historical Correction is instead diffed against the historical version it
+corrects (§26.22.2).
+
+**Nothing is applied silently.** Every accepted or rejected difference is a
+logged Planning Decision (actor, time, reason where required). Field ownership
+(§26.10 rule 3) is unchanged: EPRP-owned fields are never changed by any
+Schedule Version.
+
+#### 26.22.4 Matching
+
+- Activities match on the **external Activity ID**; WBS on the **external WBS
+  code / path**; resources on resource ID. **Never primarily on title or name.**
+- If an external ID changes, EPRP **does not guess**: the item is treated as
+  removed + added. Project Control may record an explicit **re-match**, which
+  is kept in history with actor, time and reason.
+- An external ID that reappears in a later version after being removed is
+  offered as a **restoration** of the archived item, so its history continues.
+  It is never a silent duplicate.
+
+#### 26.22.5 Removed activities and nodes
+
+When an item in the latest accepted Schedule Version is absent from the new
+one:
+
+- accepting the removal sets it to **Removed from current schedule**. It is
+  archived from the Working Plan and **never physically deleted**;
+- every snapshot, report, comment reference and history entry that captured it
+  stays valid and keeps resolving to it;
+- if it is **protected**, acceptance is blocked until Project Control resolves
+  it explicitly — for example by unlinking with a reason, or re-matching.
+  Protected means linked to a governed milestone, a governed deliverable, or
+  (when Tasks exist) an open task.
+
+#### 26.22.6 Milestones across versions
+
+A true milestone activity links one-to-one to a governed milestone (§26.10
+rule 7). A Schedule Version may **propose**:
+- the milestone's current schedule date — its forecast, the source's "current
+  planned" date;
+- its actual date and status.
+
+It never proposes a change to the BL0 or BLn date. Proposals pass through the
+diff and acceptance above and never silently overwrite governed milestone
+history (subject to B1). Milestone reporting always shows:
+
+| BL0 date | BLn date | Current forecast | Actual | Variance vs BL0 | Variance vs BLn |
+|---|---|---|---|---|---|
+
+#### 26.22.7 Snapshot provenance
+
+Every Published Planning Snapshot records enough to answer **"where did these
+numbers come from?"**:
+- its source Schedule Version (or Opening Position, or manual publish) and the
+  logged Project Control edits applied after that version;
+- its Data Date (for an import-based publish, the version's Data Date);
+- its BL0 and BLn;
+- the engine version;
+- the publisher and publication time.
+
+A snapshot is immutable (§26.8). **A later Schedule Version never rewrites an
+earlier snapshot.**
+
+#### 26.22.8 Historical stability of reports
+
+Weekly, Monthly and Executive reports pin a snapshot and freeze the pin at
+approval (§26.11). Example:
+
+- The September Monthly is pinned to the 30-Sep snapshot, whose source is
+  Schedule Version Rev 02.
+- In October, Rev 03 is imported, accepted and published.
+- **The September Monthly does not change.**
+
+The current Dashboard and the Planning workspace read the **latest** published
+snapshot. Approved historical reports stay on the snapshot they were pinned to.
+
+#### 26.22.9 S-curves and performance history
+
+Version history supports, together:
+- the original baseline curve (BL0);
+- the current approved baseline curve (BLn);
+- the current forecast curve;
+- the earned / actual curve;
+- every historical published snapshot point.
+
+Each published snapshot keeps its own forecast curve, so forecast drift across
+Schedule Versions can be compared later. **A Schedule Update moves the
+forecast curve; only an approved Re-baseline creates a new baseline curve.**
+
+#### 26.22.10 UX principle — Schedule History
+
+Planning users will later have a **Schedule History / Versions** view listing,
+per Schedule Version:
+- reference and Data Date;
+- imported by, source and status;
+- change count, and whether it was accepted or rejected;
+- the related snapshot and the baseline active at the time.
+
+Selecting a version will later show its structured diff. The full UI is
+**not** designed here (`07` §10.11 records the principle).
+
+#### 26.22.11 Where it is delivered
+
+| Slice | Delivers |
+|---|---|
+| **13.12** | Snapshot provenance fields above; BL0 / BLn as Baseline Revisions with their own curves; the rule that no import re-baselines |
+| **13.15** | Milestone proposals from Schedule Versions for linked milestones (subject to B1) |
+| **13.16** | Schedule Versions and their lifecycle, preserved history, one-under-review rule, diff against the latest accepted version, acceptance, matching and re-match, removed-item handling, restoration, the **Historical Correction** workflow, the Schedule History list |
+| **13.21** | The same versioning for native P6 XER |
+
+**13.9 remains the next slice.** Nothing here changes the slice order.

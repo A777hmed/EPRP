@@ -5,6 +5,7 @@ import * as React from "react";
 import { useCurrentIdentity } from "@/features/auth/use-current-identity";
 import { resolveWeeklyScope, type WeeklyScope } from "@/features/weekly-reports/scope";
 import { isProjectControlPlanning } from "./assignment-rules";
+import { isPlanningControlReadOnly } from "./planning-control-archived";
 import type { Project } from "@/types";
 
 /**
@@ -46,6 +47,12 @@ export interface MilestoneAuthority {
    * submission is refused by RLS and by the approved role model.
    */
   departmentIds: string[];
+  /**
+   * Archived (13.9): the project's milestones and deliverables are history —
+   * readable, never changed — for every role, global authorities included. The
+   * database refuses the writes too (`block_archived_project_planning`).
+   */
+  archived: boolean;
   /** False until the lookup settles, so no action flashes before it is known. */
   resolved: boolean;
 }
@@ -56,6 +63,7 @@ const UNRESOLVED: MilestoneAuthority = {
   canReconcile: false,
   canSubmit: false,
   departmentIds: [],
+  archived: false,
   resolved: false,
 };
 
@@ -73,6 +81,56 @@ const UNRESOLVED: MilestoneAuthority = {
  * the single source for all three capabilities below.
  */
 
+/**
+ * The rule behind {@link useMilestoneAuthority}, pure so it can be tested.
+ */
+export function resolveMilestoneAuthority(
+  project: Project,
+  identity: { contactId: string; isAdmin: boolean; isGlobalAuthority: boolean }
+): MilestoneAuthority {
+  /* Read scope is unchanged: it still resolves through the consolidator pair,
+     because seeing the register is a reporting concern. Only WRITE authority
+     moved. */
+  const scope = resolveWeeklyScope(project, identity.contactId, {
+    isAdmin: identity.isAdmin,
+  });
+
+  /*
+   * One predicate for all three write capabilities, because the database uses
+   * one for all three: `master_milestones` insert/update, `milestone_updates`
+   * insert/update and the reconciliation branch all resolve to
+   * `can_manage_project_operations()`.
+   *
+   * Department-scoped submission is deliberately NOT admitted. RLS refuses it
+   * and the approved role model confirms that refusal is correct: a
+   * Department User's write access is limited to their own department's
+   * comments in Weekly and Monthly.
+   */
+  const managesOperations = isProjectControlPlanning(project, identity.contactId, {
+    // System Admin or Project Control Admin — `has_global_operational_authority()`.
+    isGlobalAuthority: identity.isGlobalAuthority,
+  });
+
+  /*
+   * 13.9: an archived project withdraws every write, for every role. The SQL
+   * predicate itself is not archive-aware (it backs Project Setup, Documents,
+   * Calendar and more); the database boundary is the
+   * `block_archived_project_planning` guard, and this mirrors it.
+   */
+  const archived = isPlanningControlReadOnly(project);
+  const canWrite = managesOperations && !archived;
+
+  return {
+    scope,
+    canManage: canWrite,
+    canReconcile: canWrite,
+    canSubmit: canWrite,
+    departmentIds: scope.departmentIds,
+    archived,
+    resolved: true,
+  };
+}
+
 export function useMilestoneAuthority(
   project: Project | null | undefined
 ): MilestoneAuthority {
@@ -84,37 +142,6 @@ export function useMilestoneAuthority(
 
   return React.useMemo(() => {
     if (!project || !identity.resolved) return UNRESOLVED;
-
-    /* Read scope is unchanged: it still resolves through the consolidator pair,
-       because seeing the register is a reporting concern. Only WRITE authority
-       moved. */
-    const scope = resolveWeeklyScope(project, identity.contactId, {
-      isAdmin: identity.isAdmin,
-    });
-
-    /*
-     * One predicate for all three write capabilities, because the database uses
-     * one for all three: `master_milestones` insert/update, `milestone_updates`
-     * insert/update and the reconciliation branch all resolve to
-     * `can_manage_project_operations()`.
-     *
-     * Department-scoped submission is deliberately NOT admitted. RLS refuses it
-     * and the approved role model confirms that refusal is correct: a
-     * Department User's write access is limited to their own department's
-     * comments in Weekly and Monthly.
-     */
-    const managesOperations = isProjectControlPlanning(project, identity.contactId, {
-      // System Admin or Project Control Admin — `has_global_operational_authority()`.
-      isGlobalAuthority: identity.isGlobalAuthority,
-    });
-
-    return {
-      scope,
-      canManage: managesOperations,
-      canReconcile: managesOperations,
-      canSubmit: managesOperations,
-      departmentIds: scope.departmentIds,
-      resolved: true,
-    };
+    return resolveMilestoneAuthority(project, identity);
   }, [project, identity]);
 }

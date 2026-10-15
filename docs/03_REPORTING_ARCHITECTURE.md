@@ -38,6 +38,22 @@ Every rule in this document derives from these. They are not aspirations; they a
 
 **Law 6 deserves emphasis.** A dashboard that recalculates from operational data becomes a second, competing source of truth that will eventually disagree with the reports issued to leadership. The disagreement will surface at the worst possible moment. Dashboards therefore consume approved reporting output — never the underlying operational records.
 
+> **Laws 1 and 6, amended 2026-10-14 by
+> [`02_PLATFORM_ARCHITECTURE.md`](02_PLATFORM_ARCHITECTURE.md) §26 (Master
+> Planning & Control).**
+>
+> - **Law 1** — Weekly remains the single source of operational **reporting**
+>   entry: narrative, department and unit input, confirmations, explanations,
+>   risks, issues, actions, decisions and actual manpower. **Project
+>   performance** — planned and earned progress, variance, SPI, schedule dates
+>   and milestone schedule state — is owned by the **Published Planning
+>   Snapshot**. A Weekly pins the snapshot for its period and explains it; it
+>   never re-enters it (§4.7).
+> - **Law 6** — Dashboards read **published, governed output**: approved reports
+>   *and* Published Planning Snapshots. A snapshot is immutable and already holds
+>   its calculated figures, so presenting it is not recomputation. Dashboards
+>   still never compute from working or operational records (§21.4).
+
 ---
 
 ## 3. The reporting chain
@@ -93,6 +109,8 @@ If a Monthly figure differs from the Weeklies it compiled, that is a defect, not
 ## 4. Weekly Reporting Engine
 
 The Weekly Report is the operational source of truth. Everything the platform ever reports originates here.
+
+> *Amended 2026-10-14 (§2, Law 1):* except project performance and schedule facts, which originate in the Published Planning Snapshot that the Weekly pins and explains (§4.7).
 
 ### 4.1 The cycle
 
@@ -163,6 +181,51 @@ No operational figure may be introduced above the Weekly tier. If information is
 
 This is what makes every number in the platform traceable to a department, a period, and an account.
 
+### 4.7 Planning facts in the Weekly (Master Planning & Control, 2026-10-14)
+
+Defined in full in `02_PLATFORM_ARCHITECTURE.md` §26.11–§26.12; summarised here
+for the reporting engine.
+
+1. **Pinning.** A Weekly pins the latest Published Planning Snapshot whose Data
+   Date is on or before its period end. Until approval, a reporting-workflow
+   manager may re-pin to a newer eligible snapshot (a recorded act). **Approval
+   freezes the pin.** A pinned Data Date earlier than the period end is declared
+   on the report, never filled in.
+2. **Derived, not entered.** For a planning-governed project the Weekly derives
+   from its pinned snapshot: activities planned, started, completed, late and
+   overdue in the period; milestones due, achieved and upcoming; the look-ahead
+   (default 2 weeks, per project); progress (PV, EV, variance, SPI, schedule
+   condition) for the project and each section; planned manpower. Planned % and
+   Actual % are not typed.
+3. **Confirm and explain.** Contributors attach confirmations, variance
+   explanations, constraints, recovery actions and decisions to those facts,
+   through the existing risks, issues, actions, decisions and comments, which
+   reference the activity, node or milestone they explain. Actual manpower is
+   recorded in the Weekly (who records it is open, `02` §26.19 B5).
+4. **One engine, dynamic sections.** PSM sections are Department → System →
+   Program & Study; Other-project sections are the configured Project
+   Structure units flagged for Weekly input. Each section shows the planning
+   facts mapped to it (`02` §26.3 H6).
+5. **Not planning-governed** projects keep typed progress, labelled "Reported —
+   not planning governed", with SPI "N/A" (`02` §26.14).
+
+### 4.8 Collaborative section comments (2026-10-14)
+
+Authorized departments and engineers add narrative **comments** in their own
+reporting section: General Comment, Progress Explanation, Constraint, Recovery
+Action, Technical Note, or Client / Department Input.
+
+- Each comment records its author, time, project, period and section, plus an
+  optional reference to the planning activity, node or milestone it explains.
+- **Comments are not planning facts.** They never change PV, EV, SPI, milestone
+  schedule state, manpower planning facts or the Published Planning Snapshot.
+- Engineers add comments and edit their own. The section's responsible user —
+  the Department Manager on PSM; the unit's Weekly Responsible / Backup on Other
+  Projects — reviews and summarises them.
+- This is reporting-comment scope only.
+
+Specification: `02_PLATFORM_ARCHITECTURE.md` §26.21; permissions: `05` §3.8.
+
 ---
 
 ## 5. Monthly Compilation Engine
@@ -202,6 +265,47 @@ Added at the Monthly tier — owned by the Monthly Report itself:
 Compiled content and Monthly-authored content are **distinct and separately identifiable**. Compiled content is never edited at the Monthly tier — correcting it means revising the Weekly it came from.
 
 This separation is what keeps traceability intact. Without it, a Monthly figure could diverge from its sources with no way to detect it.
+
+### 5.5 Month-end planning (Master Planning & Control, 2026-10-14)
+
+A Monthly pins the **month-end Published Planning Snapshot** — the latest with
+Data Date on or before the month end — and freezes it at approval. From it, and
+from the month-start snapshot (latest with Data Date on or before the previous
+month end), the Monthly presents:
+
+- progress, variance, SPI and schedule condition at month end;
+- the S-curves to the Data Date (baseline, current/forecast, earned);
+- **milestone movement** across the month — achieved, newly late, forecast
+  moved, re-baselined;
+- manpower for the month — planned from the snapshot, actual from the month's
+  approved Weeklies;
+- the next-month look-ahead.
+
+These are compiled content in the sense of §5.4: never edited at the Monthly
+tier. The "progress trend and planned-versus-actual position" of §5.3 is read
+from snapshots, not re-aggregated from Weekly figures.
+
+**Historical stability across Schedule Versions.** A project imports many
+Schedule Versions over its life (`02_PLATFORM_ARCHITECTURE.md` §26.22). An
+approved report stays on the snapshot it pinned. Example: the September Monthly
+is pinned to the 30-Sep snapshot, whose source is Schedule Version Rev 02. When
+Rev 03 is imported in October, **the September Monthly does not change**. The
+same holds for Weekly and Executive reports. Only the current Dashboard and the
+Planning workspace move to the latest published snapshot.
+
+A **Historical Correction** to a past period never silently changes an approved
+report or its pinned snapshot. If a past report must be corrected or reissued,
+that happens only through a **Report Revision** (§12), and the original stays
+readable unchanged.
+
+### 5.6 Monthly comments (2026-10-14)
+
+Approved Weekly section comments and narrative are **carried forward where
+relevant** as compiled content: referenced, never retyped and never edited
+here. The Monthly adds its own Monthly-specific comments and section summaries,
+scoped to the same PSM section or Other-project unit. No one retypes Weekly
+narrative to produce a Monthly. Comments remain narrative and never change a
+planning fact (`02_PLATFORM_ARCHITECTURE.md` §26.21).
 
 ---
 
@@ -261,6 +365,15 @@ Where a measure is not defined for a project type, that project is **excluded an
 ### 7.4 Coverage transparency
 
 Every portfolio figure declares its basis: how many projects contributed, for which period, and which are missing or excluded. A portfolio total without its coverage is not interpretable.
+
+### 7.5 Progress and SPI are never averaged (2026-10-14)
+
+Portfolio progress and SPI are **weighted** by one portfolio weight basis —
+budgeted man-hours where every eligible project has them, otherwise a
+Project-Control-Admin-assigned project weight — and are shown only when every
+in-scope project is eligible. Otherwise the portfolio shows the distribution of
+projects by SPI band, with every exclusion and its reason. Rules and formulas:
+`02_PLATFORM_ARCHITECTURE.md` §26.15.
 
 ---
 
@@ -412,9 +525,13 @@ A snapshot is written once, at approval, and never rebuilt.
 
 | Tier | Snapshot contains |
 |---|---|
-| **Weekly** | The period's own content, plus the master-data labels and branding in force |
-| **Monthly** | Compiled weekly content, its own added content, source references, coverage |
+| **Weekly** | The period's own content, plus the master-data labels and branding in force, **and the reference to its pinned Published Planning Snapshot** |
+| **Monthly** | Compiled weekly content, its own added content, source references, coverage, **and the references to its month-start and month-end Planning Snapshots** |
 | **Executive Summary** | Selected monthly content, what was excluded, narrative, source references |
+
+A Planning Snapshot is itself immutable (`02_PLATFORM_ARCHITECTURE.md`
+§26.8), so a report snapshot captures the **reference** to it, not a second
+copy of its figures.
 
 ---
 
@@ -711,6 +828,18 @@ The Workspace is the sole exception, and a narrow one: the team running a projec
 4. **Dashboards respect access before aggregating** (§7.2).
 5. **A dashboard can never disagree with a report.** If it does, the dashboard is defective.
 
+### 21.4 Published Planning Snapshots (2026-10-14)
+
+Project performance on every dashboard — PV / planned progress, EV / earned
+progress, variance, SPI, schedule condition, next key milestone, overdue and
+due-soon milestones, items due this week, planned vs actual manpower and the
+S-curve summary — is read from the **latest Published Planning Snapshot**
+(`02_PLATFORM_ARCHITECTURE.md` §26.13). Rule 1 above applies with "source
+report" read as "source snapshot (project, version, Data Date)". A typed
+Weekly or Monthly figure is never presented as planning-governed, and the
+portfolio never averages SPI or progress (§7.5). Reporting-status panels
+(cycle state, submissions, approvals) continue to read the reports.
+
 ---
 
 ## 22. Notifications
@@ -753,6 +882,13 @@ It presents: cycle open dates, submission cut-offs, review and approval deadline
 2. **The calendar never becomes a second source of dates.** Duplicating deadlines into calendar entities would immediately produce two disagreeing answers to when something is due.
 3. **The calendar is scoped to the reader**, showing only obligations within their assignments.
 4. **The calendar does not enforce.** A passed date changes a report's visible status; it does not transition it.
+
+### 23.3 Milestones on the calendar (2026-10-14)
+
+Milestones come from the **Published Planning Snapshot** (true milestones and
+linked governed milestones) and, for unlinked governed milestones, from the
+Master Milestone register. **Weekly and Monthly plan items are never shown as
+milestones** (`02_PLATFORM_ARCHITECTURE.md` §26.2 F5, §26.13).
 
 ---
 
@@ -822,6 +958,10 @@ An implementation conforms to this architecture when all of the following hold. 
 23. QR codes encode a reference to a specific revision, never data or credentials.
 24. Only approved, immutable output is published to the archive, and publication is one-way.
 25. The reporting engine functions fully with every external integration unavailable.
+26. *(2026-10-14)* Rules 1 and 21 are read as amended in §2: performance figures come from Published Planning Snapshots, which reports pin and dashboards present.
+27. *(2026-10-14)* A planning-governed report never accepts typed Planned % / Actual % / SPI; SPI is only EV ÷ PV from the snapshot, otherwise "N/A".
+28. *(2026-10-14)* Weekly and Monthly pins are frozen at approval; an approved report's planning facts never change.
+29. *(2026-10-14)* No report, dashboard or calendar treats a Weekly or Monthly plan item as a milestone.
 
 ---
 
@@ -843,6 +983,10 @@ Recorded so each is resolved deliberately rather than absorbed silently, per `CL
 | 10 | No output generation exists in any format | §17 and §18 |
 | 11 | No archive publication, QR resolution, or attachment storage exists | §15, §19 |
 | 12 | Approval, locking, and immutability are not enforced | §9, §10, and conformance rules 5–12 |
+| 13 | *(2026-10-14)* The Monthly milestone section reads the live milestone register, so an approved Monthly's milestone figures change after approval | Month-end snapshot pinned and frozen at approval (§5.5). Roadmap **13.19** |
+| 14 | *(2026-10-14)* Weekly/Monthly fall back to typed planned/actual progress and an Actual % ÷ Planned % SPI when not planning-backed | §4.7 rule 5 and conformance rule 27. Roadmap **13.14 / 13.17 / 13.19** |
+| 15 | *(2026-10-14)* Calendar and the Executive "next milestone", timeline and movement feed read Weekly/Monthly plan items as milestones | §23.3 and conformance rule 29. Roadmap **13.14** (Calendar), **13.20** (Executive) |
+| 16 | *(2026-10-14)* Weekly sections exist only for PSM departments; Other-project structure units have no Weekly section | §4.7 rule 4. Roadmap **13.18** |
 
 ---
 

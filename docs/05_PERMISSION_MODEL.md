@@ -27,7 +27,9 @@ This is a specification of the **target** model; unless a section says
 otherwise, nothing here is implemented. Sections that describe implemented,
 as-built rules are explicitly marked **Implemented** — currently §3.6
 (Phase 2C.1 project classification authority) and §3.7 (Phase 2C.3E Project
-Setup authority and archived projects).
+Setup authority and archived projects). §3.8 (Master Planning & Control
+authority, approved 2026-10-14) is **specification**, enforced slice by slice in
+roadmap Phase 13.
 
 ---
 
@@ -303,6 +305,77 @@ Rules:
 5. **Users never see the database's wording.** Refusals are shown as plain
    sentences.
 
+> **Amendment, effective with roadmap slice 13.18 (approved 2026-10-14).** On
+> Other projects the **Weekly Responsible and Weekly Backup** of a unit gain a
+> **reporting-write scope on their own unit's Weekly section only** (§3.8 rule
+> 2). Until 13.18 is implemented they stay in the authority-free list above.
+
+### 3.8 Master Planning & Control authority (specified 2026-10-14 — not implemented)
+
+**Specification, not yet enforced.** Architecture:
+[`02_PLATFORM_ARCHITECTURE.md`](02_PLATFORM_ARCHITECTURE.md) §26. Each row is
+enforced at the data boundary by the roadmap slice that builds it (Phase 13,
+13.9–13.20). **No new platform role is created**: every grant below uses an
+authority source already listed in §3.7.
+
+"Project Control" below means: System Administrator, Project Control Admin, or
+the project's assigned **Project Control Manager** (Project Control / Planning)
+— the same set that manages project operations today.
+
+| Action | Allowed | Refused |
+|---|---|---|
+| Edit the Working Plan — planning nodes, activities, local weights, earning methods, reporting-unit mapping, planned manpower | Project Control | Reporting Coordinator, every department or unit role, members, and anyone named responsible on a milestone, activity or task |
+| Import: upload, validate, map; accept or reject a **Schedule Version** and its differences; explicit weight normalisation; re-match; resolve a protected removal; accept a back-dated version as a **Historical Correction** (mandatory reason, recorded actor and time) (`02` §26.22) | Project Control | As above |
+| **Publish** a Planning Snapshot | Project Control | As above |
+| **Prepare / request** a re-baseline | The project's assigned Project Control / Planning; Project Control Admin; System Administrator | Everyone else |
+| **Approve / reject** a re-baseline | **Project Control Admin or System Administrator only** | The assigned Project Control / Planning (by that assignment alone), Reporting Coordinator, everyone else. Whether an approver may approve their own request is open (`02` §26.19 B3) |
+| Approve the **original** baseline BL0 | Specified as the re-baseline rule above, **pending confirmation** (`02` §26.19 B8) | — |
+| Record / promote an **Opening Position** | Project Control, in the Planning workspace only | Everyone else; Project Setup offers no entry for it (from 13.14) |
+| Governed milestones — identity, updates, decisions, reconciliation, linking to a true milestone | As built (13.2–13.2d): Project Control; reconciliation excludes the Reporting Coordinator | As built |
+| Manage Resource Categories (global master data) | System Administrator, Project Control Admin | Everyone else |
+| Assign a project's portfolio weight | Project Control Admin, System Administrator | Everyone else, including the project's own Project Control |
+| Re-pin a draft Weekly or Monthly to a newer snapshot (before approval) | The reporting workflow managers (Project Control and the assigned Reporting Coordinator) | Department and unit roles |
+| Confirm / explain planning facts in a Weekly section | That section's writers — PSM: the department roles of §3.7; Other projects: the unit's Weekly Responsible / Backup (from 13.18) — and the reporting workflow managers | Writers of other sections |
+| Record actual manpower in a Weekly | **Open** (`02` §26.19 B5) | — |
+| Planning setup — Guided or Advanced mode (`02` §26.20) | Project Control. Both modes edit the same Planning Configuration | Everyone else |
+| Manage Planning Setup Templates (recommended defaults) | System Administrator, Project Control Admin | Everyone else |
+| **Add** a Weekly / Monthly section comment, and **edit their own** (`02` §26.21) | PSM: the department's team members for their department's section (as built, §1.1). Other projects: the unit's active members for their unit's section — **pending B9** | Anyone outside that section |
+| **Review and summarise** a section's comments | PSM: the Department Manager for their department. Other projects: the unit's Weekly Responsible / Backup (from 13.18); Monthly per B2 | Anyone outside that section |
+| Any write above on an **archived** project | **Nobody** | Every role, every route |
+
+**Rules.**
+
+1. **Planning authority never comes from responsibility labels.** Being the
+   responsible person for a milestone, activity, unit or (future) task, a unit
+   lead or member, a project member, a party or a title grants **no** planning,
+   publishing or approval authority.
+2. **Other-project reporting-write scope** (from 13.18): a unit's Weekly
+   Responsible and Weekly Backup may enter and update only **their own unit's**
+   Weekly section — narrative, and confirmations and explanations of the
+   planning facts mapped to that unit — while the report accepts section input.
+   It grants no project, planning, publishing, approval, return, setup or
+   other-unit authority. Monthly Responsible / Backup are not covered (open,
+   `02` §26.19 B2).
+3. **Archived projects are read-only** for the Working Plan, imports, baselines,
+   publishing, governed milestones and manpower, at the data boundary
+   (roadmap 13.9). **Implemented 2026-10-15 (13.9, local development database
+   only):** `guard_archived_project_planning()` refuses every INSERT / UPDATE /
+   DELETE on the 16 Planning, Milestone and Deliverable tables of an archived
+   project — for every role, including System Administrator and Project Control
+   Admin, and including the SECURITY DEFINER publish path — with
+   `[PROJECT_ARCHIVED]` / 42501. `can_manage_project_operations()` is unchanged;
+   the trigger is the boundary. Reads are unaffected. Manpower tables do not
+   exist yet; they will carry the same guard when 13.13 adds them.
+4. **Reading** follows the existing visibility model (`02` §24.2): published
+   snapshots are official record; the Working Plan, raw imports and decisions
+   are shown only in the Planning workspace.
+5. **Reporting-comment scope is not planning authority** (`02` §26.21).
+   - Adding, editing one's own, reviewing or summarising section comments grants
+     no Planning, Project Setup, publishing, approval or return authority, and
+     nothing outside the commenter's own section.
+   - A comment never changes a planning fact or a Published Planning Snapshot.
+   - Comment history, soft delete and attribution follow §4.
+
 ---
 
 ## 4. Comments and notifications
@@ -503,6 +576,9 @@ can reach; "—" means the role has no authority for that action.
 | **Executive / Chairman** | Portfolio | Read approved output | Read approved output | Read | — |
 | **System Administrator** | Platform | Full | Full | Full, including audited hard delete (§4.3) | Roles, permission templates, workflow config, project and department assignments, delegation rules, job titles |
 
+Planning, publishing, re-baseline and manpower authority is not in this table;
+it is §3.8.
+
 ### Reconciliation — what this changes in existing documents
 
 Recorded so each change is made deliberately, per `CLAUDE.md`. **None of these
@@ -542,6 +618,9 @@ approval; none starts automatically.
 Steps 1–3 are prerequisites for everything else in this document. Building the
 approval gate (step 4) before role enforcement (step 3) would produce an
 approval that any user could perform.
+
+The §3.8 Master Planning & Control authorities are delivered by roadmap
+**Phase 13** (13.9–13.20), in the order recorded there, not by this table.
 
 ## 10. Acceptance criteria
 

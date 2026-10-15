@@ -154,7 +154,9 @@ Chairman Dashboard
 
 Each contributing department records its own progress, activities, risks, issues, and commitments for the week. The department reviews and submits its own contribution; the project assembles the submissions into a Weekly Report; project control reviews, returns for correction where necessary, and finalizes. Outstanding submissions are visible throughout, so chasing is a matter of looking rather than asking.
 
-The Weekly Report is the operational source of truth. Everything above it is compiled from it.
+The Weekly Report is the operational source of truth for **reporting entry** — department input, narrative, confirmations and explanations. Everything above it is compiled from it.
+
+**Planning and performance facts are not owned by the Weekly** *(2026-10-14, [`02_PLATFORM_ARCHITECTURE.md`](02_PLATFORM_ARCHITECTURE.md) §26)*. PV, EV, SPI, governed progress, schedule dates and milestone schedule state come from the **Published Planning Snapshot**, the canonical source. A Weekly pins that snapshot and may explain, confirm and enrich its facts, but it does not own their values.
 
 Departments enter data in the platform by default. Structured offline exchange remains available for contributors who genuinely cannot, and is validated on the way in.
 
