@@ -117,18 +117,18 @@ export const projectSections: ProjectSection[] = [
   },
   {
     id: "planning",
-    label: "Planning & Control",
+    label: "Planning Workspace",
     icon: Workflow,
     group: "Monitoring",
     description:
-      "The project's planning register and the Published Planning Snapshot Weekly and Monthly report against.",
+      "Master Plan, imports, baselines and the Published Planning Snapshot that Project Progress, Weekly and Monthly read.",
   },
   {
     id: "kpis",
     label: "Project Progress",
     icon: Gauge,
     group: "Monitoring",
-    description: "Baseline progress and schedule performance.",
+    description: "Read-only project performance from the Published Planning Snapshot.",
   },
   {
     id: "milestones",

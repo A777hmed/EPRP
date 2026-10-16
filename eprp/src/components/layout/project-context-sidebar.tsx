@@ -7,6 +7,7 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { activeProjectId, isNewProjectRoute } from "@/config/project-sections";
 import { cn } from "@/lib/utils";
 import { ProjectContextNav } from "./project-nav-group";
+import { useCompactViewport } from "./use-compact-viewport";
 
 const COLLAPSE_STORAGE_KEY = "eprp:project-sidebar-collapsed";
 
@@ -18,22 +19,6 @@ const COLLAPSE_STORAGE_KEY = "eprp:project-sidebar-collapsed";
 const PANEL_SURFACE =
   "bg-[color-mix(in_oklab,var(--sidebar)_96%,var(--sidebar-foreground)_4%)]";
 
-/** True in the medium/laptop band where a permanent 216px column is too wide. */
-function useCompactViewport() {
-  const [isCompact, setIsCompact] = React.useState(false);
-
-  React.useEffect(() => {
-    const mql = window.matchMedia(
-      "(min-width: 768px) and (max-width: 1023.98px)"
-    );
-    const update = () => setIsCompact(mql.matches);
-    update();
-    mql.addEventListener("change", update);
-    return () => mql.removeEventListener("change", update);
-  }, []);
-
-  return isCompact;
-}
 
 /**
  * The second-level, project-contextual sidebar column: desktop only, and

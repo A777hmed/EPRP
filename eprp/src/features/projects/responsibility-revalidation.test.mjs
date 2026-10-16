@@ -168,6 +168,8 @@ test("PersonField re-validates on selection, and only PersonField changed", () =
   assert.match(personField, /onBlur=\{field\.onBlur\}/);
   assert.match(form, /mode: "onBlur",/);
   // The generic managed select field is out of scope and untouched.
-  const managed = form.slice(form.indexOf("function ManagedSelectField("), form.indexOf("const ONBOARDING_MODE_OPTIONS"));
+  const managedStart = form.indexOf("function ManagedSelectField(");
+  const managed = form.slice(managedStart, form.indexOf("\n/* ---", managedStart));
+  assert.match(managed, /^function ManagedSelectField\(/);
   assert.doesNotMatch(managed, /field\.onBlur\(\)/);
 });

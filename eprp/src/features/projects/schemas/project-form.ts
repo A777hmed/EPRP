@@ -398,7 +398,7 @@ function addFinalIssues(values: BaseValues, ctx: z.RefinementCtx): void {
   );
 
   // Status & progress
-  require(["currentPhaseId"], !!values.currentPhaseId, "Select the current phase");
+  require(["currentPhaseId"], !!values.currentPhaseId, "Select the project lifecycle phase");
   const running = RUNNING_STATUSES.includes(values.status);
   if (running) {
     const statusLabel = PROJECT_LIFECYCLE_META[values.status].label.toLowerCase();
@@ -409,7 +409,7 @@ function addFinalIssues(values: BaseValues, ctx: z.RefinementCtx): void {
     );
     // Planned/Actual progress are no longer entered here — they are governed
     // performance read from the project's Published Planning Snapshot
-    // (see GovernedPerformancePanel). Requiring them on this hidden pair
+    // (Project Progress; Planning Status in Planning Entry). Requiring them on this hidden pair
     // would block Save on a field the user has no way to fix.
   }
   if (values.status === "completed") {

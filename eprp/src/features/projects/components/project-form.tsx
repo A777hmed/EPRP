@@ -35,16 +35,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/shared";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import {
-  PRIORITY_META,
-  PROJECT_LIFECYCLE_META,
-} from "@/lib/constants";
+import { PROJECT_LIFECYCLE_META } from "@/lib/constants";
 import type {
   Client,
   Contact,
   PlanningOnboardingMode,
-  Priority,
   Project,
   ProjectLifecycleStatus,
 } from "@/types";
@@ -99,7 +94,7 @@ import { isSetupReadOnly } from "@/features/projects/setup-save";
 import { memberPickerPool, type MemberPickerPool } from "../project-team";
 import { ProjectScopeSummary } from "./project-scope-summary";
 import { LogoUploadField } from "./logo-upload-field";
-import { GovernedPerformancePanel } from "./governed-performance-panel";
+import { PlanningEntry } from "./planning-entry";
 import {
   clearNewProjectDraft,
   setNewProjectDraft,
@@ -267,54 +262,6 @@ function ManagedSelectField({
         />
       )}
     </RhfField>
-  );
-}
-
-const ONBOARDING_MODE_OPTIONS: { value: PlanningOnboardingMode; label: string }[] = [
-  { value: "new_project", label: "New Project — plan from zero" },
-  { value: "existing_active_project", label: "Existing Active Project — publish an Opening Position as Snapshot V1" },
-  { value: "no_formal_schedule", label: "No Formal Schedule — tracked without a formal schedule" },
-];
-
-/**
- * Planning Onboarding Mode — deliberately NOT a react-hook-form field.
- *
- * It lives in `project_planning_settings`, a separate table saved through
- * `planningService.upsertSettings()` after the project itself saves (see
- * `onValid` below), not through `toProjectInput`. Built by hand from the same
- * `Field`/`FieldLabel`/`FieldDescription` primitives `RhfField` uses, so it
- * reads identically to every other field on this form.
- */
-function PlanningOnboardingModeField({
-  value,
-  onChange,
-}: {
-  value: PlanningOnboardingMode;
-  onChange: (value: PlanningOnboardingMode) => void;
-}) {
-  const id = React.useId();
-  return (
-    <Field>
-      <FieldLabel htmlFor={id}>
-        Planning Onboarding Mode
-        <span className="text-xs font-normal text-muted-foreground">Optional</span>
-      </FieldLabel>
-      <Select value={value} onValueChange={(v) => onChange(v as PlanningOnboardingMode)}>
-        <SelectTrigger id={id} className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {ONBOARDING_MODE_OPTIONS.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <FieldDescription>
-        How this project enters Planning & Control. Saved once the project itself is saved.
-      </FieldDescription>
-    </Field>
   );
 }
 
@@ -842,10 +789,6 @@ function TextareaField({
 const statusOptions = (
   Object.keys(PROJECT_LIFECYCLE_META) as ProjectLifecycleStatus[]
 ).map((s) => ({ value: s, label: PROJECT_LIFECYCLE_META[s].label }));
-const priorityOptions = (Object.keys(PRIORITY_META) as Priority[]).map((p) => ({
-  value: p,
-  label: PRIORITY_META[p].label,
-}));
 const asOptions = (values: readonly string[]) =>
   values.map((v) => ({ value: v, label: v }));
 
@@ -1076,16 +1019,26 @@ export function ProjectForm({
     return () => clearNewProjectDraft();
   }, [isNewProject]);
 
-  // Planning Onboarding Mode lives in project_planning_settings, a separate
-  // table this form does not otherwise touch — see PlanningOnboardingModeField
-  // and the save call in onValid below.
+  // Planning Onboarding Mode — deliberately NOT a react-hook-form field. It
+  // lives in project_planning_settings, a separate table saved through
+  // planningService.upsertSettings() after the project itself saves (see
+  // performSubmit below), not through toProjectInput. Section 5, Planning
+  // Entry, asks for it as a guided question (13.9A).
   const [onboardingMode, setOnboardingMode] =
+    React.useState<PlanningOnboardingMode>("new_project");
+  // What is actually stored, so an unsaved guided answer counts as unsaved
+  // work (13.9A hardening) — it is not a react-hook-form field, so isDirty
+  // alone never saw it.
+  const [savedOnboardingMode, setSavedOnboardingMode] =
     React.useState<PlanningOnboardingMode>("new_project");
   React.useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
     void planningService.getSettings(projectId).then((settings) => {
-      if (!cancelled && settings) setOnboardingMode(settings.onboardingMode);
+      if (!cancelled && settings) {
+        setOnboardingMode(settings.onboardingMode);
+        setSavedOnboardingMode(settings.onboardingMode);
+      }
     });
     return () => {
       cancelled = true;
@@ -1276,7 +1229,8 @@ export function ProjectForm({
     setEditingRow(`position:new:${currentPositions.length}`);
   };
 
-  const hasUnsavedWork = formState.isDirty || masterTouched;
+  const onboardingUnsaved = onboardingMode !== savedOnboardingMode;
+  const hasUnsavedWork = formState.isDirty || masterTouched || onboardingUnsaved;
 
 
   /*
@@ -1295,19 +1249,29 @@ export function ProjectForm({
       // Adopt confirmed UUIDs so another save never recreates newly added parties.
       setValue("subcontractors", projectToFormValues(saved).subcontractors);
     }
-    // Best-effort: Planning configuration is supplementary to the project
-    // save that just succeeded, and only meaningful once the project exists.
-    // A brand-new project (no projectId yet) picks this up on its next edit.
-    if (projectId) {
-      try {
-        await planningService.upsertSettings({ projectId, onboardingMode });
-      } catch (error) {
-        toast.warning(
-          error instanceof Error
-            ? error.message
-            : "Planning Onboarding Mode could not be saved."
-        );
-      }
+    await persistOnboardingMode();
+  };
+
+  /*
+   * Planning configuration is supplementary to a project save that just
+   * succeeded, and only meaningful once the project exists (a brand-new
+   * project chooses it after its first save). BOTH saves — Save Changes /
+   * Save & Continue AND Save Draft — write it: before the 13.9A UAT fix only
+   * the submit path did, so "Draft saved" silently left the guided answer
+   * unstored and still "Not saved yet". On success the stored baseline moves,
+   * clearing the unsaved / Pending Save state; on failure it stays unsaved.
+   */
+  const persistOnboardingMode = async () => {
+    if (!projectId) return;
+    try {
+      const stored = await planningService.upsertSettings({ projectId, onboardingMode });
+      setSavedOnboardingMode(stored.onboardingMode);
+    } catch (error) {
+      toast.warning(
+        error instanceof Error
+          ? error.message
+          : "Planning Onboarding Mode could not be saved."
+      );
     }
   };
 
@@ -1369,8 +1333,9 @@ export function ProjectForm({
     try {
       setSavingDraft(true);
       const saved = await onSaveDraft(values);
-      toast.success("Draft saved");
       form.reset(saved ? { ...values, subcontractors: projectToFormValues(saved).subcontractors } : values);
+      await persistOnboardingMode();
+      toast.success("Draft saved");
     } finally {
       setSavingDraft(false);
     }
@@ -1458,8 +1423,8 @@ export function ProjectForm({
       {summary && <FormErrorSummary title={summary.title} errors={summary.errors} />}
 
       <ProjectFormSection
-        title="1. Basic Information"
-        description="Identity and contract references."
+        title="1. Basic Information & Classification"
+        description="Identity, classification, contract references and portfolio grouping."
         status={sectionStatuses[1]}
       >
         <div className="space-y-4 sm:col-span-2">
@@ -1499,12 +1464,13 @@ export function ProjectForm({
           // field and rule until the one-time classification above is made.
           <ManagedSelectField control={control} name="projectTypeId" label="Project Category" required kind="projectType" placeholder="Search or select project category…" onMutated={markMasterTouched} />
         )}
+        <ManagedSelectField control={control} name="portfolioGroupId" label="Portfolio / Reporting Group" optional kind="portfolioGroup" placeholder="Search or select group…" allowClear onMutated={markMasterTouched} />
         <TextareaField control={control} name="description" label="Project Description" required placeholder="Scope, objectives, and context for this project…" />
       </ProjectFormSection>
 
       <ProjectFormSection
-        title="2. Project Dates"
-        description="Contract, planned, actual, and forecast dates."
+        title="2. Contract & Reference Dates"
+        description="Contract and reference dates. Once a plan is published, schedule dates are governed by the Published Planning Snapshot."
         status={sectionStatuses[2]}
       >
         <DateField control={control} name="contractStartDate" label="Contract Start Date" optional />
@@ -1545,26 +1511,41 @@ export function ProjectForm({
         />
       </ProjectFormSection>
 
+      {/* 13.9A: the former "Status & Progress" section is split. Lifecycle
+          stays here; Portfolio / Reporting Group moved to section 1; Priority
+          is no longer shown (its stored value is kept and saved unchanged);
+          planning lives in Planning Entry; performance is read in Project
+          Progress, never typed here. */}
       <ProjectFormSection
-        title="4. Status & Progress"
-        description="Lifecycle and configuration you own here; performance is governed by Master Planning & Control."
+        title="4. Project Lifecycle"
+        description="Where the project is in its life. Administrative only — schedule performance comes from planning."
         status={sectionStatuses[4]}
-        plain
       >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <SelectField control={control} name="status" label="Project Status" required options={statusOptions} />
-          <ManagedSelectField control={control} name="currentPhaseId" label="Current Phase" required kind="projectPhase" placeholder="Search or select phase…" onMutated={markMasterTouched} />
-          <SelectField control={control} name="priority" label="Priority" required options={priorityOptions} />
-          <ManagedSelectField control={control} name="portfolioGroupId" label="Portfolio / Reporting Group" optional kind="portfolioGroup" placeholder="Search or select group…" allowClear onMutated={markMasterTouched} />
-          <PlanningOnboardingModeField value={onboardingMode} onChange={setOnboardingMode} />
-        </div>
-        <GovernedPerformancePanel project={project} />
+        <SelectField control={control} name="status" label="Project Status" required options={statusOptions} />
+        <ManagedSelectField control={control} name="currentPhaseId" label="Project Lifecycle Phase" required kind="projectPhase" placeholder="Search or select phase…" onMutated={markMasterTouched} />
       </ProjectFormSection>
 
       <ProjectFormSection
-        title="5. Reporting Configuration"
+        id="planning-entry"
+        title="5. Planning Entry"
+        description="How the project comes under planning control. Plan details are kept in the Planning Workspace."
+        plain
+      >
+        <PlanningEntry
+          project={project}
+          value={onboardingMode}
+          onChange={setOnboardingMode}
+          readOnly={isSetupReadOnly(project)}
+          unsavedChanges={hasUnsavedWork}
+          onboardingUnsaved={onboardingUnsaved}
+          savedValue={savedOnboardingMode}
+        />
+      </ProjectFormSection>
+
+      <ProjectFormSection
+        title="6. Reporting Configuration"
         description="Which reports this project produces and when. At least one reporting type must be enabled."
-        status={sectionStatuses[5]}
+        status={sectionStatuses[6]}
       >
         <SwitchField control={control} name="weeklyEnabled" label="Weekly Reporting Enabled" />
         <SwitchField control={control} name="monthlyEnabled" label="Monthly Reporting Enabled" />
@@ -1577,9 +1558,9 @@ export function ProjectForm({
       </ProjectFormSection>
 
       <ProjectFormSection
-        title="6. Contact & Location"
+        title="7. Contact & Location"
         description="Where the project runs and who to reach at the client."
-        status={sectionStatuses[6]}
+        status={sectionStatuses[7]}
       >
         <TextField control={control} name="site" label="Primary Site" required placeholder="e.g. SOPC Refinery" />
         <TextField control={control} name="country" label="Country" required />
@@ -1687,9 +1668,9 @@ export function ProjectForm({
       </ProjectFormSection>
 
       <ProjectFormSection
-        title="7. Linked Scope"
+        title="8. Scope & Structure"
         description="Departments, systems, and contacts linked to this project. Each record is shared master data — open or edit it on its own page and you will be returned here."
-        status={sectionStatuses[7]}
+        status={sectionStatuses[8]}
         plain
       >
         <div data-field-name="departments">
@@ -1703,9 +1684,9 @@ export function ProjectForm({
       </ProjectFormSection>
 
       <ProjectFormSection
-        title="8. Branding & Report Settings"
+        title="9. Branding & Report Settings"
         description="Separate EPROM/company and Client identity, plus report title, reference, QR, and signature preferences."
-        status={sectionStatuses[8]}
+        status={sectionStatuses[9]}
       >
         <LogoUploadField control={control} name="projectLogoRef" label="EPROM / Company Logo" />
         <LogoUploadField control={control} name="clientLogoRef" label="Client Logo" />

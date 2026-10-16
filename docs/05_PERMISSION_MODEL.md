@@ -330,7 +330,7 @@ the project's assigned **Project Control Manager** (Project Control / Planning)
 | **Prepare / request** a re-baseline | The project's assigned Project Control / Planning; Project Control Admin; System Administrator | Everyone else |
 | **Approve / reject** a re-baseline | **Project Control Admin or System Administrator only** | The assigned Project Control / Planning (by that assignment alone), Reporting Coordinator, everyone else. Whether an approver may approve their own request is open (`02` §26.19 B3) |
 | Approve the **original** baseline BL0 | Specified as the re-baseline rule above, **pending confirmation** (`02` §26.19 B8) | — |
-| Record / promote an **Opening Position** | Project Control, in the Planning workspace only | Everyone else; Project Setup offers no entry for it (from 13.14) |
+| Record / promote an **Opening Position** | Project Control, in Planning Workspace → Baselines & Snapshots only | Everyone else. Project Setup offers no entry for it (from **13.9A**; previously scheduled for 13.14) |
 | Governed milestones — identity, updates, decisions, reconciliation, linking to a true milestone | As built (13.2–13.2d): Project Control; reconciliation excludes the Reporting Coordinator | As built |
 | Manage Resource Categories (global master data) | System Administrator, Project Control Admin | Everyone else |
 | Assign a project's portfolio weight | Project Control Admin, System Administrator | Everyone else, including the project's own Project Control |
@@ -375,6 +375,41 @@ the project's assigned **Project Control Manager** (Project Control / Planning)
      nothing outside the commenter's own section.
    - A comment never changes a planning fact or a Published Planning Snapshot.
    - Comment history, soft delete and attribution follow §4.
+
+### 3.9 Project Setup control and amendment authority (approved 2026-10-15 — not implemented)
+
+**Specification, not yet enforced.** Architecture:
+[`02_PLATFORM_ARCHITECTURE.md`](02_PLATFORM_ARCHITECTURE.md) §26.23.6–§26.23.8.
+- **13.9A:** changes no authority. It only moves and relabels existing actions.
+- **Enforcement:** roadmap slice **13.9B — Project Setup Governance** (`02`
+  §26.19 B11, closed 2026-10-15), at the data boundary (RLS / service) and in
+  the UI.
+- **No new platform role is created.**
+
+"Setup managers" means the existing Project Setup authority of §3.7: System
+Administrator, Project Control Admin, or the project's assigned Project Control
+Manager.
+
+| Action | Allowed | Refused |
+|---|---|---|
+| Edit setup before the project is **Controlled** (Draft / Ready for Planning) | Setup managers, exactly as §3.6–§3.7 today | As today |
+| **Free / logged** edits once Controlled: Lifecycle Status, Lifecycle Phase, Portfolio / Reporting Group, Team, Responsibilities, Contacts, Location, Branding, Description | Setup managers. Team and responsibility changes keep every §3.7 rule | As today |
+| **Lightweight amendment**, with mandatory reason: Project Name / Short Name and other justified non-planning metadata | Setup managers | Everyone else |
+| **Request** a governed amendment: Project Code, Client / Owner, Project Classification, Planning Onboarding Mode, structure-family or governed scope, reporting frequency / cut-off, contractual and other interpretation-changing configuration | Setup managers | Everyone else |
+| **Approve / reject** a governed amendment | **A Project Control Admin or System Administrator other than the requester** (`02` §26.19 B12, closed) | **The requester, whatever their role.** Also refused: the assigned Project Control Manager by that assignment alone, and everyone else. No break-glass or self-approval exception exists |
+| Change a **locked Project Type** | **System Administrator only**, through the existing correction (§3.6). Once Controlled it is also recorded as a setup amendment | Everyone else, unchanged |
+| Edit Setup **Planned Start / Planned Finish** after an approved BL0 | **Nobody.** Dates change only through Planning re-plan or re-baseline (§3.8) | Every role |
+| **Finalise Project Setup** for a no-formal-schedule project (`02` §26.23.6) | System Administrator, Project Control Admin, or the project's **assigned Project Control / Planning**, after explicit confirmation | The Reporting Coordinator, department users, and project members on the strength of membership alone |
+| **Add a Reported Progress entry** ("Update Reported Progress") for a no-formal-schedule project (`02` §26.14; from 13.9B) | Project Control, the same set that holds "Update progress" today. Entries are append-only, and a correction is a new entry | Everyone else. **Nobody** on a planning-governed project. Weekly and Monthly reference the latest entry but never write it |
+| Read setup amendments | Through Project History, under the existing visibility model (`02` §24.2) | — |
+| Any write above on an **archived** project | **Nobody** | Every role, every route (§3.7 rule 4, 13.9) |
+
+**Rules.**
+1. **Amendments, Setup Finalisation records and Reported Progress entries are
+   append-only.** Nobody edits or deletes them, including a System
+   Administrator.
+2. **Responsibility labels never grant amendment or approval authority.**
+   §3.8 rule 1 applies unchanged.
 
 ---
 

@@ -482,7 +482,7 @@ function infoChecks(project: InfoCheckInput): WorkflowCheck[] {
     check("Client selected", Boolean(project.clientId)),
     // PSM: the family alone; Other: family + category; legacy: a type chosen.
     check("Project type selected", isClassificationComplete(project)),
-    check("Current phase selected", Boolean(project.currentPhaseId)),
+    check("Project lifecycle phase selected", Boolean(project.currentPhaseId)),
     check("Planned start date", Boolean(project.plannedStartDate)),
     check("Planned finish date", Boolean(project.plannedFinishDate)),
     check("Project manager assigned", Boolean(project.projectManagerId)),

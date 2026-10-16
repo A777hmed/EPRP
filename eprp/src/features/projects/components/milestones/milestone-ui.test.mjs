@@ -92,7 +92,9 @@ test("project labels change while the kpis route and milestone type control rema
   assert.match(overviewNav, /id: "kpis", label: "Project Progress"/);
   assert.match(overview, /<Section id="kpis">[\s\S]*?title="Project Progress"/);
   assert.match(page, /case "kpis":[\s\S]*?return <KpiSection/);
-  assert.match(page, /title="Project Progress"/);
+  // 13.9A: the kpis route renders the Project Progress analytical workspace,
+  // titled by the section definition ("Project Progress") in the page header.
+  assert.match(page, /return <ProjectProgressView project=\{project\} position=\{position\} \/>/);
   assert.match(form, /<Label htmlFor="milestone-type">Milestone type<\/Label>/);
   assert.match(form, /const TYPES: MilestoneType\[\] = \["technical", "contractual", "commercial"\]/);
   assert.match(service, /milestone_type: input\.type/);

@@ -418,6 +418,14 @@ This is deliberate: a stored setup status becomes wrong the moment data changes 
 
 Which steps a project has is itself derived from its Project Type (§4.5). A new, unsaved project shows only step 1 as workable; every later step is visible but locked until the first save.
 
+> **Amended 2026-10-15 (§26.23.6).** The setup state **Draft → Ready for
+> Planning → Controlled** stays derived. Draft and Ready for Planning are
+> derived from the setup checks above. Controlled is derived from an
+> **immutable governance anchor**: an approved BL0, the first Published
+> Planning Snapshot (including a promoted Opening Position), or, for a
+> no-formal-schedule project, an append-only Setup Finalisation record. No
+> mutable status column is introduced, so the rule above still holds.
+
 ### 11.2 Submission workflow — department to report
 
 Governs one department's contribution to one reporting period.
@@ -1243,7 +1251,9 @@ reset; retains the agreed master data; and admits its administrator.
 implemented.** This section is the single implementation contract for project
 planning, project performance (progress, PV, EV, variance, SPI, S-curves),
 milestone schedule data, manpower, and schedule import. The delivery slices that
-implement it are roadmap Phase 13, sub-phases **13.8–13.21**
+implement it are roadmap Phase 13, sub-phases **13.8–13.21**, plus the
+pre-engine sub-slices **13.9A** (UI / IA) and **13.9B** (Project Setup
+Governance) (§26.23)
 ([`15_DEVELOPMENT_ROADMAP.md`](15_DEVELOPMENT_ROADMAP.md) Phase 13).
 
 **Authority.** On planning, performance, milestone-date and manpower matters,
@@ -1752,8 +1762,8 @@ project-level section.
 
 | Consumer | Reads | Shows | Never |
 |---|---|---|---|
-| **Project Setup — Governed Performance** | Latest snapshot | **Read-only** PV, EV, SV, SPI, schedule condition, Data Date, version, coverage; the onboarding mode; a link to the Planning workspace | Any editable Planned / Actual / Variance / SPI field. *As built, this panel can also record and promote an Opening Position (declared planned / actual %); that action moves to the Planning workspace only (13.14), where it already exists* |
-| **Project Progress** | Latest snapshot (history: earlier snapshots) | KPI strip; WBS roll-up with local and effective weights and per-node PV/EV/SPI; S-curves; milestones; manpower histogram | The project record's stored progress; percent-ratio SPI; a manual "update progress" route |
+| **Project Setup — Planning Status** (compact; replaces the Governed Performance block, §26.23.4) | Latest snapshot | **Read-only**: snapshot version, Data Date, PV, EV, variance (SV), SPI, schedule condition, and a link to Project Progress. Onboarding Mode and the setup state sit beside it in Planning Entry | Any editable Planned / Actual / Variance / SPI field; large performance cards; any Opening Position action. *As built, the Governed Performance panel also records and promotes an Opening Position. That action moves to Planning Workspace → Baselines & Snapshots only, in **13.9A** (previously scheduled for 13.14)* |
+| **Project Progress** (read-only analytical workspace, §26.23.8) | Latest snapshot (history: earlier snapshots) | Performance header; KPI row; S-curve; WBS / Control Account performance with local and effective weights and per-node PV/EV/SPI; exceptions and schedule health; manpower later, as a separate section | The project record's stored progress; percent-ratio SPI; a manual "update progress" route for a planning-governed project. *Only a no-formal-schedule project offers "Update Reported Progress", writing to the Reported Progress stream (§26.14, from 13.9B)* |
 | **Calendar** | Latest snapshot; unlinked governed milestones from the register | True milestones and governed milestones as points (actual if achieved, else forecast, with BLn in detail); look-ahead work only as a separate entry type | Weekly or Monthly plan items read as milestones |
 | **Weekly** | Its pinned snapshot | §26.11 planning facts per section | Typed progress or SPI for a planning-governed project |
 | **Monthly** | Approved Weeklies + its pinned month-end snapshot | §26.11 Monthly content | The live milestone register; recomputed figures |
@@ -1778,7 +1788,30 @@ schedule" — is **not planning-governed**:
 - it is excluded from portfolio progress and SPI aggregates and listed as such
   (§26.15);
 - once its first v2 snapshot is published, typed progress locks for every later
-  report.
+  report;
+- **"Update Reported Progress"** (approved 2026-10-15, D7; storage closed by
+  B14) is a lightweight action on Project Progress, offered **only** for
+  onboarding mode "no formal schedule". It is visibly labelled "Reported — not
+  planning governed", and SPI stays "N/A". A planning-governed project never
+  updates progress manually from Project Progress.
+- **Reported Progress stream** (B14, closed 2026-10-15). For a
+  "no formal schedule" project, the canonical progress source is a dedicated,
+  append-only **Reported Progress stream**. Each entry preserves:
+  - the project;
+  - the Data Date (as-of date);
+  - reported planned progress, where applicable;
+  - reported actual progress;
+  - a narrative / comment;
+  - the actor and timestamp;
+  - the source / provenance.
+- **Who does not own the value.**
+  - The project record's `planned_progress` / `actual_progress` fields are
+    **not** the canonical source.
+  - Weekly and Monthly are **not** the canonical source either. They may
+    reference or consume the latest applicable entry, but never own the value.
+  - Entries are never edited or overwritten; a correction is a new entry.
+  - The stream and its write workflow are delivered by **13.9B**. Until then,
+    no surface offers the write action and no temporary store is introduced.
 
 An **Opening Position** snapshot (a project onboarded mid-execution) is
 planning-governed with declared figures and SPI "N/A". A **legacy** snapshot
@@ -1832,6 +1865,16 @@ Weekly/Monthly comments (§26.21) belong to **13.17** (PSM Weekly), **13.18**
 history (§26.22) belong to **13.16** (Import v2), with snapshot provenance and
 Baseline Revisions in **13.12**. None of these changes the slice order.
 
+**13.9A — Planning Experience Foundation** (approved 2026-10-15) is a
+pre-engine **UI / information-architecture** sub-slice between 13.9 and 13.10.
+It applies the navigation, Planning Workspace, Project Setup and Project
+Progress structure of §26.23. It computes nothing and changes no schema or data
+ownership. Later slices fill the structure it creates (§26.23.9). **13.9B —
+Project Setup Governance** (B11, closed 2026-10-15) follows it and delivers setup
+control, setup amendments, the no-formal-schedule finalisation record and the
+Reported Progress stream. It is separate from the Planning Engine. Sequence:
+13.9A → 13.9B → 13.10. The existing slices are not renumbered.
+
 ### 26.18 Statements this section amends
 
 | Where | Previously | Now |
@@ -1847,6 +1890,9 @@ Baseline Revisions in **13.12**. None of these changes the slice order.
 | `06` §8.9 / `05` §3.7 | Weekly Responsible / Backup grant no report-writing right | Amended for Other projects from 13.18 (§26.12) |
 | `08` §6.2, §13.3 rule 4 | Completion from weighted lifecycle stages | Completion = snapshot EV% (amended in `08`) |
 | `specs/weekly-report.md` §5 | SPI = actual ÷ planned | Superseded by §26.7 rule 3 |
+| §11.1 | Setup workflow is derived and never stored | Still derived. The Controlled state is derived from immutable governance anchors (§26.23.6) |
+| §26.13 *(2026-10-14)* | Opening Position leaves Project Setup in 13.14; Setup keeps a Governed Performance block | It leaves in **13.9A**; Setup keeps only a compact read-only Planning Status (§26.23.4) |
+| Project master data *(as built)* | `overallStatus` as a manual executive health verdict; Priority required in Setup | `overallStatus` is retired as a performance input in favour of Schedule Condition (§26.23.5). Priority is removed from the UI, both the Setup field and the header badge; its stored value is kept (§26.23.4). Lifecycle Status values follow B13 (§26.23.5) |
 
 ### 26.19 Open decisions and conformance
 
@@ -1864,6 +1910,10 @@ Baseline Revisions in **13.12**. None of these changes the slice order.
 | B8 | Who approves the **original** baseline BL0: the re-baseline rule (Project Control Admin or System Administrator only), as specified in §26.8, or the project's assigned Project Control | 13.12 |
 | B9 | Other projects: confirm that a unit's **active members** are the "engineers" who may author comments in that unit's section (§26.21). Unit membership is authority-free today (`06` §8.9) | 13.18 |
 | ~~B10~~ | **CLOSED 2026-10-14 (owner decision).** Back-dated Schedule Versions are accepted only through the explicit **Historical Correction** workflow. Operational versions must be dated on or after the latest accepted operational version (§26.22.2). Also closed: **one Schedule Version Under Review per project** at a time | — |
+| ~~B11~~ | **CLOSED 2026-10-15 (owner decision).** Setup-control enforcement gets its own slice, **13.9B — Project Setup Governance**, between 13.9A and 13.10. 13.12 is not overloaded (§26.23.9) | — |
+| ~~B12~~ | **CLOSED 2026-10-15 (owner decision).** A requester may **never** approve their own governed setup amendment. Approval needs a **different** eligible Project Control Admin or System Administrator. There is no break-glass or self-approval exception; if operational evidence later shows one is needed, it is specified as a separate governance decision. Lightweight amendments, which need no approval, are unaffected | — |
+| ~~B13~~ | **CLOSED 2026-10-15 (owner decision).** Canonical Project Lifecycle Status values: **Draft · Active · On Hold · Completed · Cancelled · Archived**. The legacy `planning` and `delayed` stay readable on existing records and later stop being offered as new choices (§26.23.5). Nothing is migrated in 13.9A | — |
+| ~~B14~~ | **CLOSED 2026-10-15 (owner decision).** "No formal schedule" progress lives in a dedicated append-only **Reported Progress stream** (§26.14), delivered by 13.9B. It is neither the project-record progress fields nor Weekly. 13.9A shows only the read-only "Reported — not planning governed" state | — |
 
 **Conformance — an implementation conforms to §26 when:**
 
@@ -1883,15 +1933,19 @@ Baseline Revisions in **13.12**. None of these changes the slice order.
 14. No report comment changes a planning fact or a Published Planning Snapshot (§26.21).
 15. Every import is a preserved Schedule Version, compared against the latest accepted version and accepted or rejected by Project Control, one under review at a time. No Schedule Version changes BL0 or BLn, overwrites an earlier version, or rewrites a published snapshot. A back-dated version is accepted only as a Historical Correction, which never becomes current and never alters a snapshot or an approved report (§26.22).
 16. Items removed from the schedule are archived, never deleted, and protected items cannot be removed without explicit resolution (§26.22.5).
+17. Each planning concern has one home (§26.23.1): no second milestone register, no performance view inside the Planning Workspace, and no Opening Position action outside Baselines & Snapshots.
+18. Once a project is Controlled, its governed setup configuration changes only through an append-only setup amendment. Approved reports, snapshots and baselines keep the values they recorded (§26.23.6–§26.23.7).
 
 ### 26.20 Guided Planning Setup — UX / product principle (approved 2026-10-14)
 
 **Principle.** A user must be able to configure a project's planning without
 first learning planning terminology. EPRP offers a **Guided Setup** that asks
 plain business questions, and an **Advanced mode** that exposes the same
-canonical configuration directly for Planning Engineers. Delivered with the
-Planning Setup work of **13.11**; later slices add their own questions to the
-same guided flow (§26.17, roadmap 13.11).
+canonical configuration directly for Planning Engineers. **The pattern starts
+in 13.9A** (approved 2026-10-15, §26.20.1), using only configuration that exists
+today. The configuration questions are delivered with the Planning Setup work
+of **13.11**, and later slices add their own questions to the same guided flow
+(§26.17, roadmap 13.11).
 
 **Guided questions and the configuration each answer sets**
 
@@ -1932,6 +1986,88 @@ same guided flow (§26.17, roadmap 13.11).
    or deletes Working Plan data, baselines or snapshots.
 5. **Authority and archive.** Planning setup is Project Control
    (`05` §3.8). Archived projects are read-only (§26.3 H10).
+6. **Business language, short and progressive.**
+   - Questions use business language, never database or planning-engine
+     terms.
+   - Groups are short and revealed progressively. Each answer may say why it
+     matters.
+   - A recommended default is shown only where it is justified.
+   - **"Skip for now"** is offered only when the configuration is genuinely
+     optional.
+7. **The guided pattern has a limited footprint.** It does not turn the
+   application into a wizard. Guided questions live in:
+   - Project Setup → **Planning Entry**;
+   - Planning Workspace → **Summary**;
+   - later, the Weekly / Monthly confirmation workflows.
+
+   **Master Plan, Imports & Review and Baselines & Snapshots** remain
+   professional workspaces. They are the Advanced path.
+
+#### 26.20.1 Guided experience in 13.9A (approved 2026-10-15)
+
+13.9A introduces the guided pattern **without a second configuration system**.
+A question is interactive and persisted in 13.9A **only if its canonical model
+already exists today**. Every other question waits for the slice that owns its
+model. No temporary or competing store is created, and no migration or schema
+is added.
+
+**Project Setup → Planning Entry.** The existing onboarding choice is presented
+as one question, *"How will this project be planned?"*. Each option carries a
+plain-language description.
+
+| Option shown | Canonical value written (existing `project_planning_settings.onboarding_mode`) |
+|---|---|
+| **Start planning in EPRP** | `new_project` |
+| **Project is already running** | `existing_active_project` |
+| **No formal schedule** | `no_formal_schedule` |
+
+- **Advanced path.** A "Show advanced" disclosure exposes the same field
+  directly. It is not a copy.
+- **Follow-up for "Project is already running":** *"Do you already have an
+  external schedule?"* — Primavera P6 · Excel schedule · Not yet · Build in
+  EPRP.
+  - In 13.9A the answer is **guidance only**: it chooses the next step shown
+    and the deep link (Imports & Review, Baselines & Snapshots for the Opening
+    Position, or Master Plan). It is **not persisted**.
+  - The as-built optional column `project_planning_settings.default_import_source`
+    (`eprp_excel` · `p6` · `msproject` · `manual`) is deliberately **not**
+    written. "Excel schedule" does not map 1:1 to the EPRP Excel template,
+    "Not yet" has no value, and schedule-source configuration belongs to
+    13.16. **Owner decision 2026-10-15: not persisted in 13.9A, by any route.**
+    Mapping: P6 → Imports & Review; Excel → Imports & Review; Not yet → the
+    readiness next step (the Opening Position in Baselines & Snapshots); Build
+    in EPRP → Master Plan.
+  - The follow-up may be skipped.
+- **After Controlled,** changing the onboarding choice follows §26.23.6 (from
+  13.9B).
+
+**Planning Workspace → Summary.** A guided readiness checklist explains the
+next steps instead of opening on a blank workspace.
+- Each step's state is **derived from data that exists today**: onboarding
+  mode chosen; Working Plan items or an import present; an Opening Position
+  declared or promoted; a snapshot published.
+- Each step deep-links to the professional section that does the work.
+- Nothing in the checklist stores an answer.
+- Questions whose model belongs to a later slice are **not shown as
+  interactive questions** and leave no placeholder. They appear when their
+  slice ships.
+
+| Long-term question area | Interactive / persisted from |
+|---|---|
+| Planning onboarding ("How will this project be planned?") | **13.9A** (existing field) |
+| External schedule source | Guidance only in 13.9A; configuration **13.16** (or earlier only by owner decision) |
+| WBS / project breakdown, weights, progress measurement (earning method) | **13.11** |
+| Baseline availability / BL0 preparation | **13.12** |
+| Resource / manpower planning | **13.13** |
+| Weekly look-ahead, report-section structure | **13.17 / 13.18** |
+
+**Recommended Setup.** This is a future pattern; 13.9A introduces no
+templates.
+- Examples: a PSM Project recommended configuration, an Other Project
+  recommended configuration, and later RBI, engineering and study templates.
+- Templates provide **editable defaults only**, under rule 3. They are
+  managed as Planning Setup Templates (`05` §3.8) from 13.11.
+- No behaviour may branch solely on which template was used.
 
 ### 26.21 Weekly and Monthly collaborative comments (approved 2026-10-14)
 
@@ -2197,4 +2333,317 @@ Selecting a version will later show its structured diff. The full UI is
 | **13.16** | Schedule Versions and their lifecycle, preserved history, one-under-review rule, diff against the latest accepted version, acceptance, matching and re-match, removed-item handling, restoration, the **Historical Correction** workflow, the Schedule History list |
 | **13.21** | The same versioning for native P6 XER |
 
-**13.9 remains the next slice.** Nothing here changes the slice order.
+Nothing here changes the slice order. *(2026-10-15: 13.9 is closed; the next
+slice is 13.9A, then 13.10 — see §26.23.9.)*
+
+### 26.23 Planning Experience and project information architecture (approved 2026-10-15)
+
+**Status: DESIGN GATE — approved by the project owner on 2026-10-15
+(decisions D1–D9). Not implemented.** This section fixes where each planning
+concern lives in the project experience, and how Project Setup becomes
+controlled once planning governs the project.
+- **UI / IA foundation:** roadmap slice **13.9A**.
+- **Control enforcement and analytics:** the later slices named in §26.23.9.
+- **Presentation rules:** `07` §10.12.
+- **Authority:** `05` §3.9.
+
+#### 26.23.1 Principles
+
+1. **One home per concern.**
+   - Configuration → **Project Setup**.
+   - Plan editing, imports, baselines and publishing → **Planning Workspace**.
+   - Performance analytics → **Project Progress**.
+   - The governed milestone register → **Milestones**.
+
+   No second milestone register and no duplicate performance view exist anywhere.
+2. **Performance is read, never typed,** for a planning-governed project (§26.7
+   rule 3, §26.14).
+3. **Lifecycle is not performance.** Project Lifecycle Status is
+   administrative. Schedule Condition is derived (§26.7 rule 4).
+4. **Control is a configuration freeze, not paralysis.** Team,
+   responsibilities and lifecycle transitions are never locked.
+
+#### 26.23.2 Project sidebar (D5, D6)
+
+```text
+Overview                      the one canonical project home
+SETUP                Project Setup · Team & Responsibilities · Organization Chart
+PLANNING & CONTROL   Planning Workspace · Project Progress · Milestones · Deliverables
+                     (Resources — appears only when 13.13 ships)
+REPORTING            Reporting
+PROJECT STRUCTURE    Departments · Systems · Programs & Studies
+RECORDS              Documents · Attachments · History
+```
+
+Rules:
+1. **Overview is the single project home.** The long scrolling project-details
+   page (as built at `/projects/[id]`) is retired in favour of Overview, which
+   deep-links into the dedicated modules. That retirement is not yet scheduled
+   (§26.23.9).
+2. **Planning Workspace is a first-class item.** As built it has no sidebar
+   entry.
+3. **Programs & Studies** is the hierarchy level beneath System. It is always
+   shown under the project's own configured label (`07` §3.6). Items that do
+   not apply to the project's Project Type stay hidden, as today.
+4. **The "Master / Reference Data" group is not renamed wholesale.** Its
+   project-structure items move to PROJECT STRUCTURE.
+5. **Contacts is not a permanently duplicated reference-data entry.**
+   - Direction: project-person and contact management converges with Team &
+     Responsibilities / Project People, subject to a later implementation
+     assessment.
+   - Until then the contacts capability stays reachable, from the Project
+     Setup Contacts step and a link from Team & Responsibilities, and its
+     route keeps working.
+   - It leaves the sidebar only once that reachability exists.
+6. **No placeholder items.** A future module, such as Resources, appears when
+   it ships and never as a disabled stub.
+7. **One structure on every surface.** The expanded column, the collapsed
+   icon rail, the laptop overlay and the mobile sheet all render this same
+   structure.
+
+#### 26.23.3 Planning Workspace
+
+| Section | Holds |
+|---|---|
+| **Summary** | The guided readiness path (§26.20), the current Published Snapshot, the Working Plan's unpublished change count and one primary next action |
+| **Master Plan** | Hierarchy, local weights, earning methods and activities (hardened in 13.11) |
+| **Imports & Review** *(renamed from "Planning Data")* | Upload, validation and review. Schedule Versions and their history are added from 13.16 |
+| **Baselines & Snapshots** | The **only** place for Opening Position record / promote; BL0 / BLn (13.12); publishing; snapshot history |
+| **Resources** | From 13.13 only |
+
+Rules:
+1. **Removed:** the inner **Milestones** tab, because the Milestones module is
+   the one governed register. Also removed: **Performance & Variance**,
+   because Project Progress owns performance analytics.
+2. **Navigation:** enterprise underline tab navigation, pinned under a
+   workspace header, replacing the lightweight pill group. Each section is
+   URL-addressable, so other modules can deep-link to it.
+3. **Workspace header strip:** Working Plan state · unpublished change count ·
+   Current Published Snapshot · Data Date · BL0 / BLn · archived state. A value
+   the current data cannot supply is omitted, never estimated.
+4. **Guided and Advanced** (§26.20) is a view switch inside the workspace. It
+   is distinct from the controlled **Planning Onboarding Mode**, which lives in
+   Project Setup.
+
+#### 26.23.4 Project Setup (D3)
+
+The overloaded "Status & Progress" section is removed. Target structure:
+
+| # | Section | Holds |
+|---|---|---|
+| 1 | **Basic Information & Classification** | Identity, Client / Owner, Project Type and Category, **Portfolio / Reporting Group** |
+| 2 | **Contract & Reference Dates** | Contract and planned reference dates. After an approved BL0, Planned Start / Finish are shown as superseded (§26.23.6) |
+| 3 | **Project Responsibility** | As today |
+| 4 | **Project Lifecycle** | **Only** Project Lifecycle Status and Project Lifecycle Phase (relabelled from "Current Phase") |
+| 5 | **Planning Entry** | Planning Onboarding Mode · setup readiness · setup state (Draft / Ready for Planning / Controlled) · Open Planning Workspace · compact read-only **Planning Status** |
+| 6 | **Reporting Configuration** | As today |
+| 7 | **Contact & Location** | As today |
+| 8 | **Scope & Structure** | Formerly "Linked Scope" |
+| 9 | **Branding & Report Settings** | As today |
+
+Rules:
+1. **Project Priority is removed from the UI** (confirmed 2026-10-15). It is
+   gone from Project Setup and from the project summary / header Priority
+   badge.
+   - Its stored value is kept for compatibility and history. Historical values
+     are neither deleted nor migrated.
+   - No portfolio use is invented to justify the field.
+   - Phase 13.20 may deliberately reintroduce a project-priority model if there
+     is a real business requirement.
+2. **No large Governed Performance cards in Setup.**
+   - The compact **Planning Status** shows only: snapshot version, Data Date,
+     PV, EV, variance, SPI, Schedule Condition, and a link to Project Progress.
+     It is always read-only.
+   - A project that is not planning-governed shows "Reported — not planning
+     governed", with SPI "N/A".
+3. **No Opening Position action in Setup** (§26.23.3).
+4. **Regrouping changes no data ownership.** Every field keeps its source.
+
+#### 26.23.5 Lifecycle Status versus Schedule Condition (D4)
+
+| Concept | Nature | Values |
+|---|---|---|
+| **Project Lifecycle Status** | Administrative, maintained by setup managers | Canonical (B13, closed): **Draft · Active · On Hold · Completed · Cancelled · Archived**. Legacy `planning` and `delayed` remain readable on existing records only |
+| **Schedule Condition** | Derived from the Published Planning Snapshot (§26.7 rule 4) | On Track · At Risk · Behind · Unknown |
+
+Rules:
+1. **`overallStatus` is retired as a manual performance input.**
+   - As built, no form edits it.
+   - It still drives badges on the project card, table and header, a "behind"
+     filter, and the Forecast Finish validation rule.
+2. **Target state for badges and filters:**
+   - Performance badges and filters read Schedule Condition for a
+     planning-governed project.
+   - A not-governed project shows "Reported — not planning governed" (§26.14).
+   - Lifecycle badges and filters read Project Lifecycle Status.
+   - The retirement belongs to 13.14 and is not implemented before it.
+3. **Legacy lifecycle values (B13).**
+   - **`planning`** is not a lifecycle condition. Planning readiness and
+     activation belong to the separate setup state (§26.23.6).
+   - **`delayed`** is not a lifecycle state. Delay belongs to the calculated
+     Schedule Condition.
+   - **Compatibility requirement:** both stay **readable**, and are displayed
+     as stored, labelled "legacy", on existing records.
+   - **Retirement requirement:** they later stop being offered as new choices,
+     together with the `overallStatus` retirement (13.14).
+   - **Not in 13.9A:** no existing record is migrated. Whether and how stored
+     legacy values are converted is decided when the retirement slice is
+     specified.
+4. **Two different Drafts.** The setup state "Draft" and the Lifecycle Status
+   "Draft" are different concepts. The UI always qualifies the setup state, as
+   "Setup: Draft".
+
+#### 26.23.6 Setup lifecycle and control (D1, D2)
+
+```text
+Draft ──(every required setup check passes)──▶ Ready for Planning ──(first governance anchor)──▶ Controlled
+                                                                                  Archived overrides every state (13.9)
+```
+
+| State | Holds when |
+|---|---|
+| **Draft** | One or more required setup checks fail (§11.1) |
+| **Ready for Planning** | Every required setup check passes |
+| **Controlled** | A governance anchor exists |
+
+**Governance anchor:**
+- **Planning-governed** onboarding modes ("new project", "existing active
+  project"): the **first** of an approved Original Baseline BL0 or the first
+  Published Planning Snapshot. A promoted Opening Position is Snapshot V1.
+- **"No formal schedule":** an explicit **Finalise Project Setup** action,
+  available once Ready for Planning.
+  - **Who may finalise:** a System Administrator, a Project Control Admin, or
+    the project's assigned Project Control / Planning.
+  - **Who may not:** the Reporting Coordinator, department users, or a project
+    member on the strength of membership alone (`05` §3.9).
+  - **What finalisation does:**
+    - asks for explicit confirmation;
+    - creates an append-only finalisation / governance record (actor, time,
+      project);
+    - moves the setup state to Controlled.
+  - **What it never does:** fabricate a Planning Snapshot, an SPI or a
+    planning-governed state. The project stays "Reported — not planning
+    governed".
+
+Rules:
+1. **Controlled is derived from immutable facts** (§11.1 amendment). It never
+   returns to Draft or Ready for Planning.
+2. **Explicit confirmation before the anchor.** The action that will create
+   the first anchor states, before it runs, that core Project Setup
+   configuration becomes controlled afterward. That action is approving BL0,
+   publishing the first snapshot, promoting an Opening Position or finalising
+   setup. Because the states run in sequence, the first anchor requires Ready
+   for Planning.
+3. **Onboarding Mode changes after Controlled:**
+   - Moving from "no formal schedule" to a governed mode is a governed
+     amendment. The project becomes planning-governed at its first snapshot.
+   - Moving from a governed mode to "no formal schedule" is refused once a
+     snapshot exists (§26.14).
+4. **Before Controlled, setup editing works as today.**
+
+**Field classes once Controlled:**
+
+| Class | Fields | How a change is made |
+|---|---|---|
+| **Free / logged** | Project Lifecycle Status · Project Lifecycle Phase · Portfolio / Reporting Group · Team · Responsibilities · Contacts · Location · Branding · Description | Direct edit, recorded in Project History. `05` §3.7 responsibility rules unchanged |
+| **Lightweight amendment** | Project Name / Short Name · other non-planning-impacting metadata where justified | Amendment with a **mandatory reason**; applied immediately; no approval |
+| **Governed amendment** | Project Code · Client / Owner · Project Type / Classification · Planning Onboarding Mode · structure-family or governed scope changes (Project Structure units and the Other-project structure) · reporting frequency / cut-off · contractual dates and other configuration whose change alters historical project interpretation | Amendment request with reason; applied only on **Project Control Admin or System Administrator approval** (`05` §3.9) |
+| **Superseded** *(after an approved BL0)* | Project Setup Planned Start / Planned Finish | Not an operational edit field. Shown as reference values marked "Superseded by BL0", beside the BL0 dates. Schedule dates change only through Planning re-plan (a Schedule Version, §26.22) or re-baseline (§26.6) |
+
+**Project Type.** The System-Administrator-only structure-family correction
+(`05` §3.6, as built) remains the only route to change a locked Project Type,
+because it is stricter than a governed amendment. Once Controlled, that
+correction is also recorded as a setup amendment.
+
+#### 26.23.7 Setup amendment record (D8)
+
+A dedicated, structured, append-only **Project Setup Amendment** record
+(`project_setup_amendments`) holds:
+- project and field;
+- previous value and proposed / new value;
+- mandatory reason;
+- class (lightweight or governed);
+- **impact warning**, generated by the system and stored exactly as shown;
+- requested by and requested at;
+- status: Applied · Pending · Approved · Rejected · Withdrawn · Stale;
+- approver, decided at and decision note, where approval is required.
+
+Rules:
+1. **Rows are never edited or deleted.** A decision is recorded once.
+2. **Approval applies the change in the same transaction.** If the field's
+   current value no longer equals the recorded previous value, the request
+   becomes **Stale** and nothing is applied.
+3. **Amendments never rewrite history.** Approved reports, snapshots and
+   baselines keep the values they recorded.
+4. **Impact warnings state the consequence before the request.** Examples:
+
+   | Change | Warning |
+   |---|---|
+   | Project Code | "Approved reports keep the old code." |
+   | Reporting cut-off | "Applies from the next unopened period; existing periods are unchanged." |
+   | Onboarding Mode | "Changes whether the project is planning-governed." |
+   | Removing a structure unit | "Planning nodes and report sections mapped to this unit must be re-mapped first." |
+5. **Records are exposed through Project History.** Pending governed requests
+   also appear in the approvers' queue.
+6. **Archived projects accept no amendment** (13.9).
+
+7. **Self-approval is refused** (B12). A governed amendment is approved by a
+   Project Control Admin or System Administrator **other than its requester**.
+   There is no break-glass exception.
+
+Its logical entity, with the Setup Finalisation record and the Reported
+Progress stream, is specified in `06` §10A when **13.9B** is specified. Until
+then `06` carries only a marked future note.
+
+#### 26.23.8 Project Progress (D7)
+
+A **read-only analytical workspace** for planning-governed projects, in this
+order:
+
+1. **Performance header:** Data Date · snapshot version · BL0 · BLn · Schedule
+   Condition.
+2. **KPI row:** PV · EV · Schedule Variance · SPI.
+3. **Main S-curve:**
+   - series: BL0 · BLn · Forecast / Current Plan · Earned / Actual;
+   - a Data Date marker;
+   - earned points only at real Data Dates (§26.7 rule 1).
+4. **WBS / Control Account performance:** local and effective weight · PV ·
+   EV · SPI · variance · contribution.
+   - Selecting a node filters and redraws the analytical context: header, KPIs,
+     S-curve and exceptions.
+   - It never opens a separate, duplicate page.
+5. **Exceptions / schedule health:**
+   - late activities;
+   - overdue activities;
+   - key milestone exposure, linking to Milestones;
+   - forecast finish against BL0 and against BLn.
+6. **Resources / Manpower:** later, as a separate analytical section (13.13).
+   Manpower variance never enters SPI.
+
+| Project | Shows |
+|---|---|
+| Governed, v2 snapshot | Everything above |
+| Governed, no snapshot yet | "Awaiting first Published Planning Snapshot", with a link to the Planning Workspace; no figures |
+| Opening Position snapshot | Declared figures, labelled; SPI "N/A" (§26.14) |
+| Legacy (pre-13.12) snapshot | Its existing figures, labelled "legacy calculation" (§26.14) |
+| No formal schedule | "Reported — not planning governed"; SPI "N/A". From **13.9B**: the latest Reported Progress stream entry (Data Date, reported planned / actual %, narrative, provenance) and **Update Reported Progress** for authorised users (§26.14). **Before 13.9B:** the labelled state only, with no figures from the project record presented as reported progress and no write action |
+| Archived | Read-only; no update action |
+
+Rules:
+1. **No "Update progress" for a planning-governed project.** Planners get an
+   "Open Planning Workspace" link instead.
+2. **Earlier snapshots** can be selected and viewed read-only.
+
+#### 26.23.9 Delivery
+
+| Slice | Delivers |
+|---|---|
+| **13.9A** Planning Experience Foundation | The UI / IA foundation: sidebar, Workspace shell and sections, Project Setup regrouping, compact Planning Status shell, Opening Position moved, Project Progress shell and states, manual update removed for governed projects. Roadmap Phase 13 |
+| **13.11** | Master Plan hardening and Guided / Advanced setup inside the Workspace |
+| **13.9B** Project Setup Governance *(B11, closed)* | The setup state with Controlled enforcement and first-anchor transition rules and confirmation; field classes; `project_setup_amendments` with lightweight amendments and governed approval (no self-approval, B12); the Finalise Project Setup record for no-formal-schedule projects; the Reported Progress stream and its write workflow (B14); History integration; RLS, service and UI authority. Superseded Planned Start / Finish is enforced once an approved BL0 exists; BL0 approval itself arrives in 13.12. Separate from the Planning Engine |
+| **13.12** | BL0 / BLn (the BL0 anchor then feeds the 13.9B rules); BL0 / BLn in the header strip and Progress header |
+| **13.13** | The Resources section and the manpower analytics section |
+| **13.14** | Progress analytics content (KPIs, S-curve, WBS performance, exceptions), Planning Status figures and Schedule Condition, and retirement of `overallStatus` as an input; legacy lifecycle values `planning` / `delayed` stop being offered (B13, readable on existing records) |
+| **13.16** | Imports & Review over Schedule Versions and their history |
+| **13.20** | Any deliberate reintroduction of a project-priority model |
+| *Unscheduled* | Retiring the long project-details page in favour of Overview; the Contacts / Project People convergence assessment |

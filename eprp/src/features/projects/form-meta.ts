@@ -39,7 +39,8 @@ export const FIELD_LABELS: Record<string, string> = {
   overallStatus: "Overall Status",
   plannedProgress: "Planned Progress",
   actualProgress: "Actual Progress",
-  currentPhaseId: "Current Phase",
+  currentPhaseId: "Project Lifecycle Phase",
+  portfolioGroupId: "Portfolio / Reporting Group",
   priority: "Priority",
   weeklyEnabled: "Reporting Types",
   monthlyEnabled: "Monthly Reporting",
@@ -67,28 +68,40 @@ export const FIELD_LABELS: Record<string, string> = {
   includeSignatureSection: "Signature Section",
 };
 
-export type SectionId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+/**
+ * The nine Project Setup sections (Phase 13.9A, `docs/02` §26.23.4):
+ * 1 Basic Information & Classification · 2 Contract & Reference Dates ·
+ * 3 Project Responsibility · 4 Project Lifecycle · 5 Planning Entry ·
+ * 6 Reporting Configuration · 7 Contact & Location · 8 Scope & Structure ·
+ * 9 Branding & Report Settings.
+ *
+ * Section 5 holds no form field (Planning Onboarding Mode is saved separately)
+ * and shows no completion badge. `overallStatus`, the typed progress pair and
+ * `priority` are no longer shown but still travel with the form unchanged;
+ * they stay mapped to section 4 so an unexpected error is never orphaned.
+ */
+export type SectionId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
 const SECTION_OF_FIELD: Record<string, SectionId> = {
   name: 1, code: 1, shortName: 1, clientId: 1, subcontractors: 1, contractNumber: 1,
   purchaseOrderNumber: 1, description: 1, projectTypeId: 1,
-  structureFamily: 1, projectCategoryDetail: 1,
+  structureFamily: 1, projectCategoryDetail: 1, portfolioGroupId: 1,
   contractStartDate: 2, plannedStartDate: 2, actualStartDate: 2,
   plannedFinishDate: 2, forecastFinishDate: 2, actualFinishDate: 2,
   projectManagerId: 3, projectControlManagerId: 3, clientRepresentativeId: 3,
   reportingCoordinatorId: 3, projectSponsorId: 3, additionalPositions: 3,
   status: 4, overallStatus: 4, plannedProgress: 4, actualProgress: 4,
   currentPhaseId: 4, priority: 4,
-  weeklyEnabled: 5, monthlyEnabled: 5, executiveEnabled: 5,
-  weeklyReportingDay: 5, monthlyCutoffDay: 5, currency: 5, workingWeek: 5,
-  timeZone: 5,
-  site: 6, country: 6, city: 6, additionalSites: 6,
-  clientContactName: 6, clientContactEmail: 6,
-  clientContactPhone: 6,
-  departments: 7,
-  projectLogoRef: 8, clientLogoRef: 8, reportHeaderTitle: 8,
-  reportFooterText: 8, reportReferencePrefix: 8, defaultLanguage: 8,
-  includeQrCode: 8, includeSignatureSection: 8,
+  weeklyEnabled: 6, monthlyEnabled: 6, executiveEnabled: 6,
+  weeklyReportingDay: 6, monthlyCutoffDay: 6, currency: 6, workingWeek: 6,
+  timeZone: 6,
+  site: 7, country: 7, city: 7, additionalSites: 7,
+  clientContactName: 7, clientContactEmail: 7,
+  clientContactPhone: 7,
+  departments: 8,
+  projectLogoRef: 9, clientLogoRef: 9, reportHeaderTitle: 9,
+  reportFooterText: 9, reportReferencePrefix: 9, defaultLanguage: 9,
+  includeQrCode: 9, includeSignatureSection: 9,
 };
 
 export function sectionForPath(path: readonly PropertyKey[]): SectionId {
@@ -184,9 +197,9 @@ export interface SectionStatus {
 }
 
 /** Sections with no mandatory fields at all. */
-const OPTIONAL_SECTIONS: SectionId[] = [8];
+const OPTIONAL_SECTIONS: SectionId[] = [5, 9];
 
-const ALL_SECTIONS: SectionId[] = [1, 2, 3, 4, 5, 6, 7, 8];
+const ALL_SECTIONS: SectionId[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 /**
  * Compute each section's status from the final-schema parse of the current

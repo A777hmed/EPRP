@@ -156,7 +156,7 @@ export function MasterPlanPanel({
           title={items.length === 0 ? "The Master Plan is empty" : "No work items match"}
           description={
             items.length === 0
-              ? "Add work items directly, or import a schedule from Planning Data."
+              ? "Add work items directly, or import a schedule from Imports & Review."
               : "Try a different search or type filter."
           }
           className="py-10"

@@ -349,22 +349,30 @@ export const planningService = {
   /**
    * Creates or updates a project's Planning configuration. Project Setup's
    * only write into this table — everything else here is read-only.
+   *
+   * `default_import_source` is written ONLY when the caller states it
+   * (`null` clears it explicitly). Omitted, the column is left out of the
+   * upsert payload, so an existing stored value survives: PostgREST's
+   * merge-duplicates upsert updates only the columns it is sent. Project
+   * Setup never sends it — it saves the onboarding mode alone — and the
+   * 13.9A external-schedule guidance question is never persisted. (Before
+   * 13.9A hardening every Setup save sent `null` here and wiped the value.)
    */
   async upsertSettings(input: {
     projectId: string;
     onboardingMode: PlanningOnboardingMode;
-    defaultImportSource?: ProjectPlanningSettings["defaultImportSource"];
+    defaultImportSource?: ProjectPlanningSettings["defaultImportSource"] | null;
   }): Promise<ProjectPlanningSettings> {
+    const row: Record<string, string | null> = {
+      project_id: input.projectId,
+      onboarding_mode: input.onboardingMode,
+    };
+    if (input.defaultImportSource !== undefined) {
+      row.default_import_source = input.defaultImportSource;
+    }
     const { data, error } = await client()
       .from("project_planning_settings")
-      .upsert(
-        {
-          project_id: input.projectId,
-          onboarding_mode: input.onboardingMode,
-          default_import_source: input.defaultImportSource ?? null,
-        },
-        { onConflict: "project_id" }
-      )
+      .upsert(row, { onConflict: "project_id" })
       .select("*")
       .single();
     if (error) throw await writeFailure("save the Planning Onboarding Mode", error);

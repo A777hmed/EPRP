@@ -33,8 +33,7 @@ import { mockProjectActivity } from "@/data/mock/project-activity.mock";
 import { projectService } from "@/services/project-service";
 import { weeklyReportService } from "@/services/weekly-report-service";
 import type { Client, Discipline, Project, System, WeeklyReport } from "@/types";
-import { formatVariance, projectSpi, projectVariance } from "../utils";
-import { ProgressComparison } from "./progress-comparison";
+import { projectSectionHref } from "@/config/project-sections";
 import { ProjectSummaryHeader } from "./project-summary-header";
 import { useHierarchyTerms } from "../use-hierarchy-terms";
 import { classificationSummary, projectCategoryLabel } from "../classification";
@@ -159,7 +158,6 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
   );
   const projectType = getProjectTypeById(project.projectTypeId);
   const phase = getProjectPhaseById(project.currentPhaseId);
-  const variance = projectVariance(project);
 
   const departmentIds = new Set(
     project.departments.map((assignment) => assignment.departmentId)
@@ -305,7 +303,7 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
                       value={projectCategoryLabel(project, projectType) ?? "—"}
                     />
                   )}
-                  <ConfigRow label="Current phase" value={phase?.name ?? "—"} />
+                  <ConfigRow label="Lifecycle phase" value={phase?.name ?? "—"} />
                   <ConfigRow
                     label="Planned start"
                     value={formatDate(project.plannedStartDate)}
@@ -602,43 +600,26 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
             </SectionCard>
           </Section>
 
+          {/* 13.9A: no typed planned/actual figures or percent-ratio SPI.
+              The governed reading lives in Project Progress; the project
+              header above already carries the compact Planning Status. */}
           <Section id="kpis">
             <SectionCard
               title="Project Progress"
-              description="Baseline progress and schedule performance."
+              description="Read-only performance from the Published Planning Snapshot."
+              action={
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={projectSectionHref(project.id, "kpis")}>
+                    Open Project Progress
+                  </Link>
+                </Button>
+              }
             >
-              <ProgressComparison
-                planned={project.plannedProgress}
-                actual={project.actualProgress}
-                size="md"
-              />
-              <Separator className="my-3" />
-              <dl className="space-y-2">
-                <ConfigRow
-                  label="Schedule variance"
-                  value={
-                    <span className="tabular-nums">
-                      {formatVariance(variance)}
-                    </span>
-                  }
-                />
-                <ConfigRow
-                  label="SPI"
-                  value={
-                    <span className="tabular-nums">
-                      {projectSpi(project).toFixed(2)}
-                    </span>
-                  }
-                />
-                <ConfigRow
-                  label="Forecast finish"
-                  value={
-                    project.forecastFinishDate
-                      ? formatDate(project.forecastFinishDate)
-                      : "—"
-                  }
-                />
-              </dl>
+              <p className="text-sm text-muted-foreground text-pretty">
+                Planned value, earned value, variance, SPI, the S-curve and
+                WBS performance are read from the project&apos;s Published
+                Planning Snapshot in Project Progress — never typed in.
+              </p>
             </SectionCard>
           </Section>
 

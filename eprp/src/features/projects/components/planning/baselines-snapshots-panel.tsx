@@ -49,12 +49,19 @@ function activityCountOf(snapshot: PlanningSnapshot): number | undefined {
   return undefined;
 }
 
+/**
+ * Baselines & Snapshots — and, since 13.9A, the ONLY place an Opening
+ * Position is declared or promoted (Project Setup no longer offers it).
+ */
 export function BaselinesSnapshotsPanel({
   project,
   canManage,
+  onChanged,
 }: {
   project: Project;
   canManage: boolean;
+  /** Told after a publish / Opening Position change, so the workspace header refreshes. */
+  onChanged?: () => void;
 }) {
   const [snapshots, setSnapshots] = React.useState<PlanningSnapshot[] | undefined>();
   const [baselines, setBaselines] = React.useState<PlanningBaseline[] | undefined>();
@@ -90,6 +97,7 @@ export function BaselinesSnapshotsPanel({
       });
       toast.success(`Opening Position promoted as Snapshot V1 (${id.slice(0, 8)}).`);
       load();
+      onChanged?.();
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : "Could not promote the Opening Position.");
     }
@@ -191,6 +199,7 @@ export function BaselinesSnapshotsPanel({
           onSaved={() => {
             setOpeningFormOpen(false);
             load();
+            onChanged?.();
           }}
         />
       )}
@@ -203,6 +212,7 @@ export function BaselinesSnapshotsPanel({
           onPublished={() => {
             setPublishOpen(false);
             load();
+            onChanged?.();
           }}
         />
       )}

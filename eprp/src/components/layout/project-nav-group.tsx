@@ -46,35 +46,41 @@ import type { Project } from "@/types";
 import { cn } from "@/lib/utils";
 
 /**
- * Presentational-only regrouping for the contextual sidebar. The routes,
- * ids, icons, and relative order within each bucket are untouched — only
- * which heading a section sits under, and the heading order, changed to
- * match the Setup → Planning & Control → Reporting → Master/Reference Data
- * → Records workflow hierarchy.
+ * Presentational-only grouping for the contextual sidebar (Phase 13.9A,
+ * `docs/02` §26.23.2). The routes, ids and icons are untouched; relative order
+ * within a bucket follows `projectSections`.
+ *
+ * - Planning Workspace is a first-class item under Planning & Control.
+ * - Project Structure holds the project's own scope levels; the third level
+ *   is labelled by the project's terminology (Programs & Studies on PSM).
+ * - Contacts stays reachable, transitionally under Setup beside the people
+ *   pages, until its convergence with Team & Responsibilities is assessed —
+ *   it is not part of Project Structure.
  */
 const SECTION_GROUP: Partial<Record<ProjectSectionId, string>> = {
   setup: "Setup",
   team: "Setup",
   "organization-chart": "Setup",
+  contacts: "Setup",
+  planning: "Planning & Control",
   kpis: "Planning & Control",
   milestones: "Planning & Control",
   deliverables: "Planning & Control",
   reporting: "Reporting",
-  departments: "Master / Reference Data",
-  systems: "Master / Reference Data",
-  disciplines: "Master / Reference Data",
-  contacts: "Master / Reference Data",
-  documents: "Records / Documents",
-  attachments: "Records / Documents",
-  history: "Records / Documents",
+  departments: "Project Structure",
+  systems: "Project Structure",
+  disciplines: "Project Structure",
+  documents: "Records",
+  attachments: "Records",
+  history: "Records",
 };
 
 const GROUP_ORDER = [
   "Setup",
   "Planning & Control",
   "Reporting",
-  "Master / Reference Data",
-  "Records / Documents",
+  "Project Structure",
+  "Records",
 ] as const;
 
 /**

@@ -59,7 +59,7 @@ export function PlanningDataPanel({
       <div className="space-y-3">
         <Button variant="ghost" size="sm" onClick={() => setReviewing(null)}>
           <ChevronLeft data-icon="inline-start" aria-hidden="true" />
-          Back to Planning Data
+          Back to Imports &amp; Review
         </Button>
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-sm font-semibold">
@@ -90,7 +90,7 @@ export function PlanningDataPanel({
         {canManage && (
           <Button size="sm" onClick={() => setWizardOpen(true)}>
             <Upload data-icon="inline-start" aria-hidden="true" />
-            Import Planning Data
+            Import schedule
           </Button>
         )}
       </div>
@@ -105,7 +105,7 @@ export function PlanningDataPanel({
             canManage ? (
               <Button variant="outline" onClick={() => setWizardOpen(true)}>
                 <Upload data-icon="inline-start" aria-hidden="true" />
-                Import Planning Data
+                Import schedule
               </Button>
             ) : undefined
           }

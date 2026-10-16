@@ -346,6 +346,10 @@ Persistent, dark navy, grouped navigation: Overview · Projects · Master Data �
 
 **Rules:** collapsible to icons, with the state remembered · the collapsed rail shows the square mark and icon-only items with tooltips · the active item and its group are always evident · a welcome card beneath the lockup shows the signed-in user · the project group expands to that project's sections when a workspace is active · it never scrolls away.
 
+**Project navigation** (approved 2026-10-15): the project's own grouping is
+Overview · SETUP · PLANNING & CONTROL · REPORTING · PROJECT STRUCTURE · RECORDS,
+defined in `02` §26.23.2 and presented per §10.12.
+
 ### 7.2 Top navigation
 
 Holds breadcrumb · workspace switcher · global search · notification bell · messages · user menu. It is sticky and never obscures content.
@@ -668,7 +672,20 @@ The schedule follows the platform rule (§3.2): **every authenticated user may o
 
 ### 10.10 Planning Setup — Guided and Advanced (2026-10-14)
 
-UX principle for the Planning Setup work of roadmap slice 13.11. Specification: `02_PLATFORM_ARCHITECTURE.md` §26.20.
+UX principle for the Planning Setup work of roadmap slice 13.11. The pattern
+itself starts in 13.9A, using only the configuration that exists today (`02`
+§26.20.1, and the 13.9A presentation in §10.12). Specification:
+`02_PLATFORM_ARCHITECTURE.md` §26.20.
+
+- **Where guided questions live:** only Project Setup → Planning Entry,
+  Planning Workspace → Summary and, later, the Weekly / Monthly confirmation
+  workflows. The application is not turned into a wizard. Master Plan,
+  Imports & Review and Baselines & Snapshots remain professional workspaces,
+  and they are the Advanced path.
+- **Short, progressive groups.** Questions come a few at a time, each with an
+  optional line on why the answer matters.
+- **"Skip for now"** appears only when the configuration is genuinely
+  optional.
 
 - **Guided first.** Setup opens as a short sequence of plain business questions — "Do you already have a project schedule?", "How is the project broken down?", "How is progress earned?", and so on. Each question offers clear choices and shows a sensible default.
 - **No jargon required.** A user never needs to know a planning term before answering. Terms such as Control Account or earning method appear only as secondary explanation.
@@ -692,6 +709,150 @@ Specification: `02_PLATFORM_ARCHITECTURE.md` §26.22. The full UI is **not** des
 - **Uploading a schedule never looks like re-baselining.** Re-baseline is a separate, clearly labelled action with its own approval.
 - **Historical Corrections are visibly distinct.** A back-dated version can be accepted only through the explicit Historical Correction action, which asks for a reason and the period being corrected. It is labelled as a correction in the history and is never shown as the current schedule.
 - **Only one version under review at a time.** While one is under review, a new upload waits, and the history says so.
+
+### 10.12 Planning Experience — project navigation, Planning Workspace, Project Setup, Project Progress (2026-10-15)
+
+Specification: `02_PLATFORM_ARCHITECTURE.md` §26.23 (owner decisions D1–D9).
+The UI / IA foundation is roadmap slice **13.9A**. This section states how the
+experience looks and behaves. It keeps the existing EPRP visual language,
+backdrop system, typography and tokens, and works in light and dark mode
+(§30). It must read as a bespoke enterprise tool: restrained, dense where the
+data is dense, and free of decorative gradients, generic hero cards or
+ornamental icons (§3.1, §3.3).
+
+**Project sidebar.**
+- Groups and order are those of `02` §26.23.2.
+- The active item and its group are always evident (§7.1).
+- Planning Workspace is a first-class item.
+- Programs & Studies always appears under the project's configured label
+  (§3.6).
+- A module that has not shipped yet does not appear. There are no disabled
+  stubs.
+- The ≥ 1024 px column, the 768–1023 px icon strip with its overlay, and the
+  < 768 px sheet render the same structure.
+
+**Planning Workspace.**
+- **Header strip**, pinned at the top of the workspace. It shows Working Plan
+  state, unpublished change count, Current Published Snapshot, Data Date,
+  BL0 / BLn and archived state, as quiet labelled values rather than cards.
+  - A value the data cannot supply yet is omitted, never shown as "0" or
+    guessed.
+  - Archived shows the existing "Archived · read-only" notice.
+- **Section navigation:**
+  - an underline tab bar, pinned under the header strip: Summary · Master Plan
+    · Imports & Review · Baselines & Snapshots (· Resources from 13.13);
+  - not a pill group;
+  - each section has its own URL, so a deep link opens it directly;
+  - a pending item may carry a small count, e.g. "Imports & Review · 1".
+  - Below 640 px, the bar scrolls horizontally with edge fades. It never wraps
+    into two rows.
+- **Summary** leads with one primary next action and the **guided readiness
+  checklist** (§10.10, `02` §26.20.1). It does not repeat the header strip as
+  stat cards.
+  - Each step shows a state derived from existing data: done, next, or not
+    yet. It gives one line of plain-language explanation and a deep link to
+    the professional section that does the work.
+  - Steps for questions whose model ships later are not shown, and there is
+    no placeholder.
+  - A first-time project never opens on a blank workspace.
+- **Opening Position** controls exist only in Baselines & Snapshots.
+
+**Project Setup.**
+- **Nine sections**, in the order of `02` §26.23.4.
+- **Project Lifecycle** shows only Lifecycle Status and Lifecycle Phase.
+- **Planning Entry** groups the planning decisions:
+  - **Onboarding Mode, asked as a guided question:** *"How will this project
+    be planned?"*
+    - The options are three selectable cards: Start planning in EPRP ·
+      Project is already running · No formal schedule. Each card has a
+      one-line plain-language description, and the selected card writes the
+      existing onboarding mode.
+    - A "Show advanced" disclosure shows the same field as a plain select.
+    - For "Project is already running", a skippable follow-up asks *"Do you
+      already have an external schedule?"* (Primavera P6 · Excel schedule ·
+      Not yet · Build in EPRP). The answer only chooses the next-step link and
+      is not saved.
+  - readiness, as a short checklist;
+  - the setup state badge, written "Setup: Draft", "Setup: Ready for Planning"
+    or "Setup: Controlled";
+  - an "Open Planning Workspace" action;
+  - the compact **Planning Status**: one row of labelled read-only values and
+    a link to Project Progress. No large performance cards.
+- **Project Priority is not shown anywhere.** It is absent from Project Setup
+  and from the project summary / header badge. The stored value is kept.
+- **Lifecycle Status choices:** Draft · Active · On Hold · Completed ·
+  Cancelled · Archived.
+  - Legacy `planning` and `delayed` stay readable on existing records and later
+    stop being offered (from 13.14).
+  - 13.9A shows stored values unchanged.
+- **Once Controlled** (from 13.9B):
+  - free fields edit normally;
+  - lightweight and governed fields show their value with an "Amend…" action,
+    which opens the amendment dialog: field, current value, new value,
+    mandatory reason, impact warning and, for governed fields, "Requires
+    approval by another Project Control Admin or System Administrator". The
+    requester never sees an Approve control on their own request;
+  - Planned Start / Finish render as values marked "Superseded by BL0" (§3.2),
+    never as disabled inputs.
+- **The first governance-anchor action** asks for explicit confirmation that
+  setup becomes controlled (§28.3). This applies to approving BL0, publishing
+  the first snapshot, promoting an Opening Position and Finalise Project Setup.
+  For a no-formal-schedule project, the finalisation confirmation also states
+  that the project stays "Reported — not planning governed".
+
+**Project Progress.**
+- **Read-only.** The reading order is the one in `02` §26.23.8: performance
+  header → KPI row → S-curve → WBS / Control Account performance → exceptions
+  → (later) manpower.
+- **S-curve:**
+  - BL0 and BLn are neutral lines, distinguished by dash pattern;
+  - Earned / Actual uses the accent colour;
+  - Forecast / Current Plan is dotted from the Data Date marker;
+  - every series is named in an adjacent legend and distinguished by more than
+    colour (§9.10);
+  - a tabular alternative is available.
+- **WBS / Control Account table:**
+  - an indented tree with a sticky name column;
+  - selecting a node redraws the header, KPIs, curve and exceptions for that
+    node, with a visible "Showing: <node> · Clear" chip;
+  - it never navigates to a duplicate page.
+- **States follow `02` §26.23.8:**
+  - "Awaiting first Published Planning Snapshot";
+  - "legacy calculation";
+  - an Opening Position labelled as declared;
+  - "Reported — not planning governed" with SPI "N/A";
+  - archived.
+
+  Each state says what is missing and why (§25). A section whose figures arrive
+  in a later slice shows a designed pending state naming what will appear. It
+  never shows a fake chart.
+- **"Update progress"** never appears on a planning-governed project.
+- **No-formal-schedule projects:**
+  - From **13.9B**, "Update Reported Progress" is a small dialog that adds a
+    Reported Progress entry: Data Date, reported planned / actual %, narrative.
+    It is labelled as reported and is never the full project edit form.
+  - The page shows the latest entry with its provenance, and earlier entries
+    as history.
+  - **Before 13.9B:** only the "Reported — not planning governed" state, with
+    SPI "N/A". There is no write action, and project-record figures are not
+    presented as reported progress.
+
+**Mobile and tablet (§24).**
+- KPI row: 2 × 2 grid.
+- S-curve: full width, with a compact legend.
+- WBS tree: expandable cards.
+- Exceptions: stacked.
+- Master Plan editing is desktop-first. On phones it is read-only, with a
+  short note.
+- Setup sections collapse to an accordion in the same order.
+
+**Wording.**
+- "Project Lifecycle Status" vs "Schedule Condition": never "status" alone
+  for performance.
+- "Setup: Controlled".
+- "Amend setup".
+- "Superseded by BL0".
+- "Reported — not planning governed".
 
 ---
 

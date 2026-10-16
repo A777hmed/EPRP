@@ -709,6 +709,31 @@ milestones; a stored calendar event of type "milestone".
 5. **Archived projects are read-only** for every entity in this group.
 6. **Manpower never enters SPI.**
 
+### 10A.11 Future note — Project Setup Governance (13.9B) *(logical intent only; not specified)*
+
+> **FUTURE — not a schema.** Approved on 2026-10-15 (`02` §26.23.6–§26.23.7,
+> §26.14; closed decisions B11, B12, B14). The entities are specified here only
+> when roadmap slice **13.9B** is specified. No physical table, column or
+> constraint is defined yet. Three append-only records are intended:
+> - a **Project Setup Amendment** (`project_setup_amendments`):
+>   - field, previous / new value, reason, class, impact warning;
+>   - requester and time, status, approver and decision;
+>   - the approver is never the requester.
+> - a **Setup Finalisation** record for no-formal-schedule projects: project,
+>   actor, time. It never implies a Planning Snapshot.
+> - a **Reported Progress** entry for no-formal-schedule projects:
+>   - project and Data Date / as-of date;
+>   - reported planned progress (where applicable) and reported actual
+>     progress;
+>   - narrative, actor, timestamp and source / provenance.
+>
+> This entry becomes the canonical progress source for those projects only.
+> The project record's progress fields and Weekly / Monthly are not.
+>
+> **Project Priority** and the legacy Lifecycle Status values `planning` /
+> `delayed` remain stored and readable. Nothing is deleted or migrated by this
+> decision.
+
 ---
 
 ## 11. Group G — Comment Register
@@ -1410,7 +1435,7 @@ Decisions 1–6 from §1.1 are settled. These remain.
 | **4** | **Sensitive content** | Universal read (§17.1) means nothing in the platform is private. | Confirm no content requires restriction, or define an explicitly-restricted classification as a later addition. |
 | **5** | **Report Template ownership** | Modelled as organization-owned with project copies, matching Lifecycle Template. | Confirm templates belong in the global set even though decision 2 listed seven kinds without them. |
 | **6** | **Action vocabulary versus roles** | §17.2 defines six actions; `02` §8 defines eight roles; `05` §8 defines the operating role table. | Compatible — roles grant action sets — but the mapping must be written once, authoritatively, when `05` is next revised. |
-| **7** | **Master Planning & Control open items** | B1–B9 in `02_PLATFORM_ARCHITECTURE.md` §26.19 (B10 closed 2026-10-14) | Each blocks only the roadmap slice named there; none blocks 13.9 |
+| **7** | **Master Planning & Control open items** | B1–B9 open in `02_PLATFORM_ARCHITECTURE.md` §26.19 (B10 closed 2026-10-14; B11–B14 raised and closed 2026-10-15) | Each blocks only the roadmap slice named there; none blocks 13.9A or 13.9B |
 
 ---
 

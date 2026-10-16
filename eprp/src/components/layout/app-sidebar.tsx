@@ -23,6 +23,7 @@ import { mainNavigation } from "@/config/navigation";
 import { activeProjectId, isNewProjectRoute } from "@/config/project-sections";
 import { siteConfig } from "@/config/site";
 import { ProjectContextNav } from "./project-nav-group";
+import { useCompactViewport } from "./use-compact-viewport";
 
 function isItemActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
@@ -67,14 +68,21 @@ export function RouteSidebarSync() {
   // too, so the first save does not change the layout around it.
   const insideProject =
     Boolean(activeProjectId(pathname)) || isNewProjectRoute(pathname);
+  // 13.9A tablet hardening: inside a project in the 768–1023px band the
+  // project navigation is already an icon strip; a full global rail beside it
+  // left the workspace cramped. Entering that band (load or resize) is also a
+  // category change, so the rail collapses there too. A manual expand within
+  // the same category is still left alone, as before.
+  const compact = useCompactViewport();
+  const category = !insideProject ? "global" : compact ? "project-compact" : "project";
   const { setOpen } = useSidebar();
-  const previousRef = React.useRef<boolean | null>(null);
+  const previousRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
-    if (previousRef.current === insideProject) return;
-    previousRef.current = insideProject;
-    setOpen(!insideProject);
-  }, [insideProject, setOpen]);
+    if (previousRef.current === category) return;
+    previousRef.current = category;
+    setOpen(category === "global");
+  }, [category, setOpen]);
 
   return null;
 }

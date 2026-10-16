@@ -6,7 +6,6 @@ import {
   CalendarDays,
   CalendarRange,
   FolderX,
-  Gauge,
   PenLine,
   Repeat,
   Users,
@@ -38,9 +37,13 @@ import {
   type ProjectSectionId,
 } from "@/config/project-sections";
 import { projectWorkflowHref } from "@/config/project-workflow";
-import { formatVariance, projectSpi, projectVariance } from "../../utils";
-import { ProgressComparison } from "../progress-comparison";
 import { ProjectDetailsView } from "../project-details-view";
+import { ProjectProgressView } from "../progress/project-progress-view";
+import { planningGovernanceOf } from "../../planning-experience";
+import {
+  usePlanningPosition,
+  type PlanningPositionState,
+} from "../../use-planning-position";
 import { OrganizationChartSection } from "./organization-chart-section";
 // [reporting-perf] TEMPORARY diagnostic import — remove with src/lib/perf-temp.ts
 import { startTimer, timed } from "@/lib/perf-temp";
@@ -90,6 +93,9 @@ export function ProjectSectionView({
   // until both the project and the identity have settled, so no mutation
   // control can flash before the answer is known.
   const authority = useProjectAuthority(project);
+  // Project Progress only: one planning read, shared by the page subtitle
+  // (state-aware wording) and the progress view. No fetch elsewhere.
+  const progressPosition = usePlanningPosition(section === "kpis" ? projectId : undefined);
 
   /*
    * Overview delegates to `ProjectDetailsView`, which loads the project and
@@ -162,12 +168,14 @@ export function ProjectSectionView({
   }
 
   const definition = localizeProjectSection(getProjectSection(section), terms);
+  const description =
+    section === "kpis" ? progressSubtitle(progressPosition, definition.description) : definition.description;
 
   const header = (
     <PageHeader
       eyebrow={`${project.code} · ${project.shortName ?? project.name}`}
       title={definition.label}
-      description={definition.description}
+      description={description}
       actions={
         <>
           <Button variant="outline" asChild>
@@ -209,9 +217,27 @@ export function ProjectSectionView({
         weeklyReports={weeklyReports}
         authority={authority}
         reloadProject={reloadProject}
+        progressPosition={progressPosition}
       />
     </div>
   );
+}
+
+/**
+ * The Project Progress subtitle depends on the planning state: a
+ * no-formal-schedule project has no Published Planning Snapshot to read from,
+ * so the generic snapshot wording would be wrong. Nothing is shown while the
+ * state is still loading, so neither wording flashes.
+ */
+function progressSubtitle(position: PlanningPositionState, governedWording: string): string | undefined {
+  if (position.status === "loading") return undefined;
+  if (position.status === "ready") {
+    const mode = position.settings?.onboardingMode ?? "new_project";
+    if (planningGovernanceOf(mode, Boolean(position.snapshot)) === "not-governed") {
+      return "Project progress is reported without a governed Planning Snapshot.";
+    }
+  }
+  return governedWording;
 }
 
 function SectionBody({
@@ -220,12 +246,14 @@ function SectionBody({
   weeklyReports,
   authority,
   reloadProject,
+  progressPosition,
 }: {
   project: Project;
   section: ProjectSectionId;
   weeklyReports: WeeklyReport[];
   authority: ProjectAuthority;
   reloadProject: () => Promise<void>;
+  progressPosition: PlanningPositionState;
 }) {
   const terms = useHierarchyTerms(project);
   const definition = localizeProjectSection(getProjectSection(section), terms);
@@ -259,7 +287,7 @@ function SectionBody({
     case "planning":
       return <PlanningSection project={project} authority={authority} />;
     case "kpis":
-      return <KpiSection project={project} authority={authority} />;
+      return <KpiSection project={project} position={progressPosition} />;
     case "milestones":
       // The panel gates its own Add / Edit / Archive and approval queue
       // through `useMilestoneAuthority`, which mirrors the same policy.
@@ -535,6 +563,10 @@ function TeamSection({
   );
 }
 
+/**
+ * 13.9A: the Planning Workspace carries its own header strip and section
+ * navigation, so it is not wrapped in a second titled card.
+ */
 function PlanningSection({
   project,
   authority,
@@ -544,69 +576,22 @@ function PlanningSection({
 }) {
   const terms = useHierarchyTerms(project);
   return (
-    <ProjectSectionLayout
-      title="Planning & Control"
-      description="Master Plan, imports, review and the Published Planning Snapshot Weekly and Monthly report against."
-    >
-      <PlanningWorkspace
-        project={project}
-        canManage={authority.canManageOperations}
-        hierarchyTerm={terms.singular}
-      />
-    </ProjectSectionLayout>
+    <PlanningWorkspace
+      project={project}
+      canManage={authority.canManageOperations}
+      hierarchyTerm={terms.singular}
+    />
   );
 }
 
-function KpiSection({
-  project,
-  authority,
-}: {
-  project: Project;
-  authority: ProjectAuthority;
-}) {
-  const variance = projectVariance(project);
-  const stats: StatCardProps[] = [
-    { label: "Planned progress", value: `${project.plannedProgress}%` },
-    { label: "Actual progress", value: `${project.actualProgress}%` },
-    { label: "Schedule variance", value: formatVariance(variance) },
-    { label: "SPI", value: projectSpi(project).toFixed(2), icon: Gauge },
-  ];
-
-  return (
-    <ProjectSectionLayout
-      stats={stats}
-      title="Project Progress"
-      description="Planned versus actual completion for this project."
-      quickActions={
-        <>
-          {authority.canManageOperations && (
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/projects/${project.id}/edit`}>Update progress</Link>
-            </Button>
-          )}
-          <Button variant="outline" size="sm" asChild>
-            <Link href={projectSectionHref(project.id, "weekly-reports")}>
-              Weekly reports
-            </Link>
-          </Button>
-        </>
-      }
-    >
-      <ProgressComparison
-        planned={project.plannedProgress}
-        actual={project.actualProgress}
-        size="md"
-      />
-      <Separator className="my-3" />
-      <p className="text-xs text-muted-foreground tabular-nums">
-        Forecast finish:{" "}
-        {project.forecastFinishDate
-          ? formatDate(project.forecastFinishDate)
-          : "—"}{" "}
-        · Planned finish: {formatDate(project.plannedFinishDate)}
-      </p>
-    </ProjectSectionLayout>
-  );
+/**
+ * 13.9A: Project Progress is the read-only analytical workspace fed by the
+ * Published Planning Snapshot. The typed planned/actual figures, the
+ * percent-ratio SPI and the "Update progress" route into the project edit
+ * form are gone (`docs/02` §26.13, §26.23.8).
+ */
+function KpiSection({ project, position }: { project: Project; position: PlanningPositionState }) {
+  return <ProjectProgressView project={project} position={position} />;
 }
 
 function WeeklyReportsSection({

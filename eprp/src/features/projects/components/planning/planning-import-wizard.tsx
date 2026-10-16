@@ -259,7 +259,7 @@ export function PlanningImportWizard({
     >
       <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Import Planning Data</DialogTitle>
+          <DialogTitle>Import schedule</DialogTitle>
           <DialogDescription>
             Upload a schedule export. Nothing is published — this saves a
             Draft Import Batch for Planning Review to confirm.

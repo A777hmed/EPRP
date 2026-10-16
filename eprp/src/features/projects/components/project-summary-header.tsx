@@ -1,9 +1,6 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { formatDate } from "@/lib/formatters";
-import { cn } from "@/lib/utils";
 import {
   getClientById,
   getContactById,
@@ -11,47 +8,12 @@ import {
 } from "@/features/master-data";
 import type { Project } from "@/types";
 import {
-  formatVariance,
-  projectSpi,
-  projectVariance,
-  varianceTone,
-} from "@/features/projects/utils";
-import {
-  OverallStatusBadge,
-  PriorityBadge,
-  ProjectStatusBadge,
-} from "./project-status-badge";
-
-const varianceText = {
-  success: "text-success",
-  warning: "text-warning",
-  danger: "text-destructive",
-  neutral: "text-foreground",
-} as const;
-
-function Metric({
-  label,
-  value,
-  valueClassName,
-}: {
-  label: string;
-  value: string;
-  valueClassName?: string;
-}) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p
-        className={cn(
-          "text-lg font-semibold tracking-tight tabular-nums",
-          valueClassName
-        )}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
+  planningGovernanceOf,
+  showLegacyPerformanceBadge,
+} from "../planning-experience";
+import { usePlanningPosition } from "../use-planning-position";
+import { OverallStatusBadge, ProjectStatusBadge } from "./project-status-badge";
+import { PlanningStatus } from "./planning/planning-status";
 
 export interface ProjectSummaryHeaderProps {
   project: Project;
@@ -59,7 +21,15 @@ export interface ProjectSummaryHeaderProps {
   actions?: React.ReactNode;
 }
 
-/** Project overview header: identity, badges, key metrics, and dates. */
+/**
+ * Project overview header: identity, badges, the compact Planning Status and
+ * the Project Setup reference dates.
+ *
+ * 13.9A: the Priority badge is gone (Priority is no longer part of the UI; its
+ * stored value is kept), and the typed Planned / Actual / Variance / SPI
+ * metrics — read from the project record, with a percent-ratio SPI — are
+ * replaced by the Planning Status read from the Published Planning Snapshot.
+ */
 export function ProjectSummaryHeader({
   project,
   actions,
@@ -67,7 +37,21 @@ export function ProjectSummaryHeader({
   const client = getClientById(project.clientId);
   const manager = getContactById(project.projectManagerId);
   const phase = getProjectPhaseById(project.currentPhaseId);
-  const variance = projectVariance(project);
+  // One read of the planning position, shared with the Planning Status below.
+  const position = usePlanningPosition(project.id);
+  const governance =
+    position.status === "ready"
+      ? planningGovernanceOf(
+          position.settings?.onboardingMode ?? "new_project",
+          Boolean(position.snapshot)
+        )
+      : undefined;
+  const dates: { label: string; value: string | undefined }[] = [
+    { label: "Start", value: project.actualStartDate ?? project.plannedStartDate },
+    { label: "Planned finish", value: project.plannedFinishDate },
+    { label: "Forecast finish", value: project.forecastFinishDate },
+    { label: "Actual finish", value: project.actualFinishDate },
+  ];
 
   return (
     <div className="space-y-4">
@@ -81,8 +65,11 @@ export function ProjectSummaryHeader({
           </h1>
           <div className="flex flex-wrap items-center gap-2">
             <ProjectStatusBadge status={project.status} />
-            <OverallStatusBadge status={project.overallStatus} />
-            <PriorityBadge priority={project.priority} />
+            {/* The manual overallStatus badge never sits beside a governed
+                planning state it would contradict (13.9A UAT). */}
+            {showLegacyPerformanceBadge(governance) && (
+              <OverallStatusBadge status={project.overallStatus} />
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
             {client?.name ?? "—"} · Managed by {manager?.name ?? "—"}
@@ -96,40 +83,21 @@ export function ProjectSummaryHeader({
         )}
       </header>
 
-      <Card className="shadow-soft">
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            <Metric label="Planned Progress" value={`${project.plannedProgress}%`} />
-            <Metric label="Actual Progress" value={`${project.actualProgress}%`} />
-            <Metric
-              label="Schedule Variance"
-              value={formatVariance(variance)}
-              valueClassName={varianceText[varianceTone(variance)]}
-            />
-            <Metric label="SPI" value={projectSpi(project).toFixed(2)} />
-            <Metric
-              label="Start"
-              value={formatDate(project.actualStartDate ?? project.plannedStartDate)}
-            />
-            <Metric
-              label="Planned Finish"
-              value={formatDate(project.plannedFinishDate)}
-            />
-          </div>
-          {(project.forecastFinishDate || project.actualFinishDate) && (
-            <>
-              <Separator className="my-3" />
-              <p className="text-xs text-muted-foreground tabular-nums">
-                {project.forecastFinishDate &&
-                  `Forecast finish: ${formatDate(project.forecastFinishDate)}`}
-                {project.forecastFinishDate && project.actualFinishDate && " · "}
-                {project.actualFinishDate &&
-                  `Actual finish: ${formatDate(project.actualFinishDate)}`}
-              </p>
-            </>
-          )}
-        </CardContent>
-      </Card>
+      <PlanningStatus projectId={project.id} position={position} className="bg-card shadow-soft" />
+
+      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-xs text-muted-foreground tabular-nums">
+        <dl className="contents">
+          {dates
+            .filter((date) => date.value || date.label === "Start" || date.label === "Planned finish")
+            .map((date) => (
+              <div key={date.label} className="flex gap-1.5">
+                <dt>{date.label}</dt>
+                <dd className="font-medium text-foreground">{formatDate(date.value)}</dd>
+              </div>
+            ))}
+        </dl>
+        <span className="text-muted-foreground/80">Reference dates from Project Setup</span>
+      </div>
     </div>
   );
 }

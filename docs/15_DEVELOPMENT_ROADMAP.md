@@ -47,7 +47,7 @@ and a lifecycle transition correctly refused).
 | 10a | Control Center + Calendar | ⚠️ Partial — Dashboard rebuilt on real data (mock removed), regrouped sidebar with notched active indicator, and a project-scoped Calendar (`project_events`) with Day/Week/Month/Agenda and full CRUD. Attachments on events are NOT implemented: the platform has no attachment storage at all (`attachment-service.ts` is `notImplemented`, no table, no bucket) |
 | 11 | A4/PDF output | ⚠️ Partial — dedicated Weekly A4 preview/print delivered; other report types remain untouched |
 | 12 | Hardening and future integrations | ❌ Not started |
-| 13 | Master Planning & Control *(added — see note)* | ⚠️ **CURRENT ACTIVE PHASE** — in progress — **13.1 & 13.2 CLOSED**, **13.3 implemented** (verified in UI), **13.2c + 13.2d implemented** (verified on the local rehearsal database); **13.4 Wave 1 implemented with isolated database validation green and authenticated UI review pending**. **13.8 Master Planning & Control specification DOCUMENTED 2026-10-14** (`02` §26 — docs only, no code or database change). **13.9 archived / read-only safety guards CLOSED 2026-10-15 (browser UAT passed; LOCAL ONLY, not deployed)**; 13.10–13.21 not started; they supersede the unstarted 13.4 Wave 2 and 13.5–13.7 (see Phase 13) |
+| 13 | Master Planning & Control *(added — see note)* | ⚠️ **CURRENT ACTIVE PHASE** — in progress — **13.1 & 13.2 CLOSED**, **13.3 implemented** (verified in UI), **13.2c + 13.2d implemented** (verified on the local rehearsal database); **13.4 Wave 1 implemented with isolated database validation green and authenticated UI review pending**. **13.8 Master Planning & Control specification DOCUMENTED 2026-10-14** (`02` §26 — docs only, no code or database change). **13.9 archived / read-only safety guards CLOSED 2026-10-15 (browser UAT passed; LOCAL ONLY, not deployed)**; **13.9A Planning Experience Foundation CLOSED 2026-10-16 (owner visual UAT PASS)**; 13.9B Project Setup Governance defined, not started; B11–B14 closed; 13.10–13.21 not started; they supersede the unstarted 13.4 Wave 2 and 13.5–13.7 (see Phase 13) |
 
 **CURRENT ACTIVE PHASE: Phase 13 — Master Planning & Control** (since
 2026-10-14). **13.8 Specification — DOCUMENTED** in
@@ -55,10 +55,13 @@ and a lifecycle transition correctly refused).
 (with `03` §4.7/§5.5/§21.4, `05` §3.8, `06` §10A). **13.9 — archived /
 read-only safety guards — CLOSED 2026-10-15** (browser UAT passed; LOCAL
 ONLY — migration applied to the local development database only, not
-deployed; see the 13.9 checkpoint at the end of Phase 13). **Next slice: 13.10
-— Planning Engine core — NOT STARTED; it starts only on explicit
-instruction.** The slice plan (13.8–13.21), in dependency order, is in Phase 13
-below.
+deployed; see the 13.9 checkpoint at the end of Phase 13). **Planning
+Experience / IA design gate — APPROVED 2026-10-15** (`02` §26.23, `07` §10.12,
+`05` §3.9; docs only). **13.9A — Planning Experience Foundation (UI / IA only) —
+CLOSED 2026-10-16 (owner visual UAT PASS; no schema change). Next slice:
+13.9B — Project Setup Governance — NOT STARTED; then 13.10 — Planning Engine core. Each starts only on explicit
+instruction.** The slice plan (13.8–13.21, plus 13.9A and 13.9B), in
+dependency order, is in Phase 13 below.
 
 **Phase 2C — implementation complete for the current scope; carry-over UAT
 only.** It is **not** a competing active development phase. 2C.1 — DONE /
@@ -380,6 +383,9 @@ local weights, earning methods, reporting-unit mapping, look-ahead weeks) is
 folded into **13.11**. Project Setup keeps only the onboarding mode and the
 **read-only** Governed Performance block fed by the latest Published Planning
 Snapshot (13.14); it never accepts typed Planned % / Actual % / Variance / SPI.
+*(2026-10-15: the block becomes a compact read-only **Planning Status** inside
+Setup's Planning Entry section — shell in 13.9A, figures in 13.14; `02`
+§26.23.4.)*
 **2C.2 has no remaining scope, is superseded by 13.11, and is not maintained as
 a separate implementation track.**
 
@@ -1268,7 +1274,9 @@ but are not the same increment. Use the numbering in this file.
 | 13.7 | Executive & Dashboard | ⏭️ **Superseded 2026-10-14** — Dashboard by **13.14**, Executive and portfolio by **13.20** |
 | 13.8 | **Master Planning & Control specification** | ✅ **DOCUMENTED 2026-10-14** — `02` §26 (+ `03` §4.7/§5.5/§21.4, `05` §3.8, `06` §10A, `08`, `07` and `specs/weekly-report.md` notes). Docs only |
 | 13.9 | Archived / read-only safety guards | ✅ **CLOSED 2026-10-15 — browser UAT passed. LOCAL ONLY (not deployed).** Migration `20261014090000_planning_control_archived_read_only.sql` applied to the local development database only; see the 13.9 checkpoint |
-| 13.10 | Planning Engine core (pure) | ❌ Not started — next slice |
+| 13.9A | Planning Experience Foundation (UI / IA only) | ✅ **CLOSED 2026-10-16 — owner visual UAT PASS** (desktop, tablet 800×900, phone 390×844, dark mode). No migration, no schema change. tsc · eslint · build PASS; source suite 772/772. See the 13.9A checkpoint |
+| 13.9B | Project Setup Governance | ❌ Not started — follows 13.9A (B11 closed 2026-10-15) |
+| 13.10 | Planning Engine core (pure) | ❌ Not started — follows 13.9B |
 | 13.11 | Working Plan hardening — hierarchy, levels, local weights, activity kinds and earning methods, reporting-unit mapping (supersedes 2C.2) | ❌ Not started |
 | 13.12 | Snapshot v2 + baselines (BL0/BLn, re-baseline approval) + curves | ❌ Not started — needs decisions B3, B8 |
 | 13.13 | Manpower / resource foundation | ❌ Not started |
@@ -2056,9 +2064,27 @@ instruction. Each ends with the `CLAUDE.md` completion report (lint, type-check,
 production build, changed files, completed and deferred requirements) and an
 update to this roadmap. Database slices also need migration replay and runtime
 SQL verification on the local stack; a green build is not database
-verification. Open decisions are B1–B9 in `02` §26.19. **B10 (back-dated
-Schedule Versions → Historical Correction workflow) and the one-under-review
-policy were closed by the owner on 2026-10-14.**
+verification. Open decisions are B1–B9 in `02` §26.19. **B10
+(back-dated Schedule Versions → Historical Correction workflow) and the
+one-under-review policy were closed by the owner on 2026-10-14. B11–B14 were
+raised and closed by the owner on 2026-10-15.**
+
+**Recorded 2026-10-15 — Planning Experience / IA design gate approved (D1–D9,
+`02` §26.23).**
+- New pre-engine UI sub-slice **13.9A**. No slice is renumbered.
+- The Opening Position move leaves 13.14 for 13.9A.
+- 13.11 and 13.14 build inside the 13.9A structure.
+- Setup-control enforcement and setup amendments have no owning slice yet;
+  **13.12 is proposed** (B11).
+- *Closed later on 2026-10-15:*
+  - **B11:** a new **13.9B — Project Setup Governance**; 13.12 is not
+    overloaded.
+  - **B12:** no self-approval of governed amendments.
+  - **B13:** lifecycle values Draft · Active · On Hold · Completed · Cancelled
+    · Archived; legacy `planning` / `delayed` stay readable.
+  - **B14:** an append-only Reported Progress stream in 13.9B.
+  - Priority is removed from the UI, including the header badge.
+  - Sequence: 13.9A → 13.9B → 13.10.
 
 **Recorded 2026-10-14 without changing the slice order:** Guided Planning
 Setup (`02` §26.20) belongs to 13.11, extended by the slices whose
@@ -2067,17 +2093,20 @@ configuration it asks about. Collaborative Weekly/Monthly comments (`02`
 history (`02` §26.22) belong to 13.16 (Import v2), with snapshot provenance and
 Baseline Revisions in 13.12 and milestone proposals in 13.15; Import v2 is
 **not** started now. **13.9 remains the next slice.** *(2026-10-15: 13.9 is
-now implemented locally — see the 13.9 checkpoint; 13.10 is next.)*
+now implemented locally — see the 13.9 checkpoint. Since the 2026-10-15 design
+gate, **13.9A** is next, then 13.10.)*
 
 | # | Slice | Scope | Depends on | Blocked by | Done when |
 |---|---|---|---|---|---|
 | **13.8** | Specification | `02` §26 and the related amendments | — | — | ✅ Documented 2026-10-14 |
 | **13.9** | Archived / read-only safety guards | Data-boundary refusal of every write on an archived project for the governed milestone and deliverable registers and their update streams, Weekly milestone drafts, every planning table, import and publish; archive-aware milestone authority in the UI | 13.8 | — | Runtime SQL proves the refusal per table and route, for every role including administrators; reads unaffected; no other behaviour change |
+| **13.9A** | Planning Experience Foundation *(approved 2026-10-15)* | UI / IA only (`02` §26.23): Planning Workspace in the sidebar and final project grouping; Workspace shell with pinned header strip and URL-addressable sections (Summary · Master Plan · Imports & Review · Baselines & Snapshots); placeholder tabs removed; Opening Position in Baselines & Snapshots only; Project Setup regrouped into nine sections with Priority hidden; compact Planning Status shell; Project Progress shell and states; no manual "Update progress" for governed projects; read-only "Reported — not planning governed" state (no write action); **guided experience** — "How will this project be planned?" over the existing onboarding mode, plus a derived readiness checklist in Summary (no new storage) | 13.9 | — | See the 13.9A definition below. No schema, authority or calculation change |
+| **13.9B** | Project Setup Governance *(approved 2026-10-15; B11)* | Setup lifecycle with Controlled from governance anchors; first-anchor rules and confirmation; field classes; append-only `project_setup_amendments` with governed approval by a different PCA / SA (B12); Finalise Project Setup record for no-formal-schedule projects; append-only Reported Progress stream and its write workflow (B14); History integration; RLS / service / UI authority; archived guard on new tables. Separate from the Planning Engine | 13.9A | — | See the 13.9B definition below |
 | **13.10** | Planning Engine core (pure) | Pure module: effective weights, weight and completeness validation (W1–W3, C1–C2), PV distribution per earning method, EV per method, roll-up, SV, SPI, curves, schedule-condition function (thresholds passed in) | 13.8 | B7 | `02` §26.5 is reproduced exactly as a test fixture, and both calculation paths agree; no schema or UI change; the existing flat roll-up is untouched |
-| **13.11** | Working Plan hardening (supersedes 2C.2) | Local-weight semantics; level labels; Control Account flag; activity kind and earning method; activity attached to a node; reporting-unit mapping (PSM and Other structure units); logged normalisation; Master Plan editor showing local weight and calculated contribution; archived read-only. **Planning Setup — Guided and Advanced modes over one Planning Configuration** (`02` §26.20, `07` §10.10); later slices add their own guided questions (baseline 13.12, manpower 13.13, schedule source 13.16, look-ahead and report sections 13.17 / 13.18) | 13.9, 13.10 | — | Sums validated per parent; existing weights preserved and **never silently reinterpreted** (existing projects are reviewed into the local model before their first v2 publish) |
+| **13.11** | Working Plan hardening (supersedes 2C.2) | Local-weight semantics; level labels; Control Account flag; activity kind and earning method; activity attached to a node; reporting-unit mapping (PSM and Other structure units); logged normalisation; Master Plan editor showing local weight and calculated contribution; archived read-only. **Planning Setup — Guided and Advanced modes over one Planning Configuration** (`02` §26.20, `07` §10.10), inside the 13.9A Workspace Summary; later slices add their own guided questions (baseline 13.12, manpower 13.13, schedule source 13.16, look-ahead and report sections 13.17 / 13.18) | 13.9, 13.9A, 13.10 | — | Sums validated per parent; existing weights preserved and **never silently reinterpreted** (existing projects are reviewed into the local model before their first v2 publish) |
 | **13.12** | Snapshot v2 + baselines + curves | Publish runs the engine and freezes nodes, activities, milestone states and curves, with engine version; publish validation; BL0/BLn with request (Project Control) and approval (Project Control Admin / System Admin) as **Baseline Revisions**; baseline curves; **snapshot provenance** (source Schedule Version, edits applied after it, Data Date, BL0, BLn, engine version, publisher, time — `02` §26.22.7); the rule that no import re-baselines; legacy snapshots labelled | 13.10, 13.11 | B3, B8 | A published snapshot reproduces `02` §26.5; re-baselining never changes a published snapshot; legacy snapshots read unchanged |
 | **13.13** | Manpower / resource foundation | Resource Category master data; planned manpower in the Working Plan (entry and template); frozen in snapshots and baselines; actual-manpower record defined for the Weekly | 13.12 | B5 (actual entry only) | Planned histogram published and reproducible from a snapshot; manpower never enters SPI |
-| **13.14** | Core consumers | Governed Performance (read-only; Opening Position record/promote moves to the Planning workspace only), Project Progress (KPI strip, WBS roll-up, S-curves, milestones, manpower), Dashboard project and portfolio views (portfolio **distribution only** until 13.20), Calendar milestones from snapshot and register; stop writing and displaying the project record's progress; remove the Actual % ÷ Planned % SPI from these surfaces | 13.12, 13.13 | B4 | Every figure cites its snapshot; no surface reads plan items as milestones; projects without a plan read "Reported — not planning governed" / SPI "N/A" |
+| **13.14** | Core consumers | Fills the 13.9A shells: compact Planning Status figures and Schedule Condition; Project Progress analytics (performance header, KPI row, S-curve, WBS / Control Account performance with node selection, exceptions, manpower section) per `02` §26.23.8. Also: Dashboard project and portfolio views (portfolio **distribution only** until 13.20); Calendar milestones from snapshot and register; stop writing and displaying the project record's progress; remove the Actual % ÷ Planned % SPI from these surfaces; **retire `overallStatus` as an input**, with badges and filters moving to Schedule Condition / Lifecycle Status (`02` §26.23.5), and Lifecycle Status clean-up per B13. *(The Opening Position move was reassigned to 13.9A on 2026-10-15.)* | 13.9A, 13.12, 13.13 | B4, B13 | Every figure cites its snapshot; no surface reads plan items as milestones; projects without a plan read "Reported — not planning governed" / SPI "N/A" |
 | **13.15** | Milestone governance / linkage | One-to-one link from a true milestone activity to a governed milestone, with link UI; linked milestones read dates from the snapshot; Schedule Versions may propose forecast / actual dates for linked milestones, never BL0 / BLn (`02` §26.22.6); key flag and criticality label; identity change history; deprecate register physical weight and planned-progress % | 13.12 | **B1** (amends `02` §24.6) | Linked and unlinked milestones resolve per `02` §26.6 rule 5; payments, client decisions and reconciliation unchanged |
 | **13.16** | Import v2 — EPRP Excel + P6 Excel, with **Schedule Versions** (`02` §26.22) | Every import a preserved Schedule Version (reference, Data Date, status, previous accepted version, baseline in force, change counts); one under review at a time; staging, validation, mapping (WBS → nodes, IDs, resources, weight semantics); diff against the **latest accepted** version by category; Project Control acceptance with logged exceptions; field ownership; re-match and restoration; removed items archived as "Removed from current schedule", with protected items needing explicit resolution; the **Historical Correction** workflow for back-dated versions (never current, never alters a snapshot or an approved report; carried forward only via a new current-dated version); milestone matching; the Schedule History list; fixes the review panel counting an existing activity as already confirmed | 13.11, 13.12, 13.15 | — (B10 closed) | A re-import shows every difference and changes nothing un-accepted; no match on titles; raw rows and every earlier version preserved; no import changes BL0 / BLn or any published snapshot |
 | **13.17** | Automatic Weekly — PSM | Pin and re-pin until approval; derived planning facts per section; confirm/explain through Weekly entries that reference the activity, node or milestone; **collaborative section comments** — typed, attributed, never planning facts; engineers add and edit their own; the Department Manager reviews and summarises (`02` §26.21); actual manpower entry; typed progress, duplicate activity rows and plan rows retired for planning-governed projects | 13.12–13.16; 13.4 Wave 1 UI review green | B5 | A PSM Weekly needs no typed progress; approval freezes the pin; history of retired rows stays readable |
@@ -2166,3 +2195,433 @@ planning services.
   reachable through the API.
 
 **Not in 13.9:** the Planning Engine (13.10) and every later slice.
+
+---
+
+### 13.9A — Planning Experience Foundation (approved 2026-10-15)
+
+**Status: ❌ NOT STARTED — design gate approved 2026-10-15 (owner decisions
+D1–D9). Starts only on explicit instruction.**
+
+**Contracts.**
+- `02` §26.23 (architecture);
+- `07` §10.12 (presentation);
+- `05` §3.9 (authority: 13.9A changes none).
+
+**What it is.** A small pre-engine sub-slice, **UI / information architecture
+only**. It gives the planning experience its final structure, so the later
+slices fill a structure instead of reshaping screens. It sits between 13.9
+and 13.10. No existing slice is renumbered.
+
+**Scope.**
+1. **Sidebar.**
+   - Add **Planning Workspace** under PLANNING & CONTROL.
+   - Apply the final grouping of `02` §26.23.2 where safe: SETUP · PLANNING &
+     CONTROL · REPORTING · PROJECT STRUCTURE (Departments · Systems · Programs
+     & Studies under the project's label) · RECORDS.
+   - **Contacts** leaves the sidebar only if it stays reachable from Project
+     Setup and Team & Responsibilities; its route keeps working.
+   - Expanded, collapsed, overlay and mobile-sheet forms are all covered.
+2. **Planning Workspace shell.**
+   - Pinned header strip and underline section navigation, with URL-addressable
+     sections: Summary · Master Plan · Imports & Review · Baselines & Snapshots.
+   - Rename **Planning Data → Imports & Review**.
+   - Remove the placeholder **Milestones** and **Performance & Variance** tabs
+     and the duplicate stat cards.
+   - The header strip shows only values the current data supplies. BL0 / BLn
+     show only where a baseline exists today; otherwise they are omitted.
+3. **Opening Position:** record / promote only in **Baselines & Snapshots**.
+   It is removed from Project Setup.
+4. **Project Setup regrouping** into the nine sections of `02` §26.23.4.
+   - Relabel "Current Phase" as **Project Lifecycle Phase**.
+   - Move **Portfolio / Reporting Group** to Basic Information & Classification.
+   - **Remove Project Priority from the UI** (owner-confirmed 2026-10-15): the
+     Setup field and the project summary / header Priority badge.
+     - Keep the stored value; no historical value is deleted or migrated.
+     - New projects take the existing default.
+     - No schema change.
+   - Project Lifecycle Status keeps its stored values and current choices. The
+     legacy `planning` / `delayed` retirement is 13.14 (B13); nothing is
+     migrated.
+   - Rename "Linked Scope" to Scope & Structure.
+   - **No data ownership change.**
+5. **Planning Entry.**
+   - Onboarding Mode, readiness, an "Open Planning Workspace" action, and the
+     **setup state shown read-only, as derived from data that exists today**
+     (`02` §26.23.6): Draft / Ready for Planning from the setup checks;
+     Controlled where a published snapshot already exists.
+   - Field control, the Finalise action and amendments are **13.9B**. Until
+     then the Controlled badge says field control is not yet enforced.
+   - A no-formal-schedule project cannot show Controlled before 13.9B, because
+     its finalisation record does not exist yet.
+6. **Compact Planning Status shell** replaces the large Governed Performance
+   cards.
+   - It reads the latest Published Snapshot through the existing service:
+     version, Data Date, PV, EV, variance, SPI.
+   - Pre-13.12 snapshots are labelled "legacy calculation". Schedule Condition
+     shows "Unknown" until 13.14.
+   - It computes nothing.
+7. **Project Progress shell and states** (`02` §26.23.8).
+   - Performance header and KPI row from the latest snapshot's existing
+     figures.
+   - Designed pending states for the S-curve, WBS / Control Account
+     performance and exceptions, each naming the slice that fills it.
+   - States: awaiting first snapshot · Opening Position · legacy · not planning
+     governed · archived.
+8. **Remove manual "Update progress"** from every planning-governed project.
+9. **No-formal-schedule state.**
+   - **Read-only only:** the "Reported — not planning governed" state, with
+     SPI "N/A".
+   - **No "Update Reported Progress" action.** Its append-only stream belongs
+     to 13.9B (B14, closed).
+   - Project-record `planned_progress` / `actual_progress` are not presented
+     as reported progress, and no temporary source of truth is introduced.
+
+10. **Guided experience** (approved 2026-10-15; `02` §26.20 rules 6–7 and
+    §26.20.1, `07` §10.10 / §10.12).
+    - **Project Setup → Planning Entry** asks *"How will this project be
+      planned?"* — Start planning in EPRP · Project is already running · No
+      formal schedule. Each option has a plain-language description and writes
+      the **existing** `onboarding_mode` (`new_project` ·
+      `existing_active_project` · `no_formal_schedule`).
+    - "Show advanced" exposes the same field, not a copy.
+    - For "Project is already running", a skippable follow-up asks *"Do you
+      already have an external schedule?"* (P6 · Excel · Not yet · Build in
+      EPRP). It is **guidance only and not persisted**; the existing
+      `default_import_source` column is not written.
+    - **Planning Workspace → Summary** shows a guided readiness checklist.
+      - Each step's state is derived from existing data, with a plain-language
+        explanation and a deep link to the professional section.
+      - It never opens on a blank workspace.
+      - Questions owned by 13.11 (breakdown, weights, earning method), 13.12
+        (baseline), 13.13 (manpower), 13.16 (schedule source) and 13.17 /
+        13.18 (look-ahead) are **not** shown as interactive questions and have
+        no storage.
+    - **UX rules:**
+      - business language, never database terms;
+      - short, progressive groups;
+      - "why it matters" lines;
+      - recommended defaults only where justified;
+      - "Skip for now" only for genuinely optional items;
+      - **no calculated value is ever asked for or accepted** (PV, EV, SPI,
+        effective contribution, S-curve values, derived variance).
+    - **Recommended Setup / templates** are documented only, with none in
+      13.9A. Master Plan, Imports & Review and Baselines & Snapshots stay
+      professional workspaces, and nothing becomes a wizard.
+
+**Rule for anything owned by 13.9B or later.** Show the correct read-only
+shell or state, or omit the mutating action. Never implement a temporary
+source of truth.
+
+**Not in 13.9A.** These stay in their approved slices:
+- setup lifecycle schema, `project_setup_amendments`, the finalisation record,
+  the Reported Progress stream and its write workflow (13.9B);
+- Planning Engine calculations (13.10);
+- PV / EV computation, S-curve calculation and WBS roll-up (13.10–13.14);
+- Snapshot v2 schema and baselines (13.12);
+- Resources (13.13);
+- Import v2 / Schedule Versions (13.16);
+- `overallStatus` retirement and the legacy lifecycle value retirement (13.14,
+  B13);
+- retiring the long project-details page (unscheduled).
+
+**No schema, migration, RLS, policy, authority or calculation change.**
+
+**Depends on:** 13.9. **Blocked by:** nothing. B11–B14 were closed on
+2026-10-15.
+
+**Done when.**
+- [ ] Planning Workspace is reachable from the project sidebar in the expanded
+      column, collapsed rail, 768–1023 px overlay and mobile sheet. Grouping
+      matches `02` §26.23.2, and contacts management remains reachable.
+- [ ] The Workspace shows exactly Summary · Master Plan · Imports & Review ·
+      Baselines & Snapshots under a pinned header strip with underline
+      navigation.
+- [ ] Each section opens from its own URL.
+- [ ] No Milestones or Performance & Variance tab remains.
+- [ ] Opening Position record / promote appears only in Baselines & Snapshots.
+      Project Setup offers no entry for it.
+- [ ] Project Setup shows the nine sections, with no "Status & Progress"
+      section and no Priority field. The project summary / header shows no
+      Priority badge.
+- [ ] Every previously stored value, including Priority, is unchanged after a
+      save.
+- [ ] Planning Entry shows Onboarding Mode, readiness, the derived setup state,
+      "Open Planning Workspace" and the compact Planning Status. No large
+      Governed Performance cards remain.
+- [ ] Project Progress renders the header, KPI row and pending analytical
+      sections for a governed project with a snapshot. It also renders the
+      awaiting-snapshot, Opening Position, legacy, not-governed and archived
+      states correctly.
+- [ ] No planning-governed project offers "Update progress" anywhere.
+- [ ] The no-formal-schedule project shows "Reported — not planning governed"
+      and SPI "N/A".
+- [ ] It offers no Update Reported Progress action and presents no
+      project-record figure as reported progress.
+- [ ] 13.9A adds no table, column, migration or temporary store.
+- [ ] **Guided Planning Entry.**
+  - [ ] "How will this project be planned?" saves each of the three options to
+        the existing onboarding mode.
+  - [ ] "Show advanced" shows the same value.
+  - [ ] Switching between guided and advanced and back never forks or
+        duplicates data.
+  - [ ] The external-schedule follow-up changes only the next-step link and
+        is not saved.
+- [ ] **Guided Summary checklist.**
+  - [ ] It reflects existing data for a new project, an already-running
+        project (Opening Position path) and a no-formal-schedule project.
+  - [ ] Every step deep-links correctly.
+  - [ ] No future-slice question is interactive.
+  - [ ] No screen asks for or accepts a calculated value.
+- [ ] **Browser UAT** covers the guided Planning Entry and the Summary
+      checklist, in addition to the screens above.
+- [ ] Archived projects remain read-only on every touched surface (13.9
+      unchanged).
+- [ ] Browser UAT passes in light and dark mode at ≥ 1024 px, 768–1023 px and
+      < 768 px.
+- [ ] `npx eslint src --max-warnings=0`, `npx tsc --noEmit` and
+      `npx next build` pass.
+- [ ] The source suite passes against its baseline (731 at 13.9 close).
+- [ ] This roadmap is updated.
+
+#### 13.9A checkpoint (2026-10-15, closed 2026-10-16)
+
+**Status: ✅ CLOSED 2026-10-16 — owner visual UAT PASS** on desktop, tablet,
+phone and dark mode (verification table below). UI / information architecture
+only. No migration, table, column or RLS change; the only service change
+narrows an existing write (`default_import_source` preserved). **13.9B is not
+started.**
+
+**Delivered.**
+- **Sidebar.**
+  - Groups: SETUP (Project Setup, Team & Responsibilities, Organization Chart,
+    and Contacts — kept reachable, transitionally) · PLANNING & CONTROL
+    (**Planning Workspace**, Project Progress, Milestones, Deliverables) ·
+    REPORTING · PROJECT STRUCTURE (Departments, Systems, Programs & Studies by
+    project terminology) · RECORDS.
+  - "Master / Reference Data" is gone; the section is labelled "Planning
+    Workspace".
+- **Planning Workspace.**
+  - A pinned header strip shows only real data: Working Plan counts, Published
+    snapshot, Data Date, planning approach and archived state. There is no
+    BL0 / BLn and no unpublished-change count.
+  - Underline section navigation, URL-addressable with `?view=`: Summary ·
+    Master Plan · Imports & Review · Baselines & Snapshots. Old `planning-data`
+    and `overview` links resolve.
+  - The Milestones and Performance & Variance tabs and the stat cards are
+    removed.
+  - **Summary** is the guided readiness checklist, derived from existing data,
+    with deep links.
+- **Opening Position.** Record / promote exists only in Baselines & Snapshots.
+  The Project Setup Governed Performance panel was removed.
+- **Project Setup.**
+  - Nine sections. "Current Phase" is now Project Lifecycle Phase, and
+    Portfolio / Reporting Group moved to section 1.
+  - **Priority is removed from the UI**, both the field and the header badge.
+    Its stored value still round-trips unchanged.
+  - **Planning Entry**:
+    - "How will this project be planned?" over the existing `onboarding_mode`,
+      with "Show advanced" editing the same value;
+    - for "Project is already running", the external-schedule question,
+      guidance only and never persisted;
+    - the read-only setup state (Draft / Ready for Planning / Controlled), not
+      enforced;
+    - an "Open Planning Workspace" action;
+    - the compact read-only Planning Status.
+- **Project Progress.** A read-only analytical workspace with:
+  - a performance header and KPI band from the latest snapshot's existing
+    figures, labelled "Legacy calculation" or "Opening Position — declared",
+    with Opening SPI N/A;
+  - truthful pending-engine shells for the S-curve, WBS / Control Account
+    performance and exceptions;
+  - states for awaiting snapshot, not planning governed and archived.
+
+  "Update progress" is removed, and typed project progress is never read.
+- **Overview** (`/projects/[id]`). The header carries the Planning Status
+  instead of typed metrics and a percent-ratio SPI. Its Project Progress
+  section links to Project Progress. The long page itself is not retired yet
+  (unscheduled).
+
+**Verification.**
+
+| Check | Result |
+|---|---|
+| `npx tsc --noEmit` · `npx eslint src --max-warnings=0` · `npx next build` | PASS · PASS · PASS (re-run after hardening) |
+| Source suite | **759 / 759 PASS** after hardening: 22 in `planning-experience.test.mjs`, 6 in `planning-settings-preservation.test.mjs`, and two existing source contracts updated for the intended change (`milestone-ui.test.mjs`, `responsibility-revalidation.test.mjs`) |
+| Database | Not touched; no runtime SQL needed (no schema change) |
+| Browser UAT | **Pending.** It needs a signed-in session |
+
+**Hardening pass (2026-10-15) — two acceptance risks closed before UAT.**
+1. **`default_import_source` preserved.**
+   - Root cause: `planningService.upsertSettings()` always sent
+     `default_import_source: input.defaultImportSource ?? null`, and the only
+     caller, Project Setup save, never passes it. Every Setup save therefore
+     overwrote a stored value with NULL. This was pre-existing.
+   - Fix: the column is now sent only when a caller states it (`null` clears
+     explicitly). PostgREST's merge upsert updates only the columns sent, so
+     a stored value survives.
+   - Proved by `planning-settings-preservation.test.mjs`, which runs the real
+     service against a merge-semantics table: all four stored values survive
+     an unrelated save. The same scenario against the HEAD service yields
+     NULL. The external-schedule guidance answer remains component-local and
+     persists nothing.
+2. **No silent loss of Project Setup edits.**
+   - The guided onboarding answer now counts as unsaved work (it is not a
+     react-hook-form field, so `isDirty` never saw it). That means "Unsaved
+     changes", Cancel's discard prompt and a "Not saved yet" badge.
+   - While the form is dirty, every Planning Entry link opens the existing
+     `ConfirmDialog` ("Leave without saving?") instead of navigating. This
+     covers Open Planning Workspace, the Imports & Review / Baselines &
+     Snapshots / Master Plan guidance, the next setup step and the Planning
+     Status links. New-tab clicks pass through.
+   - An unsaved new project shows the question disabled ("Available after the
+     project's first save"), because its answer was never stored on create.
+   - No new persistence or schema.
+
+**UAT corrections and closeout (2026-10-15 / 16).**
+
+*Corrections made during owner browser UAT:*
+- The legacy `overallStatus` badge is suppressed beside a planning-governed
+  state on the Overview header.
+- Stronger active tab: a 3px accent underline inside the bar, with accent
+  text.
+- A lighter "How Planning works" note.
+- A single Planning Workspace CTA in Planning Entry; Planning Status links
+  to "View Project Progress".
+- Project Progress:
+  - the S-curve shows an empty state instead of a future-series legend;
+  - one exceptions note plus "Pending engine" markers;
+  - "Legacy snapshot" wording.
+- "Pending save" outcome shown for an unsaved onboarding choice.
+- **Save Draft now persists the onboarding mode.** Previously only Save
+  did, so a draft save silently left it unstored. The status re-reads after
+  a save.
+- State-aware Project Progress subtitle, and reported-progress ownership
+  wording, for no-formal-schedule projects.
+- An archived Summary shows "Planning history" with read-only navigation,
+  not a readiness workflow.
+- The header shows "Not chosen yet" when no onboarding mode is stored.
+- **Tablet shell:** the global rail now collapses inside a project at
+  768–1023px (pre-existing gap: only the project column had a tablet rule).
+  The workspace tab row scrolls in one row with edge fades and keeps the
+  active tab in view.
+- **Phone:** the Summary's next-step button may wrap within the card.
+
+*Owner browser UAT (desktop) — PASS:*
+- Sidebar and Planning Workspace IA
+- Project Setup
+- Active Project Progress
+- No-formal-schedule (persistence and behaviour)
+- Archived Planning Workspace and Archived Project Progress regression
+
+*Final verification status:*
+
+| Area | Status |
+|---|---|
+| Automated | **PASS**: focused 13.9A / shell / archived suites 89/89 · full source suite **772 / 772** · `tsc` · `eslint --max-warnings=0` · `next build` |
+| Tablet (768–1023px) | **PASS — owner visual check, 2026-10-16** (Planning Workspace Summary at 800×900: the global rail collapses to its icon rail inside the project; correct project tablet strip; tabs in one row; Planning Readiness primary; "How Planning works" below; no visible clipping or overflow) |
+| Phone (~390px) | **PASS — owner visual check, 2026-10-16** (Project Progress at 390×844: KPI cards 2×2; S-curve empty state readable; stable layout with no visible page-level horizontal overflow). One wrap fix made before the check |
+| Dark mode | **PASS — owner visual check, 2026-10-16** (Project Setup → Planning Entry, desktop, with an unsaved choice: selected card, amber Pending Save box and status chips readable; contrast acceptable) |
+| Not implemented | The phone read-only Master Plan note (`07` §10.12) was not part of the 13.9A scope list. Master Plan keeps its existing editor on phones |
+
+**Not in 13.9A** (by design):
+- setup-control enforcement, amendments, the finalisation record and the
+  Reported Progress stream (13.9B);
+- engine figures, S-curve, WBS roll-up and Schedule Condition (13.10–13.14);
+- `overallStatus` and legacy lifecycle-value retirement (13.14).
+
+---
+
+### 13.9B — Project Setup Governance (approved 2026-10-15)
+
+**Status: ❌ NOT STARTED. Starts only on explicit instruction, after 13.9A.**
+
+**Contracts.**
+- `02` §26.23.5–§26.23.8 and §26.14 (architecture);
+- `05` §3.9 (authority);
+- `07` §10.12 (presentation).
+
+**Decisions.** Closes the delivery of `02` §26.19 B11 and implements the
+closed decisions B12 and B14.
+
+**What it is.** The governance slice for Project Setup. It is a database,
+RLS, service and UI slice, and is **separate from the Planning Engine**.
+Sequence: 13.9A → **13.9B** → 13.10. No existing slice is renumbered.
+
+**Scope.**
+1. **Setup lifecycle and Controlled.**
+   - Draft → Ready for Planning → Controlled, derived from immutable governance
+     anchors (`02` §11.1, §26.23.6).
+   - First-anchor transition rules, and the explicit confirmation on the
+     anchor actions that exist: first snapshot publish, Opening Position
+     promotion, Finalise Project Setup.
+   - BL0 approval joins as an anchor when 13.12 delivers it.
+2. **Field classes enforced** at the data boundary and in the UI: free /
+   logged, lightweight amendment, governed amendment, superseded.
+3. **`project_setup_amendments`.**
+   - Append-only structured record: field, previous value, new value, reason,
+     class, impact warning, actor, time, status, approver.
+   - Lightweight amendments apply immediately, with a reason.
+   - Governed amendments need approval by a **different** Project Control
+     Admin or System Administrator. No self-approval and no break-glass (B12).
+   - Stale detection.
+   - An approval queue.
+4. **Finalise Project Setup** for no-formal-schedule projects.
+   - Allowed for System Administrator, Project Control Admin and the assigned
+     Project Control / Planning only.
+   - Requires explicit confirmation.
+   - Writes an append-only finalisation / governance record and moves the
+     setup state to Controlled.
+   - Never fabricates a snapshot, SPI or planning-governed state.
+5. **Reported Progress stream** for no-formal-schedule projects (B14).
+   - Append-only entries: project, Data Date / as-of, reported planned
+     progress where applicable, reported actual progress, narrative, actor,
+     timestamp, source / provenance.
+   - The "Update Reported Progress" write workflow on Project Progress, with
+     the latest entry and its history shown there.
+   - Weekly and Monthly may reference the latest applicable entry but never
+     own it.
+   - SPI stays "N/A".
+6. **Superseded Planned Start / Finish** once an approved BL0 exists. The rule
+   is in place in 13.9B and takes effect when 13.12 creates approved BL0s.
+7. **History integration.** Amendments, finalisation records and Reported
+   Progress entries appear in Project History.
+8. **Archived projects.** The 13.9-style archived guard covers every new table.
+
+**Not in 13.9B:**
+- the Planning Engine, Snapshot v2 and BL0 approval (13.10–13.12);
+- `overallStatus` retirement and the legacy lifecycle value retirement (13.14);
+- any Contacts / Project People convergence.
+
+**Depends on:** 13.9A. **Blocked by:** none. The logical entities are
+specified in `06` §10A at the start of the slice; `06` §10A.11 carries the
+future note.
+
+**Done when.**
+- [ ] The setup state is derived correctly for every onboarding mode.
+- [ ] Controlled never reverts.
+- [ ] Each anchor action asks for confirmation the first time.
+- [ ] A governed field cannot change without an approved amendment, for any
+      role or route, as proved by runtime SQL.
+- [ ] A lightweight amendment without a reason is refused.
+- [ ] A requester's own governed amendment cannot be approved by them, for
+      every role including System Administrator, as proved at the data
+      boundary.
+- [ ] A stale request applies nothing.
+- [ ] Amendment, finalisation and Reported Progress rows cannot be edited or
+      deleted by anyone.
+- [ ] Finalise Project Setup is refused for the Reporting Coordinator,
+      department users and plain members.
+- [ ] Finalisation creates no snapshot and no SPI.
+- [ ] Reported Progress entries are accepted only on no-formal-schedule
+      projects.
+- [ ] Project Progress shows the latest entry and its history, labelled
+      "Reported — not planning governed", with SPI "N/A".
+- [ ] Weekly / Monthly read the entry without owning it.
+- [ ] Archived projects refuse every new write.
+- [ ] Migration replay and runtime SQL pass on the local stack.
+- [ ] `npx eslint src --max-warnings=0`, `npx tsc --noEmit` and
+      `npx next build` pass.
+- [ ] The source suite passes.
+- [ ] Browser UAT passes.
+- [ ] This roadmap is updated.
