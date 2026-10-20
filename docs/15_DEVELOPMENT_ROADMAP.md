@@ -47,7 +47,7 @@ and a lifecycle transition correctly refused).
 | 10a | Control Center + Calendar | ⚠️ Partial — Dashboard rebuilt on real data (mock removed), regrouped sidebar with notched active indicator, and a project-scoped Calendar (`project_events`) with Day/Week/Month/Agenda and full CRUD. Attachments on events are NOT implemented: the platform has no attachment storage at all (`attachment-service.ts` is `notImplemented`, no table, no bucket) |
 | 11 | A4/PDF output | ⚠️ Partial — dedicated Weekly A4 preview/print delivered; other report types remain untouched |
 | 12 | Hardening and future integrations | ❌ Not started |
-| 13 | Master Planning & Control *(added — see note)* | ⚠️ **CURRENT ACTIVE PHASE** — in progress — **13.1 & 13.2 CLOSED**, **13.3 implemented** (verified in UI), **13.2c + 13.2d implemented** (verified on the local rehearsal database); **13.4 Wave 1 implemented with isolated database validation green and authenticated UI review pending**. **13.8 Master Planning & Control specification DOCUMENTED 2026-10-14** (`02` §26 — docs only, no code or database change). **13.9 archived / read-only safety guards CLOSED 2026-10-15 (browser UAT passed; LOCAL ONLY, not deployed)**; **13.9A Planning Experience Foundation CLOSED 2026-10-16 (owner visual UAT PASS)**; **13.9B Project Setup Governance CLOSED 2026-10-20** (owner closeout after browser UAT and final regression; LOCAL ONLY — commit pending; notification bell animation deferred as non-blocking polish); B11–B24 closed; 13.10–13.21 not started; they supersede the unstarted 13.4 Wave 2 and 13.5–13.7 (see Phase 13) |
+| 13 | Master Planning & Control *(added — see note)* | ⚠️ **CURRENT ACTIVE PHASE** — in progress — **13.1 & 13.2 CLOSED**, **13.3 implemented** (verified in UI), **13.2c + 13.2d implemented** (verified on the local rehearsal database); **13.4 Wave 1 implemented with isolated database validation green and authenticated UI review pending**. **13.8 Master Planning & Control specification DOCUMENTED 2026-10-14** (`02` §26 — docs only, no code or database change). **13.9 archived / read-only safety guards CLOSED 2026-10-15 (browser UAT passed; LOCAL ONLY, not deployed)**; **13.9A Planning Experience Foundation CLOSED 2026-10-16 (owner visual UAT PASS)**; **13.9B Project Setup Governance CLOSED 2026-10-20** (owner closeout after browser UAT and final regression; LOCAL ONLY — commit pending; notification bell animation deferred as non-blocking polish); B11–B24 closed; **13.10 CLOSED 2026-10-20 — Planning Engine Core + prepared consumer contract complete** (owner closeout; pure module, no schema or UI change; LOCAL ONLY — commit pending; B7 closed; no consumer uses the engine or the contract yet; B4 open for 13.14); 13.11–13.21 not started; they supersede the unstarted 13.4 Wave 2 and 13.5–13.7 (see Phase 13) |
 
 **CURRENT ACTIVE PHASE: Phase 13 — Master Planning & Control** (since
 2026-10-14). **13.8 Specification — DOCUMENTED** in
@@ -60,7 +60,9 @@ Experience / IA design gate — APPROVED 2026-10-15** (`02` §26.23, `07` §10.1
 `05` §3.9; docs only). **13.9A — Planning Experience Foundation (UI / IA only) —
 CLOSED 2026-10-16 (owner visual UAT PASS; no schema change). Next slice:
 13.9B — Project Setup Governance — SPECIFIED, owner decisions B15–B24 closed
-2026-10-16, CLOSED 2026-10-20 (local only, commit pending); next: 13.10 — Planning Engine core. Each starts only on explicit
+2026-10-16, CLOSED 2026-10-20 (local only, commit pending); 13.10 — Planning
+Engine core — CLOSED 2026-10-20: Planning Engine Core + prepared consumer
+contract complete (local only, commit pending; see the 13.10 checkpoint); next: 13.11 — Working Plan hardening. Each starts only on explicit
 instruction.** The slice plan (13.8–13.21, plus 13.9A and 13.9B), in
 dependency order, is in Phase 13 below.
 
@@ -1277,7 +1279,7 @@ but are not the same increment. Use the numbering in this file.
 | 13.9 | Archived / read-only safety guards | ✅ **CLOSED 2026-10-15 — browser UAT passed. LOCAL ONLY (not deployed).** Migration `20261014090000_planning_control_archived_read_only.sql` applied to the local development database only; see the 13.9 checkpoint |
 | 13.9A | Planning Experience Foundation (UI / IA only) | ✅ **CLOSED 2026-10-16 — owner visual UAT PASS** (desktop, tablet 800×900, phone 390×844, dark mode). No migration, no schema change. tsc · eslint · build PASS; source suite 772/772. See the 13.9A checkpoint |
 | 13.9B | Project Setup Governance | ✅ **CLOSED 2026-10-20 — LOCAL ONLY, commit pending.** Steps 0–4 plus UAT fixes (amendment notifications, toasts, Clear history). Migrations `20261016090000` – `20261021090000`; final regression 2026-10-20: runtime 110 102/102 · 114 63/63 · 116 96/96 · 117 29/29 · 118 66/66 · 119 19/19 · 120 28/28 · 121 201/206 as-is (known) · 123 146/146 · 124 137/137 · 125 31/31 · 126 139/139 · 127 62/62 · 128 108/108 · 129 32/32; source 924/924; tsc · eslint · `next build` PASS. Deferred (non-blocking): toast bell animation polish. `02` §26.24, `06` §10A.11, `05` §3.9; see the 13.9B checkpoints |
-| 13.10 | Planning Engine core (pure) | ❌ Not started — follows 13.9B |
+| 13.10 | Planning Engine core (pure) | ✅ **CLOSED 2026-10-20 — Planning Engine Core + prepared consumer contract complete.** Owner closeout after the closure review; LOCAL ONLY, commit pending. **No consumer uses the engine or the contract yet:** Dashboard, Weekly and Monthly still read the legacy flat roll-up, and Executive reads approved Monthly figures; wiring stays with 13.14 / 13.17 / 13.19 / 13.20. **B4 stays open for 13.14.** Pure module `src/lib/planning-engine/` + consumer contract `features/projects/planning-position-contract.ts`. `02` §26.5 reproduced exactly; both calculation paths agree. No migration, no schema or UI change; flat roll-up untouched. B7 closed 2026-10-20. Source suite 1031/1031 (924 + 107); tsc · eslint · `next build` PASS. See the 13.10 checkpoint |
 | 13.11 | Working Plan hardening — hierarchy, levels, local weights, activity kinds and earning methods, reporting-unit mapping (supersedes 2C.2) | ❌ Not started |
 | 13.12 | Snapshot v2 + baselines (BL0/BLn, re-baseline approval) + curves | ❌ Not started — needs decisions B3, B8 |
 | 13.13 | Manpower / resource foundation | ❌ Not started |
@@ -2104,7 +2106,7 @@ gate, **13.9A** is next, then 13.10.)*
 | **13.9** | Archived / read-only safety guards | Data-boundary refusal of every write on an archived project for the governed milestone and deliverable registers and their update streams, Weekly milestone drafts, every planning table, import and publish; archive-aware milestone authority in the UI | 13.8 | — | Runtime SQL proves the refusal per table and route, for every role including administrators; reads unaffected; no other behaviour change |
 | **13.9A** | Planning Experience Foundation *(approved 2026-10-15)* | UI / IA only (`02` §26.23): Planning Workspace in the sidebar and final project grouping; Workspace shell with pinned header strip and URL-addressable sections (Summary · Master Plan · Imports & Review · Baselines & Snapshots); placeholder tabs removed; Opening Position in Baselines & Snapshots only; Project Setup regrouped into nine sections with Priority hidden; compact Planning Status shell; Project Progress shell and states; no manual "Update progress" for governed projects; read-only "Reported — not planning governed" state (no write action); **guided experience** — "How will this project be planned?" over the existing onboarding mode, plus a derived readiness checklist in Summary (no new storage) | 13.9 | — | See the 13.9A definition below. No schema, authority or calculation change |
 | **13.9B** | Project Setup Governance *(approved 2026-10-15; B11)* | Setup lifecycle with Controlled from governance anchors; first-anchor rules and confirmation; field classes; append-only `project_setup_amendments` with governed approval by a different PCA / SA (B12); Finalise Project Setup record for no-formal-schedule projects; append-only Reported Progress stream and its write workflow (B14); History integration; RLS / service / UI authority; archived guard on new tables. Separate from the Planning Engine | 13.9A | — | See the 13.9B definition below |
-| **13.10** | Planning Engine core (pure) | Pure module: effective weights, weight and completeness validation (W1–W3, C1–C2), PV distribution per earning method, EV per method, roll-up, SV, SPI, curves, schedule-condition function (thresholds passed in) | 13.8 | B7 | `02` §26.5 is reproduced exactly as a test fixture, and both calculation paths agree; no schema or UI change; the existing flat roll-up is untouched |
+| **13.10** | Planning Engine core (pure) | Pure module: effective weights, weight and completeness validation (W1–W3, C1–C2), PV distribution per earning method, EV per method, roll-up, SV, SPI, curves, schedule-condition function (thresholds passed in) | 13.8 | — (B7 closed 2026-10-20) | `02` §26.5 is reproduced exactly as a test fixture, and both calculation paths agree; no schema or UI change; the existing flat roll-up is untouched |
 | **13.11** | Working Plan hardening (supersedes 2C.2) | Local-weight semantics; level labels; Control Account flag; activity kind and earning method; activity attached to a node; reporting-unit mapping (PSM and Other structure units); logged normalisation; Master Plan editor showing local weight and calculated contribution; archived read-only. **Planning Setup — Guided and Advanced modes over one Planning Configuration** (`02` §26.20, `07` §10.10), inside the 13.9A Workspace Summary; later slices add their own guided questions (baseline 13.12, manpower 13.13, schedule source 13.16, look-ahead and report sections 13.17 / 13.18) | 13.9, 13.9A, 13.10 | — | Sums validated per parent; existing weights preserved and **never silently reinterpreted** (existing projects are reviewed into the local model before their first v2 publish) |
 | **13.12** | Snapshot v2 + baselines + curves | Publish runs the engine and freezes nodes, activities, milestone states and curves, with engine version; publish validation; BL0/BLn with request (Project Control) and approval (Project Control Admin / System Admin) as **Baseline Revisions**; baseline curves; **snapshot provenance** (source Schedule Version, edits applied after it, Data Date, BL0, BLn, engine version, publisher, time — `02` §26.22.7); the rule that no import re-baselines; legacy snapshots labelled. *(From 13.9B: keep the `p_confirm_setup_control` acknowledgement on publish, and feed the approved-BL0 anchor into `project_setup_controlled_since()`, which activates the "Superseded by BL0" dates.)* | 13.10, 13.11 | B3, B8 | A published snapshot reproduces `02` §26.5; re-baselining never changes a published snapshot; legacy snapshots read unchanged |
 | **13.13** | Manpower / resource foundation | Resource Category master data; planned manpower in the Working Plan (entry and template); frozen in snapshots and baselines; actual-manpower record defined for the Weekly | 13.12 | B5 (actual entry only) | Planned histogram published and reproducible from a snapshot; manpower never enters SPI |
@@ -3184,3 +3186,84 @@ never toasted; users also need a way to empty their inbox. Still
   while its project is archived. Amendments, Project History, audit and other
   users' rows are untouched. Separate from "Mark all read".
 - **Results:** runtime 129 32/32; 127 62/62 and 128 108/108 unchanged.
+
+---
+
+### 13.10 — Planning Engine core (checkpoint, 2026-10-20)
+
+**Status: CLOSED 2026-10-20 — Planning Engine Core + prepared consumer
+contract complete.** Owner closeout after a closure review the same day.
+LOCAL ONLY; commit pending.
+
+**What the closure does NOT claim.** Neither the engine nor the consumer
+contract is used by any surface yet. Dashboard, Weekly and Monthly still read
+the pre-13.10 legacy flat roll-up through `planningRollupService`; Executive
+reads approved Monthly figures. Publish does not run the engine (13.12).
+**B4 (schedule-condition thresholds) remains open and blocks 13.14**; when it
+is decided, also confirm two interpretations made in `scheduleCondition()`:
+"key milestone due" means its BLn date is on or before the Data Date, and
+PV = 0 reads Unknown unless a key milestone is due. Deferred ownership is
+unchanged: 13.11, 13.12, 13.14, 13.15, 13.17, 13.19 and 13.20 as listed below.
+
+No migration, no database change,
+no UI change. B7 was closed by the owner at the start of the slice (`02`
+§26.19): discrete-method PV follows its earning points; only Percent Complete
+is linear over working days.
+
+**Delivered (pure module `eprp/src/lib/planning-engine/`).**
+
+| Scope item (slice table) | Where |
+|---|---|
+| Effective weights (W4: calculated, never entered) | `engine.ts` `effectiveWeights()` |
+| Weight and completeness validation W1–W3, C1–C2, plus Data Date integrity (`02` §26.6 rule 3), BLn date and milestone zero-duration (H4) checks | `validation.ts` `validatePlan()`; W3 as an explicit `proposeNormalisation()` / `applyNormalisation()` that returns a new plan — never applied silently |
+| PV distribution and EV per earning method (B7) | `earning.ts`; working days from the project's working week (`calendar.ts`, parses the stored "Sun – Thu" labels) |
+| Roll-up, SV, SPI | `engine.ts` `calculatePlanPerformance()`: level-by-level and Σ EW × activity, both computed every run and required to agree; a plan with any blocking finding is refused whole; SPI "N/A" (`pv_zero`) when PV = 0; result deep-frozen, carries `PLANNING_ENGINE_VERSION` |
+| Curves | `curves.ts`: BLn / BL0 baseline curve on the reporting-day grid, forecast curve from the Data Date (never borrows BLn dates), earned curve from snapshot points (highest version per Data Date, no interpolation, no 0 for gaps) |
+| Schedule-condition function, thresholds passed in | `schedule.ts` `scheduleCondition()`; the §26.7 values are exported only as `PROPOSED_SCHEDULE_CONDITION_THRESHOLDS` because **B4 is still open** (13.14) |
+| Milestone schedule state | `schedule.ts`: slip against BLn and against BL0, never blended; achieved / overdue / upcoming / unscheduled |
+| Semantic figures | `PlanningFigure` = value · not applicable · not available, with a reason; no raw null, no fake 0 |
+| Fact classes | `provenance.ts`: source · controlled · calculated · narrative for every planning fact |
+
+**Consumer contract (prepared, not wired).**
+`eprp/src/features/projects/planning-position-contract.ts`
+`resolvePlanningPosition()` gives every consumer one answer: basis (v2
+snapshot · legacy snapshot · Opening Position · Reported Progress · none),
+provenance (snapshot id / version / Data Date / publisher / time / source /
+calculation / engine version, or the Reported Progress entry), and each figure
+as a `PlanningFigure`. It reuses `planningGovernanceOf()` and
+`latestReportedProgress()` and reads published data only. Moving the
+surfaces onto it belongs to their slices: Dashboard, Project Progress and
+Calendar (13.14), Weekly (13.17), Monthly (13.19), Executive (13.20).
+
+**Consumer audit (recorded, not changed — each is owned by a later slice).**
+- Weekly workspace (`weekly-reports/workspace.ts`) and the Executive register
+  adapter (`executive-register-adapters.ts`) still compute an Actual% ÷
+  Planned% SPI for reports that are not planning-backed; the adapter also
+  returns 0 when planned is 0. Conformance 5 violation → removed by 13.14 /
+  13.17 / 13.20.
+- Monthly falls back to the report's stored `spi` column when not
+  planning-backed (`monthly-reports/planning-integration.ts`) → 13.19.
+- Calendar derives milestone events from `weekly_plan_items` /
+  `monthly_plan_items` (`calendar/derived-events.ts`) → 13.14.
+- Dashboard, Weekly and Monthly planning figures already come from the
+  published snapshot's legacy roll-up through `planningRollupService`; the
+  flat roll-up (`lib/planning-rollup.ts`) is untouched, as required.
+
+**Not in 13.10 (by design):** schema, publish running the engine, frozen v2
+roll-up / curves, BL0 / BLn approval, engine version on snapshots (13.12);
+local weights, earning method, node attachment and normalisation logging in
+the Working Plan (13.11); consumer wiring (13.14, 13.17, 13.19, 13.20);
+milestone linkage (13.15); approved schedule-condition thresholds (B4, 13.14).
+
+**Verification.**
+
+| Check | Result |
+|---|---|
+| `02` §26.5 fixture | Reproduced exactly: every activity, node and project PV / EV / SV / SPI / contribution; Project 52.04 / 49.475 / −2.565 / 0.95; RBI 5.04 pts both ways; VDU-M10 +14 vs BLn, +28 vs BL0 |
+| Focused tests | 107 / 107 — `planning-engine/{engine,earning,validation,schedule,curves,planning-engine-fence}.test.mjs`, `planning-position-contract.test.mjs` |
+| Source suite | **1031 / 1031** (924 at 13.9B close + 107) |
+| `tsc --noEmit` · `eslint src --max-warnings=0` · `next build` | PASS |
+| Database | Not touched. No migration (fenced by a test); no runtime SQL was needed or run. Publish authority (`can_manage_project_operations()`, archived and no-formal-schedule refusals) and snapshot immutability (select / insert policies only) are asserted at source level, not against a database |
+
+**Closed 2026-10-20** by owner closeout (no UI to browser-test). 13.11 does
+not start without explicit instruction.
