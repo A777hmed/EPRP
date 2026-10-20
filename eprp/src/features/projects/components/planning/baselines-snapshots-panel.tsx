@@ -22,7 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { EmptyState, LoadingState, StatusBadge } from "@/components/shared";
+import { ConfirmDialog, EmptyState, LoadingState, StatusBadge } from "@/components/shared";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  setupGovernanceService,
+  type SetupControlState,
+} from "@/services/setup-governance-service";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 import { getContactById, useMasterData } from "@/features/master-data";
 import { planningService } from "@/services/planning-service";
@@ -49,9 +54,19 @@ function activityCountOf(snapshot: PlanningSnapshot): number | undefined {
   return undefined;
 }
 
+/** 13.9B: the first-anchor confirmation, word for word (`07` §10.12). */
+export const FIRST_ANCHOR_CONFIRMATION =
+  "Publishing the first governed Planning Snapshot will make Project Setup Controlled. " +
+  "Core Project Setup configuration will require amendments afterward.";
+
 /**
  * Baselines & Snapshots — and, since 13.9A, the ONLY place an Opening
  * Position is declared or promoted (Project Setup no longer offers it).
+ *
+ * 13.9B: the FIRST governed anchor (the project is not yet Controlled) asks
+ * for explicit confirmation before `confirmSetupControl` is sent; later
+ * snapshots do not. A no-formal-schedule project offers neither Publish nor
+ * Promote — the database refuses both.
  */
 export function BaselinesSnapshotsPanel({
   project,
@@ -71,12 +86,15 @@ export function BaselinesSnapshotsPanel({
   >();
   const [publishOpen, setPublishOpen] = React.useState(false);
   const [openingFormOpen, setOpeningFormOpen] = React.useState(false);
+  const [control, setControl] = React.useState<SetupControlState | undefined>();
+  const [promoteConfirmOpen, setPromoteConfirmOpen] = React.useState(false);
 
   const load = React.useCallback(() => {
     void planningService.listSnapshots(project.id).then(setSnapshots);
     void planningService.listBaselines(project.id).then(setBaselines);
     void planningService.getSettings(project.id).then(setSettings);
     void planningService.getDraftOpeningPosition(project.id).then(setOpeningPosition);
+    void setupGovernanceService.getControlState(project.id).then(setControl).catch(() => setControl(undefined));
   }, [project.id]);
 
   React.useEffect(() => load(), [load]);
@@ -87,13 +105,18 @@ export function BaselinesSnapshotsPanel({
 
   const needsOpening =
     settings?.onboardingMode === "existing_active_project" && snapshots.length === 0;
+  const noFormalSchedule = settings?.onboardingMode === "no_formal_schedule";
+  // Unknown control state is treated as "first anchor": asking once too often
+  // is harmless, publishing without the confirmation is refused anyway.
+  const firstAnchor = !control?.controlledSince;
 
-  const promoteOpening = async () => {
+  const promoteOpening = async (confirmed: boolean) => {
     if (!openingPosition) return;
     try {
       const id = await planningService.publishSnapshot({
         projectId: project.id,
         openingPositionId: openingPosition.id,
+        confirmSetupControl: confirmed,
       });
       toast.success(`Opening Position promoted as Snapshot V1 (${id.slice(0, 8)}).`);
       load();
@@ -121,7 +144,7 @@ export function BaselinesSnapshotsPanel({
                 {openingPosition.actualProgressPercent ?? "—"}% · Source: {openingPosition.source}
               </p>
               {canManage && (
-                <Button size="sm" onClick={() => void promoteOpening()}>
+                <Button size="sm" onClick={() => (firstAnchor ? setPromoteConfirmOpen(true) : void promoteOpening(false))}>
                   <Rocket data-icon="inline-start" aria-hidden="true" />
                   Promote as Snapshot V1
                 </Button>
@@ -137,9 +160,17 @@ export function BaselinesSnapshotsPanel({
         </div>
       )}
 
+      {noFormalSchedule && (
+        <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground text-pretty">
+          This project is planned without a formal schedule, so no Planning Snapshot is published and no Opening
+          Position is promoted. Its progress is Reported — not planning governed. To bring it under planning
+          control, change how it is planned in Project Setup (an approved amendment once Setup is controlled).
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">Published Snapshots</h3>
-        {canManage && !needsOpening && (
+        {canManage && !needsOpening && !noFormalSchedule && (
           <Button size="sm" onClick={() => setPublishOpen(true)}>
             <Rocket data-icon="inline-start" aria-hidden="true" />
             Publish Snapshot
@@ -204,9 +235,19 @@ export function BaselinesSnapshotsPanel({
         />
       )}
 
+      <ConfirmDialog
+        open={promoteConfirmOpen}
+        onOpenChange={setPromoteConfirmOpen}
+        title="Promote the Opening Position as Snapshot V1?"
+        description={FIRST_ANCHOR_CONFIRMATION}
+        confirmLabel="Promote and control Setup"
+        onConfirm={() => promoteOpening(true)}
+      />
+
       {publishOpen && (
         <PublishSnapshotDialog
           project={project}
+          firstAnchor={firstAnchor}
           baselines={baselines ?? []}
           onClose={() => setPublishOpen(false)}
           onPublished={() => {
@@ -222,11 +263,14 @@ export function BaselinesSnapshotsPanel({
 
 function PublishSnapshotDialog({
   project,
+  firstAnchor,
   baselines,
   onClose,
   onPublished,
 }: {
   project: Project;
+  /** 13.9B: this publish creates the first governance anchor. */
+  firstAnchor: boolean;
   baselines: PlanningBaseline[];
   onClose: () => void;
   onPublished: () => void;
@@ -240,6 +284,8 @@ function PublishSnapshotDialog({
   const [manualDataDate, setManualDataDate] = React.useState("");
   const [publishing, setPublishing] = React.useState(false);
   const [published, setPublished] = React.useState<PlanningSnapshotSummary | null>(null);
+  const [anchorConfirmed, setAnchorConfirmed] = React.useState(false);
+  const anchorId = React.useId();
   useMasterData("contact");
 
   React.useEffect(() => {
@@ -261,6 +307,8 @@ function PublishSnapshotDialog({
         baselineId: baselineId === NONE ? undefined : baselineId,
         label: label.trim() || undefined,
         dataDate: isManual ? manualDataDate : undefined,
+        // Only an explicit confirmation by the user, only for the first anchor.
+        confirmSetupControl: firstAnchor && anchorConfirmed,
       });
       const created = await planningService.listSnapshots(project.id);
       setPublished(created.find((s) => s.id === id) ?? null);
@@ -370,15 +418,35 @@ function PublishSnapshotDialog({
                   : (manualDataDate || "required — enter one above")}
               </p>
               <p>Work items: {workItemCount ?? "…"} · Activities: {activityCount ?? "…"}</p>
+              {/* 13.9B Step 4: the project record's typed planned / actual
+                  progress is retired and no longer previewed here; nothing is
+                  computed for this preview. */}
               <p>
-                Project summary (as recorded): Planned {project.plannedProgress}% · Actual{" "}
-                {project.actualProgress}%
+                Project Setup:{" "}
+                {firstAnchor
+                  ? "not yet controlled — this first governed snapshot makes it controlled"
+                  : "controlled"}
               </p>
               <p className="text-muted-foreground">
                 Only what has actually been confirmed is published — nothing
                 here is calculated or fabricated for this preview.
               </p>
             </div>
+
+            {firstAnchor && (
+              <div className="flex items-start gap-2.5 rounded-lg border border-info/30 bg-info/[0.06] p-3">
+                <Checkbox
+                  id={anchorId}
+                  checked={anchorConfirmed}
+                  onCheckedChange={(checked) => setAnchorConfirmed(checked === true)}
+                  className="mt-0.5"
+                />
+                <label htmlFor={anchorId} className="text-sm leading-snug text-pretty">
+                  <span className="font-medium">This is the first governed Planning Snapshot.</span>{" "}
+                  {FIRST_ANCHOR_CONFIRMATION}
+                </label>
+              </div>
+            )}
           </>
         )}
 
@@ -394,10 +462,13 @@ function PublishSnapshotDialog({
                 onClick={() => void publish()}
                 disabled={
                   publishing ||
+                  (firstAnchor && !anchorConfirmed) ||
                   (isManual ? !manualDataDate : !selectedBatch?.dataDate)
                 }
                 title={
-                  isManual && !manualDataDate
+                  firstAnchor && !anchorConfirmed
+                    ? "Confirm that Project Setup becomes controlled first"
+                    : isManual && !manualDataDate
                     ? "Enter a Data Date first"
                     : !isManual && !selectedBatch?.dataDate
                       ? "This import batch has no Data Date — re-import or contact Project Control"

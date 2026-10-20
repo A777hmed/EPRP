@@ -799,6 +799,10 @@ ornamental icons (§3.1, §3.3).
   the first snapshot, promoting an Opening Position and Finalise Project Setup.
   For a no-formal-schedule project, the finalisation confirmation also states
   that the project stays "Reported — not planning governed".
+- **Publish / Promote on a no-formal-schedule project** (from 13.9B) is not
+  offered. The Workspace explains that the planning mode must change first —
+  directly before Controlled, by a governed amendment once Controlled
+  (`02` §26.24.1, §26.24.6).
 
 **Project Progress.**
 - **Read-only.** The reading order is the one in `02` §26.23.8: performance
@@ -836,6 +840,88 @@ ornamental icons (§3.1, §3.3).
   - **Before 13.9B:** only the "Reported — not planning governed" state, with
     SPI "N/A". There is no write action, and project-record figures are not
     presented as reported progress.
+
+**Project Setup Governance — 13.9B additions** (specified 2026-10-16, `02`
+§26.24).
+- **Amend dialog** (lightweight and governed fields):
+  - shows the field, the current value as the server read it, the new value,
+    a mandatory reason, and the stored impact warning;
+  - governed fields add "Requires approval by another Project Control Admin
+    or System Administrator";
+  - a field with a pending request shows "Pending approval" and cannot be
+    amended again until decided.
+- **Approvals queue:**
+  - eligible deciders see pending governed requests on the project's Project
+    Setup page;
+  - the requester sees their own request, with Withdraw but never Approve;
+  - a request that went **stale** says so in plain words ("The value changed
+    after this request — nothing was applied");
+  - a request left pending when the project was archived is **not** in any
+    approval queue. Wherever it is shown (Project Setup, History) it reads
+    **"Frozen — project archived"**, a derived label with no action
+    (`02` §26.24.8, B24).
+- **Field classes once Controlled** follow `02` §26.24.2: Forecast Finish
+  shows "Amend…" as a **governed** field (until 13.14 makes it read-only and
+  Planning-owned on planning-governed projects); Actual Start / Finish are
+  lightweight.
+- **Structure sections** (Departments, Systems, Programs & Studies, the
+  Other-project structure) once Controlled (`02` §26.24.2a, B17): reordering
+  and descriptions save directly; renaming, adding, removing, archiving,
+  re-parenting or changing reporting scope opens
+  a governed "Propose structure change" dialog showing the change set, the
+  reason and the impact warning. The section shows "Pending approval" while a
+  structure request is pending.
+  *As built (13.9B Step 4, 2026-10-17):*
+  - The structure steps wait for the control state; an unreadable state
+    fails closed. Once Controlled, the existing editors stay visible
+    **read-only**.
+  - A **"Structure changes" panel** (Other) or a **"Department and system
+    scope changes" / "Programs & Studies changes" panel** (PSM) lists the
+    targets. Each target offers contextual actions: Request rename, Request
+    move, Request new unit, Request archive, Request restore, Request
+    reporting change, Request level rename / new level / level removal,
+    Request department, Request scope change, Request removal, Request
+    Program & Study.
+  - Every action opens the one **Propose structure change** dialog: the
+    target now, the action's fields, a mandatory reason, the impact, and
+    "You cannot approve your own request".
+  - A target with a pending request shows **Pending approval** and offers no
+    second request. The panel lists the pending structure requests with
+    Approve, Reject and Withdraw.
+  - Free edits stay direct and are recorded in History:
+    - "Edit description and order" for a unit;
+    - "Edit lead and description" for a department.
+  - Unit people stay on the Project Team step.
+  - On the Project Info step, the second Departments / Systems editor is
+    not offered once Controlled.
+  - The dashboard "Setup Amendments" queue, the amendments panel and Project
+    History word structure requests in business terms, e.g. "Rename Unit ·
+    Pump House", "Under A1 → Under A2". A structure request in the queue
+    opens the step that shows its target.
+  - The legacy `/projects/[id]/edit` route redirects to Project Setup →
+    Project Info.
+- **Finalise Project Setup** (no-formal-schedule, Ready, authorised): a
+  confirmation dialog states that core setup becomes controlled, that the
+  project stays "Reported — not planning governed", and that finalisation
+  cannot be undone (B23). The application checks Ready for Planning before
+  offering it; the database enforces the confirmation and invariants (B15).
+- **Update Reported Progress** (offered only to the System Administrator, a
+  Project Control Admin or the assigned Project Control / Planning, and only
+  on a Finalised no-formal-schedule project without a snapshot — B19, B21):
+  - a small dialog with Data Date, reported actual %, optional reported
+    planned % and narrative;
+  - the Data Date picker refuses future dates. A date earlier than the latest
+    recorded entry shows "Back-dated — earlier than the latest report of
+    <date>" and makes a reason mandatory; the entry is marked back-dated in
+    history and does not become the latest (B20);
+  - **Correct** / **Withdraw** on an entry adds a superseding entry with a
+    reason;
+  - earlier entries remain visible as history and are never edited.
+- **Prohibited onboarding transitions** (§26.24.6) are not offered. The
+  advanced view explains why.
+- **History → "Setup & governance"** lists requests, decisions, finalisation,
+  Reported Progress entries and corrections, and free-field changes, each
+  with actor, time, reason and before / after.
 
 **Mobile and tablet (§24).**
 - KPI row: 2 × 2 grid.

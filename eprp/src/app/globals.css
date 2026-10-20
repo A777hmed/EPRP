@@ -5764,3 +5764,101 @@ span.dash-plotkey { cursor: default; }
 @media (forced-colors: active) {
   .epr-backdrop { display: none; }
 }
+
+/* ---------------------------------------------------------------------------
+   Notification toasts (13.9B UAT polish) — one block, one source of truth.
+   Placement: top-centre, just below the 3.5 rem top bar.
+   Surface: dark navy/charcoal in both themes, high contrast, compact.
+   Attention cue: an amber bell that rings 3 finite pulses (3 x 0.8 s = 2.4 s)
+   with a soft glow and ripple, then stays static. No sound, no looping.
+   Motion runs only under `prefers-reduced-motion: no-preference`; with reduced
+   motion the bell is simply static. It runs only on a bell marked
+   `data-ringing`, set once the toast is visibly mounted (toast-bell-start.ts):
+   a ring started at creation could finish before the toast was ever painted.
+   --------------------------------------------------------------------------- */
+[data-sonner-toaster][data-y-position="top"][data-x-position="center"] {
+  top: 4rem !important;
+}
+[data-sonner-toast]:has(.notif-toast-bell) {
+  background: linear-gradient(135deg, #17263d 0%, #0f1b2d 100%) !important;
+  border: 1px solid #334a68 !important;
+  color: #f8fafc !important;
+  box-shadow: 0 18px 44px rgb(2 8 23 / 34%), 0 5px 16px rgb(2 8 23 / 24%) !important;
+}
+[data-sonner-toast]:has(.notif-toast-bell) [data-title] {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+/* Two short lines: what was requested, then who acted on which project. */
+[data-sonner-toast]:has(.notif-toast-bell) [data-description] {
+  color: #d8e2ef !important;
+  line-height: 1.45 !important;
+  white-space: pre-line;
+}
+[data-sonner-toast]:has(.notif-toast-bell) [data-button] {
+  background: #f8fafc !important;
+  color: #132238 !important;
+  border: 1px solid #ffffff !important;
+  font-weight: 700 !important;
+}
+[data-sonner-toast]:has(.notif-toast-bell) [data-close-button] {
+  background: #17263d !important;
+  border: 1px solid #51647e !important;
+  color: #f8fafc !important;
+}
+[data-sonner-toast] [data-icon]:has(.notif-toast-bell) {
+  overflow: visible;
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.notif-toast-bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  color: #f5c451;
+}
+.notif-toast-bell__icon {
+  position: relative;
+  width: 1.125rem;
+  height: 1.125rem;
+  transform-origin: 50% 12%;
+}
+.notif-toast-bell__ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid currentColor;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .notif-toast-bell[data-ringing="true"] { animation: notif-toast-glow 0.8s ease-in-out 3 both; }
+  .notif-toast-bell[data-ringing="true"] .notif-toast-bell__icon { animation: notif-toast-ring 0.8s cubic-bezier(0.36, 0.07, 0.19, 0.97) 3 both; }
+  .notif-toast-bell[data-ringing="true"] .notif-toast-bell__ripple { animation: notif-toast-ripple 0.8s ease-out 3 both; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .notif-toast-bell,
+  .notif-toast-bell__icon,
+  .notif-toast-bell__ripple { animation: none; }
+}
+@keyframes notif-toast-ring {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  15% { transform: rotate(18deg) scale(1.1); }
+  30% { transform: rotate(-16deg) scale(1.1); }
+  45% { transform: rotate(12deg) scale(1.07); }
+  60% { transform: rotate(-9deg) scale(1.05); }
+  75% { transform: rotate(5deg) scale(1.02); }
+  90% { transform: rotate(-2deg) scale(1); }
+}
+@keyframes notif-toast-glow {
+  0%, 100% { filter: drop-shadow(0 0 0 rgb(245 196 81 / 0%)); }
+  45% { filter: drop-shadow(0 0 8px rgb(245 196 81 / 90%)); }
+}
+@keyframes notif-toast-ripple {
+  0% { opacity: 0.7; transform: scale(0.55); }
+  70% { opacity: 0.2; }
+  100% { opacity: 0; transform: scale(2); }
+}

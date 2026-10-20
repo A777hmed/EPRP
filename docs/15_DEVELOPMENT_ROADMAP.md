@@ -47,7 +47,7 @@ and a lifecycle transition correctly refused).
 | 10a | Control Center + Calendar | ⚠️ Partial — Dashboard rebuilt on real data (mock removed), regrouped sidebar with notched active indicator, and a project-scoped Calendar (`project_events`) with Day/Week/Month/Agenda and full CRUD. Attachments on events are NOT implemented: the platform has no attachment storage at all (`attachment-service.ts` is `notImplemented`, no table, no bucket) |
 | 11 | A4/PDF output | ⚠️ Partial — dedicated Weekly A4 preview/print delivered; other report types remain untouched |
 | 12 | Hardening and future integrations | ❌ Not started |
-| 13 | Master Planning & Control *(added — see note)* | ⚠️ **CURRENT ACTIVE PHASE** — in progress — **13.1 & 13.2 CLOSED**, **13.3 implemented** (verified in UI), **13.2c + 13.2d implemented** (verified on the local rehearsal database); **13.4 Wave 1 implemented with isolated database validation green and authenticated UI review pending**. **13.8 Master Planning & Control specification DOCUMENTED 2026-10-14** (`02` §26 — docs only, no code or database change). **13.9 archived / read-only safety guards CLOSED 2026-10-15 (browser UAT passed; LOCAL ONLY, not deployed)**; **13.9A Planning Experience Foundation CLOSED 2026-10-16 (owner visual UAT PASS)**; 13.9B Project Setup Governance defined, not started; B11–B14 closed; 13.10–13.21 not started; they supersede the unstarted 13.4 Wave 2 and 13.5–13.7 (see Phase 13) |
+| 13 | Master Planning & Control *(added — see note)* | ⚠️ **CURRENT ACTIVE PHASE** — in progress — **13.1 & 13.2 CLOSED**, **13.3 implemented** (verified in UI), **13.2c + 13.2d implemented** (verified on the local rehearsal database); **13.4 Wave 1 implemented with isolated database validation green and authenticated UI review pending**. **13.8 Master Planning & Control specification DOCUMENTED 2026-10-14** (`02` §26 — docs only, no code or database change). **13.9 archived / read-only safety guards CLOSED 2026-10-15 (browser UAT passed; LOCAL ONLY, not deployed)**; **13.9A Planning Experience Foundation CLOSED 2026-10-16 (owner visual UAT PASS)**; **13.9B Project Setup Governance CLOSED 2026-10-20** (owner closeout after browser UAT and final regression; LOCAL ONLY — commit pending; notification bell animation deferred as non-blocking polish); B11–B24 closed; 13.10–13.21 not started; they supersede the unstarted 13.4 Wave 2 and 13.5–13.7 (see Phase 13) |
 
 **CURRENT ACTIVE PHASE: Phase 13 — Master Planning & Control** (since
 2026-10-14). **13.8 Specification — DOCUMENTED** in
@@ -59,7 +59,8 @@ deployed; see the 13.9 checkpoint at the end of Phase 13). **Planning
 Experience / IA design gate — APPROVED 2026-10-15** (`02` §26.23, `07` §10.12,
 `05` §3.9; docs only). **13.9A — Planning Experience Foundation (UI / IA only) —
 CLOSED 2026-10-16 (owner visual UAT PASS; no schema change). Next slice:
-13.9B — Project Setup Governance — NOT STARTED; then 13.10 — Planning Engine core. Each starts only on explicit
+13.9B — Project Setup Governance — SPECIFIED, owner decisions B15–B24 closed
+2026-10-16, CLOSED 2026-10-20 (local only, commit pending); next: 13.10 — Planning Engine core. Each starts only on explicit
 instruction.** The slice plan (13.8–13.21, plus 13.9A and 13.9B), in
 dependency order, is in Phase 13 below.
 
@@ -1275,7 +1276,7 @@ but are not the same increment. Use the numbering in this file.
 | 13.8 | **Master Planning & Control specification** | ✅ **DOCUMENTED 2026-10-14** — `02` §26 (+ `03` §4.7/§5.5/§21.4, `05` §3.8, `06` §10A, `08`, `07` and `specs/weekly-report.md` notes). Docs only |
 | 13.9 | Archived / read-only safety guards | ✅ **CLOSED 2026-10-15 — browser UAT passed. LOCAL ONLY (not deployed).** Migration `20261014090000_planning_control_archived_read_only.sql` applied to the local development database only; see the 13.9 checkpoint |
 | 13.9A | Planning Experience Foundation (UI / IA only) | ✅ **CLOSED 2026-10-16 — owner visual UAT PASS** (desktop, tablet 800×900, phone 390×844, dark mode). No migration, no schema change. tsc · eslint · build PASS; source suite 772/772. See the 13.9A checkpoint |
-| 13.9B | Project Setup Governance | ❌ Not started — follows 13.9A (B11 closed 2026-10-15) |
+| 13.9B | Project Setup Governance | ✅ **CLOSED 2026-10-20 — LOCAL ONLY, commit pending.** Steps 0–4 plus UAT fixes (amendment notifications, toasts, Clear history). Migrations `20261016090000` – `20261021090000`; final regression 2026-10-20: runtime 110 102/102 · 114 63/63 · 116 96/96 · 117 29/29 · 118 66/66 · 119 19/19 · 120 28/28 · 121 201/206 as-is (known) · 123 146/146 · 124 137/137 · 125 31/31 · 126 139/139 · 127 62/62 · 128 108/108 · 129 32/32; source 924/924; tsc · eslint · `next build` PASS. Deferred (non-blocking): toast bell animation polish. `02` §26.24, `06` §10A.11, `05` §3.9; see the 13.9B checkpoints |
 | 13.10 | Planning Engine core (pure) | ❌ Not started — follows 13.9B |
 | 13.11 | Working Plan hardening — hierarchy, levels, local weights, activity kinds and earning methods, reporting-unit mapping (supersedes 2C.2) | ❌ Not started |
 | 13.12 | Snapshot v2 + baselines (BL0/BLn, re-baseline approval) + curves | ❌ Not started — needs decisions B3, B8 |
@@ -2064,7 +2065,8 @@ instruction. Each ends with the `CLAUDE.md` completion report (lint, type-check,
 production build, changed files, completed and deferred requirements) and an
 update to this roadmap. Database slices also need migration replay and runtime
 SQL verification on the local stack; a green build is not database
-verification. Open decisions are B1–B9 in `02` §26.19. **B10
+verification. Open decisions are B1–B9 in `02` §26.19 (B15–B24 were raised
+and closed by the owner on 2026-10-16). **B10
 (back-dated Schedule Versions → Historical Correction workflow) and the
 one-under-review policy were closed by the owner on 2026-10-14. B11–B14 were
 raised and closed by the owner on 2026-10-15.**
@@ -2104,7 +2106,7 @@ gate, **13.9A** is next, then 13.10.)*
 | **13.9B** | Project Setup Governance *(approved 2026-10-15; B11)* | Setup lifecycle with Controlled from governance anchors; first-anchor rules and confirmation; field classes; append-only `project_setup_amendments` with governed approval by a different PCA / SA (B12); Finalise Project Setup record for no-formal-schedule projects; append-only Reported Progress stream and its write workflow (B14); History integration; RLS / service / UI authority; archived guard on new tables. Separate from the Planning Engine | 13.9A | — | See the 13.9B definition below |
 | **13.10** | Planning Engine core (pure) | Pure module: effective weights, weight and completeness validation (W1–W3, C1–C2), PV distribution per earning method, EV per method, roll-up, SV, SPI, curves, schedule-condition function (thresholds passed in) | 13.8 | B7 | `02` §26.5 is reproduced exactly as a test fixture, and both calculation paths agree; no schema or UI change; the existing flat roll-up is untouched |
 | **13.11** | Working Plan hardening (supersedes 2C.2) | Local-weight semantics; level labels; Control Account flag; activity kind and earning method; activity attached to a node; reporting-unit mapping (PSM and Other structure units); logged normalisation; Master Plan editor showing local weight and calculated contribution; archived read-only. **Planning Setup — Guided and Advanced modes over one Planning Configuration** (`02` §26.20, `07` §10.10), inside the 13.9A Workspace Summary; later slices add their own guided questions (baseline 13.12, manpower 13.13, schedule source 13.16, look-ahead and report sections 13.17 / 13.18) | 13.9, 13.9A, 13.10 | — | Sums validated per parent; existing weights preserved and **never silently reinterpreted** (existing projects are reviewed into the local model before their first v2 publish) |
-| **13.12** | Snapshot v2 + baselines + curves | Publish runs the engine and freezes nodes, activities, milestone states and curves, with engine version; publish validation; BL0/BLn with request (Project Control) and approval (Project Control Admin / System Admin) as **Baseline Revisions**; baseline curves; **snapshot provenance** (source Schedule Version, edits applied after it, Data Date, BL0, BLn, engine version, publisher, time — `02` §26.22.7); the rule that no import re-baselines; legacy snapshots labelled | 13.10, 13.11 | B3, B8 | A published snapshot reproduces `02` §26.5; re-baselining never changes a published snapshot; legacy snapshots read unchanged |
+| **13.12** | Snapshot v2 + baselines + curves | Publish runs the engine and freezes nodes, activities, milestone states and curves, with engine version; publish validation; BL0/BLn with request (Project Control) and approval (Project Control Admin / System Admin) as **Baseline Revisions**; baseline curves; **snapshot provenance** (source Schedule Version, edits applied after it, Data Date, BL0, BLn, engine version, publisher, time — `02` §26.22.7); the rule that no import re-baselines; legacy snapshots labelled. *(From 13.9B: keep the `p_confirm_setup_control` acknowledgement on publish, and feed the approved-BL0 anchor into `project_setup_controlled_since()`, which activates the "Superseded by BL0" dates.)* | 13.10, 13.11 | B3, B8 | A published snapshot reproduces `02` §26.5; re-baselining never changes a published snapshot; legacy snapshots read unchanged |
 | **13.13** | Manpower / resource foundation | Resource Category master data; planned manpower in the Working Plan (entry and template); frozen in snapshots and baselines; actual-manpower record defined for the Weekly | 13.12 | B5 (actual entry only) | Planned histogram published and reproducible from a snapshot; manpower never enters SPI |
 | **13.14** | Core consumers | Fills the 13.9A shells: compact Planning Status figures and Schedule Condition; Project Progress analytics (performance header, KPI row, S-curve, WBS / Control Account performance with node selection, exceptions, manpower section) per `02` §26.23.8. Also: Dashboard project and portfolio views (portfolio **distribution only** until 13.20); Calendar milestones from snapshot and register; stop writing and displaying the project record's progress; remove the Actual % ÷ Planned % SPI from these surfaces; **retire `overallStatus` as an input**, with badges and filters moving to Schedule Condition / Lifecycle Status (`02` §26.23.5), and Lifecycle Status clean-up per B13. *(The Opening Position move was reassigned to 13.9A on 2026-10-15.)* | 13.9A, 13.12, 13.13 | B4, B13 | Every figure cites its snapshot; no surface reads plan items as milestones; projects without a plan read "Reported — not planning governed" / SPI "N/A" |
 | **13.15** | Milestone governance / linkage | One-to-one link from a true milestone activity to a governed milestone, with link UI; linked milestones read dates from the snapshot; Schedule Versions may propose forecast / actual dates for linked milestones, never BL0 / BLn (`02` §26.22.6); key flag and criticality label; identity change history; deprecate register physical weight and planned-progress % | 13.12 | **B1** (amends `02` §24.6) | Linked and unlinked milestones resolve per `02` §26.6 rule 5; payments, client decisions and reconciliation unchanged |
@@ -2534,15 +2536,31 @@ started.**
 
 ### 13.9B — Project Setup Governance (approved 2026-10-15)
 
-**Status: ❌ NOT STARTED. Starts only on explicit instruction, after 13.9A.**
+**Status: 📐 SPECIFIED 2026-10-16 — design review complete and owner
+decisions B15–B24 CLOSED 2026-10-16. Steps 0–3 IMPLEMENTED locally
+2026-10-16 – 2026-10-17; Step 4 IMPLEMENTED locally 2026-10-17 (see the checkpoints at the end). 13.9B is IMPLEMENTED LOCALLY — AWAITING BROWSER UAT; NOT closed until the consolidated browser UAT passes.** No owner blocker remains. Each step starts only on explicit instruction.
 
 **Contracts.**
-- `02` §26.23.5–§26.23.8 and §26.14 (architecture);
+- `02` §26.24 (specification), refining §26.23.5–§26.23.8 and §26.14;
+- `06` §10A.11 (logical data model);
 - `05` §3.9 (authority);
 - `07` §10.12 (presentation).
 
 **Decisions.** Closes the delivery of `02` §26.19 B11 and implements the
-closed decisions B12 and B14.
+closed decisions B12, B14 and B15–B24.
+
+| # | Owner decision (closed 2026-10-16) | Where it lands |
+|---|---|---|
+| B15 | The database does not reproduce "Ready for Planning"; the app checks readiness; the database enforces the anchor invariants and the explicit first-anchor confirmation | `02` §26.24.1 · `06` §10A.11.2 |
+| B16 | Project Type correction stays System Administrator only, single actor, not duplicated as an amendment | `02` §26.24.2 · `05` §3.9 |
+| B17 | Meaningful structure / scope changes after Controlled are governed amendments; harmless display / order changes are not, unless they alter historical meaning | `02` §26.24.2a · `06` §10A.11.6 · step 4 |
+| B18 | After the first snapshot, `new` ↔ `existing` and governed → `no_formal` are prohibited; before it, applicable transitions on a Controlled project are governed amendments; `no_formal` → governed only by governed amendment; history never rewritten | `02` §26.24.6 |
+| B19 | Finalise is required before the first Reported Progress entry | `02` §26.24.5 · `06` §10A.11.5 |
+| B20 | No future Data Date; back-dating allowed, with a mandatory reason when earlier than the latest entry; never overwrites later entries or approved reports | `02` §26.24.5 · `06` §10A.11.5 |
+| B21 | Reported Progress written only by System Administrator, Project Control Admin, assigned Project Control / Planning | `05` §3.9 · `06` §10A.11.5 |
+| B22 | Field classes as proposed, except **Forecast Finish = governed** until Planning owns it (13.14) | `02` §26.24.2 |
+| B23 | Finalise is not reversible; a later move to a governed mode is a new governed transition; Setup stays Controlled | `02` §26.24.5 · `06` §10A.11.4 |
+| B24 | A request pending at archive stays immutable, undecidable, out of the queues, shown as derived "Frozen — project archived", and normal in History | `02` §26.24.8 · `06` §10A.11.3 |
 
 **What it is.** The governance slice for Project Setup. It is a database,
 RLS, service and UI slice, and is **separate from the Planning Engine**.
@@ -2557,7 +2575,9 @@ Sequence: 13.9A → **13.9B** → 13.10. No existing slice is renumbered.
      promotion, Finalise Project Setup.
    - BL0 approval joins as an anchor when 13.12 delivers it.
 2. **Field classes enforced** at the data boundary and in the UI: free /
-   logged, lightweight amendment, governed amendment, superseded.
+   logged, lightweight amendment, governed amendment, superseded, retired,
+   System-Administrator-only correction (`02` §26.24.2). Forecast Finish is
+   governed (B22). Structure scope per `02` §26.24.2a (B17).
 3. **`project_setup_amendments`.**
    - Append-only structured record: field, previous value, new value, reason,
      class, impact warning, actor, time, status, approver.
@@ -2579,23 +2599,161 @@ Sequence: 13.9A → **13.9B** → 13.10. No existing slice is renumbered.
      timestamp, source / provenance.
    - The "Update Reported Progress" write workflow on Project Progress, with
      the latest entry and its history shown there.
-   - Weekly and Monthly may reference the latest applicable entry but never
-     own it.
+   - Writers: System Administrator, Project Control Admin, assigned Project
+     Control / Planning only (B21). Requires Finalise (B19). No future Data
+     Date; back-dated entries need a reason (B20).
+   - Weekly and Monthly may reference an entry by id (wired in 13.17–13.19)
+     but never write or own it.
    - SPI stays "N/A".
-6. **Superseded Planned Start / Finish** once an approved BL0 exists. The rule
-   is in place in 13.9B and takes effect when 13.12 creates approved BL0s.
+6. **Superseded Planned Start / Finish** once an approved BL0 exists. The
+   registry class is in place in 13.9B, but it takes effect only when 13.12
+   creates approved BL0s. `planning_baselines` has no approval today, so
+   until then these dates are **governed** amendments once Controlled.
 7. **History integration.** Amendments, finalisation records and Reported
    Progress entries appear in Project History.
 8. **Archived projects.** The 13.9-style archived guard covers every new table.
+   A request pending at archive shows "Frozen — project archived" (B24).
 
 **Not in 13.9B:**
 - the Planning Engine, Snapshot v2 and BL0 approval (13.10–13.12);
-- `overallStatus` retirement and the legacy lifecycle value retirement (13.14);
+- `overallStatus` retirement, the legacy lifecycle value retirement and
+  Forecast Finish becoming Planning-owned (13.14);
+- Weekly / Monthly referencing a Reported Progress entry (13.17–13.19);
 - any Contacts / Project People convergence.
 
-**Depends on:** 13.9A. **Blocked by:** none. The logical entities are
-specified in `06` §10A at the start of the slice; `06` §10A.11 carries the
-future note.
+**Reconciliation with other slices** (2026-10-16):
+- **13.9:** every new table uses the 13.9 / 2C.3E archived-guard pattern;
+  nothing in 13.9 changes.
+- **13.9A:** the readiness checklist and "How will this project be planned?"
+  stay application-derived (B15). Once Controlled, the planning-mode question
+  becomes read-only with an "Amend…" entry; the read-only "Reported — not
+  planning governed" state gains its write action here.
+- **13.10:** untouched. The engine reads no setup-governance table.
+- **13.11:** Guided / Advanced Planning Setup must route an onboarding-mode
+  change on a Controlled project through the governed amendment, never write
+  `onboarding_mode` directly.
+- **13.12:** keeps `p_confirm_setup_control` and the publish refusal in
+  `no_formal_schedule` mode; feeds the approved-BL0 anchor into
+  `project_setup_controlled_since()`, which activates "Superseded by BL0"
+  dates and the Controlled-without-snapshot transitions of `02` §26.24.6.
+- **13.14:** adds the `planning_owned` class for Forecast Finish on
+  planning-governed projects (B22); retires `overallStatus` as an input.
+- **Weekly / Monthly:** never write Reported Progress or setup-governance
+  tables; a back-dated or corrected entry never changes an approved report
+  (report revision, `03` §12, stays separate).
+
+**Depends on:** 13.9A (closed). **Blocked by:** none — B15–B24 closed
+2026-10-16.
+
+**Implementation steps** (sub-steps of 13.9B; no new phase numbers). Each
+step ends with the `CLAUDE.md` completion report. Database steps also need
+migration replay and runtime SQL on the local stack only.
+
+0. **Preflight audit — read-only.**
+   `122_preflight_13_9b_setup_governance.sql` (local only; changes nothing).
+   Reports:
+   - projects that will be Controlled at rollout (they have a snapshot);
+   - projects whose stored mode is `no_formal_schedule` **and** already have
+     a snapshot (legacy inconsistency — they stay Controlled, Reported
+     Progress is not writable for them, and only `no_formal` → governed is
+     open to them);
+   - projects without a `project_planning_settings` row (they read the
+     column default `new_project`);
+   - non-null `priority` / `overall_status` / progress values on Controlled
+     projects (they stay as they are; only a change is refused).
+   No data is migrated. The findings go into the step 1 report.
+1. **Governance core — database.**
+   - The field-governance registry function (all classes of `02` §26.24.2,
+     Forecast Finish `governed`), mirrored in TypeScript with a source parity
+     test.
+   - `project_setup_controlled_since()` / `project_setup_controlled()`.
+   - `project_setup_amendments`, with the request, decide and withdraw
+     functions; the B24 rule (archived guard refuses decide / withdraw; row
+     never mutated).
+   - The `[SETUP_CONTROLLED]` guard on `projects` and on
+     `project_planning_settings.onboarding_mode`, including the full B18
+     transition matrix (`02` §26.24.6).
+   - `project_setup_field_changes` and its trigger.
+   - `publish_planning_snapshot()`: the `p_confirm_setup_control`
+     acknowledgement, and refusal while the stored mode is
+     `no_formal_schedule` (B15 / B18).
+   - Archived guards; RLS read through `can_access_project()`; no direct
+     write grants.
+   - Runtime suite `123_runtime_13_9b_governance_core.sql`.
+2. **Finalisation and Reported Progress — database.**
+   - `project_setup_finalisations` and `finalise_project_setup()` (no
+     reversal path, B23).
+   - `project_reported_progress` with its record / correct / withdraw
+     functions, the uniqueness chain, the project-time-zone future-date
+     check and the server-set back-dated flag with mandatory reason (B20),
+     authority `can_manage_project_operations()` (B21), Finalise
+     precondition (B19).
+   - Archived guards and RLS.
+   - Runtime suite `124_runtime_13_9b_finalise_reported_progress.sql`.
+3. **Services and UI.**
+   - The Controlled mode of Project Setup: free fields as today; Amend
+     dialogs for lightweight and governed fields (Forecast Finish governed);
+     pending states.
+   - The approvals queue (excluding archived projects' requests) and the
+     derived "Frozen — project archived" label.
+   - The first-anchor confirmation on Publish and Promote; Publish / Promote
+     not offered in `no_formal_schedule` mode.
+   - The Finalise dialog (not reversible).
+   - Project Progress Reported view, with Update / Correct / Withdraw, the
+     back-dated reason and marker.
+   - The 13.9A planning-mode question becomes read-only with "Amend…" once
+     Controlled.
+   - The History "Setup & governance" feed, including the Project Type
+     correction audit rows.
+   - Archived refusals mapped to plain sentences.
+   - Source tests.
+4. **Structure-scope governance (B17).**
+   - Structure registry keys and the governed / free split of `02`
+     §26.24.2a (renames governed, owner decision 2026-10-16).
+   - Guards on `project_departments`, `project_disciplines`,
+     `project_structure_levels` and `project_structure_nodes`.
+   - Governed structure amendments (including unit and level renames)
+     applied in the approval transaction through
+     `save_project_setup_relation()`, `configure_project_structure_levels()`
+     and the node write path.
+   - The "Propose structure change" UI.
+   - Runtime suite `126_runtime_13_9b_structure_scope.sql` (125 is the Step 3 relation-history suite) and source
+     tests.
+   - Then **browser UAT for the whole of 13.9B** and the closing checkpoint.
+
+**Runtime SQL plan.** Local database only, each suite inside a transaction
+that is rolled back, refusing to run on a non-local connection (the 121
+pattern). Run in order 122 → 123 → 124 → 125 → 126, after migration replay; then
+re-run the earlier suites touched by setup or publish (108, 110, 114, 116,
+118–121, and 100–102 for publish) to prove no regression, compared with
+their recorded 13.9 baselines (the archived-fixture caveat of the 13.9
+checkpoint applies).
+
+| Suite · area | Cases |
+|---|---|
+| **123** Active, not Controlled | Every setup field still saves as today (no regression); onboarding mode changes freely; no field-change log rows |
+| **123** Controlled anchor | The first snapshot makes the project Controlled; publish without `p_confirm_setup_control` is refused while not Controlled; once Controlled it is not needed; publish and promote are refused while the mode is `no_formal_schedule` (B15 / B18); Controlled never reverts |
+| **123** Free fields | Direct edit allowed and logged with before / after; unchanged hidden columns pass; a changed `priority` / `overall_status` / progress pair is refused |
+| **123** Lightweight | Missing reason refused; with reason, applied in the same transaction, status `applied`; `actual_start_date` / `actual_finish_date` are lightweight |
+| **123** Governed | Direct edit refused (`[SETUP_CONTROLLED]`), including `forecast_finish_date` (B22); request → `pending`; a second pending request on the same field refused; approval by a **different** Project Control Admin / System Administrator applies the value; approval by the requester refused, every role; reject without comment refused; withdraw by the requester |
+| **123** Stale / concurrency | The value changes after the request, then approval records `stale` and applies nothing; a duplicate approval is refused (PT409); a base value that is no longer current is refused at request |
+| **123** Project Type (B16) | The existing System-Administrator-only correction is unchanged, single actor, still audited, writes no amendment row; a Project Control Admin is refused |
+| **123** Onboarding transitions (B18) | With a snapshot: `new` ↔ `existing` refused; governed → `no_formal` refused. Controlled by finalisation, no snapshot: `no_formal` → governed refused as a direct edit, applied only by an approved amendment; afterwards the finalisation row and Reported Progress rows are unchanged and the project stays Controlled (B23). *(As built, Step 1 has no finalisation, so 123 proves the snapshot column and the legacy no_formal + snapshot cell; the Controlled-without-snapshot column moves to 124.)* |
+| **123** Unauthorised | Reporting Coordinator, department user, plain member and project-less user refused on every amendment write; assigned Project Control / Planning refused on another project |
+| **123** Archived (B24) | Request, decide and withdraw refused for every role; a request pending before archive keeps `pending` byte-for-byte; it is excluded from the queue read; history reads intact |
+| **124** Finalise | Allowed for System Administrator, Project Control Admin and the assigned Project Control / Planning; refused for the Reporting Coordinator, department users and members; refused on a governed mode; refused when already Controlled; duplicate refused; no snapshot and no figure created; no un-finalise path exists (B23) |
+| **124** Reported Progress | Before Finalise refused (B19); append on a Finalised no-formal project; refused on a governed project and once a snapshot exists; Reporting Coordinator, department user and member refused (B21); future Data Date (project time zone) refused (B20); back-dated report without reason refused, with reason accepted and flagged, and not "latest"; second report on the same date refused; a correction supersedes the head with a reason; a second correction of the same head refused; withdrawal; the "latest valid" resolution; no SPI anywhere |
+| **124** Archived | Finalise and every Reported Progress write refused for every role |
+| **126** Structure scope (B17) | Once Controlled: add / remove / archive / re-parent / reporting-scope change and unit / level rename refused directly and applied only by an approved amendment; `sort_order` / description save directly and are logged; stale structure request applies nothing; before Controlled every structure save works as today |
+| **123–125** Immutability | UPDATE / DELETE refused on every new table (except the single amendment decision transition) for every role, including System Administrator |
+
+**Done when** (in addition to the list below):
+- [x] B15–B24 are recorded as decided in `02` §26.19 (2026-10-16).
+- [ ] The registry is identical in SQL and TypeScript (source test).
+- [ ] No setup save path can change a governed field after Controlled without
+      an applied amendment from the same transaction (runtime-proved).
+- [ ] History shows every governance event with actor, time, reason and
+      before / after.
 
 **Done when.**
 - [ ] The setup state is derived correctly for every onboarding mode.
@@ -2613,11 +2771,13 @@ future note.
 - [ ] Finalise Project Setup is refused for the Reporting Coordinator,
       department users and plain members.
 - [ ] Finalisation creates no snapshot and no SPI.
-- [ ] Reported Progress entries are accepted only on no-formal-schedule
-      projects.
+- [ ] Reported Progress entries are accepted only on Finalised
+      no-formal-schedule projects without a snapshot, only from the B21 set,
+      never with a future Data Date, and with a reason when back-dated.
 - [ ] Project Progress shows the latest entry and its history, labelled
       "Reported — not planning governed", with SPI "N/A".
-- [ ] Weekly / Monthly read the entry without owning it.
+- [ ] No Weekly / Monthly path writes Reported Progress. Referencing an
+      entry by id is wired later, in 13.17–13.19.
 - [ ] Archived projects refuse every new write.
 - [ ] Migration replay and runtime SQL pass on the local stack.
 - [ ] `npx eslint src --max-warnings=0`, `npx tsc --noEmit` and
@@ -2625,3 +2785,402 @@ future note.
 - [ ] The source suite passes.
 - [ ] Browser UAT passes.
 - [ ] This roadmap is updated.
+
+#### 13.9B checkpoint — Step 0 + Step 1 (2026-10-16)
+
+**Status: Step 0 and Step 1 IMPLEMENTED on the local development database
+only (`supabase_db_eprp`; `supabase_db_eprp-restore-a` untouched; nothing
+remote, nothing deployed). Not staged, not committed. Steps 2–4 not
+started.** Owner closures before implementation (2026-10-16): Publish and
+Opening Position promotion refused while `no_formal_schedule` (no bypass);
+Weekly / Monthly typed progress stays as legacy, not canonical, until
+13.17–13.19; **structure unit and level renames are governed** (not
+lightweight) — `02` §26.24.2a.
+
+| Item | Result |
+|---|---|
+| Step 0 preflight `122_preflight_13_9b_setup_governance.sql` | Read-only, before the migration: **NO BLOCKER** — 21 PASS · 0 FAIL · 1 WARN · 14 INFO. 8 projects Controlled at rollout by existing snapshots (3 of them archived); 4 projects have no settings row; 1 `no_formal_schedule` project (MDP-UTIL-06) and none with a snapshot; every `projects` column classified. WARN: all 8 Controlled projects still have no Project Type (legacy NULL family) — handled by the legacy-classification rule (`02` §26.24.2) |
+| Migration | `20261016090000_project_setup_governance_core.sql`, applied with `psql --single-transaction` to the local app database after confirming container, project label (`eprp`) and port 54322; version recorded in `supabase_migrations.schema_migrations`. Replay from the pre-13.9B state, inside a rolled-back transaction: PASS (all in-migration post-checks) |
+| Runtime `123_runtime_13_9b_governance_core.sql` | **147 / 147 PASS**, rolled back |
+| Regression (local, rolled back) | 114 63/63 · 116 96/96 · 117 29/29 · 118 66/66 · 119 19/19 · 120 28/28 · 110 102/102 (with its rehearsal target) · 121 **201/206 as-is** — the 5 failures are exactly the new first-publish confirmation (4 first publishes on fresh projects + the dependent "writes landed" check); the same script with `p_confirm_setup_control => true` added: **206/206** · 101 19/19 · 100 and 102 stop on the pre-existing Opening Position data condition recorded at 13.9, identically · 108 aborts at fixture time on the archived ZZ-P0TEST-PRJ status it copies (2C.3E guard; pre-existing). 100–102 were run with the two archived fixtures re-activated inside their own rolled-back transaction, as at 13.9 |
+| Source suite | **793 / 793** (772 at 13.9A + 21 in `setup-governance.test.mjs`). Two earlier fence tests updated for the new migration: "13.9A adds no migration" (now allows the 13.9B file) and the PT409 contract list (adds the three amendment functions, which raise PT409) |
+| `tsc --noEmit` · `eslint src --max-warnings=0` · `next build` | PASS · PASS · PASS |
+
+**Interim behaviour until Step 3 (UI).** On a Controlled project the current
+Project Setup form refuses a changed lightweight / governed / retired field
+with the plain sentence from the database (no Amend dialog yet). A project's
+**first** Publish / Promote from the app is refused with "Publishing the
+first Planning Snapshot makes Project Setup controlled. Confirm this to
+publish." until Step 3 adds the confirmation dialog — the service already
+passes `confirmSetupControl` when given, never by default.
+
+**Not in Step 1:** Setup Finalisation and Reported Progress (Step 2); all UI,
+the approval queue and the "Frozen — project archived" label (Step 3);
+structure-scope guards (Step 4); relation-level logging of contacts, sites
+and parties (registry `as_today`).
+
+#### 13.9B checkpoint — Step 2 (2026-10-17)
+
+**Status: Step 2 (Setup Finalisation + Reported Progress database
+foundation) IMPLEMENTED on the local development database only
+(`supabase_db_eprp`, confirmed by name, project label `eprp` and port 54322;
+`supabase_db_eprp-restore-a` untouched; nothing remote). Not staged, not
+committed. Steps 3–4 not started.**
+
+Owner closure applied first (2026-10-17): **legacy classification bootstrap**
+— a Controlled project whose Project Type is still NULL is classified once by
+the System Administrator through the existing correction path, with its
+Project Category, recorded once as `correction_kind = 'legacy_bootstrap'` in
+`project_classification_corrections`, never as an amendment (`02`
+§26.24.2). Step 1's broader exemption (classification through Project Setup
+by any setup manager once Controlled) was withdrawn.
+
+| Item | Result |
+|---|---|
+| Migration | `20261017090000_project_setup_finalise_reported_progress.sql`: bootstrap (correction function re-created; `correction_kind`, `old_family` nullable only for the bootstrap, one per project); `project_setup_finalisations` + `finalise_project_setup()`; Controlled = earlier of first snapshot and finalisation; `project_reported_progress` + record / correct / withdraw + heads / latest. Dry run (rolled back), then applied with `psql --single-transaction`; version recorded |
+| Runtime `124_runtime_13_9b_finalise_reported_progress.sql` | **137 / 137 PASS**, rolled back |
+| Runtime `123` (Step 1) | **146 / 146** — section 08 updated for the bootstrap closure (Project Setup classification of a Controlled legacy project is now refused) |
+| Preflight `122` | No blocker (20 PASS · 1 WARN · 15 INFO); collision list extended to the Step 2 objects |
+| Regression | 114 63/63 · 116 96/96 · 117 29/29 · 118 66/66 · 119 19/19 · 120 28/28 · 110 102/102 · 121 201/206 as-is, **206/206** with the first-anchor confirmation added (Step 1 contract) · 101 19/19 · 100 and 102 stop on the pre-existing Opening Position data condition, identically · **108 32/33** with its archived fixture re-activated: the single failure, "correction of an unclassified (legacy NULL) project is refused", targets ZZ-P0TEST-PRJ — a legacy NULL project that is **Controlled** (snapshot 2026-09-21) — so the owner's bootstrap closure now intentionally allows it. The not-Controlled refusal is proved in 124 (LGM → `NOT_CLASSIFIED`). 108 was not rewritten |
+| Source suite | **807 / 807** (793 + 14 in `reported-progress.test.mjs`). Three earlier fences updated deliberately: "13.9A adds no migration" (allows the Step 2 file), the PT409 contract (correction function re-created by Step 2, five new PT409 writers) and the 2C.1c-a correction-RPC test (live definition now the Step 2 file; the 4b structure guard still proved in place) |
+| `tsc --noEmit` · `eslint src --max-warnings=0` · `next build` | PASS · PASS · PASS |
+
+**Incident during verification (local only, resolved).** A scratch replay
+script meant to run inside a rolled-back transaction lost the backslash of
+its first line (`\set ON_ERROR_STOP on`), so its `begin;` was swallowed and
+every statement autocommitted: the Step 2 objects were dropped and the Step 2
+migration re-applied statement by statement. The governance tables were
+empty, so no row was lost. A corrected, rolled-back comparison then proved
+the live schema identical to a clean application of the migration (209
+catalog items: functions and ACLs, constraints, indexes, triggers, policies,
+grants, columns, comments) except one cosmetic artifact — `correction_kind`
+sits at column position 17 instead of 16 (a dropped-column slot). 122, 123,
+124 and 118 were re-run afterwards and pass.
+
+**Design decisions taken in Step 2 (confirm or override in Step 3):**
+- A **withdrawal is final**: it cannot be corrected or withdrawn, and the
+  same Data Date cannot be reported again (one original per date).
+- Back-dating is measured against the latest **valid** Data Date (the
+  greatest Data Date whose head is not a withdrawal).
+- Finalise takes an explicit `p_confirm` and stores the acknowledgement text
+  shown; the note is optional.
+
+**Step 3 closeout item (owner, 2026-10-17).** Contacts, Sites and Parties are
+classified Free / Logged but have no structured history record yet (registry
+`as_today`). Not solved in Step 2; **13.9B is not complete until their
+History treatment is reconciled.**
+
+**Not in Step 2:** every service and UI (Finalise dialog, Update / Correct /
+Withdraw Reported Progress, History feed, approval queue) — Step 3; the
+Project Type correction dialog still hides "Correct Project Type" for an
+unclassified project (`canCorrectProjectType`), so the bootstrap needs that UI
+change in Step 3; structure scope — Step 4.
+
+#### 13.9B checkpoint — Step 3 (2026-10-17)
+
+**Status: Step 3 (services, Project Setup governance UI, Reported Progress
+UI, History, Contacts / Sites / Parties history) IMPLEMENTED locally. Not
+staged, not committed. 13.9B is NOT closed: Step 4 (structure-scope
+governance) and the whole-slice browser UAT remain.** Owner closures applied
+(2026-10-17): withdrawal stays final (no Undo / Restore / Reinstate);
+legacy classification exposed to the System Administrator only, through the
+correction path; Contacts / Sites / Parties history reconciled.
+
+| Item | Result |
+|---|---|
+| Migration | `20261018090000_project_setup_relation_history.sql` (needed: Contacts / Sites / Parties were Free / Logged but unlogged). `project_setup_relation_changes` (append-only, one net before / after row per record per transaction, Controlled only; project-level holders excluded — their columns are logged) + AFTER triggers on `project_contacts`, `project_sites`, `project_parties`; registry `enforced_from` → `13.9B-3`. Dry run proved rolled back (unchanged xmin), then applied to `supabase_db_eprp` only and recorded |
+| Runtime | 122 no blocker · **123 146/146 · 124 137/137 · 125 31/31** (new; noise-free re-save proved on stored rows) · 114 63/63 · 116 96/96 · 117 29/29 · 118 66/66 · 119 19/19 · 120 28/28 · 110 102/102 · 101 19/19 · 121 201/206 as-is / 206/206 with the first-anchor confirmation (Step 1 contract). Local DB left unchanged after the runs |
+| Source suite | **825 / 825** (807 + 18 in `setup-governance-ui.test.mjs`). Earlier fences updated deliberately for Step 3: 13.9A "no migration" list, the 13.9A placeholder wording ("control not enforced yet", "Reported Progress not available yet"), the archived-setup layout regex (banner and amendments now sit between the notice and the form), and the Step 1/2 "no UI yet" fences, rewritten as "screens never call governance functions directly" and "no Weekly / Monthly / Executive code touches the stream" |
+| `tsc` · `eslint --max-warnings=0` · `next build` | PASS · PASS · PASS |
+
+**What Step 3 delivers.**
+- Services: `setup-governance-service.ts` — request / approve / reject /
+  withdraw amendment, project amendments, actionable approvals (never own,
+  never archived), control state, field and relation history, Finalise,
+  Reported Progress record / correct / withdraw / list / latest. Database
+  refusals surface as the sentence the database wrote.
+- Project Setup (Project Info step): the form waits for the control state
+  (error state fails closed); Controlled banner; lightweight / governed fields
+  shown inert with Amend / Request amendment; one Amend dialog (current value
+  read on open and sent back as the base, proposed value, class, reason,
+  impact, approval requirement, "you cannot approve your own request");
+  Pending indicator per field; applied amendments adopted as the saved value.
+- Amendments panel on Project Setup (Awaiting decision / My requests / All)
+  with Approve / Reject (comment required) / Withdraw, Stale and "Frozen —
+  project archived" states; a dashboard "Setup Amendments" queue for
+  global authorities linking to each project's Setup.
+- First-anchor confirmation on Publish Snapshot and Promote Opening Position
+  (only while not Controlled); no Publish / Promote in no_formal_schedule.
+- Planning Entry: real Controlled state (anchor and date); onboarding mode
+  read-only once Controlled with Request amendment; Finalise Project Setup
+  (no_formal_schedule, Ready, authorised) with the owner's wording and
+  explicit acknowledgement; finalisation details afterwards.
+- Project Progress: Reported Progress panel (latest valid entry, SPI N/A,
+  history per Data Date, Update / Correct / Withdraw on the current head,
+  back-date reason, final withdrawal); a project that moved to a governed
+  mode shows its earlier entries read-only.
+- Project History: real "Setup & governance" feed composed from the
+  structured records (the sample "other activity" list kept, labelled).
+- Legacy classification: "Classify legacy project" for a System
+  Administrator on a Controlled project with no Project Type, through the
+  correction dialog (legacy wording) and the correction history.
+
+**Open items (not blockers for Step 4):**
+- Project Edit (`/projects/[id]/edit`) still renders the form without
+  governance input, so on a Controlled project a changed governed field is
+  refused there by the database with its plain sentence (no Amend action).
+  The Setup wizard is the governed path.
+- Department / system / discipline assignments made through structure editors
+  are Step 4.
+- The publish dialog still prints the retired typed project progress as a
+  preview line (13.14 retires it).
+
+**Browser UAT plan (after Step 4, local only).**
+1. Not Controlled project: every Setup field saves as before; History shows no
+   setup events.
+2. First publish on a new_project project: confirmation required, then
+   Controlled banner; later publish has no confirmation.
+3. Controlled project as assigned Project Control: free field saves and
+   appears in History; lightweight field via Amend (reason) applies at once;
+   governed field via Request amendment shows Pending; the ordinary Save
+   never errors on untouched fields.
+4. Second Project Control Admin approves (applied) / rejects (comment) /
+   sees Stale after a conflicting change; the requester sees no Approve and
+   can Withdraw; dashboard queue lists only others' requests.
+5. Archive a project with a pending request: no actions, "Frozen — project
+   archived", absent from the dashboard queue, readable in History.
+6. no_formal_schedule project: no Publish / Promote; Finalise (Ready) with
+   acknowledgement; Controlled banner; Reported Progress: record, optional
+   planned %, future date refused, same date refused, back-date needs reason
+   and is not latest, Correct and Withdraw (final), SPI N/A, no PV / EV.
+7. Request no_formal → new_project, approve: Reported Progress read-only
+   history on Progress, Publish allowed without a new confirmation.
+8. Legacy Controlled project as System Administrator: Classify legacy
+   project; PCA sees no action; History shows "Legacy project classified".
+9. Contacts / Sites / Parties edits on a Controlled project appear in History
+   with before / after; an unchanged re-save adds nothing.
+10. Roles: Reporting Coordinator / department user / member see no write
+    actions; desktop, tablet 800×900, phone 390×844, dark mode.
+
+#### 13.9B checkpoint — Step 4 + slice closeout (2026-10-17)
+
+**Status: 13.9B IMPLEMENTED LOCALLY — AWAITING BROWSER UAT. Not closed.**
+- Steps 0–4 are implemented on the local development database only.
+- Nothing is staged, committed or pushed. Remote Supabase and production
+  are untouched.
+- 13.9B closes only after the consolidated browser UAT below passes.
+- 13.10 has not started.
+
+| Item | Result |
+|---|---|
+| Migration | `20261019090000_project_setup_structure_governance.sql` (see "What Step 4 delivers" below). Dry run inside a rolled-back transaction: PASS, rollback proven by unchanged `pg_class.xmin`. Applied with `--single-transaction` to `supabase_db_eprp` only, after confirming the container, label `eprp` and port 54322; version recorded. **One defect was found by the new runtime suite and fixed before any approval ran.** The guard's first version read table-specific record fields (`new.department_id`) on all four tables, which PL/pgSQL resolves at run time. It now reads jsonb row images. The corrected function was re-created on the local database and its body verified byte-identical (md5) to the migration file. In the same file, the pasted live `save_project_setup_relation` header keyword `AS` was lower-cased (stored body unchanged) so the PT409 source fence can see the re-creation |
+| Runtime | **126 139/139** (new). 122: 20 preflight checks, no blocker. 123 146/146 · 124 137/137 · 125 31/31 · 110 102/102 (+ rollback-clean row) · 114 63/63 · 116 96/96 · 117 29/29 · 118 66/66 · 119 19/19 · 120 28/28 · 101 19/19. 121: 201/206 as-is, 206/206 with the first-anchor confirmation (the Step 1 contract). 108: 32/33, the single row being the intended Step 2 legacy-bootstrap contract on Controlled ZZ-P0TEST-PRJ. 100 / 102: stop on the pre-existing Opening Position fixture condition, unchanged from the 13.9 / Step 3 baselines. Every suite rolled back; no fixture left behind |
+| Source suite | **840 / 840**: 825 + 15 in `structure-amendments.test.mjs`. Fences updated deliberately, each with a comment saying why: the 13.9A "no migration" list (adds the Step 4 file); the PT409 list (adds `request_project_structure_amendment` and `project_setup_apply_structure`; `save_project_setup_relation` is now re-created by Step 4); the 125 catalog row (the relation-history trigger is now on seven tables); the archived-setup regexes (the second Project Info editor is also hidden when Controlled, and the PSM editors are also disabled when governed); the queue link (a structure request opens its own step) |
+| `tsc` · `eslint src --max-warnings=0` · `next build` | PASS · PASS · PASS (no warnings) |
+
+A green lint / type-check / build proves the code compiles. The runtime
+suites prove the database contracts on the local database. **Neither proves
+the screens in a browser**: that is the UAT below.
+
+**What Step 4 delivers.**
+- **A. Legacy `/projects/[id]/edit`.**
+  - It is now a compatibility redirect to Project Setup → Project Info,
+    keeping the query string; the browser keeps any `#section` fragment.
+  - Existing links and bookmarks keep working. The governance UI is not
+    duplicated.
+- **B. Publish Snapshot dialog.** The "Project summary (as recorded):
+  Planned / Actual" line is gone. The dialog states whether this publish
+  makes Setup Controlled. No PV, EV or SPI is computed or shown.
+- **Structure governance** (`02` §26.24.2a as built, `06` §10A.11.3 /
+  §10A.11.8):
+  - One action on one target, in the existing amendment model, with
+    `target_key` and one pending request per target.
+  - Server-side validation against the live structure; stale by state and
+    stale by validity.
+  - Atomic apply in the approval transaction.
+  - A database guard comparing old with new on the four structure tables.
+  - The Programs & Studies save writes differences only.
+  - Structure history in `project_setup_relation_changes`.
+- **UI.**
+  - The structure steps wait for the control state. Once Controlled, the
+    editors stay visible read-only and a governance panel offers contextual
+    "Request …" actions through one **Propose structure change** dialog
+    (reason, impact, "You cannot approve your own request").
+  - Pending targets are marked, and a duplicate request is not offered.
+  - The pending list carries Approve, Reject and Withdraw.
+  - Free edits stay direct: unit description and order; department lead
+    and description.
+  - The Project Info second editor is hidden once Controlled.
+  - The queue, the amendments panel and History word structure requests in
+    business terms.
+- **Programs & Studies** stay separate from Disciplines throughout.
+
+**Reconciled with the specification.**
+- **How a structure amendment is shaped and applied.** `02` §26.24.2a
+  previously said a structure amendment carries the whole relation and is
+  applied through the editor RPCs. As built, it is one targeted action,
+  following the Step 4 instruction for a structured target / action
+  payload. It is applied by an internal targeted write that every existing
+  structure trigger still checks. The editor RPCs replace whole relations
+  and check the caller's page version, which a single approved change does
+  not carry. `02` and `06` now describe the as-built design.
+- **Removing a unit.** Once Controlled, a unit is removed by archiving it
+  (safe archive); a direct delete is refused.
+
+**Open items carried forward (not blockers):**
+- Same-transaction binding is per key and target. A client cannot share a
+  transaction with the decision RPC, so an approval authorises nothing
+  beyond its own target. Runtime 126 section 08 proves this.
+- The Other structure workspace keeps its read-only note "Read-only · you
+  can view this project's structure" on a Controlled project. The panel
+  below it explains the governance. Its frozen contract was not changed.
+
+**Consolidated browser UAT plan (local only; supersedes the Step 3 list).**
+Use one PSM project, one Other project (three levels), one
+no_formal_schedule project, one legacy unclassified project and an archived
+project. Use three people: an assigned Project Control (PC) and two Project
+Control Admins (PCA1, PCA2); plus a System Administrator for H. Check
+desktop, tablet 800×900, phone 390×844 and dark mode once, on the D and E
+screens.
+
+- **A. Not Controlled baseline (PC).**
+  - Project Info fields, Departments / Systems / Programs & Studies and the
+    Other structure (add, rename, move, archive, levels) save directly as
+    before.
+  - History shows no setup events.
+  - `/projects/<id>/edit` (with and without `?x=1#reporting`) lands on
+    Project Setup → Project Info.
+- **B. First anchor (PC).**
+  - The Publish Snapshot dialog shows no typed planned / actual line.
+  - The first publish requires the Setup-control confirmation; afterwards
+    the Controlled banner appears.
+  - A second publish has no confirmation.
+  - On the no_formal_schedule project, Publish / Promote is absent;
+    Finalise (Ready) needs the acknowledgement and then Controlled appears.
+- **C. Controlled fields (PC, then PCA1 and PCA2).**
+  - A free field saves and appears in History.
+  - A lightweight field, via Amend with a reason, applies at once.
+  - A governed field, via Request amendment, shows Pending.
+  - PC sees no Approve and can Withdraw.
+  - PCA1 approves (applied), rejects (a comment is required), and sees
+    Stale after a conflicting change.
+  - The dashboard queue lists only others' requests.
+- **D. Other structure (PC → PCA1).**
+  - The editors are read-only and the Structure changes panel is present.
+  - Request rename (name + code), move, new unit (with Weekly input),
+    archive, restore and reporting change. Each target shows Pending
+    approval, and a second request on it is not offered.
+  - Request level rename, then new level, then removal of the empty level,
+    one at a time.
+  - PCA1 approves each: applied at once, and the hierarchy updates.
+  - Produce one stale request: propose a new unit under A2, approve a
+    reporting change on A2, then approve the new unit. Result: Stale,
+    nothing applied.
+  - Edit description and order directly; it is saved and appears in History.
+  - Refusals read as plain sentences: archiving a unit with active children
+    or people, a duplicate name.
+- **E. PSM scope (PC → PCA2).**
+  - On Departments / Systems / Programs & Studies, the editors are read-only
+    with the scope panel. The second Project Info editor is absent.
+  - Request scope change (add a system, turn reporting off), Request
+    department, Request Program & Study, Request move, Request removal.
+  - Removing a department or system still used by a Program & Study is
+    refused with a sentence.
+  - Edit lead and description directly; it is saved and appears in History.
+  - PCA2 approves, and the queue link opens the right step.
+  - History reads "Department changed … CDU, Tank Farm · reports",
+    "Program & Study added …".
+- **F. Reported Progress (no_formal_schedule, PC).**
+  - Record, with optional planned %.
+  - A future date and a same date are refused.
+  - A back-date needs a reason and is not latest.
+  - Correct; Withdraw (final).
+  - SPI N/A; no PV / EV.
+  - Request no_formal → new_project and approve: the earlier entries become
+    read-only history, and Publish is allowed without a new confirmation.
+- **G. Archived.**
+  - Archive a project holding a pending field request and a pending
+    structure request.
+  - Both show "Frozen — project archived" with no actions, and both are
+    absent from the queue.
+  - The structure steps and panels are read-only with no Request actions.
+  - History is readable.
+- **H. Roles and legacy.**
+  - A System Administrator sees Classify legacy project on the Controlled
+    legacy project; PCA does not. History shows "Legacy project classified".
+  - PC opening another (unassigned) project sees no Setup write.
+  - A Reporting Coordinator, department user or plain member sees no write
+    or Request actions.
+  - Contacts / Sites / Parties edits appear in History with before / after;
+    an unchanged re-save adds nothing.
+
+#### 13.9B addendum — Project Setup amendment notifications (2026-10-18)
+
+**Found by browser UAT:** the approval workflow worked but nobody was told a
+decision was waiting. Small, focused fix; 13.9B stays **IMPLEMENTED LOCALLY —
+AWAITING BROWSER UAT** (nothing staged, committed or pushed; local
+`supabase_db_eprp` only).
+
+- **Reused:** the existing bell, inbox, `NotificationService` contract and
+  provider (`src/features/notifications`). They were a front-end shell with no
+  backend ("Notification delivery is not connected yet"), so the first real
+  backend was added behind the same contract. No second framework.
+- **Database** (`20261020090000_project_setup_amendment_notifications.sql`):
+  - `user_notifications`: a recipient reads their own rows and sets `read_at`
+    only.
+  - A trigger on the amendment table is the event source; no amendment
+    function was changed.
+  - A trigger on `projects` covers archiving.
+  - `reconcile_my_setup_amendment_notifications()` is a caller-only,
+    idempotent safety net.
+  - A one-time backfill covers the requests pending at migration time.
+- **Behaviour:**
+  - A governed submit notifies every active System Administrator and Project
+    Control Admin except the requester.
+  - Approve, reject and stale notify the requester. Reject carries the reason,
+    which stays mandatory.
+  - Withdraw notifies nobody, and the request leaves approvers' inboxes.
+  - Archive notifies the requester "Frozen — project archived"; approvers'
+    rows drop out, and the amendment is left pending and unchanged.
+  - Lightweight and free changes notify nobody.
+  - Actionability is derived when the inbox is read: pending, project not
+    archived, reader still an active approver.
+- **Deep link:** `/projects/<id>/setup/info?amendment=<id>`. The Setup
+  amendments panel opens "Awaiting decision" (or "All" for a decided request),
+  scrolls to the request and highlights it.
+- **Existing UAT request** (MDP-PSAIM-01): not touched. The migration backfill
+  and the reconcile make it appear for each active approver, including
+  `uat.pca@local.test`.
+- **Not in scope:** preferences remain tab-only and never hide a request needing
+  a decision. The bell refreshes on load/refresh (no live push).
+- **Results:**
+  - Runtime 127: 62/62.
+  - Regression: 123 · 124 · 125 · 126 · 110 · 114 · 116–120 · 101 unchanged;
+    121 201/206 as-is, 206/206 with the confirmation.
+  - Source suite 851/851 (11 new tests); `tsc`, `eslint`, `next build` PASS.
+
+#### 13.9B addendum — toast delivery and Clear history (2026-10-20)
+
+**Found by browser UAT:** a new rejection reached the Notification Center but
+never toasted; users also need a way to empty their inbox. Still
+**IMPLEMENTED LOCALLY — AWAITING BROWSER UAT**; local `supabase_db_eprp` only.
+
+- **Toast root cause** (traced in the local API gateway log): after a reload
+  the first refresh was cut short by slow REST (8 s client timeouts), the
+  window was then hidden so polling stopped, and the first SUCCESSFUL refresh
+  minutes later — already containing the new rejection — was taken as the
+  sign-in backlog. `toast()` was never called.
+- **Toast fixes:** the baseline is by time (only notifications created by
+  session start + 10 s are backlog); a new arrival stays pending until the
+  window has focus; gaining focus shows pending toasts at once and guarantees
+  a catch-up refresh (queued, never parallel, if one is in flight); refresh
+  failures are logged in development, with a gate trace and a "Show test toast"
+  renderer check. The 30 s cadence, recipients and deep links are unchanged.
+- **Clear history** (`20261021090000_notification_history_clear.sql`):
+  per-user, server-side `clear_my_notification_history()` sets `cleared_at`
+  on the caller's rows that no longer require action; the select policy hides
+  cleared rows. Rows are kept as delivery records, never deleted. A pending
+  "Approval required" (`notification_requires_action`) is never cleared, also
+  while its project is archived. Amendments, Project History, audit and other
+  users' rows are untouched. Separate from "Mark all read".
+- **Results:** runtime 129 32/32; 127 62/62 and 128 108/108 unchanged.

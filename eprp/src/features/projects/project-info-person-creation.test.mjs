@@ -185,10 +185,11 @@ test("existing valid selection still works, and the global People master is unch
 
 test("archived Project Setup stays read-only (2C.3E unchanged)", () => {
   const view = source("./components/setup/project-setup-view.tsx");
-  assert.match(view, /\{project && !readOnly && setupFlowFor\(\{ structureFamily, saved \}\) !== "other" && \(\s+<ProjectInfoWorkspace/);
+  assert.match(view, /\{project && !readOnly( && !controlled)? && setupFlowFor\(\{ structureFamily, saved \}\) !== "other" && \(\s+<ProjectInfoWorkspace/);
   assert.match(view, /<SetupEditScope readOnly=\{readOnly\}>\s+<ProjectForm/);
   const departments = source("./components/setup/setup-step-departments.tsx");
-  assert.match(departments, /action=\{\s+readOnly \? undefined : \(/);
+  // (13.9B Step 4: a Controlled project shows "Request department" instead; archived still shows nothing.)
+  assert.match(departments, /action=\{\s+readOnly \? undefined : governed \? \(/);
   const links = source("./link-record-to-project.ts");
   assert.match(links, /if \(isSetupReadOnly\(project\)\) throw new Error\(PROJECT_SETUP_ARCHIVED_MESSAGE\);/);
 });

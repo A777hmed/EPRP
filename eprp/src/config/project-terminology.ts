@@ -103,21 +103,29 @@ export function hierarchyTermsFor(
 
 /**
  * Whether a project is PSM (Phase 2C.1). The project's explicit
- * `structureFamily` wins; a legacy project with none falls back to the
- * project-type inference above, unchanged.
+ * `structureFamily` wins. A legacy project with none (never classified) is
+ * judged by its project type; failing that, by the PSM / PSAIM token as a whole
+ * word in its own project CODE (e.g. `MDP-PSAIM-01`).
+ *
+ * The code fallback exists because an unclassified legacy project's type is
+ * its Project Category, which a governed amendment may legitimately change
+ * (13.9B UAT: PSAIM → Asset Integrity). That must not silently relabel its
+ * Programs & Studies as Disciplines. It is wording only, never a branch of
+ * behaviour, and it can only ever apply to a project with no explicit family.
  */
 export function isPsmProject(
-  project: { structureFamily?: StructureFamily } | undefined | null,
+  project: { structureFamily?: StructureFamily; code?: string } | undefined | null,
   type: ProjectType | undefined | null
 ): boolean {
   const family = project?.structureFamily;
   if (family) return family === "psm";
-  return isPsmProjectType(type);
+  if (isPsmProjectType(type)) return true;
+  return PSM_NAME_TOKEN_PATTERN.test(project?.code ?? "");
 }
 
-/** Hierarchy wording for a project — explicit family first, then its type. */
+/** Hierarchy wording for a project — explicit family first, then its type, then (legacy only) its code. */
 export function hierarchyTermsForProject(
-  project: { structureFamily?: StructureFamily } | undefined | null,
+  project: { structureFamily?: StructureFamily; code?: string } | undefined | null,
   type: ProjectType | undefined | null
 ): HierarchyTerms {
   return isPsmProject(project, type) ? PSM_HIERARCHY_TERMS : DEFAULT_HIERARCHY_TERMS;

@@ -242,16 +242,21 @@ test("archived Project Setup is shown read-only — never refused as 'not a mana
   assert.match(view, /if \(projectId && authority\.resolved && !authority\.holdsOperations\) \{/);
   assert.match(view, /readOnly=\{authority\.resolved && authority\.archived\}/);
   // Info step: notice, disabled scope, no second editor, no classify / positions / correction save.
-  assert.match(view, /\{readOnly && <ArchivedSetupNotice \/>\}\s+\{\/\*[\s\S]*?\*\/\}\s+<SetupEditScope readOnly=\{readOnly\}>\s+<ProjectForm/);
+  // (13.9B places the Controlled banner and the amendments record between them.)
+  assert.match(view, /\{readOnly && <ArchivedSetupNotice \/>\}[\s\S]*?\{\/\*[\s\S]*?\*\/\}\s+<SetupEditScope readOnly=\{readOnly\}>\s+<ProjectForm/);
   assert.match(view, /onSavePositions=\{project && !readOnly \? handleSavePositions : undefined\}/);
-  assert.match(view, /savedBaseline && !savedBaseline\.structureFamily && !readOnly \? handleClassify : undefined/);
-  assert.match(view, /\{project && !readOnly && setupFlowFor\(\{ structureFamily, saved \}\) !== "other" && \(\s+<ProjectInfoWorkspace/);
+  // (13.9B: once Controlled the System Administrator bootstrap replaces it.)
+  assert.match(view, /savedBaseline && !savedBaseline\.structureFamily && !readOnly( && !controlled)? \? handleClassify : undefined/);
+  // (13.9B Step 4: nor once Setup is Controlled — the structure is governed on its own steps.)
+  assert.match(view, /\{project && !readOnly( && !controlled)? && setupFlowFor\(\{ structureFamily, saved \}\) !== "other" && \(\s+<ProjectInfoWorkspace/);
   assert.equal((view.match(/^\s+assertWritable\(\);$/gm) ?? []).length, 5, "every Project Information save handler refuses");
   // Steps: save refuses first; every step viewable; PSM editors disabled; Other editors use canManage.
   assert.match(view, /const save = async \(\): Promise<boolean> => \{\s+if \(readOnly\) \{\s+toast\.error\(PROJECT_SETUP_ARCHIVED_MESSAGE\);\s+return false;/);
   assert.match(view, /if \(!status\.unlocked && !readOnly\) \{/);
   for (const editor of ["SetupStepDepartments", "SetupStepSystems", "SetupStepDisciplines", "SetupStepContacts"]) {
-    assert.match(view, new RegExp(`<SetupEditScope readOnly=\\{readOnly\\}>\\s+<${editor}`), editor);
+    // 13.9B Step 4: the PSM structure editors are also disabled once Setup is Controlled (governed).
+    // (13.9B Step 4: Departments presents its own governed mode; Systems / Programs & Studies stay disabled when governed.)
+    assert.match(view, new RegExp(`<SetupEditScope readOnly=\\{readOnly( \\|\\| governed)?\\}>\\s+<${editor}`), editor);
   }
   assert.match(view, /function SetupEditScope\([\s\S]+?<fieldset\s+disabled=\{readOnly\}/);
   assert.match(view, /canManageStructure=\{canManage && savedBaseline\.status !== "archived"\}/);
@@ -264,7 +269,8 @@ test("archived Project Setup is shown read-only — never refused as 'not a mana
   assert.ok(footer.indexOf(") : (") < footer.indexOf("onClick={save}"), "Save only on the writable branch");
   // No Add Department link (it would link a new record to the archived project).
   const departments = source("./components/setup/setup-step-departments.tsx");
-  assert.match(departments, /action=\{\s+readOnly \? undefined : \(/);
+  // (13.9B Step 4: a Controlled project shows "Request department" instead; archived still shows nothing.)
+  assert.match(departments, /action=\{\s+readOnly \? undefined : governed \? \(/);
 });
 
 test("other entry points: edit route, dialogs and add-and-link all refuse an archived project", () => {

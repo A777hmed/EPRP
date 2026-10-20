@@ -3,25 +3,29 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, BellOff, CheckCheck, ChevronLeft, ChevronRight, ExternalLink, Filter, Mail, MailOpen, RefreshCw, Settings2 } from "lucide-react";
+import { Bell, BellOff, CheckCheck, ChevronLeft, ChevronRight, Eraser, ExternalLink, Filter, Mail, MailOpen, RefreshCw, Settings2 } from "lucide-react";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { PageHeader } from "@/components/shared/page-header";
 import { cn } from "@/lib/utils";
-import { defaultQuery, groupNotifications, notificationCategories, notificationHref, type NotificationQuery } from "./model";
+import { defaultQuery, groupNotifications, notificationCategories, notificationHref, type NotificationItem, type NotificationQuery } from "./model";
 import { useNotificationPage, useNotifications } from "./provider";
 
 export function NotificationModeNotice() {
-  const { service, busy, setDevelopment, simulateReadFailure } = useNotifications();
+  const { service, busy, setDevelopment, simulateReadFailure, showTestToast } = useNotifications();
   const demo = service.mode === "development";
+  const connected = service.mode === "connected";
   return <div className={cn("rounded-lg border px-4 py-3 text-sm", demo ? "border-amber-300/60 bg-amber-50 text-amber-950 dark:bg-amber-950/20 dark:text-amber-100" : "bg-muted/30")}>
-    <p className="font-medium">{demo ? "Development preview · sample notifications" : "Notification delivery is not connected yet"}</p>
-    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{demo ? "These are sample records, not your work. Read states and preferences stay in this tab and reset on reload." : "Your inbox will remain empty until the notification backend is connected. Preferences are kept in this tab only."}</p>
+    <p className="font-medium">{demo ? "Development preview · sample notifications" : connected ? "Project Setup approvals" : "Notification delivery is not connected yet"}</p>
+    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{demo ? "These are sample records, not your work. Read states and preferences stay in this tab and reset on reload." : connected ? "Project Setup amendment requests and decisions are delivered here. Read state is saved; preferences are kept in this tab only and never hide a request that needs your decision." : "Your inbox will remain empty until the notification backend is connected. Preferences are kept in this tab only."}</p>
     {process.env.NODE_ENV === "development" && <div className="mt-3 flex flex-wrap gap-2">
       <Button size="sm" variant="outline" disabled={busy} onClick={() => setDevelopment(!demo)}>{demo ? "Exit sample preview" : "Preview sample notifications"}</Button>
       {demo && <Button size="sm" variant="ghost" disabled={busy} onClick={simulateReadFailure}>Simulate connection error</Button>}
+      {/* Renderer check: one sample toast through the real toast path (top-centre, ~12 s, bell). */}
+      <Button size="sm" variant="ghost" onClick={showTestToast}>Show test toast</Button>
     </div>}
   </div>;
 }
@@ -41,6 +45,33 @@ function NotificationFilters({ query, onChange }: { query: NotificationQuery; on
     <label className="text-xs font-medium text-muted-foreground">Read status<select aria-label="Filter notifications by read status" className={control} value={query.read} onChange={(event) => update({ read: event.target.value as NotificationQuery["read"] })}><option value="all">All notifications</option><option value="unread">Unread</option><option value="read">Read</option></select></label>
   </div>;
 }
+function SentTime({ iso }: { iso: string }) {
+  const date = new Date(iso);
+  return <time dateTime={iso} title={date.toLocaleString()}>{date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</time>;
+}
+/**
+ * One presentation for every notification: structured rows when the item has
+ * them (project and time are rows, so nothing repeats under the card), the
+ * short description otherwise.
+ */
+function NotificationBody({ item }: { item: NotificationItem }) {
+  if (item.details?.length) {
+    return <dl className="mt-2 grid gap-1 text-xs">
+      {item.details.map((detail, index) => <div key={`${detail.label}-${index}`} className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+        <dt className="font-medium text-foreground">{detail.label}</dt>
+        <dd className="min-w-0 break-words text-muted-foreground">{detail.value}</dd>
+      </div>)}
+      <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+        <dt className="font-medium text-foreground">Notification sent</dt>
+        <dd className="min-w-0 text-muted-foreground"><SentTime iso={item.createdAt} /></dd>
+      </div>
+    </dl>;
+  }
+  return <>
+    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.description}</p>
+    <p className="mt-2 text-xs text-muted-foreground">{item.projectName} · Notification sent <SentTime iso={item.createdAt} /></p>
+  </>;
+}
 export function NotificationFeed({ compact = false, onOpen }: { compact?: boolean; onOpen?: () => void }) {
   const center = useNotifications();
   const router = useRouter();
@@ -55,7 +86,20 @@ export function NotificationFeed({ compact = false, onOpen }: { compact?: boolea
     <NotificationFilters query={query} onChange={setQuery} />
     <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
       <p className="text-xs text-muted-foreground" role="status">{loading ? "Loading notifications…" : error ? "Notifications unavailable" : `${page?.total ?? 0} ${filtered ? "matching notifications" : "notifications"}`}</p>
-      <Button size="sm" variant="ghost" disabled={loading || center.busy || Boolean(error) || !center.overview?.unreadCount} onClick={() => { void center.markAllRead(); }}><CheckCheck className="size-4" />Mark all read</Button>
+      <div className="flex flex-wrap items-center gap-1">
+        <Button size="sm" variant="ghost" disabled={loading || center.busy || Boolean(error) || !center.overview?.unreadCount} onClick={() => { void center.markAllRead(); }}><CheckCheck className="size-4" />Mark all read</Button>
+        <ConfirmDialog
+          trigger={<Button size="sm" variant="ghost" disabled={loading || center.busy || Boolean(error) || (!filtered && !page?.total)}><Eraser className="size-4" />Clear history</Button>}
+          title="Clear notification history?"
+          description="Removes resolved and informational notifications from your inbox. Items that still require your action remain visible. Project and approval history are not affected."
+          confirmLabel="Clear history"
+          cancelLabel="Cancel"
+          onConfirm={async () => {
+            // The provider refreshes the bell and every open list on success; a failure keeps the dialog open.
+            if (!(await center.clearHistory())) throw new Error("Notification history could not be cleared.");
+          }}
+        />
+      </div>
     </div>
     {sampleDestination && <div role="status" className="rounded-lg border bg-muted/40 p-3 text-xs break-all">Sample destination: {sampleDestination}. No real report is opened in this preview.</div>}
     {error ? <NotificationError text={error} retry={() => { void center.refresh(); }} /> : loading ? <div aria-label="Loading notifications" role="status" className="space-y-4">{[1, 2, 3].map((number) => <div key={number} className="flex gap-3"><Skeleton className="size-9 shrink-0 rounded-lg" /><div className="w-full space-y-2"><Skeleton className="h-4 w-3/4" /><Skeleton className="h-3 w-1/2" /></div></div>)}</div> : !page?.items.length ? <div className="flex flex-col items-center px-4 py-12 text-center">
@@ -67,18 +111,18 @@ export function NotificationFeed({ compact = false, onOpen }: { compact?: boolea
       <h2 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{group.label}</h2>
       <ul className="space-y-2">{group.items.map((item) => {
         const href = item.projectId === item.target.projectId ? notificationHref(item.target) : null;
-        return <li key={item.id} className={cn("rounded-lg border p-3 transition-colors", !item.readAt ? "border-primary/20 bg-primary/5" : "bg-background")}>
+        const unread = !item.readAt;
+        return <li key={item.id} data-unread={unread ? "true" : undefined} className={cn("rounded-lg border p-3 transition-colors", unread ? "border-l-4 border-primary/30 border-l-primary bg-primary/[0.06] shadow-sm" : "bg-background")}>
           <div className="flex items-start gap-3">
-            <span className={cn("mt-1 rounded-md p-2", !item.readAt ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>{item.readAt ? <MailOpen className="size-4" /> : <Mail className="size-4" />}</span>
+            <span className={cn("mt-1 rounded-md p-2", unread ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>{item.readAt ? <MailOpen className="size-4" /> : <Mail className="size-4" />}</span>
             <div className="min-w-0 flex-1">
-              <div className="mb-1 flex flex-wrap items-center gap-2"><Badge variant="secondary" className="text-[10px]">{notificationCategories[item.category].label}</Badge>{!item.readAt && <span className="text-[10px] font-semibold text-primary">Unread</span>}</div>
-              {href ? <Link href={href} className="text-sm font-medium leading-snug hover:underline focus-visible:outline-ring" onClick={(event) => {
+              <div className="mb-1 flex flex-wrap items-center gap-2"><Badge variant="secondary" className="text-[10px]">{notificationCategories[item.category].label}</Badge>{unread && <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary"><span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />Unread</span>}</div>
+              {href ? <Link href={href} className={cn("text-sm leading-snug hover:underline focus-visible:outline-ring", unread ? "font-semibold text-foreground" : "font-medium text-foreground/80")} onClick={(event) => {
                 event.preventDefault();
                 if (center.service.mode === "development") { setSampleDestination(href); void center.setRead(item.id, true); return; }
                 void center.setRead(item.id, true).then(() => { onOpen?.(); router.push(href); });
-              }}>{item.title}<ExternalLink aria-hidden="true" className="ml-1 inline size-3" /></Link> : <p className="text-sm font-medium">{item.title}</p>}
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.description}</p>
-              <p className="mt-2 text-xs text-muted-foreground">{item.projectName} · <time dateTime={item.createdAt} title={new Date(item.createdAt).toLocaleString()}>{new Date(item.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time></p>
+              }}>{item.title}<ExternalLink aria-hidden="true" className="ml-1 inline size-3" /></Link> : <p className={cn("text-sm", unread ? "font-semibold" : "font-medium text-foreground/80")}>{item.title}</p>}
+              <NotificationBody item={item} />
             </div>
             <Button variant="ghost" size="icon" className="size-8 shrink-0" disabled={center.busy} aria-label={`Mark ${item.title} as ${item.readAt ? "unread" : "read"}`} onClick={() => { void center.setRead(item.id, !item.readAt); }}>{item.readAt ? <Mail className="size-4" /> : <MailOpen className="size-4" />}</Button>
           </div>

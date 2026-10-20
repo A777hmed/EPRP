@@ -135,7 +135,10 @@ Draft → Collecting → Under Review → Approved → Finalized → Locked
 > **SPI is only EV ÷ PV from the weighted planning model** (§26.7 rule 3) — the
 > "actual ÷ planned" SPI above is retired. For a project that is **not
 > planning-governed**, typed progress remains, labelled "Reported — not planning
-> governed", and **SPI is "N/A"** (§26.14). Man-hours become planned (from the
+> governed", and **SPI is "N/A"** (§26.14). *(Reconciled 2026-10-16: the
+> canonical value is the Project Control–owned Reported Progress stream,
+> §26.24.5; the Weekly never writes it and, from 13.17, references an entry by
+> id pinned at approval instead of owning a typed value.)* Man-hours become planned (from the
 > snapshot) vs actual (recorded in the Weekly) by resource category and party
 > (§26.9), replacing the single "man-hours to date" figure. The recommended
 > overall status below is replaced, for planning-governed projects, by the

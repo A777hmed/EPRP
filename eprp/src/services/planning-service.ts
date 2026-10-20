@@ -942,6 +942,13 @@ export const planningService = {
      * left unset when either is provided.
      */
     dataDate?: string;
+    /**
+     * 13.9B: the user's explicit "Project Setup becomes controlled"
+     * confirmation. The database requires it for the project's FIRST
+     * snapshot and ignores it afterwards. Never defaulted to true here: only
+     * a confirmation the user actually gave may set it.
+     */
+    confirmSetupControl?: boolean;
   }): Promise<string> {
     const { data, error } = await client().rpc("publish_planning_snapshot", {
       p_project_id: input.projectId,
@@ -951,6 +958,7 @@ export const planningService = {
       p_label: input.label ?? null,
       p_opening_position_id: input.openingPositionId ?? null,
       p_data_date: input.dataDate ?? null,
+      p_confirm_setup_control: input.confirmSetupControl ?? false,
     });
     if (error) throw await writeFailure("publish the planning snapshot", error);
     return data as string;

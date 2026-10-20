@@ -7,6 +7,7 @@ import {
   DEFAULT_HIERARCHY_TERMS,
   type HierarchyTerms,
 } from "@/config/project-terminology";
+import { isPsmStructureSectionId, type StructureNav } from "../structure-navigation";
 
 export interface ProjectSection {
   id: string;
@@ -115,6 +116,37 @@ export function localizeProjectSections(
   return sections.map((section) =>
     section.id === "disciplines" ? { ...section, label: terms.plural } : section
   );
+}
+
+/**
+ * The overview's sections for the project's own structure vocabulary. A PSM /
+ * legacy project keeps Departments / Disciplines (Programs & Studies) /
+ * Systems; an OTHER project replaces those three with exactly its configured
+ * levels (e.g. Functions, Workstreams) in order, and while those are still
+ * loading shows none of them — never the PSM words.
+ */
+export function structureAwareSections(
+  sections: ProjectSection[],
+  nav: StructureNav,
+  terms: HierarchyTerms
+): ProjectSection[] {
+  if (!nav.other) return localizeProjectSections(sections, terms);
+  const levelSections: ProjectSection[] = nav.items.flatMap((item) =>
+    item.kind === "level" ? [{ id: item.id, label: item.label }] : []
+  );
+  const out: ProjectSection[] = [];
+  let placed = false;
+  for (const section of sections) {
+    if (isPsmStructureSectionId(section.id)) {
+      if (!placed) {
+        out.push(...levelSections);
+        placed = true;
+      }
+      continue;
+    }
+    out.push(section);
+  }
+  return out;
 }
 
 export interface ProjectSectionNavProps {

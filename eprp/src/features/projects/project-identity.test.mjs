@@ -147,6 +147,14 @@ const imports = {
   "@/config/site": { siteConfig: { name: "EPRP" } },
   "@/features/projects/new-project-draft-store": {},
   "@/features/projects/use-hierarchy-terms": { useHierarchyTerms: () => ({}) },
+  // The structure vocabulary (13.9B UAT): not what this test examines — identity — so it is stubbed
+  // as a PSM project with nothing to load. Its own contract: structure-navigation.test.mjs.
+  "@/features/projects/use-structure-nav": { useStructureNav: () => ({ pending: false, other: false, items: [], structure: null }) },
+  "@/features/projects/structure-navigation": {
+    structureLevelHref: (id, n) => `/projects/${id}/structure/${n}`,
+    structureSetupHref: (id) => `/projects/${id}/setup/structure`,
+    structureRouteLabel: () => null,
+  },
   "@/features/projects/use-project-by-id": { useProjectById: (id) => { loadedId = id; return currentProject; } },
   "@/lib/utils": { cn: () => "" },
 };

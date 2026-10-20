@@ -12,6 +12,7 @@ import type {
 } from "@/types";
 import { projectResponsibilities } from "../../responsibilities";
 import { projectTeamPeople } from "../../assignment-rules";
+import { resolveRecord } from "../../structure-dependencies";
 
 /** One selectable scope record, already narrowed to this project. */
 export interface ScopeOption {
@@ -75,7 +76,7 @@ export function useMilestoneScopeOptions(
     const systems: ScopeOption[] = project.departments.flatMap((assignment) =>
       assignment.systems.map((system) => ({
         id: system.id,
-        name: system.name || nameIn(systemsMaster, system.id) || "Unknown system",
+        name: resolveRecord("System", system, systemsMaster).label,
         departmentId: assignment.departmentId,
       }))
     );

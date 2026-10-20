@@ -26,16 +26,18 @@ export function useHierarchyTerms(
   // project — a new project object with the same type must not recompute.
   const projectTypeId = project?.projectTypeId;
   const structureFamily = project?.structureFamily;
+  const code = project?.code;
 
   return React.useMemo(() => {
     // An explicit PSM / Other choice wins over the project-type inference.
     if (structureFamily) return hierarchyTermsForProject({ structureFamily }, null);
-    if (!projectTypeId) return DEFAULT_HIERARCHY_TERMS;
-    const type = (records as ProjectType[]).find(
-      (candidate) => candidate.id === projectTypeId
-    );
-    return hierarchyTermsForProject(null, type);
-  }, [projectTypeId, structureFamily, records]);
+    // An unclassified legacy project: its type, then its PSM / PSAIM code.
+    const type = projectTypeId
+      ? (records as ProjectType[]).find((candidate) => candidate.id === projectTypeId)
+      : undefined;
+    if (!type && !code) return DEFAULT_HIERARCHY_TERMS;
+    return hierarchyTermsForProject({ code }, type);
+  }, [projectTypeId, structureFamily, code, records]);
 }
 
 /**

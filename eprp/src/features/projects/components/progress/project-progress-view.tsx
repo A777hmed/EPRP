@@ -29,6 +29,7 @@ import {
 } from "../../use-planning-position";
 import { ArchivedPlanningNotice } from "../planning/archived-planning-notice";
 import { PlanningFact } from "../planning/planning-status";
+import { ReportedProgressPanel } from "./reported-progress-panel";
 
 function activityCountOf(snapshot: PlanningSnapshot): number | undefined {
   const data = snapshot.snapshotData;
@@ -182,33 +183,16 @@ export function ProjectProgressView({
   );
 
   if (governance === "not-governed") {
+    // 13.9B: the canonical Reported Progress stream (Reported — not planning
+    // governed, SPI N/A). No PV, EV, curve or WBS performance is shown here.
     return (
       <div className="space-y-4">
         {archived && <ArchivedPlanningNotice />}
-        <section className="rounded-xl border bg-card p-4 shadow-soft sm:p-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge tone="neutral">Reported — not planning governed</StatusBadge>
-          </div>
-          <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:flex sm:flex-wrap">
-            <PlanningFact
-              label="Reported progress"
-              value={<span className="font-normal text-muted-foreground">Not recorded in EPRP yet</span>}
-            />
-            <PlanningFact label="SPI" value="N/A" hint="Not applicable: the project has no formal plan" />
-          </dl>
-          <p className="mt-4 max-w-3xl text-xs text-muted-foreground text-pretty">
-            This project is tracked without a formal schedule, so it has no
-            planned value, earned value or SPI. Reported progress entry is not
-            available in EPRP yet. It will be introduced through the governed
-            Reported Progress workflow. Weekly and Monthly reports may reference
-            reported progress once that workflow is available.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link href={projectSectionHref(project.id, "reporting")}>Reporting workspace</Link>
-            </Button>
-          </div>
-        </section>
+        <ReportedProgressPanel
+          project={project}
+          onboardingMode={mode}
+          hasPublishedSnapshot={Boolean(position.snapshot)}
+        />
       </div>
     );
   }
@@ -218,6 +202,9 @@ export function ProjectProgressView({
     return (
       <div className="space-y-4">
         {archived && <ArchivedPlanningNotice />}
+        {/* A project that moved here from "no formal schedule" keeps its
+            Reported Progress as read-only history (nothing shown when none). */}
+        <ReportedProgressPanel project={project} onboardingMode={mode} hasPublishedSnapshot={false} frozen />
         <EmptyState
           icon={Gauge}
           title="Awaiting first Published Planning Snapshot"

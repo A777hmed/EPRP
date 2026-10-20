@@ -93,8 +93,16 @@ import { ResponsibilityCard, ResponsibilityGroupSection } from "./responsibility
 import { isSetupReadOnly } from "@/features/projects/setup-save";
 import { memberPickerPool, type MemberPickerPool } from "../project-team";
 import { ProjectScopeSummary } from "./project-scope-summary";
+import { OtherStructureScopeSummary } from "./other-structure-scope-summary";
 import { LogoUploadField } from "./logo-upload-field";
 import { PlanningEntry } from "./planning-entry";
+import {
+  AmendSetupDialog,
+  GovernedField,
+  SetupGovernanceProvider,
+  type SetupFormGovernance,
+} from "./governance/setup-governance-ui";
+import { SETUP_FIELD_UI, type SetupAmendment } from "../setup-amendments";
 import {
   clearNewProjectDraft,
   setNewProjectDraft,
@@ -889,12 +897,43 @@ export interface ProjectFormProps {
    */
   onCorrectProjectType?: (target: CorrectProjectTypeTarget) => Promise<Project>;
   /**
+   * 13.9B (owner closure 2026-10-17): System Admin only — the one-time
+   * classification of a CONTROLLED legacy project (no Project Type yet),
+   * through the correction path. Omit it and the action is not offered.
+   */
+  onClassifyLegacy?: (target: CorrectProjectTypeTarget) => Promise<Project>;
+  /**
+   * 13.9B: Project Setup governance. Once `controlled`, lightweight and
+   * governed fields are shown with their saved value and an Amend / Request
+   * amendment action instead of an editable control, so the ordinary Save can
+   * never carry a change to them. Omit it (or `controlled: false`) and every
+   * field behaves exactly as before.
+   */
+  governance?: ProjectFormGovernance;
+  /**
    * Rendered above the form AND above the Project Type screen, from the live
    * values — the setup shell's workflow tracker for a new project, so it
    * stays visible while the type is being chosen.
    */
   renderHeader?: (values: ProjectFormValues) => React.ReactNode;
   onCancel: () => void;
+}
+
+/** What the hosting page supplies for 13.9B governance (the form adds the Amend dialog). */
+export interface ProjectFormGovernance extends Omit<SetupFormGovernance, "onAmend"> {
+  /**
+   * After an amendment is stored. Returns the fresh project for an APPLIED
+   * (lightweight) amendment so the form adopts the new saved value; null
+   * otherwise.
+   */
+  onAmendmentSubmitted: (amendment: SetupAmendment) => Promise<Project | null>;
+  /**
+   * Bumped by the hosting page after every amendment DECISION (approve /
+   * reject / stale / withdraw). The form re-reads what is stored outside the
+   * project row (the planning mode); governed column values follow the fresh
+   * project on their own.
+   */
+  decisionRevision?: number;
 }
 
 /**
@@ -914,6 +953,8 @@ export function ProjectForm({
   onSavePositions,
   onClassify,
   onCorrectProjectType,
+  onClassifyLegacy,
+  governance,
   renderHeader,
   onCancel,
 }: ProjectFormProps) {
@@ -1007,6 +1048,11 @@ export function ProjectForm({
     if (!onCorrectProjectType) return;
     adoptClassification(await onCorrectProjectType(target));
   };
+  const [classifyLegacyOpen, setClassifyLegacyOpen] = React.useState(false);
+  const handleClassifyLegacy = async (target: CorrectProjectTypeTarget) => {
+    if (!onClassifyLegacy) return;
+    adoptClassification(await onClassifyLegacy(target));
+  };
 
   // The new-project setup sidebar lives in the layout, outside this form:
   // tell it which Project Type is chosen so it shows that type's steps.
@@ -1031,6 +1077,7 @@ export function ProjectForm({
   // alone never saw it.
   const [savedOnboardingMode, setSavedOnboardingMode] =
     React.useState<PlanningOnboardingMode>("new_project");
+  const decisionRevision = governance?.decisionRevision ?? 0;
   React.useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
@@ -1043,7 +1090,34 @@ export function ProjectForm({
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+    // Also after an amendment decision: an approved planning mode must show
+    // without a browser refresh.
+  }, [projectId, decisionRevision]);
+
+  /*
+   * An approved (or otherwise stored) value of a CONTROLLED field must show
+   * as soon as the fresh project arrives. These fields are inert while
+   * Controlled, so a differing value can only be a newer saved one: adopt it
+   * as the field's default. A field with an unsaved edit is left alone.
+   */
+  const governedSnapshot = JSON.stringify(
+    Object.values(SETUP_FIELD_UI).flatMap((ui) => ui.formFields.map((name) => initialValues[name as keyof ProjectFormValues]))
+  );
+  const controlledNow = Boolean(governance?.controlled);
+  React.useEffect(() => {
+    if (!controlledNow) return;
+    for (const ui of Object.values(SETUP_FIELD_UI)) {
+      for (const name of ui.formFields) {
+        const key = name as keyof ProjectFormValues;
+        if (form.getFieldState(key).isDirty) continue;
+        const stored = initialValues[key];
+        if (JSON.stringify(form.getValues(key)) !== JSON.stringify(stored)) {
+          form.resetField(key, { defaultValue: stored as never });
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the stored values themselves.
+  }, [controlledNow, governedSnapshot]);
 
   const additionalSites = useFieldArray({ control, name: "additionalSites" });
   const additionalPositions = useFieldArray({
@@ -1232,6 +1306,37 @@ export function ProjectForm({
   const onboardingUnsaved = onboardingMode !== savedOnboardingMode;
   const hasUnsavedWork = formState.isDirty || masterTouched || onboardingUnsaved;
 
+  /*
+   * 13.9B governance. The form owns the Amend dialog so an APPLIED
+   * (lightweight) amendment can be adopted as the field's saved value at
+   * once — otherwise the next Save would send the old value back and be
+   * refused.
+   */
+  const [amendField, setAmendField] = React.useState<string | null>(null);
+  const governanceContext = React.useMemo<SetupFormGovernance | null>(
+    () =>
+      governance
+        ? {
+            controlled: governance.controlled,
+            canAmend: governance.canAmend,
+            pending: governance.pending,
+            onAmend: setAmendField,
+            finalise: governance.finalise,
+          }
+        : null,
+    [governance]
+  );
+  const handleAmendmentSubmitted = async (amendment: SetupAmendment) => {
+    if (!governance) return;
+    const updated = await governance.onAmendmentSubmitted(amendment);
+    if (!updated || amendment.status !== "applied") return;
+    const fresh = projectToFormValues(updated);
+    for (const name of SETUP_FIELD_UI[amendment.fieldKey]?.formFields ?? []) {
+      const key = name as keyof ProjectFormValues;
+      form.resetField(key, { defaultValue: fresh[key] as never });
+    }
+  };
+
 
   /*
    * First save locks the Project Type (Phase 2C.1b). A new project's first
@@ -1262,7 +1367,9 @@ export function ProjectForm({
    * clearing the unsaved / Pending Save state; on failure it stays unsaved.
    */
   const persistOnboardingMode = async () => {
-    if (!projectId) return;
+    // 13.9B: once Controlled the mode changes only through an approved
+    // amendment, so the ordinary save never writes it.
+    if (!projectId || governance?.controlled) return;
     try {
       const stored = await planningService.upsertSettings({ projectId, onboardingMode });
       setSavedOnboardingMode(stored.onboardingMode);
@@ -1409,6 +1516,7 @@ export function ProjectForm({
       : "legacy";
 
   return (
+    <SetupGovernanceProvider value={governanceContext}>
     <form onSubmit={handleSubmit(onValid, onInvalid)} noValidate className="space-y-6">
       {renderHeader?.(watchedValues)}
       <p className="text-sm text-muted-foreground">
@@ -1436,33 +1544,36 @@ export function ProjectForm({
             }
             onClassify={onClassify ? () => setClassifyOpen(true) : undefined}
             onCorrect={onCorrectProjectType ? () => setCorrectOpen(true) : undefined}
+            onClassifyLegacy={onClassifyLegacy ? () => setClassifyLegacyOpen(true) : undefined}
           />
           {classificationState === "locked" && structureFamily === "other" && (
-            <ProjectCategoryFields
-              value={classification}
-              onChange={setClassification}
-              errors={classificationErrors}
-            />
+            <GovernedField fieldKey="project_category">
+              <ProjectCategoryFields
+                value={classification}
+                onChange={setClassification}
+                errors={classificationErrors}
+              />
+            </GovernedField>
           )}
         </div>
-        <TextField control={control} name="name" label="Project Name" required placeholder="e.g. Plant Systems Asset Integrity Management" />
-        <TextField control={control} name="code" label="Project Code" required placeholder="e.g. PRJ-001, PSAIM-001, EPROM-2026-001" description="Uppercase letters, numbers, and dashes. Must be unique." />
-        <TextField control={control} name="shortName" label="Project Short Name" optional placeholder="e.g. PSAIM – SOPC" />
+        <GovernedField fieldKey="name"><TextField control={control} name="name" label="Project Name" required placeholder="e.g. Plant Systems Asset Integrity Management" /></GovernedField>
+        <GovernedField fieldKey="code"><TextField control={control} name="code" label="Project Code" required placeholder="e.g. PRJ-001, PSAIM-001, EPROM-2026-001" description="Uppercase letters, numbers, and dashes. Must be unique." /></GovernedField>
+        <GovernedField fieldKey="short_name"><TextField control={control} name="shortName" label="Project Short Name" optional placeholder="e.g. PSAIM – SOPC" /></GovernedField>
         <ProjectPartiesFields
           control={control}
           disabled={formState.isSubmitting || savingDraft || savingConfirmed}
           supported={!projectId || project?.parties !== undefined}
           ownerFields={<>
-            <ManagedSelectField control={control} name="clientId" label="Owner / Client" required kind="client" placeholder="Search or select client…" onMutated={markMasterTouched} />
+            <GovernedField fieldKey="client_id"><ManagedSelectField control={control} name="clientId" label="Owner / Client" required kind="client" placeholder="Search or select client…" onMutated={markMasterTouched} /></GovernedField>
             <ClientShortNameField clientId={watchedValues.clientId ?? ""} onMutated={markMasterTouched} />
           </>}
         />
-        <TextField control={control} name="contractNumber" label="Contract Number" optional placeholder="e.g. SOPC-CN-2025-114" />
-        <TextField control={control} name="purchaseOrderNumber" label="Purchase Order Number" optional placeholder="e.g. PO-88231" />
+        <GovernedField fieldKey="contract_number"><TextField control={control} name="contractNumber" label="Contract Number" optional placeholder="e.g. SOPC-CN-2025-114" /></GovernedField>
+        <GovernedField fieldKey="purchase_order_number"><TextField control={control} name="purchaseOrderNumber" label="Purchase Order Number" optional placeholder="e.g. PO-88231" /></GovernedField>
         {classificationState === "legacy" && (
           // Unclassified (legacy) project: the category keeps its existing
           // field and rule until the one-time classification above is made.
-          <ManagedSelectField control={control} name="projectTypeId" label="Project Category" required kind="projectType" placeholder="Search or select project category…" onMutated={markMasterTouched} />
+          <GovernedField fieldKey="project_category"><ManagedSelectField control={control} name="projectTypeId" label="Project Category" required kind="projectType" placeholder="Search or select project category…" onMutated={markMasterTouched} /></GovernedField>
         )}
         <ManagedSelectField control={control} name="portfolioGroupId" label="Portfolio / Reporting Group" optional kind="portfolioGroup" placeholder="Search or select group…" allowClear onMutated={markMasterTouched} />
         <TextareaField control={control} name="description" label="Project Description" required placeholder="Scope, objectives, and context for this project…" />
@@ -1473,12 +1584,12 @@ export function ProjectForm({
         description="Contract and reference dates. Once a plan is published, schedule dates are governed by the Published Planning Snapshot."
         status={sectionStatuses[2]}
       >
-        <DateField control={control} name="contractStartDate" label="Contract Start Date" optional />
-        <DateField control={control} name="plannedStartDate" label="Planned Start Date" required />
-        <DateField control={control} name="actualStartDate" label="Actual Start Date" description="Required once the project has started." />
-        <DateField control={control} name="plannedFinishDate" label="Planned Finish Date" required />
-        <DateField control={control} name="forecastFinishDate" label="Forecast Finish Date" description="Required when overall status is Behind or Critical." />
-        <DateField control={control} name="actualFinishDate" label="Actual Finish Date" description="Required for completed projects." />
+        <GovernedField fieldKey="contract_start_date"><DateField control={control} name="contractStartDate" label="Contract Start Date" optional /></GovernedField>
+        <GovernedField fieldKey="planned_start_date"><DateField control={control} name="plannedStartDate" label="Planned Start Date" required /></GovernedField>
+        <GovernedField fieldKey="actual_start_date"><DateField control={control} name="actualStartDate" label="Actual Start Date" description="Required once the project has started." /></GovernedField>
+        <GovernedField fieldKey="planned_finish_date"><DateField control={control} name="plannedFinishDate" label="Planned Finish Date" required /></GovernedField>
+        <GovernedField fieldKey="forecast_finish_date"><DateField control={control} name="forecastFinishDate" label="Forecast Finish Date" description="Required when overall status is Behind or Critical." /></GovernedField>
+        <GovernedField fieldKey="actual_finish_date"><DateField control={control} name="actualFinishDate" label="Actual Finish Date" description="Required for completed projects." /></GovernedField>
       </ProjectFormSection>
 
       <ProjectFormSection
@@ -1535,7 +1646,7 @@ export function ProjectForm({
           project={project}
           value={onboardingMode}
           onChange={setOnboardingMode}
-          readOnly={isSetupReadOnly(project)}
+          readOnly={isSetupReadOnly(project) || Boolean(governance?.controlled)}
           unsavedChanges={hasUnsavedWork}
           onboardingUnsaved={onboardingUnsaved}
           savedValue={savedOnboardingMode}
@@ -1547,14 +1658,14 @@ export function ProjectForm({
         description="Which reports this project produces and when. At least one reporting type must be enabled."
         status={sectionStatuses[6]}
       >
-        <SwitchField control={control} name="weeklyEnabled" label="Weekly Reporting Enabled" />
-        <SwitchField control={control} name="monthlyEnabled" label="Monthly Reporting Enabled" />
-        <SwitchField control={control} name="executiveEnabled" label="Executive Reporting Enabled" />
-        <SelectField control={control} name="weeklyReportingDay" label="Weekly Reporting Day" options={weekdayOptions} description="Required when weekly reporting is enabled." />
-        <NumberField control={control} name="monthlyCutoffDay" label="Monthly Cut-off Day" min={1} max={28} description="Day of the month (1–28). Required when monthly reporting is enabled." />
-        <SelectField control={control} name="currency" label="Reporting Currency" required options={asOptions(currencyOptions)} />
-        <SelectField control={control} name="workingWeek" label="Working Week" required options={asOptions(workingWeekOptions)} />
-        <SelectField control={control} name="timeZone" label="Time Zone" required options={asOptions(timeZoneOptions)} />
+        <GovernedField fieldKey="weekly_enabled"><SwitchField control={control} name="weeklyEnabled" label="Weekly Reporting Enabled" /></GovernedField>
+        <GovernedField fieldKey="monthly_enabled"><SwitchField control={control} name="monthlyEnabled" label="Monthly Reporting Enabled" /></GovernedField>
+        <GovernedField fieldKey="executive_enabled"><SwitchField control={control} name="executiveEnabled" label="Executive Reporting Enabled" /></GovernedField>
+        <GovernedField fieldKey="weekly_reporting_day"><SelectField control={control} name="weeklyReportingDay" label="Weekly Reporting Day" options={weekdayOptions} description="Required when weekly reporting is enabled." /></GovernedField>
+        <GovernedField fieldKey="monthly_cutoff_day"><NumberField control={control} name="monthlyCutoffDay" label="Monthly Cut-off Day" min={1} max={28} description="Day of the month (1–28). Required when monthly reporting is enabled." /></GovernedField>
+        <GovernedField fieldKey="currency"><SelectField control={control} name="currency" label="Reporting Currency" required options={asOptions(currencyOptions)} /></GovernedField>
+        <GovernedField fieldKey="working_week"><SelectField control={control} name="workingWeek" label="Working Week" required options={asOptions(workingWeekOptions)} /></GovernedField>
+        <GovernedField fieldKey="time_zone"><SelectField control={control} name="timeZone" label="Time Zone" required options={asOptions(timeZoneOptions)} /></GovernedField>
       </ProjectFormSection>
 
       <ProjectFormSection
@@ -1669,17 +1780,26 @@ export function ProjectForm({
 
       <ProjectFormSection
         title="8. Scope & Structure"
-        description="Departments, systems, and contacts linked to this project. Each record is shared master data — open or edit it on its own page and you will be returned here."
+        description={
+          structureFamily === "other"
+            ? "This project's configured structure. Its levels and units are managed in Project Setup → Project Structure."
+            : "Departments, systems, and contacts linked to this project. Each record is shared master data — open or edit it on its own page and you will be returned here."
+        }
         status={sectionStatuses[8]}
         plain
       >
         <div data-field-name="departments">
-          <ProjectScopeSummary
-            projectId={projectId}
-            control={control}
-            project={project}
-            linkContext={linkContext}
-          />
+          {structureFamily === "other" ? (
+            // An Other project has no Departments / Systems / Disciplines: its own configured levels.
+            <OtherStructureScopeSummary projectId={projectId} />
+          ) : (
+            <ProjectScopeSummary
+              projectId={projectId}
+              control={control}
+              project={project}
+              linkContext={linkContext}
+            />
+          )}
         </div>
       </ProjectFormSection>
 
@@ -1765,6 +1885,16 @@ export function ProjectForm({
           onClassify={handleClassify}
         />
       )}
+      {onClassifyLegacy && !structureFamily && (
+        <CorrectProjectTypeDialog
+          open={classifyLegacyOpen}
+          onOpenChange={setClassifyLegacyOpen}
+          currentFamily={undefined}
+          currentLabel="Not classified"
+          onCorrect={handleClassifyLegacy}
+          mode="legacy"
+        />
+      )}
       {onCorrectProjectType && structureFamily && (
         <CorrectProjectTypeDialog
           open={correctOpen}
@@ -1775,5 +1905,14 @@ export function ProjectForm({
         />
       )}
     </form>
+    {projectId && governance && (
+      <AmendSetupDialog
+        projectId={projectId}
+        fieldKey={amendField}
+        onClose={() => setAmendField(null)}
+        onSubmitted={(amendment) => void handleAmendmentSubmitted(amendment)}
+      />
+    )}
+    </SetupGovernanceProvider>
   );
 }

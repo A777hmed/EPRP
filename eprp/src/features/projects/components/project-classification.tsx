@@ -329,6 +329,7 @@ export function ClassificationSummaryBar({
   onChange,
   onClassify,
   onCorrect,
+  onClassifyLegacy,
 }: {
   summary: string;
   state: "new" | "locked" | "legacy";
@@ -336,6 +337,11 @@ export function ClassificationSummaryBar({
   onClassify?: () => void;
   /** System Admin only: the exceptional correction of a locked type. */
   onCorrect?: () => void;
+  /**
+   * 13.9B: System Admin only — the one-time classification of a Controlled
+   * legacy project, through the correction path (never an amendment).
+   */
+  onClassifyLegacy?: () => void;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/20 px-4 py-3">
@@ -375,6 +381,16 @@ export function ClassificationSummaryBar({
         <Button type="button" variant="outline" size="sm" onClick={onClassify}>
           Classify Project
         </Button>
+      )}
+      {state === "legacy" && !onClassify && onClassifyLegacy && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            Setup is controlled — a System Administrator sets the initial Project Type.
+          </span>
+          <Button type="button" variant="outline" size="sm" onClick={onClassifyLegacy}>
+            Classify legacy project
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -504,13 +520,22 @@ export function CorrectProjectTypeDialog({
   currentFamily,
   currentLabel,
   onCorrect,
+  mode = "correct",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentFamily: StructureFamily;
+  /** Undefined only for the one-time legacy classification (`mode: "legacy"`). */
+  currentFamily: StructureFamily | undefined;
   /** e.g. "Other Project · Tank Inspection". */
   currentLabel: string;
   onCorrect: (target: CorrectProjectTypeTarget) => Promise<void>;
+  /**
+   * 13.9B (owner closure 2026-10-17): "legacy" is the one-time classification
+   * of a Controlled project that has no Project Type yet — the same System
+   * Administrator correction path and history, worded as an initial
+   * classification. Never an amendment.
+   */
+  mode?: "correct" | "legacy";
 }) {
   const [saving, setSaving] = React.useState(false);
   return (
@@ -524,6 +549,7 @@ export function CorrectProjectTypeDialog({
           setSaving={setSaving}
           onClose={() => onOpenChange(false)}
           onCorrect={onCorrect}
+          mode={mode}
         />
       </DialogContent>
     </Dialog>
@@ -537,14 +563,17 @@ function CorrectProjectTypeBody({
   setSaving,
   onClose,
   onCorrect,
+  mode,
 }: {
-  currentFamily: StructureFamily;
+  currentFamily: StructureFamily | undefined;
   currentLabel: string;
   saving: boolean;
   setSaving: (saving: boolean) => void;
   onClose: () => void;
   onCorrect: (target: CorrectProjectTypeTarget) => Promise<void>;
+  mode: "correct" | "legacy";
 }) {
+  const legacy = mode === "legacy";
   const reasonId = React.useId();
   const customNameCategoryIds = useCustomNameCategoryIds();
   const { records } = useMasterData("projectType");
@@ -576,7 +605,7 @@ function CorrectProjectTypeBody({
         projectCategoryDetail: psm ? undefined : target.projectCategoryDetail?.trim() || undefined,
         reason: reason.trim(),
       });
-      toast.success("Project Type corrected");
+      toast.success(legacy ? "Legacy project classified" : "Project Type corrected");
       setSaving(false);
       onClose();
     } catch (error) {
@@ -594,11 +623,11 @@ function CorrectProjectTypeBody({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Correct Project Type</DialogTitle>
+        <DialogTitle>{legacy ? "Classify legacy project" : "Correct Project Type"}</DialogTitle>
         <DialogDescription>
-          Project Type is locked once a project is saved. This exceptional
-          System Admin correction changes it and is recorded permanently with
-          your name and reason.
+          {legacy
+            ? "This controlled project was created before Project Types existed. Set its initial Project Type (and Project Category, for an Other project) once. It is recorded permanently in the Project Type history with your name and reason; later changes follow the normal rules."
+            : "Project Type is locked once a project is saved. This exceptional System Admin correction changes it and is recorded permanently with your name and reason."}
         </DialogDescription>
       </DialogHeader>
 
@@ -611,7 +640,7 @@ function CorrectProjectTypeBody({
 
       {confirming ? (
         <div className="space-y-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm">
-          <p className="font-semibold">Confirm this correction</p>
+          <p className="font-semibold">{legacy ? "Confirm this classification" : "Confirm this correction"}</p>
           <p>
             <span className="text-muted-foreground">From</span> {currentLabel}{" "}
             <span className="text-muted-foreground">to</span> {targetLabel}
@@ -627,7 +656,7 @@ function CorrectProjectTypeBody({
         </div>
       ) : (
         <div className="space-y-4">
-          <p className="text-sm font-medium">Corrected Project Type</p>
+          <p className="text-sm font-medium">{legacy ? "Initial Project Type" : "Corrected Project Type"}</p>
           <ClassificationEditor
             value={target}
             onChange={setTarget}
@@ -635,7 +664,7 @@ function CorrectProjectTypeBody({
           />
           <Field>
             <FieldLabel htmlFor={reasonId}>
-              Reason for correction
+              {legacy ? "Reason for classification" : "Reason for correction"}
               <span className="text-destructive" aria-hidden="true">*</span>
             </FieldLabel>
             <Textarea
@@ -645,7 +674,7 @@ function CorrectProjectTypeBody({
               maxLength={1000}
               value={reason}
               onChange={(event) => setReason(event.target.value)}
-              placeholder="Why the original Project Type was wrong"
+              placeholder={legacy ? "e.g. Legacy project classified at governance rollout" : "Why the original Project Type was wrong"}
             />
           </Field>
         </div>
@@ -669,11 +698,11 @@ function CorrectProjectTypeBody({
                 aria-hidden="true"
               />
             )}
-            Confirm correction
+            {legacy ? "Confirm classification" : "Confirm correction"}
           </Button>
         ) : (
           <Button type="button" onClick={() => setConfirming(true)} disabled={issues.length > 0}>
-            Review correction
+            {legacy ? "Review classification" : "Review correction"}
           </Button>
         )}
       </DialogFooter>

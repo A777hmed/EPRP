@@ -376,9 +376,28 @@ the project's assigned **Project Control Manager** (Project Control / Planning)
    - A comment never changes a planning fact or a Published Planning Snapshot.
    - Comment history, soft delete and attribution follow §4.
 
-### 3.9 Project Setup control and amendment authority (approved 2026-10-15 — not implemented)
+### 3.9 Project Setup control and amendment authority (approved 2026-10-15 — Steps 1–4 enforced locally 2026-10-16 – 2026-10-17)
 
-**Specification, not yet enforced.** Architecture:
+**Enforced locally (13.9B Steps 1–4, local development database only;
+browser UAT pending).**
+- Steps 1–2 enforce these rows at the data boundary: amendment, approval,
+  withdrawal, Controlled fields, onboarding mode, first publish, Finalise and
+  Reported Progress. They also enforce the System-Administrator-only legacy
+  classification bootstrap (`02` §26.24.2).
+- Step 3 (2026-10-17) adds the matching screens. They offer only what these
+  rows allow; the database stays authoritative.
+- Step 4 (2026-10-17) enforces the structure / scope row:
+  - `request_project_structure_amendment()` requires Project Setup authority
+    on that project (`can_manage_project_setup`). Assigned Project Control
+    acts on its assigned projects only; a plain viewer is refused.
+  - The decision reuses `decide_project_setup_amendment()`: another PCA or
+    SA, never the requester.
+  - `guard_structure_setup_controlled` refuses every governed direct
+    structure write once Controlled, whatever the role.
+  - On an archived project, requests, decisions, withdrawals and direct
+    writes are all refused.
+
+Architecture:
 [`02_PLATFORM_ARCHITECTURE.md`](02_PLATFORM_ARCHITECTURE.md) §26.23.6–§26.23.8.
 - **13.9A:** changes no authority. It only moves and relabels existing actions.
 - **Enforcement:** roadmap slice **13.9B — Project Setup Governance** (`02`
@@ -397,12 +416,17 @@ Manager.
 | **Lightweight amendment**, with mandatory reason: Project Name / Short Name and other justified non-planning metadata | Setup managers | Everyone else |
 | **Request** a governed amendment: Project Code, Client / Owner, Project Classification, Planning Onboarding Mode, structure-family or governed scope, reporting frequency / cut-off, contractual and other interpretation-changing configuration | Setup managers | Everyone else |
 | **Approve / reject** a governed amendment | **A Project Control Admin or System Administrator other than the requester** (`02` §26.19 B12, closed) | **The requester, whatever their role.** Also refused: the assigned Project Control Manager by that assignment alone, and everyone else. No break-glass or self-approval exception exists |
-| Change a **locked Project Type** | **System Administrator only**, through the existing correction (§3.6). Once Controlled it is also recorded as a setup amendment | Everyone else, unchanged |
+| **Withdraw** a pending governed amendment | The requester, or a Project Control Admin / System Administrator | Everyone else |
+| Change a **locked Project Type** | **System Administrator only**, through the existing correction (§3.6), with its own audit, shown in Project History. Single actor, no second approver, not duplicated as an amendment (`02` §26.19 B16, closed 2026-10-16) | Everyone else, unchanged |
+| Structure / scope change once Controlled (`02` §26.24.2a, B17 closed) | Add / remove / archive / re-parent / reporting scope / unit and level **renames**: **governed amendment** (request by setup managers, approval by another PCA / SA). Display order and non-semantic descriptions / notes: free / logged | As for the matching amendment class |
+| Edit Setup **Forecast Finish** once Controlled | **Governed amendment** until 13.14 (B22, closed). From 13.14, **nobody** on a planning-governed project — it is Planning-owned and read-only in Setup | As for a governed amendment |
 | Edit Setup **Planned Start / Planned Finish** after an approved BL0 | **Nobody.** Dates change only through Planning re-plan or re-baseline (§3.8) | Every role |
 | **Finalise Project Setup** for a no-formal-schedule project (`02` §26.23.6) | System Administrator, Project Control Admin, or the project's **assigned Project Control / Planning**, after explicit confirmation | The Reporting Coordinator, department users, and project members on the strength of membership alone |
-| **Add a Reported Progress entry** ("Update Reported Progress") for a no-formal-schedule project (`02` §26.14; from 13.9B) | Project Control, the same set that holds "Update progress" today. Entries are append-only, and a correction is a new entry | Everyone else. **Nobody** on a planning-governed project. Weekly and Monthly reference the latest entry but never write it |
-| Read setup amendments | Through Project History, under the existing visibility model (`02` §24.2) | — |
-| Any write above on an **archived** project | **Nobody** | Every role, every route (§3.7 rule 4, 13.9) |
+| **Add a Reported Progress entry** ("Update Reported Progress") for a **Finalised** no-formal-schedule project (`02` §26.14, §26.24.5; from 13.9B) | **Only** the System Administrator, a Project Control Admin, or the project's assigned Project Control / Planning (`can_manage_project_operations`; `02` §26.19 B21, closed). Entries are append-only, and a correction is a new entry. A back-dated entry needs a reason (B20) | The **Reporting Coordinator**, department users and ordinary members. **Nobody** on a planning-governed project or before Finalise (B19). Weekly and Monthly may reference an entry but never write it |
+| **Correct or withdraw** a Reported Progress entry (a superseding entry with a reason) | The same set as adding an entry | Everyone else |
+| Read setup amendments, finalisations, Reported Progress and the setup field-change log | Whoever can read the project: `can_access_project()`, the existing visibility model (`02` §24.2) | — |
+| Any action above on **another** project | Global authority only (System Administrator, Project Control Admin). The assigned Project Control / Planning acts **only** on projects where they hold that assignment (`is_project_control_planning(project)`) | Project membership, Party, title or responsibility labels never confer it |
+| Any write above on an **archived** project | **Nobody** | Every role, every route (§3.7 rule 4, 13.9). A request pending at archive is not decided, withdrawn or altered; it shows as "Frozen — project archived" and leaves the approval queue (`02` §26.19 B24, closed) |
 
 **Rules.**
 1. **Amendments, Setup Finalisation records and Reported Progress entries are
@@ -410,6 +434,20 @@ Manager.
    Administrator.
 2. **Responsibility labels never grant amendment or approval authority.**
    §3.8 rule 1 applies unchanged.
+3. **Specified in full 2026-10-16** (`02` §26.24, `06` §10A.11).
+   - **Writes:** every write is a hardened server function, with no direct
+     table grants.
+   - **Requests:** the requesting authority is the existing Project Setup
+     predicate.
+   - **Decisions:** the deciding authority is
+     `has_global_operational_authority()` plus "not the requester".
+   - **Reported Progress:** recording authority is the existing project
+     operations predicate, `can_manage_project_operations()` (global
+     operational authority or assigned Project Control / Planning), which
+     does not include the Reporting Coordinator (B21).
+   - **No new platform role or predicate is introduced.**
+4. **The Reporting Coordinator, department users and project members hold no
+   13.9B authority.** They can read where they can read the project.
 
 ---
 

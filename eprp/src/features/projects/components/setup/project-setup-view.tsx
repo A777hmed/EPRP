@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, FolderX, Loader2, Lock, Save } from "lucide-react";
+import { ArrowLeft, ArrowRight, FolderX, Loader2, Lock, Save, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { BackdropRegion } from "@/components/backdrop";
@@ -63,7 +63,13 @@ import {
   useProjectStructure,
   type ProjectStructureState,
 } from "../../use-project-structure";
-import { ProjectForm } from "../project-form";
+import { ProjectForm, type ProjectFormGovernance } from "../project-form";
+import { useSetupGovernance, type SetupGovernanceState } from "../../use-setup-governance";
+import { pendingAmendmentsByField, type AmendmentViewer } from "../../setup-amendments";
+import { PsmScopeGovernancePanel, type PsmScopeRequest } from "../governance/psm-scope-governance-panel";
+import { departmentTarget, pendingStructureTargets } from "../../structure-amendments";
+import { ControlledSetupBanner } from "../governance/setup-governance-ui";
+import { SetupAmendmentsPanel } from "../governance/setup-amendments-panel";
 import type {
   ClassifyProjectInput,
   CorrectProjectTypeTarget,
@@ -91,6 +97,8 @@ export interface ProjectSetupViewProps {
   step: ProjectWorkflowStepId;
   /** Scope item to restore when returning from Add/Edit Contact. */
   initialDisciplineId?: string;
+  /** A Project Setup amendment to focus (from a notification). */
+  focusAmendmentId?: string;
 }
 
 /**
@@ -104,6 +112,7 @@ export function ProjectSetupView({
   projectId,
   step,
   initialDisciplineId,
+  focusAmendmentId,
 }: ProjectSetupViewProps) {
   const [project, setProject] = React.useState<Project | null | undefined>(
     projectId ? undefined : null
@@ -272,6 +281,7 @@ export function ProjectSetupView({
       usedCodes={usedCodes}
       step={step}
       initialDisciplineId={initialDisciplineId}
+      focusAmendmentId={focusAmendmentId}
       onInfoSaved={handleInfoSaved}
       canManage={authority.resolved && authority.canManageOperations}
       readOnly={authority.resolved && authority.archived}
@@ -285,6 +295,7 @@ function SetupShell({
   usedCodes,
   step,
   initialDisciplineId,
+  focusAmendmentId,
   onInfoSaved,
   canManage,
   readOnly,
@@ -293,6 +304,7 @@ function SetupShell({
   usedCodes: string[];
   step: ProjectWorkflowStepId;
   initialDisciplineId?: string;
+  focusAmendmentId?: string;
   onInfoSaved: (updated: Project) => void;
   /** Project Setup authority, already resolved by the page. */
   canManage: boolean;
@@ -306,6 +318,14 @@ function SetupShell({
   const router = useRouter();
   // Presentation only: who may be offered "Correct Project Type".
   const identity = useCurrentIdentity();
+  // 13.9B: the database-derived control state and this project's amendments.
+  const governanceState = useSetupGovernance(project?.id);
+  // Bumped after every amendment decision so the form re-reads what is stored.
+  const [decisionRevision, setDecisionRevision] = React.useState(0);
+  const pendingByField = React.useMemo(
+    () => pendingAmendmentsByField(governanceState.amendments),
+    [governanceState.amendments]
+  );
   // Edits accumulate here and are written on save, so a half-finished step
   // never lands in the database.
   const [draft, setDraft] = React.useState<Project | null>(project);
@@ -546,6 +566,63 @@ function SetupShell({
       }
     };
 
+    /*
+     * 13.9B. The form is held until the control state is known, so a
+     * lightweight or governed field never appears editable for a moment on a
+     * Controlled project. An unreadable state is shown as an error with Retry,
+     * never as "not controlled".
+     */
+    if (project && governanceState.status === "loading") {
+      return (
+        <div className="space-y-6">
+          {header}
+          <LoadingState variant="page" label="Checking Project Setup control…" />
+        </div>
+      );
+    }
+    if (project && governanceState.status === "error") {
+      return (
+        <div className="space-y-6">
+          {header}
+          <ErrorState
+            title="Project Setup control could not be checked"
+            description="EPRP could not read whether this project's setup is controlled, so it is not shown for editing. Retry in a moment."
+            onRetry={governanceState.reload}
+          />
+        </div>
+      );
+    }
+    const controlled = Boolean(project) && governanceState.controlled;
+    const controlState = governanceState.control;
+    const formGovernance: ProjectFormGovernance | undefined = project
+      ? {
+          controlled,
+          canAmend: canManage && !readOnly,
+          pending: pendingByField,
+          decisionRevision,
+          finalise: {
+            control: controlState,
+            canFinalise: canManage && !readOnly,
+            onFinalised: () => {
+              governanceState.reload();
+              reloadProject();
+            },
+          },
+          onAmendmentSubmitted: async (amendment) => {
+            governanceState.reload();
+            if (amendment.status !== "applied") return null;
+            const fresh = await projectService.getProjectById(project.id);
+            if (!fresh) return null;
+            acceptInfoSaved(fresh);
+            return fresh;
+          },
+        }
+      : undefined;
+    // 13.9B (owner closure 2026-10-17): a Controlled legacy project is
+    // classified once by a System Administrator through the correction path.
+    const legacyBootstrap =
+      Boolean(savedBaseline) && !savedBaseline?.structureFamily && controlled && identity.isAdmin && !readOnly;
+
     return (
       <div className="space-y-6">
         {header}
@@ -553,6 +630,31 @@ function SetupShell({
           <ProjectWorkflowNav project={project} activeStep={step} structure={structureState} />
         )}
         {readOnly && <ArchivedSetupNotice />}
+        {project && controlled && controlState.controlledSince && (
+          <ControlledSetupBanner
+            controlledSince={controlState.controlledSince}
+            anchor={
+              controlState.finalisation && controlState.finalisation.finalisedAt === controlState.controlledSince
+                ? "finalisation"
+                : "snapshot"
+            }
+            pendingCount={pendingByField.size}
+          />
+        )}
+        {project && governanceState.amendments.length > 0 && (
+          <SetupAmendmentsPanel
+            projectCode={project.code}
+            amendments={governanceState.amendments}
+            viewer={{ profileId: identity.profileId, isGlobalAuthority: identity.isGlobalAuthority }}
+            projectArchived={readOnly}
+            focusAmendmentId={focusAmendmentId}
+            onChanged={() => {
+              governanceState.reload();
+              reloadProject();
+              setDecisionRevision((revision) => revision + 1);
+            }}
+          />
+        )}
         {/* 2C.3E: a disabled fieldset disables every control inside the form —
             fields, pickers, Save, Save Draft — while the values stay legible. */}
         <SetupEditScope readOnly={readOnly}>
@@ -580,11 +682,14 @@ function SetupShell({
           onSaveDraft={handleSaveDraft}
           onSavePositions={project && !readOnly ? handleSavePositions : undefined}
           onClassify={
-            savedBaseline && !savedBaseline.structureFamily && !readOnly ? handleClassify : undefined
+            // Before Controlled only: afterwards the bootstrap below applies.
+            savedBaseline && !savedBaseline.structureFamily && !readOnly && !controlled ? handleClassify : undefined
           }
           onCorrectProjectType={
             canCorrectProjectType(identity, savedBaseline) ? handleCorrectProjectType : undefined
           }
+          onClassifyLegacy={legacyBootstrap ? handleCorrectProjectType : undefined}
+          governance={formGovernance}
           onCancel={() =>
             router.push(project ? `/projects/${project.id}` : "/projects")
           }
@@ -595,8 +700,11 @@ function SetupShell({
             project: its structure is not Departments → Systems; it has its
             own Project Structure step. Not on an archived project (2C.3E):
             it is a second editor for Departments, Systems, Programs & Studies
-            and Contacts, which stay visible read-only on their own steps. */}
-        {project && !readOnly && setupFlowFor({ structureFamily, saved }) !== "other" && (
+            and Contacts, which stay visible read-only on their own steps.
+            13.9B Step 4: not once Setup is Controlled either — its Departments,
+            Systems and Programs & Studies are governed and proposed on their
+            own steps; it has no governed mode of its own. */}
+        {project && !readOnly && !controlled && setupFlowFor({ structureFamily, saved }) !== "other" && (
           <ProjectInfoWorkspace
             key={project.id}
             project={project}
@@ -681,9 +789,25 @@ function SetupShell({
       canEditPeople={canEditPeopleMaster(identity) && !readOnly}
       onProjectChanged={reloadProject}
       readOnly={readOnly}
+      governance={governanceState}
+      viewer={{ profileId: identity.profileId, isGlobalAuthority: identity.isGlobalAuthority }}
+      canPropose={canManage && !readOnly}
     />
   );
 }
+
+/** The line that explains why a Controlled step offers requests instead of edits. */
+function GovernedStepNote({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="flex items-start gap-2 rounded-md border border-info/25 bg-info/[0.06] p-2.5 text-xs text-muted-foreground text-pretty">
+      <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-info" aria-hidden="true" />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+/** Omit that keeps each member of a union (a plain Omit collapses it). */
+type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : never;
 
 function LoadedSteps({
   project,
@@ -707,6 +831,9 @@ function LoadedSteps({
   canEditPeople,
   onProjectChanged,
   readOnly,
+  governance,
+  viewer,
+  canPropose,
 }: {
   project: Project;
   current: Project;
@@ -735,8 +862,17 @@ function LoadedSteps({
   onProjectChanged: () => void;
   /** 2C.3E: archived — every step visible, nothing saved. */
   readOnly: boolean;
+  /** 13.9B: the control state and this project's amendments (Step 4: structure governance). */
+  governance: SetupGovernanceState;
+  viewer: AmendmentViewer;
+  /** May propose structure changes: Project Setup authority, not archived. */
+  canPropose: boolean;
 }) {
   const router = useRouter();
+  // 13.9B Step 4: a request started from a row of the read-only Departments step.
+  const [scopeRequest, setScopeRequest] = React.useState<PsmScopeRequest | undefined>();
+  const requestScope = (request: DistributiveOmit<PsmScopeRequest, "seq">) =>
+    setScopeRequest((previous) => ({ ...request, seq: (previous?.seq ?? 0) + 1 }));
   const { records: clientRecords } = useMasterData("client");
   const clientName = (clientRecords as Client[]).find((client) => client.id === project.clientId)?.name;
   // Progress is measured against the draft, so the checklist and the stepper
@@ -888,6 +1024,74 @@ function LoadedSteps({
     );
   }
 
+  /*
+   * 13.9B Step 4: the structure steps are governed once Setup is Controlled.
+   * They wait for the control state (never editable for a moment on a
+   * Controlled project, never "not controlled" when it cannot be read); then
+   * the editors stay visible read-only and governed changes are proposed in
+   * the panels below them.
+   */
+  const structureStep = step === "structure" || step === "departments" || step === "systems" || step === "disciplines";
+  if (structureStep && governance.status !== "ready") {
+    return (
+      <div className="space-y-6">
+        {header}
+        <ProjectWorkflowNav project={current} activeStep={step} structure={structureState} />
+        {governance.status === "loading" ? (
+          <LoadingState variant="card" label="Checking Project Setup control…" />
+        ) : (
+          <ErrorState
+            title="Project Setup control could not be checked"
+            description="EPRP could not read whether this project's setup is controlled, so its structure is not shown for editing. Retry in a moment."
+            onRetry={governance.reload}
+          />
+        )}
+      </div>
+    );
+  }
+  const governed = structureStep && governance.controlled;
+  const afterGovernanceChange = () => {
+    governance.reload();
+    onProjectChanged();
+  };
+  const saveDepartmentNotes = async (
+    departmentId: string,
+    notes: { leadName?: string; projectDescription?: string }
+  ) => {
+    // Free / logged attributes only: every governed value is sent unchanged.
+    const departments = project.departments.map((assignment) =>
+      assignment.departmentId === departmentId ? { ...assignment, ...notes } : assignment
+    );
+    await saveProjectSetupRelation(project, "departments", departments);
+    onProjectChanged();
+  };
+  const psmPanel = (focus: "departments" | "disciplines") => (
+    <PsmScopeGovernancePanel
+      project={project}
+      focus={focus}
+      departments={workflow.departments}
+      systems={workflow.systems}
+      disciplines={workflow.disciplines}
+      amendments={governance.amendments}
+      viewer={viewer}
+      canPropose={canPropose}
+      projectArchived={readOnly}
+      onSaveDepartmentNotes={saveDepartmentNotes}
+      onChanged={afterGovernanceChange}
+      request={scopeRequest}
+      terms={workflow.terms}
+      hrefs={{
+        disciplines: projectWorkflowHref(project.id, "disciplines"),
+        systems: projectWorkflowHref(project.id, "systems"),
+      }}
+    />
+  );
+  const pendingDepartmentIds = new Set(
+    [...pendingStructureTargets(governance.amendments).keys()]
+      .filter((target) => target.startsWith(departmentTarget("")))
+      .map((target) => target.slice(departmentTarget("").length))
+  );
+
   return (
     <div className="space-y-6">
       {header}
@@ -902,9 +1106,23 @@ function LoadedSteps({
           onProjectChanged={onProjectChanged}
           contacts={workflow.contacts}
           clientName={clientName}
+          governance={
+            governed
+              ? {
+                  amendments: governance.amendments,
+                  viewer,
+                  canPropose,
+                  projectArchived: readOnly,
+                  onChanged: afterGovernanceChange,
+                }
+              : undefined
+          }
         />
       )}
       {step === "departments" && (
+        // The Departments step presents its own governed mode (a labelled
+        // "Request removal", never an inert X); an archived project is still a
+        // disabled fieldset.
         <SetupEditScope readOnly={readOnly}>
           <SetupStepDepartments
             project={current}
@@ -913,22 +1131,47 @@ function LoadedSteps({
             departmentName={workflow.departmentName}
             onDraftChange={applyDraft}
             readOnly={readOnly}
+            governed={
+              governed
+                ? {
+                    pendingIds: pendingDepartmentIds,
+                    canRequest: canPropose,
+                    onRequestAdd: () => requestScope({ action: "add_department" }),
+                    onRequestRemoval: (departmentId) => requestScope({ action: "remove_department", departmentId }),
+                  }
+                : undefined
+            }
           />
         </SetupEditScope>
       )}
+      {step === "departments" && governed && psmPanel("departments")}
+      {step === "systems" && governed && (
+        <GovernedStepNote>
+          Controlled project: a department&apos;s systems are changed with <b>Request scope change</b> below. Nothing is removed
+          from here, and nothing changes until another Project Control Admin or System Administrator approves.
+        </GovernedStepNote>
+      )}
       {step === "systems" && (
-        <SetupEditScope readOnly={readOnly}>
+        <SetupEditScope readOnly={readOnly || governed}>
           <SetupStepSystems
             project={current}
             context={context}
             systems={workflow.systems}
             departmentName={workflow.departmentName}
             onDraftChange={applyDraft}
+            locked={governed}
           />
         </SetupEditScope>
       )}
+      {step === "systems" && governed && psmPanel("departments")}
+      {step === "disciplines" && governed && (
+        <GovernedStepNote>
+          Controlled project: use <b>Request Program &amp; Study</b>, <b>Request move</b> or <b>Request removal</b> below. Nothing
+          is removed from here, and nothing changes until another Project Control Admin or System Administrator approves.
+        </GovernedStepNote>
+      )}
       {step === "disciplines" && (
-        <SetupEditScope readOnly={readOnly}>
+        <SetupEditScope readOnly={readOnly || governed}>
           <SetupStepDisciplines
             project={current}
             context={context}
@@ -936,9 +1179,11 @@ function LoadedSteps({
             departmentName={workflow.departmentName}
             onDraftChange={applyDraft}
             terms={workflow.terms}
+            locked={governed}
           />
         </SetupEditScope>
       )}
+      {step === "disciplines" && governed && psmPanel("disciplines")}
       {/* Project Team (2C.3C): the same membership model for PSM, Other and
           legacy projects. Saved immediately against the saved project. */}
       {step === "contacts" && (

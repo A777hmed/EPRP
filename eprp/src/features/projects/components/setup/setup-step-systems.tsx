@@ -7,8 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmptyState, SectionCard } from "@/components/shared";
 import {
   ManagedMultiSelect,
+  useMasterData,
   type ManagedMultiSelectHandle,
 } from "@/features/master-data";
+import { resolveRecord } from "../../structure-dependencies";
 import type {
   DepartmentAssignment,
   MasterRecordBase,
@@ -27,6 +29,8 @@ export interface SetupStepSystemsProps {
   systems: System[];
   departmentName: (id: string) => string;
   onDraftChange: (patch: Partial<Project>) => void;
+  /** 13.9B Step 4: Controlled project — removal is a governed request, so no remove control is shown. */
+  locked?: boolean;
 }
 
 /**
@@ -48,8 +52,11 @@ export function SetupStepSystems({
   systems,
   departmentName,
   onDraftChange,
+  locked = false,
 }: SetupStepSystemsProps) {
   const assignments = project.departments;
+  // Every system record, archived included, so a stored snapshot is never left unresolved.
+  const { records: allSystemRecords } = useMasterData("system");
 
   /*
    * One handle per department card, so a header button can open that card's
@@ -68,14 +75,20 @@ export function SetupStepSystems({
             ...assignment,
             // Snapshot name/code, matching how assignments are stored.
             systems: ids.map((id) => {
-              const record = systems.find((system) => system.id === id);
               const existing = assignment.systems.find(
                 (system) => system.id === id
               );
+              // Active records first, then EVERY record (an archived system may still be
+              // in scope), then the stored snapshot — never a vague placeholder.
+              const resolved = resolveRecord(
+                "System",
+                { id, name: existing?.name, code: existing?.code },
+                [...systems, ...(allSystemRecords as System[])]
+              );
               return {
                 id,
-                name: record?.name ?? existing?.name ?? "Unknown system",
-                code: record?.code ?? existing?.code,
+                name: resolved.label,
+                code: resolved.code,
                 projectDescription: existing?.projectDescription,
               };
             }),
@@ -186,13 +199,16 @@ export function SetupStepSystems({
                         name={master?.name ?? system.name}
                         meta={master?.code ?? system.code}
                         context={context}
-                        onRemove={() =>
-                          setSystems(
-                            assignment.departmentId,
-                            assignment.systems
-                              .filter((s) => s.id !== system.id)
-                              .map((s) => s.id)
-                          )
+                        onRemove={
+                          locked
+                            ? undefined
+                            : () =>
+                                setSystems(
+                                  assignment.departmentId,
+                                  assignment.systems
+                                    .filter((s) => s.id !== system.id)
+                                    .map((s) => s.id)
+                                )
                         }
                       >
                         <div className="mt-3 space-y-1">

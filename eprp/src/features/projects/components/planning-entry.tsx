@@ -32,6 +32,9 @@ import {
 import { usePlanningPosition } from "../use-planning-position";
 import { useProjectWorkflow } from "../use-project-workflow";
 import { PlanningStatus } from "./planning/planning-status";
+import { formatDate } from "@/lib/formatters";
+import { useSetupFormGovernance, type SetupFinaliseContext } from "./governance/setup-governance-ui";
+import { FINALISE_EXPLANATION, FinaliseSetupDialog } from "./governance/finalise-setup-dialog";
 
 /**
  * Phase 13.9A — Project Setup → Planning Entry (`docs/02` §26.20.1, §26.23.4).
@@ -71,6 +74,9 @@ export function PlanningEntry({
   const [pendingHref, setPendingHref] = React.useState<string | null>(null);
   const projectId = project?.id;
   const position = usePlanningPosition(projectId, savedValue);
+  // 13.9B: the governed state, when the hosting Project Setup provides it.
+  const governance = useSetupFormGovernance();
+  const onboardingPending = governance?.pending.get("onboarding_mode");
   // The onboarding mode is saved only for an existing project (the form's
   // save writes it after the project row) — so a brand-new project chooses it
   // after its first save rather than answering a question that is not kept.
@@ -184,6 +190,27 @@ export function PlanningEntry({
         </div>
       </fieldset>
 
+      {governance?.controlled && project && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          {onboardingPending ? (
+            <StatusBadge tone="warning">Planning mode change pending approval</StatusBadge>
+          ) : (
+            <span>
+              Project Setup is controlled. How this project is planned changes only through an approved amendment.
+            </span>
+          )}
+          {governance.canAmend && !onboardingPending && (
+            <button
+              type="button"
+              onClick={() => governance.onAmend("onboarding_mode")}
+              className="font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Request amendment
+            </button>
+          )}
+        </div>
+      )}
+
       {value === "existing_active_project" && !questionLocked && (
         <ExternalScheduleQuestion projectId={projectId} />
       )}
@@ -197,7 +224,12 @@ export function PlanningEntry({
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
         {project ? (
-          <SetupStateLine project={project} hasPublishedSnapshot={position.status === "ready" && Boolean(position.snapshot)} />
+          <SetupStateLine
+            project={project}
+            hasPublishedSnapshot={position.status === "ready" && Boolean(position.snapshot)}
+            finalise={governance?.finalise}
+            savedMode={savedValue}
+          />
         ) : (
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <StatusBadge tone="neutral">{SETUP_STATE_LABEL.draft}</StatusBadge>
@@ -264,17 +296,28 @@ export function PlanningEntry({
 function SetupStateLine({
   project,
   hasPublishedSnapshot,
+  finalise,
+  savedMode,
 }: {
   project: Project;
   hasPublishedSnapshot: boolean;
+  /** 13.9B: the database-derived control state and the Finalise action. */
+  finalise?: SetupFinaliseContext;
+  savedMode?: PlanningOnboardingMode;
 }) {
   const workflow = useProjectWorkflow(project);
+  const [finaliseOpen, setFinaliseOpen] = React.useState(false);
   const required = workflow.statuses.filter((status) => status.id !== "review");
   const outstanding = required.filter((status) => !status.complete);
-  const state = setupStateOf({
-    setupComplete: outstanding.length === 0,
-    hasPublishedSnapshot,
-  });
+  // Controlled is derived by the database (first snapshot or finalisation);
+  // without that input (e.g. Project Edit) the 13.9A derivation stands.
+  const controlledSince = finalise?.control.controlledSince ?? null;
+  const state = controlledSince
+    ? "controlled"
+    : setupStateOf({ setupComplete: outstanding.length === 0, hasPublishedSnapshot });
+  const finalisation = finalise?.control.finalisation ?? null;
+  const offerFinalise =
+    Boolean(finalise?.canFinalise) && !controlledSince && savedMode === "no_formal_schedule";
   const next = outstanding[0];
   const nextLabel = next
     ? workflow.steps.find((step) => step.id === next.id)?.label
@@ -297,8 +340,40 @@ function SetupStateLine({
         </span>
       )}
       {state === "ready" && <span>Every setup step is complete.</span>}
-      {state === "controlled" && (
-        <span>A Published Planning Snapshot exists. Setup field control is not enforced yet.</span>
+      {state === "controlled" && controlledSince && (
+        <span>
+          Controlled since {formatDate(controlledSince)} —{" "}
+          {finalisation && finalisation.finalisedAt === controlledSince
+            ? `Setup Finalisation${finalisation.finalisedByName ? ` by ${finalisation.finalisedByName}` : ""}`
+            : "the first Published Planning Snapshot"}
+          . Core configuration changes require an amendment.
+        </span>
+      )}
+      {state === "controlled" && !controlledSince && <span>A Published Planning Snapshot exists.</span>}
+      {finalisation && (
+        <span className="basis-full text-pretty">
+          Finalised {formatDate(finalisation.finalisedAt)}
+          {finalisation.note ? ` · Note: ${finalisation.note}` : ""} · Reported — not planning governed. No
+          Planning Snapshot, PV, EV or SPI was created.
+        </span>
+      )}
+      {offerFinalise && (
+        <div className="flex basis-full flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed p-3">
+          <p className="max-w-xl text-xs text-muted-foreground text-pretty">{FINALISE_EXPLANATION}</p>
+          {state === "ready" ? (
+            <Button type="button" size="sm" onClick={() => setFinaliseOpen(true)}>
+              Finalise Project Setup
+            </Button>
+          ) : (
+            <span className="text-xs text-muted-foreground">Complete the setup steps to finalise.</span>
+          )}
+          <FinaliseSetupDialog
+            projectId={project.id}
+            open={finaliseOpen}
+            onOpenChange={setFinaliseOpen}
+            onFinalised={() => finalise?.onFinalised()}
+          />
+        </div>
       )}
     </div>
   );

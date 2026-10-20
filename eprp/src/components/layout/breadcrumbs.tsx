@@ -22,6 +22,8 @@ import {
 import { siteConfig } from "@/config/site";
 import type { HierarchyTerms } from "@/config/project-terminology";
 import { useHierarchyTerms } from "@/features/projects/use-hierarchy-terms";
+import { structureRouteLabel, type StructureNavLevel } from "@/features/projects/structure-navigation";
+import { useStructureNav } from "@/features/projects/use-structure-nav";
 import { useProjectById } from "@/features/projects/use-project-by-id";
 import type { Project } from "@/types";
 
@@ -39,7 +41,8 @@ interface Crumb {
 function projectCrumbs(
   pathname: string,
   terms: HierarchyTerms,
-  project: Project | null
+  project: Project | null,
+  levels: readonly StructureNavLevel[] | null
 ): Crumb[] | null {
   const projectId = activeProjectId(pathname);
   if (!projectId) return null;
@@ -58,6 +61,9 @@ function projectCrumbs(
     crumbs.push({
       label: localizeProjectSection(getProjectSection(segment), terms).label,
     });
+  } else if (segment === "structure") {
+    // An Other project's configured level, by its own name (e.g. "Functions").
+    crumbs.push({ label: structureRouteLabel(segment, pathname.split("/")[4], levels) ?? "Project Structure" });
   } else if (segment === "edit") {
     crumbs.push({ label: "Edit" });
   } else if (segment === "setup") {
@@ -76,7 +82,15 @@ export function Breadcrumbs() {
   const pathname = usePathname();
   const project = useProjectById(activeProjectId(pathname));
   const terms = useHierarchyTerms(project);
-  const projectTrail = projectCrumbs(pathname, terms, project);
+  const structureNav = useStructureNav(project);
+  const levels = structureNav.other && !structureNav.pending
+    ? structureNav.items.flatMap((item) =>
+        item.kind === "level"
+          ? [{ levelNumber: item.levelNumber, singularLabel: item.singular, pluralLabel: item.label }]
+          : []
+      )
+    : null;
+  const projectTrail = projectCrumbs(pathname, terms, project, levels);
   const item = projectTrail ? null : findNavItem(pathname);
 
   if (!projectTrail && !item) return null;

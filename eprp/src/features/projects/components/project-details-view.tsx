@@ -36,12 +36,14 @@ import type { Client, Discipline, Project, System, WeeklyReport } from "@/types"
 import { projectSectionHref } from "@/config/project-sections";
 import { ProjectSummaryHeader } from "./project-summary-header";
 import { useHierarchyTerms } from "../use-hierarchy-terms";
+import { structureLevelHref } from "../structure-navigation";
+import { useStructureNav } from "../use-structure-nav";
 import { classificationSummary, projectCategoryLabel } from "../classification";
 import { ProjectTypeCorrections } from "./project-type-corrections";
 import { useProjectAuthority } from "../use-project-authority";
 import { ProjectWorkflowNav } from "./project-workflow-nav";
 import {
-  localizeProjectSections,
+  structureAwareSections,
   projectSections,
   ProjectSectionNav,
 } from "./project-section-nav";
@@ -116,6 +118,8 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
   const { records: clientRecords } = useMasterData("client");
   const masterSystems = systemRecords as System[];
   const terms = useHierarchyTerms(project);
+  // The project's structure vocabulary: fixed PSM sections, or an Other project's configured levels.
+  const structureNav = useStructureNav(project);
   /* Unconditional — hooks cannot sit behind the early returns below. Returns
      an all-false authority until both the project and the identity settle, so
      no mutation action can flash before the answer is known. */
@@ -258,7 +262,7 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
 
       <div className="gap-6 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)]">
         <ProjectSectionNav
-          sections={localizeProjectSections(projectSections, terms)}
+          sections={structureAwareSections(projectSections, structureNav, terms)}
         />
 
         <div className="mt-4 space-y-6 lg:mt-0">
@@ -455,6 +459,42 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
             </SectionCard>
           </Section>
 
+          {structureNav.other ? (
+            structureNav.items.map((item) =>
+              item.kind === "level" ? (
+                <Section key={item.id} id={item.id}>
+                  <SectionCard
+                    title={item.label}
+                    description={`${item.label} in this project's structure.`}
+                    action={
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={structureLevelHref(project.id, item.levelNumber)}>Open {item.label}</Link>
+                      </Button>
+                    }
+                  >
+                    {(() => {
+                      const units = (structureNav.structure?.nodes ?? []).filter(
+                        (node) => node.levelNumber === item.levelNumber && !node.archivedAt
+                      );
+                      return units.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No {item.label.toLowerCase()} yet.</p>
+                      ) : (
+                        <ul className="space-y-1.5 text-sm">
+                          {units.map((unit) => (
+                            <li key={unit.id}>
+                              <span className="font-medium">{unit.name}</span>
+                              {unit.code && <span className="text-muted-foreground"> ({unit.code})</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      );
+                    })()}
+                  </SectionCard>
+                </Section>
+              ) : null
+            )
+          ) : (
+            <>
           <Section id="departments">
             <SectionCard
               title="Departments"
@@ -599,6 +639,8 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
               )}
             </SectionCard>
           </Section>
+            </>
+          )}
 
           {/* 13.9A: no typed planned/actual figures or percent-ratio SPI.
               The governed reading lives in Project Progress; the project

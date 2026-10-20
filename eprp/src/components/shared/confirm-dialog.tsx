@@ -71,6 +71,9 @@ export function ConfirmDialog({
       await onConfirm();
       if (!isControlled) setInternalOpen(false);
       onOpenChange?.(false);
+    } catch {
+      // A failed confirm keeps the dialog open; the caller reports the failure
+      // (toast). Swallowed here so it never escapes as an unhandled rejection.
     } finally {
       setPending(false);
     }

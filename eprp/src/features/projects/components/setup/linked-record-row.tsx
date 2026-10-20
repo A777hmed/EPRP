@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ExternalLink, PenLine, X } from "lucide-react";
+import { ExternalLink, PenLine, ShieldCheck, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/shared";
 import { cn } from "@/lib/utils";
 import {
   withProjectContext,
@@ -29,6 +30,11 @@ export interface LinkedRecordRowProps {
   /** Project trail carried into the target page and back again. */
   context: ProjectLinkContext;
   onRemove?: () => void;
+  /**
+   * Controlled project: removal is a governed request, not an edit. Replaces
+   * the X with a labelled "Request removal" button (or "Pending approval").
+   */
+  governedRemoval?: { pending: boolean; onRequest: () => void };
   /** Offer the master record's Edit page. False hides it for callers who may not edit the master. */
   canEdit?: boolean;
   className?: string;
@@ -46,6 +52,7 @@ export function LinkedRecordRow({
   meta,
   context,
   onRemove,
+  governedRemoval,
   canEdit = true,
   className,
   children,
@@ -81,6 +88,20 @@ export function LinkedRecordRow({
             </Link>
           </Button>
         )}
+        {governedRemoval &&
+          (governedRemoval.pending ? (
+            <StatusBadge tone="warning">Removal pending approval</StatusBadge>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={governedRemoval.onRequest}
+              aria-label={`Request removal of ${name}`}
+            >
+              <ShieldCheck data-icon="inline-start" aria-hidden="true" />
+              Request removal
+            </Button>
+          ))}
         {onRemove && (
           <Button
             variant="ghost"

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   CalendarRange,
@@ -38,6 +39,13 @@ import {
 } from "@/config/project-sections";
 import { projectWorkflowHref } from "@/config/project-workflow";
 import { ProjectDetailsView } from "../project-details-view";
+import {
+  OTHER_SECTION_DESCRIPTION,
+  isPsmStructureSectionId,
+  PSM_STRUCTURE_SECTION_IDS,
+  structureLevelHref,
+  type PsmStructureSectionId,
+} from "../../structure-navigation";
 import { ProjectProgressView } from "../progress/project-progress-view";
 import { planningGovernanceOf } from "../../planning-experience";
 import {
@@ -58,6 +66,7 @@ import { ProjectDocumentsPanel } from "../project-documents-panel";
 import { MilestonesPanel } from "../milestones/milestones-panel";
 import { DeliverablesPanel } from "../deliverables/deliverables-panel";
 import { ProjectReportingWorkspace } from "./project-reporting-workspace";
+import { SetupGovernanceHistory } from "../governance/setup-governance-history";
 
 export interface ProjectSectionViewProps {
   projectId: string;
@@ -80,6 +89,16 @@ const SECTION_BACKDROP: Partial<Record<ProjectSectionId, BackdropVariant>> = {
  * Overview keeps the existing full detail view untouched; every other section
  * is a focused page built on the shared dashboard-style layout.
  */
+/** Sends a fixed PSM structure route of an Other project to its configured level (1, 2, 3 by slot). */
+function OtherStructureRedirect({ projectId, section }: { projectId: string; section: PsmStructureSectionId }) {
+  const router = useRouter();
+  const level = PSM_STRUCTURE_SECTION_IDS.indexOf(section) + 1;
+  React.useEffect(() => {
+    router.replace(structureLevelHref(projectId, level));
+  }, [router, projectId, level]);
+  return <LoadingState variant="page" label="Opening the project structure…" />;
+}
+
 export function ProjectSectionView({
   projectId,
   section,
@@ -167,9 +186,17 @@ export function ProjectSectionView({
     );
   }
 
+  // An Other project has no Departments / Systems / Disciplines: its configured levels live at
+  // /structure/<n>. A bookmarked fixed-section route lands on the matching level.
+  if (project.structureFamily === "other" && isPsmStructureSectionId(section)) {
+    return <OtherStructureRedirect projectId={project.id} section={section} />;
+  }
+
   const definition = localizeProjectSection(getProjectSection(section), terms);
+  const sectionDescription =
+    (project.structureFamily === "other" ? OTHER_SECTION_DESCRIPTION[section] : undefined) ?? definition.description;
   const description =
-    section === "kpis" ? progressSubtitle(progressPosition, definition.description) : definition.description;
+    section === "kpis" ? progressSubtitle(progressPosition, sectionDescription) : sectionDescription;
 
   const header = (
     <PageHeader
@@ -318,7 +345,7 @@ function SectionBody({
     case "attachments":
       return <RecordsPlaceholder section={section} />;
     case "history":
-      return <HistorySection />;
+      return <HistorySection project={project} />;
     default:
       return null;
   }
@@ -793,12 +820,20 @@ function DocumentsSection({ project }: { project: Project }) {
   );
 }
 
-function HistorySection() {
+function HistorySection({ project }: { project: Project }) {
   return (
-    <ProjectSectionLayout
-      title="History"
-      description="Mock data until the audit trail ships."
-    >
+    <div className="space-y-6">
+      {/* 13.9B: the real Setup & governance feed, from the structured records. */}
+      <ProjectSectionLayout
+        title="Setup & governance"
+        description="Every recorded Project Setup change, amendment, decision, finalisation and Reported Progress entry."
+      >
+        <SetupGovernanceHistory project={project} />
+      </ProjectSectionLayout>
+      <ProjectSectionLayout
+        title="Other project activity"
+        description="Sample data — reports and documents are not recorded here until the platform audit trail ships."
+      >
       <ol className="space-y-3">
         {mockProjectActivity.map((entry) => (
           <li key={entry.id} className="flex gap-2.5 text-sm">
@@ -815,6 +850,7 @@ function HistorySection() {
           </li>
         ))}
       </ol>
-    </ProjectSectionLayout>
+      </ProjectSectionLayout>
+    </div>
   );
 }

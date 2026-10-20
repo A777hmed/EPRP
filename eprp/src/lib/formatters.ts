@@ -13,9 +13,9 @@ export function formatDate(isoDate: string | undefined | null): string {
 
 /** Format an ISO timestamp with local date and 24-hour time. */
 export function formatDateTime(isoDate: string | undefined | null): string {
-  if (!isoDate) return "â€”";
+  if (!isoDate) return "—";
   const date = parseISO(isoDate);
-  if (Number.isNaN(date.getTime())) return "â€”";
+  if (Number.isNaN(date.getTime())) return "—";
   return format(date, "dd MMM yyyy, HH:mm");
 }
 

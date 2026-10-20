@@ -104,11 +104,19 @@ test("PT409: the live functions raise no 40001 except the genuine Weekly concurr
   const live = liveDefinitions();
   for (const [name] of RECREATED) {
     // Parties (2C.3A) and its professional fields (2C.3B) extend only the
-    // relation dispatcher and retain the PT409 contract.
-    const expected = name === "save_project_setup_relation"
-      ? "20261007120000_project_parties_professional_information.sql" : PT409_FILE;
+    // relation dispatcher and retain the PT409 contract. 13.9B Step 2
+    // re-creates the Project Type correction for the legacy bootstrap and
+    // keeps its PT409 stale refusal. 13.9B Step 4 re-creates the relation
+    // dispatcher so its Programs & Studies branch saves differences only;
+    // every other branch, and the PT409 stale refusal, is unchanged.
+    const expected = {
+      save_project_setup_relation: "20261019090000_project_setup_structure_governance.sql",
+      correct_project_structure_family: "20261017090000_project_setup_finalise_reported_progress.sql",
+    }[name] ?? PT409_FILE;
     assert.equal(live.get(name)?.file, expected, name);
   }
+  assert.match(live.get("correct_project_structure_family").body,
+    /\[STALE\] The project changed since this page loaded\. Reload before correcting\.'\s+using errcode = 'PT409'/);
   const serialization = [...live.values()]
     .filter((d) => /errcode\s*=\s*'(?:40001|serialization_failure)'|sqlstate\s*'40001'/i.test(withoutComments(d.body)))
     .map((d) => `${d.file}:${d.name}`);
@@ -117,9 +125,17 @@ test("PT409: the live functions raise no 40001 except the genuine Weekly concurr
   assert.doesNotMatch(pt409, /submit_finalized_weekly_milestones/);
   const stale = [...live.values()].filter((d) => /errcode = 'PT409'/.test(d.body)).map((d) => d.name).sort();
   // 2C.3C adds three membership writers, and 2C.3D the per-unit people
-  // writer, all born with the same business-stale refusal.
+  // writer, all born with the same business-stale refusal. 13.9B adds the
+  // three Project Setup amendment functions (stale base, pending, decided).
   const LATER_PT409 = ["add_project_member", "end_project_member", "update_project_member",
-    "save_structure_unit_responsibilities"];
+    "save_structure_unit_responsibilities",
+    "request_project_setup_amendment", "decide_project_setup_amendment", "withdraw_project_setup_amendment",
+    // 13.9B Step 2: finalisation and Reported Progress writers (duplicate / not current).
+    "finalise_project_setup", "guard_setup_finalisation_entry", "record_reported_progress",
+    "reported_progress_supersede", "guard_reported_progress_entry",
+    // 13.9B Step 4: a second pending request on the same structure target,
+    // and an approved structure change whose row has gone.
+    "request_project_structure_amendment", "project_setup_apply_structure"];
   assert.deepEqual(stale, [...RECREATED.map(([name]) => name), ...LATER_PT409].sort());
 });
 

@@ -35,10 +35,10 @@ export default async function ProjectSetupStepPage({
   searchParams,
 }: {
   params: Promise<{ projectId: string; step: string }>;
-  searchParams: Promise<{ disciplineId?: string | string[] }>;
+  searchParams: Promise<{ disciplineId?: string | string[]; amendment?: string | string[] }>;
 }) {
   const { projectId, step } = await params;
-  const { disciplineId } = await searchParams;
+  const { disciplineId, amendment } = await searchParams;
   if (!isProjectWorkflowStep(step)) notFound();
   return (
     <ProjectSetupView
@@ -47,6 +47,7 @@ export default async function ProjectSetupStepPage({
       initialDisciplineId={
         Array.isArray(disciplineId) ? disciplineId[0] : disciplineId
       }
+      focusAmendmentId={Array.isArray(amendment) ? amendment[0] : amendment}
     />
   );
 }

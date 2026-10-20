@@ -200,8 +200,18 @@ test("2C.1c-a: the level RPC is invoker, locked, versioned, Other-only and tagge
 
 test("2C.1c-a: the correction RPC is unchanged except the Other -> PSM structure guard", () => {
   // Live definition: re-created by the PT409 migration with only the stale
-  // SQLSTATE changed (proved in stale-sqlstate-contract.test.mjs).
-  assert.equal(latestDefinition("correct_project_structure_family"), "20261004000001_stale_conflict_sqlstate_pt409.sql");
+  // SQLSTATE changed (proved in stale-sqlstate-contract.test.mjs), then by
+  // 13.9B Step 2 for the one-time legacy classification bootstrap (owner
+  // closure 2026-10-17, proved in reported-progress.test.mjs). The live body
+  // still carries this 4b guard in the same place.
+  const STEP2 = "20261017090000_project_setup_finalise_reported_progress.sql";
+  assert.equal(latestDefinition("correct_project_structure_family"), STEP2);
+  const liveSql = readFileSync(new URL(`../../../supabase/migrations/${STEP2}`, import.meta.url), "utf8").replaceAll("\r", "");
+  const live = liveSql.slice(liveSql.indexOf("create or replace function public.correct_project_structure_family("),
+    liveSql.indexOf("$function$;", liveSql.indexOf("create or replace function public.correct_project_structure_family(")));
+  assert.match(live, /if v_old = 'other' and p_new_family = 'psm' and exists \(\s+select 1 from public\.project_structure_nodes n\s+where n\.project_id = p_project and n\.archived_at is null\s+\) then\s+raise exception '\[STRUCTURE_EXISTS\]/);
+  assert.ok(live.indexOf("[STRUCTURE_EXISTS]") > live.indexOf("[SAME_TYPE]"));
+  assert.ok(live.indexOf("[STRUCTURE_EXISTS]") < live.indexOf("insert into public.project_classification_corrections"));
   const before = body(classification, "correct_project_structure_family", "$correct$");
   const after = body(structure, "correct_project_structure_family", "$correct$");
   const guard = after.match(/\n  -- 4b\. \(2C\.1c\)[\s\S]+?\n  end if;\n/);

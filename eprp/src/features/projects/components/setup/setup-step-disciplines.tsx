@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { type ProjectLinkContext } from "../../project-link-context";
 import type { HierarchyTerms } from "@/config/project-terminology";
 import { LinkedRecordRow } from "./linked-record-row";
+import { resolveRecord } from "../../structure-dependencies";
 
 export interface SetupStepDisciplinesProps {
   /** Hierarchy wording — display only. */
@@ -46,6 +47,8 @@ export interface SetupStepDisciplinesProps {
   disciplines: Discipline[];
   departmentName: (id: string) => string;
   onDraftChange: (patch: Partial<Project>) => void;
+  /** 13.9B Step 4: Controlled project — removal is a governed request, so no remove control is shown. */
+  locked?: boolean;
 }
 
 /**
@@ -69,6 +72,7 @@ export function SetupStepDisciplines({
   departmentName,
   onDraftChange,
   terms,
+  locked = false,
 }: SetupStepDisciplinesProps) {
   const links = project.disciplines ?? [];
   const assignments = project.departments;
@@ -144,10 +148,10 @@ export function SetupStepDisciplines({
     disciplines.find((discipline) => discipline.id === id)?.name ??
     `Unknown ${terms.singularLower}`;
   const systemName = (id?: string) =>
-    id
-      ? ((allSystemRecords as System[]).find((system) => system.id === id)
-          ?.name ?? "Unknown system")
-      : "No system";
+    id ? resolveRecord("System", { id, ...snapshotOf(id) }, allSystemRecords as System[]).label : "No system";
+  // The stored name / code of a system on this project's departments, when Master Data lacks it.
+  const snapshotOf = (id: string) =>
+    project.departments.flatMap((assignment) => assignment.systems).find((system) => system.id === id) ?? {};
 
   const misplaced = misplacedScopeLinks(
     project,
@@ -286,22 +290,24 @@ export function SetupStepDisciplines({
                         Move to {systemName(entry.ownerSystemId)}
                       </Button>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label={`Remove ${disciplineName(entry.disciplineId)} from this project`}
-                      onClick={() =>
-                        onDraftChange({
-                          disciplines: removeScopeLink(
-                            project,
-                            entry.disciplineId,
-                            entry.linkSystemId
-                          ),
-                        })
-                      }
-                    >
-                      <X aria-hidden="true" />
-                    </Button>
+                    {!locked && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Remove ${disciplineName(entry.disciplineId)} from this project`}
+                        onClick={() =>
+                          onDraftChange({
+                            disciplines: removeScopeLink(
+                              project,
+                              entry.disciplineId,
+                              entry.linkSystemId
+                            ),
+                          })
+                        }
+                      >
+                        <X aria-hidden="true" />
+                      </Button>
+                    )}
                   </div>
                 </li>
               );
@@ -355,7 +361,10 @@ export function SetupStepDisciplines({
                                 : undefined
                             }
                             context={context}
-                            onRemove={() =>
+                            onRemove={
+                              locked
+                                ? undefined
+                                : () =>
                               onDraftChange({
                                 disciplines: links.filter(
                                   (candidate) =>

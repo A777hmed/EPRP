@@ -4,6 +4,7 @@ import {
   isArchivedProjectRefusal,
   PLANNING_CONTROL_ARCHIVED_MESSAGE,
 } from "@/features/projects/planning-control-archived";
+import { setupGovernanceRefusalMessage } from "@/features/projects/setup-governance";
 
 /**
  * Turning a database failure into something a user should read.
@@ -108,6 +109,11 @@ export interface FailureOptions {
  * wording. It also raises 42501, and telling the user "you do not have
  * permission" for a project that is simply archived would send them looking
  * for an authority problem that does not exist.
+ *
+ * Phase 13.9B: a Project Setup governance refusal (controlled field, missing
+ * first-publish confirmation, no-formal-schedule publish, self-approval…)
+ * is shown as its own sentence, for the same reason — several of them are
+ * 42501 too.
  */
 export async function describeFailure(
   options: FailureOptions
@@ -118,6 +124,8 @@ export async function describeFailure(
   if (isArchivedProjectRefusal(options.error)) {
     return new Error(PLANNING_CONTROL_ARCHIVED_MESSAGE);
   }
+  const governance = setupGovernanceRefusalMessage(options.error);
+  if (governance) return new Error(governance);
   if (isPermissionDenied(options.error)) {
     return new Error(await permissionMessage(options.deniedMessage));
   }

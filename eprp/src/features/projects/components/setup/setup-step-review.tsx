@@ -30,6 +30,7 @@ import type { Client, Contact, Discipline, Project, System } from "@/types";
 import type { ProjectStructure } from "@/types/project-structure";
 import { activeNodes } from "../../structure/structure-rules";
 import { StructureLevelSummary } from "./structure/structure-level-summary";
+import { resolveRecord } from "../../structure-dependencies";
 
 export interface SetupStepReviewProps {
   /** Hierarchy wording — display only. */
@@ -113,8 +114,11 @@ export function SetupStepReview({
       ?.name ?? `Unknown ${terms.singularLower}`;
   const nameOfSystem = (id?: string) =>
     id
-      ? ((allSystemRecords as System[]).find((system) => system.id === id)
-          ?.name ?? "Unknown system")
+      ? resolveRecord(
+          "System",
+          { id, ...(project.departments.flatMap((assignment) => assignment.systems).find((system) => system.id === id) ?? {}) },
+          allSystemRecords as System[]
+        ).label
       : "No system";
   const scopedDisciplineName = (id: string) =>
     disciplines.find((discipline) => discipline.id === id)?.name ??

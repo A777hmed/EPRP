@@ -26,8 +26,11 @@ export interface CorrectProjectTypeInput {
 export interface ClassificationCorrection {
   id: string;
   projectId: string;
-  oldFamily: StructureFamily;
+  /** Absent only for the 13.9B one-time legacy classification (`correctionKind: "legacy_bootstrap"`). */
+  oldFamily?: StructureFamily;
   newFamily: StructureFamily;
+  /** 13.9B: "correction" (2C.1) or the one-time "legacy_bootstrap" classification. */
+  correctionKind?: "correction" | "legacy_bootstrap";
   oldProjectTypeId?: string;
   newProjectTypeId?: string;
   /** Category names as they were at the time of the correction. */
@@ -45,8 +48,9 @@ export interface ClassificationCorrection {
 export interface ClassificationCorrectionRow {
   id: string;
   project_id: string;
-  old_family: string;
+  old_family: string | null;
   new_family: string;
+  correction_kind?: "correction" | "legacy_bootstrap";
   old_project_type_id: string | null;
   new_project_type_id: string | null;
   old_project_type_name: string | null;
@@ -65,8 +69,9 @@ export function rowToClassificationCorrection(
   return {
     id: row.id,
     projectId: row.project_id,
-    oldFamily: row.old_family as StructureFamily,
+    oldFamily: (row.old_family ?? undefined) as StructureFamily | undefined,
     newFamily: row.new_family as StructureFamily,
+    correctionKind: row.correction_kind ?? "correction",
     oldProjectTypeId: row.old_project_type_id ?? undefined,
     newProjectTypeId: row.new_project_type_id ?? undefined,
     oldProjectTypeName: row.old_project_type_name ?? undefined,

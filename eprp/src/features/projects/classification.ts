@@ -273,7 +273,8 @@ export function classificationFormValues(
 
 /** The fields of a recorded correction that the history label reads. */
 export interface CorrectionHistorySides {
-  oldFamily: StructureFamily;
+  /** Absent for the 13.9B one-time legacy classification (the project had no type). */
+  oldFamily?: StructureFamily;
   newFamily: StructureFamily;
   oldProjectTypeId?: string;
   newProjectTypeId?: string;
@@ -295,6 +296,7 @@ export function correctionHistoryLabel(
   categoryName: (id: string | undefined) => string | undefined
 ): string {
   const family = side === "old" ? entry.oldFamily : entry.newFamily;
+  if (!family) return "Not classified";
   const typeId = side === "old" ? entry.oldProjectTypeId : entry.newProjectTypeId;
   const snapshot = side === "old" ? entry.oldProjectTypeName : entry.newProjectTypeName;
   const detail = side === "old" ? entry.oldCategoryDetail : entry.newCategoryDetail;

@@ -168,9 +168,11 @@ test("setup state is derived and presentational: Draft → Ready → Controlled"
   assert.equal(setupStateOf({ setupComplete: false, hasPublishedSnapshot: false }), "draft");
   assert.equal(setupStateOf({ setupComplete: true, hasPublishedSnapshot: false }), "ready");
   assert.equal(setupStateOf({ setupComplete: true, hasPublishedSnapshot: true }), "controlled");
-  // Nothing in 13.9A locks setup fields.
+  // 13.9A locked nothing; 13.9B now enforces control, derived by the database
+  // (first snapshot or finalisation) and shown as such.
   const entry = source("./components/planning-entry.tsx");
-  assert.match(entry, /Setup field control is not enforced yet/);
+  assert.doesNotMatch(entry, /Setup field control is not enforced yet/);
+  assert.match(entry, /Controlled since \{formatDate\(controlledSince\)\}/);
 });
 
 /* ------------------------------- Snapshot figures ------------------------- */
@@ -255,7 +257,12 @@ test("Project Progress is read-only and never reads typed project progress", () 
   const view = code("./components/progress/project-progress-view.tsx");
   assert.doesNotMatch(view, /project\.plannedProgress|project\.actualProgress|projectSpi|\/edit/);
   assert.doesNotMatch(view, /Update progress|Update Reported Progress/);
-  assert.match(view, /Reported — not planning governed/);
+  // 13.9B: the not-governed state is the Reported Progress panel, which owns
+  // the label and the one write action (never on a governed project).
+  assert.match(view, /<ReportedProgressPanel/);
+  const panel = code("./components/progress/reported-progress-panel.tsx");
+  assert.match(panel, /\{REPORTED_PROGRESS_LABEL\}/);
+  assert.doesNotMatch(panel, /project\.plannedProgress|project\.actualProgress|projectSpi/);
   assert.match(view, /Awaiting first Published Planning Snapshot/);
   const section = code("./components/sections/project-section-view.tsx");
   assert.doesNotMatch(section, /Update progress|projectSpi|ProgressComparison/);
@@ -414,11 +421,14 @@ test("no-formal-schedule wording: no snapshot implied; Weekly/Monthly never own 
   assert.match(section, /"Project progress is reported without a governed Planning Snapshot\."/);
   assert.match(section, /description=\{description\}/);
   const view = code("./components/progress/project-progress-view.tsx");
-  assert.match(view, /Reported progress entry is not\s+available in EPRP yet\. It will be introduced through the governed\s+Reported Progress workflow\./);
+  // 13.9B delivered the workflow the 13.9A placeholder announced.
+  assert.doesNotMatch(view, /available in EPRP yet/);
   assert.doesNotMatch(view, /progress is described in the project&apos;s Weekly and Monthly/);
-  assert.match(view, /Reported — not planning governed/);
-  assert.match(view, /label="SPI" value="N\/A"/);
   assert.doesNotMatch(view, /Update Reported Progress/);
+  const panel = code("./components/progress/reported-progress-panel.tsx");
+  assert.match(panel, /\{REPORTED_PROGRESS_LABEL\}/);
+  assert.match(panel, /<PlanningFact label="SPI" value=\{REPORTED_PROGRESS_SPI\}/);
+  assert.match(panel, /Weekly and Monthly reports do not own this figure\./);
 });
 
 test("archived Summary is planning history, never an actionable readiness workflow", () => {
@@ -479,5 +489,14 @@ test("the workspace tab row scrolls in one row with edge fades, never wraps", ()
 
 test("13.9A adds no migration", () => {
   const names = readdirSync(new URL("../../../supabase/migrations/", import.meta.url));
-  assert.ok(names.every((name) => name <= "20261014090000_planning_control_archived_read_only.sql"), "no migration after 13.9");
+  // Every migration after 13.9 belongs to a later slice (13.9B onwards), never to 13.9A.
+  const LATER = ["20261016090000_project_setup_governance_core.sql",
+    "20261017090000_project_setup_finalise_reported_progress.sql",
+    "20261018090000_project_setup_relation_history.sql",
+    "20261019090000_project_setup_structure_governance.sql",
+    "20261020090000_project_setup_amendment_notifications.sql",
+    // 13.9B UAT: notification Clear history (a 13.9B migration, not 13.9A).
+    "20261021090000_notification_history_clear.sql"];
+  assert.ok(names.every((name) => name <= "20261014090000_planning_control_archived_read_only.sql" || LATER.includes(name)),
+    "no 13.9A migration after 13.9");
 });

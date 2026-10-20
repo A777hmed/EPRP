@@ -9,7 +9,7 @@ import { EmptyState, SectionCard } from "@/components/shared";
 import { ManagedMultiSelect } from "@/features/master-data";
 import type { Department, DepartmentAssignment, Project } from "@/types";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +26,19 @@ export interface SetupStepDepartmentsProps {
   onDraftChange: (patch: Partial<Project>) => void;
   /** 2C.3E: an archived project — no Add Department (it would link a new record to it). */
   readOnly?: boolean;
+  /**
+   * 13.9B Step 4: Project Setup is Controlled. Adding or removing a department
+   * is then a governed structure request, never a direct edit: the step shows
+   * its values read-only and its buttons open the request dialog.
+   */
+  governed?: {
+    /** Departments with a structure request already awaiting approval. */
+    pendingIds: ReadonlySet<string>;
+    /** Project Setup authority on this project, project not archived. */
+    canRequest: boolean;
+    onRequestAdd: () => void;
+    onRequestRemoval: (departmentId: string) => void;
+  };
 }
 
 /**
@@ -40,6 +53,7 @@ export function SetupStepDepartments({
   departmentName,
   onDraftChange,
   readOnly = false,
+  governed,
 }: SetupStepDepartmentsProps) {
   const assignments = project.departments;
   const selectedIds = assignments.map((a) => a.departmentId);
@@ -76,24 +90,49 @@ export function SetupStepDepartments({
   return (
     <SectionCard
       title="Departments on this project"
-      description="Pick the contributing departments, then set each one's lead and reporting duty."
+      description={
+        governed
+          ? "Project Setup is controlled, so departments are added or removed by request and take effect after approval."
+          : "Pick the contributing departments from the list, then set each one's lead and reporting duty."
+      }
       action={
-        readOnly ? undefined : (
-        <Button variant="outline" size="sm" asChild>
-          <Link
-            href={withProjectContext("/departments/new", {
-              ...context,
-              sourceType: "project",
-              parentId: context.projectId,
-            })}
-          >
-            <Plus data-icon="inline-start" aria-hidden="true" />
-            Add Department
-          </Link>
-        </Button>
+        readOnly ? undefined : governed ? (
+          governed.canRequest ? (
+            <Button variant="outline" size="sm" onClick={governed.onRequestAdd}>
+              <ShieldCheck data-icon="inline-start" aria-hidden="true" />
+              Request department
+            </Button>
+          ) : undefined
+        ) : (
+          // A Master Data action, not a project-scope change: it creates a new
+          // shared Department for every project. Picking an existing department
+          // for THIS project is the selector below.
+          <Button variant="ghost" size="sm" asChild>
+            <Link
+              href={withProjectContext("/departments/new", {
+                ...context,
+                sourceType: "project",
+                parentId: context.projectId,
+              })}
+              title="Creates a new shared Department in Master Data (applies to every project), then returns here."
+            >
+              <Plus data-icon="inline-start" aria-hidden="true" />
+              New Department in Master Data
+            </Link>
+          </Button>
         )
       }
     >
+      {governed && (
+        <p className="mb-3 flex items-start gap-2 rounded-md border border-info/25 bg-info/[0.06] p-2.5 text-xs text-muted-foreground text-pretty">
+          <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-info" aria-hidden="true" />
+          <span>
+            Controlled project: use <b>Request removal</b> on a department, or <b>Request department</b>, to change
+            which departments are in scope. The department stays as it is until another Project Control Admin or
+            System Administrator approves. The shared Department record is never changed from here.
+          </span>
+        </p>
+      )}
       <div className="space-y-1.5">
         <Label htmlFor="setup-departments">Departments</Label>
         <ManagedMultiSelect
@@ -102,7 +141,14 @@ export function SetupStepDepartments({
           onChange={handleSelectionChange}
           placeholder="Select departments…"
           controlProps={{ id: "setup-departments" }}
+          disabled={Boolean(governed)}
         />
+        {!governed && !readOnly && (
+          <p className="text-xs text-muted-foreground">
+            Select existing departments to link them to this project. A department that does not exist yet is created
+            in Master Data.
+          </p>
+        )}
       </div>
 
       {assignments.length === 0 ? (
@@ -120,12 +166,23 @@ export function SetupStepDepartments({
                 id={assignment.departmentId}
                 name={departmentName(assignment.departmentId)}
                 context={context}
-                onRemove={() =>
-                  update(
-                    assignments.filter(
-                      (a) => a.departmentId !== assignment.departmentId
-                    )
-                  )
+                onRemove={
+                  governed
+                    ? undefined
+                    : () =>
+                        update(
+                          assignments.filter(
+                            (a) => a.departmentId !== assignment.departmentId
+                          )
+                        )
+                }
+                governedRemoval={
+                  governed && governed.canRequest
+                    ? {
+                        pending: governed.pendingIds.has(assignment.departmentId),
+                        onRequest: () => governed.onRequestRemoval(assignment.departmentId),
+                      }
+                    : undefined
                 }
               >
                 <div className="space-y-3">
@@ -137,6 +194,7 @@ export function SetupStepDepartments({
                     <div className="flex items-center gap-2">
                       <Switch
                         id={`reporting-${assignment.departmentId}`}
+                        disabled={Boolean(governed)}
                         checked={assignment.reportingRequired}
                         onCheckedChange={(checked) =>
                           patchAssignment(assignment.departmentId, {
@@ -162,6 +220,7 @@ export function SetupStepDepartments({
                     <Textarea
                       id={`description-${assignment.departmentId}`}
                       value={assignment.projectDescription ?? ""}
+                      disabled={Boolean(governed)}
                       rows={2}
                       placeholder={
                         departments.find(

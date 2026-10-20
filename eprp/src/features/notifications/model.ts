@@ -8,10 +8,22 @@ export const notificationCategories = {
 } as const;
 export type NotificationCategory = keyof typeof notificationCategories;
 export interface NotificationTarget {
-  type: "weekly" | "monthly" | "milestone" | "calendar";
+  type: "weekly" | "monthly" | "milestone" | "calendar" | "setup_amendment";
   id: string;
   projectId: string;
 }
+/** Compact wording for the in-app toast of a notification (absent: never toasted). */
+export interface NotificationToast {
+  title: string;
+  description: string;
+  /** The toast action; it opens the same deep link as the bell item. */
+  actionLabel: string;
+}
+export interface NotificationDetail {
+  label: string;
+  value: string;
+}
+
 export interface NotificationItem {
   id: string;
   category: NotificationCategory;
@@ -22,6 +34,10 @@ export interface NotificationItem {
   createdAt: string;
   readAt: string | null;
   target: NotificationTarget;
+  toast?: NotificationToast;
+  details?: readonly NotificationDetail[];
+  /** The recipient still has to act on it (e.g. a pending approval). Clear history never removes it. */
+  actionRequired?: boolean;
 }
 export interface NotificationProject { id: string; name: string }
 export interface NotificationPreferences {
@@ -48,11 +64,13 @@ export interface NotificationQuery {
 }
 export interface NotificationPage { items: NotificationItem[]; total: number; page: number; pageCount: number }
 export interface NotificationService {
-  readonly mode: "disconnected" | "development";
+  readonly mode: "disconnected" | "development" | "connected";
   getOverview(): Promise<NotificationOverview>;
   list(query: NotificationQuery): Promise<NotificationPage>;
   setRead(id: string, read: boolean): Promise<void>;
   markAllRead(cutoff: string): Promise<void>;
+  /** Hides the caller's resolved and informational notifications; action-required ones stay. */
+  clearHistory(): Promise<void>;
   savePreferences(preferences: NotificationPreferences): Promise<NotificationPreferences>;
 }
 export const defaultQuery: NotificationQuery = { projectId: "all", category: "all", read: "all", page: 1, pageSize: 10 };
@@ -67,6 +85,8 @@ export function notificationHref(target: NotificationTarget): string | null {
     case "monthly": return `/projects/${target.projectId}/reports/monthly/${target.id}`;
     case "milestone": return `/projects/${target.projectId}/milestones`;
     case "calendar": return `/calendar?event=${target.id}`;
+    // 13.9B: Project Setup -> Setup amendments, with the request focused.
+    case "setup_amendment": return `/projects/${target.projectId}/setup/info?amendment=${target.id}`;
     default: return null;
   }
 }
@@ -110,6 +130,10 @@ export function createNotificationAdapter(mode: NotificationService["mode"] = "d
       const stamp = new Date().toISOString();
       items = items.map((item) => !item.readAt && item.createdAt <= cutoff ? { ...item, readAt: stamp } : item);
     },
+    async clearHistory() {
+      ensureDevelopment(); await pause();
+      items = items.filter((item) => item.actionRequired);
+    },
     async savePreferences(next) {
       await pause();
       const known = new Set(allowed.projects.map((project) => project.id));
@@ -127,7 +151,7 @@ export function developmentNotifications(now = new Date()): { items: Notificatio
   const items = titles.map((title, index): NotificationItem => {
     const project = projects[index % projects.length];
     const category: NotificationCategory = (["approvals", "milestones", "information", "tasks", "weekly", "information", "approvals", "information", "tasks", "information", "monthly", "information"] as const)[index];
-    return { id: `sample-${index}`, category, title, description: "Sample notification for development preview. No actual task, deadline or permission is represented.", projectId: project.id, projectName: project.name, createdAt: new Date(now.getTime() - index * 8 * 3600000).toISOString(), readAt: index > 8 ? now.toISOString() : null, target: { type: index === 1 || index === 7 ? "milestone" : index === 2 || index === 6 || index === 10 ? "monthly" : "weekly", id: `33333333-3333-4333-8333-${String(index).padStart(12, "0")}`, projectId: project.id } };
+    return { id: `sample-${index}`, category, title, actionRequired: index === 0, description: "Sample notification for development preview. No actual task, deadline or permission is represented.", projectId: project.id, projectName: project.name, createdAt: new Date(now.getTime() - index * 8 * 3600000).toISOString(), readAt: index > 8 ? now.toISOString() : null, target: { type: index === 1 || index === 7 ? "milestone" : index === 2 || index === 6 || index === 10 ? "monthly" : "weekly", id: `33333333-3333-4333-8333-${String(index).padStart(12, "0")}`, projectId: project.id } };
   });
   return { items, options: { projects, categories, canFollowProjects: true } };
 }

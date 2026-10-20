@@ -8,7 +8,20 @@ import type { Contact, Project } from "@/types";
 import type { ProjectStructureState } from "../../../use-project-structure";
 import { createStructureActions } from "../../../structure/structure-workspace-contract";
 import { buildTeamDirectory } from "../../../structure/structure-responsibilities";
+import type { AmendmentViewer, SetupAmendment } from "../../../setup-amendments";
+import { StructureGovernancePanel } from "../../governance/structure-governance-panel";
 import { ProjectStructureWorkspace } from "./project-structure-workspace";
+
+/** 13.9B Step 4: present once Project Setup is Controlled. */
+export interface ProjectStructureGovernance {
+  amendments: readonly SetupAmendment[];
+  viewer: AmendmentViewer;
+  /** May propose structure changes (Project Setup authority, not archived). */
+  canPropose: boolean;
+  projectArchived: boolean;
+  /** After a request or a decision: reload amendments, structure and project. */
+  onChanged: () => void;
+}
 
 export interface ProjectStructureStepProps {
   project: Project;
@@ -22,6 +35,13 @@ export interface ProjectStructureStepProps {
   contacts?: Contact[];
   /** The Owner / Client's name, for party labels. */
   clientName?: string;
+  /**
+   * 13.9B Step 4: set when Project Setup is Controlled. The workspace is then
+   * shown read-only (its contract is unchanged) and governed changes are
+   * proposed in the Structure changes panel; descriptions and display order
+   * stay direct there.
+   */
+  governance?: ProjectStructureGovernance;
 }
 
 /**
@@ -36,6 +56,7 @@ export function ProjectStructureStep({
   onProjectChanged,
   contacts,
   clientName,
+  governance,
 }: ProjectStructureStepProps) {
   const { structure: loaded, error, refresh } = structureState;
   // Only this project's structure — never one left over from another project.
@@ -78,6 +99,32 @@ export function ProjectStructureStep({
   }
   if (!structure) {
     return <LoadingState variant="card" label="Loading the project structure…" />;
+  }
+  if (governance) {
+    return (
+      <div className="space-y-6">
+        <ProjectStructureWorkspace
+          project={project}
+          structure={structure}
+          canManage={false}
+          actions={actions}
+          people={people}
+        />
+        <StructureGovernancePanel
+          project={project}
+          structure={structure}
+          amendments={governance.amendments}
+          viewer={governance.viewer}
+          canPropose={governance.canPropose && canManage}
+          projectArchived={governance.projectArchived}
+          actions={actions}
+          onChanged={() => {
+            governance.onChanged();
+            refresh();
+          }}
+        />
+      </div>
+    );
   }
   return (
     <ProjectStructureWorkspace

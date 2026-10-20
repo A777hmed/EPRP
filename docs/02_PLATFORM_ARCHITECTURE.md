@@ -1782,7 +1782,10 @@ A project with no published snapshot — including onboarding mode "no formal
 schedule" — is **not planning-governed**:
 
 - it may show reported Planned % / Actual % entered on its Weekly or Monthly
-  report, always labelled **"Reported — not planning governed"**;
+  report, always labelled **"Reported — not planning governed"** *(as built;
+  from 13.9B the canonical value is the Reported Progress stream below, and
+  from 13.17–13.19 reports reference an entry instead of owning a typed
+  value — §26.24.5)*;
 - **SPI is "N/A"** (never a ratio of typed percentages); variance may be shown
   with the same label;
 - it is excluded from portfolio progress and SPI aggregates and listed as such
@@ -1913,6 +1916,16 @@ Reported Progress stream. It is separate from the Planning Engine. Sequence:
 | ~~B11~~ | **CLOSED 2026-10-15 (owner decision).** Setup-control enforcement gets its own slice, **13.9B — Project Setup Governance**, between 13.9A and 13.10. 13.12 is not overloaded (§26.23.9) | — |
 | ~~B12~~ | **CLOSED 2026-10-15 (owner decision).** A requester may **never** approve their own governed setup amendment. Approval needs a **different** eligible Project Control Admin or System Administrator. There is no break-glass or self-approval exception; if operational evidence later shows one is needed, it is specified as a separate governance decision. Lightweight amendments, which need no approval, are unaffected | — |
 | ~~B13~~ | **CLOSED 2026-10-15 (owner decision).** Canonical Project Lifecycle Status values: **Draft · Active · On Hold · Completed · Cancelled · Archived**. The legacy `planning` and `delayed` stay readable on existing records and later stop being offered as new choices (§26.23.5). Nothing is migrated in 13.9A | — |
+| ~~B15~~ | **CLOSED 2026-10-16 (owner decision).** The database does **not** reproduce the full "Ready for Planning" evaluation. The application checks readiness and gates the action. The database enforces the authoritative invariants of each first-anchor action (authority, not archived, onboarding-mode preconditions, uniqueness) and the **explicit first-anchor confirmation** (§26.24.1) | — |
+| ~~B16~~ | **CLOSED 2026-10-16 (owner decision).** The existing Project Type correction path is kept: **System Administrator only**, single actor, **no second approver**. It is not duplicated in `project_setup_amendments`; Project History shows its own audit row (§26.24.2) | — |
+| ~~B17~~ | **CLOSED 2026-10-16 (owner decision).** Once Setup is Controlled, a meaningful project structure / scope change — add, remove, archive / reactivate, re-parent, or a change of reporting scope — on Departments, Systems, Programs & Studies or the Other-project structure is a **governed amendment**. Harmless display / order changes are not governed unless they alter historical meaning (§26.24.2a) | — |
+| ~~B18~~ | **CLOSED 2026-10-16 (owner decision).** After the first Published Planning Snapshot, `new_project` ↔ `existing_active_project` and planning-governed → `no_formal_schedule` are **prohibited**. Before the first snapshot, an applicable transition on a Controlled project is a **governed amendment**. `no_formal_schedule` → planning-governed is allowed **only** through a governed amendment. Historical snapshots and Reported Progress history are never rewritten (§26.24.6) | — |
+| ~~B19~~ | **CLOSED 2026-10-16 (owner decision).** Finalise Project Setup is **required** before the first Reported Progress entry of a `no_formal_schedule` project | — |
+| ~~B20~~ | **CLOSED 2026-10-16 (owner decision).** A future Reported Progress Data Date is **prohibited**. Back-dated entries are allowed; an entry dated earlier than the project's latest existing Reported Progress Data Date needs a **mandatory reason**. A back-dated entry never overwrites a later entry and never rewrites a frozen or approved historical report; correcting a historical report stays a separate report-revision concern (§26.24.5) | — |
+| ~~B21~~ | **CLOSED 2026-10-16 (owner decision).** Reported Progress is recorded, corrected and withdrawn **only** by the System Administrator, a Project Control Admin, or the project's assigned Project Control / Planning. **Not** the Reporting Coordinator, department users or ordinary members | — |
+| ~~B22~~ | **CLOSED 2026-10-16 (owner decision).** The proposed classes are accepted with one change: **Forecast Finish is governed**, not lightweight, once Controlled — until Planning becomes its canonical owner, when it becomes Planning-owned and read-only in Project Setup, derived from the governed Planning / Published Planning Snapshot (13.14). Actual Start / Actual Finish stay **lightweight**. Unchanged: Project Type = the existing System-Administrator-only correction; Priority, `overallStatus` and the typed progress pair = retired; Planned Start / Finish = superseded by an approved BL0 from 13.12 (§26.24.2) | — |
+| ~~B23~~ | **CLOSED 2026-10-16 (owner decision).** Finalise Project Setup is **not reversible**. The finalisation record stays historical truth. A later move from `no_formal_schedule` to planning-governed is a new governed transition (B18); it never deletes or reverses the finalisation, and Setup stays Controlled | — |
+| ~~B24~~ | **CLOSED 2026-10-16 (owner decision).** If a project is archived while an amendment request is pending, the request row stays **immutable** as history (its stored status is not changed); no approve, reject or withdraw action is possible; it is excluded from active approval queues; the UI shows the derived state **"Frozen — project archived"**; Project History shows it normally (§26.24.8) | — |
 | ~~B14~~ | **CLOSED 2026-10-15 (owner decision).** "No formal schedule" progress lives in a dedicated append-only **Reported Progress stream** (§26.14), delivered by 13.9B. It is neither the project-record progress fields nor Weekly. 13.9A shows only the read-only "Reported — not planning governed" state | — |
 
 **Conformance — an implementation conforms to §26 when:**
@@ -2533,12 +2546,15 @@ Rules:
    configuration becomes controlled afterward. That action is approving BL0,
    publishing the first snapshot, promoting an Opening Position or finalising
    setup. Because the states run in sequence, the first anchor requires Ready
-   for Planning.
-3. **Onboarding Mode changes after Controlled:**
+   for Planning. *(B15, closed 2026-10-16: the application checks readiness;
+   the database enforces the action's authoritative invariants and the
+   explicit confirmation, not the full readiness evaluation.)*
+3. **Onboarding Mode changes after Controlled** (B18, closed 2026-10-16; full
+   matrix in §26.24.6):
    - Moving from "no formal schedule" to a governed mode is a governed
      amendment. The project becomes planning-governed at its first snapshot.
-   - Moving from a governed mode to "no formal schedule" is refused once a
-     snapshot exists (§26.14).
+   - Moving from a governed mode to "no formal schedule", and between the two
+     governed modes, is refused once a snapshot exists (§26.14).
 4. **Before Controlled, setup editing works as today.**
 
 **Field classes once Controlled:**
@@ -2552,8 +2568,15 @@ Rules:
 
 **Project Type.** The System-Administrator-only structure-family correction
 (`05` §3.6, as built) remains the only route to change a locked Project Type,
-because it is stricter than a governed amendment. Once Controlled, that
-correction is also recorded as a setup amendment.
+because it is stricter than a governed amendment. *(Refined 2026-10-16,
+§26.24.2.)* It keeps its own audit table. Project History shows it beside the
+setup amendments, rather than duplicating it as an amendment row. No second
+System Administrator is needed once Controlled (B16, closed 2026-10-16).
+
+*(Refined 2026-10-16, §26.24.1.)* An approved BL0 becomes an anchor only from
+13.12. `planning_baselines` has no approval today. In 13.9B the anchors are
+the first Published Snapshot and the Setup Finalisation, and the "Superseded
+by BL0" dates take effect only once 13.12 delivers BL0 approval.
 
 #### 26.23.7 Setup amendment record (D8)
 
@@ -2641,9 +2664,359 @@ Rules:
 | **13.9A** Planning Experience Foundation | The UI / IA foundation: sidebar, Workspace shell and sections, Project Setup regrouping, compact Planning Status shell, Opening Position moved, Project Progress shell and states, manual update removed for governed projects. Roadmap Phase 13 |
 | **13.11** | Master Plan hardening and Guided / Advanced setup inside the Workspace |
 | **13.9B** Project Setup Governance *(B11, closed)* | The setup state with Controlled enforcement and first-anchor transition rules and confirmation; field classes; `project_setup_amendments` with lightweight amendments and governed approval (no self-approval, B12); the Finalise Project Setup record for no-formal-schedule projects; the Reported Progress stream and its write workflow (B14); History integration; RLS, service and UI authority. Superseded Planned Start / Finish is enforced once an approved BL0 exists; BL0 approval itself arrives in 13.12. Separate from the Planning Engine |
-| **13.12** | BL0 / BLn (the BL0 anchor then feeds the 13.9B rules); BL0 / BLn in the header strip and Progress header |
+| **13.12** | BL0 / BLn (the BL0 anchor then feeds the 13.9B rules: "Superseded by BL0" dates and the Controlled-without-snapshot mode transitions of §26.24.6); BL0 / BLn in the header strip and Progress header |
 | **13.13** | The Resources section and the manpower analytics section |
-| **13.14** | Progress analytics content (KPIs, S-curve, WBS performance, exceptions), Planning Status figures and Schedule Condition, and retirement of `overallStatus` as an input; legacy lifecycle values `planning` / `delayed` stop being offered (B13, readable on existing records) |
+| **13.14** | Progress analytics content (KPIs, S-curve, WBS performance, exceptions), Planning Status figures and Schedule Condition, and retirement of `overallStatus` as an input; legacy lifecycle values `planning` / `delayed` stop being offered (B13, readable on existing records); Forecast Finish becomes Planning-owned and read-only in Project Setup for planning-governed projects (B22) |
 | **13.16** | Imports & Review over Schedule Versions and their history |
 | **13.20** | Any deliberate reintroduction of a project-priority model |
 | *Unscheduled* | Retiring the long project-details page in favour of Overview; the Contacts / Project People convergence assessment |
+
+### 26.24 Project Setup Governance — 13.9B specification (2026-10-16)
+
+**Status: SPECIFICATION — design review complete; owner decisions B15–B24
+closed 2026-10-16. Step 1 (governance core: registry, Controlled
+derivation, amendments, setup guard, onboarding transitions, publish
+confirmation / no-formal guard, field-change log) implemented on the local
+development database only, 2026-10-16. Step 2 (Setup Finalisation, Reported
+Progress stream, legacy classification bootstrap) implemented locally
+2026-10-17. Step 3 (services, Setup governance UI, Reported Progress UI, History, Contacts / Sites / Parties history) implemented locally 2026-10-17. Step 4 not started; not closed.** This refines
+§26.23.6–§26.23.7 into an implementable design. Approved inputs: D1–D9 and
+B11–B24 (§26.19). No owner decision remains open for 13.9B.
+- Logical data model: `06` §10A.11.
+- Authority: `05` §3.9.
+- UI: `07` §10.12.
+
+It is a **configuration governance layer**. It contains no Planning Engine
+logic and changes no snapshot, baseline or report.
+
+#### 26.24.1 Setup lifecycle derivation
+
+| State | Holds when | Decided by |
+|---|---|---|
+| **Draft** | Not Controlled, and a required setup check fails | Application, from the existing setup checks |
+| **Ready for Planning** | Not Controlled, and every required setup check passes | Application |
+| **Controlled** | `project_setup_controlled_since(project)` is not null | **Database**, from immutable anchors (`06` §10A.11.2) |
+
+**Anchors:**
+- in 13.9B: the first Published Planning Snapshot, including a promoted
+  Opening Position, and the Setup Finalisation of a no-formal-schedule
+  project;
+- from 13.12: also the first approved BL0. `planning_baselines` has no
+  approval today, so a captured baseline is **not** an anchor.
+
+Controlled is never a stored or editable status, never reverts, and needs no
+backfill. Projects that already have a snapshot are Controlled at rollout.
+
+**Confirmation before the first anchor.** The action that would create the
+first anchor needs an explicit acknowledgement.
+- **Publish Snapshot** and **Promote Opening Position:** enforced in the
+  database by a new `p_confirm_setup_control` argument to
+  `publish_planning_snapshot()`. It is required whenever the project is not
+  yet Controlled, so a non-UI caller cannot skip it. 13.12 must keep this
+  argument when it reworks publish.
+- **Finalise Project Setup:** the confirmation is part of the action itself.
+
+**Readiness versus invariants (B15, closed).** The database does **not**
+re-evaluate "Ready for Planning"; the application checks it and offers the
+first-anchor action only when it passes. The database enforces, for every
+caller, the invariants that make the anchor authoritative:
+- the explicit confirmation (above);
+- authority (§26.24.5 and `05` §3.9) and the archived guard (§26.24.8);
+- the onboarding-mode precondition: Finalise needs a stored
+  `no_formal_schedule`; Publish and Promote are **refused while the stored
+  mode is `no_formal_schedule`**, so a project cannot become
+  planning-governed except through the mode transition of §26.24.6;
+- uniqueness: one finalisation per project.
+
+#### 26.24.2 Field-governance matrix (definitive, by stored field)
+
+After Controlled:
+
+| Class | Fields (`projects` column / relation) | Change path |
+|---|---|---|
+| **Free / logged** | `status` (Lifecycle Status) · `current_phase_id` · `portfolio_group_id` · `description` · responsibilities (`project_manager_id`, `project_control_manager_id`, `client_representative_id`, `reporting_coordinator_id`, `project_sponsor_id`) · Team and positions · contacts (`client_contact_*`, project contacts) · location (`site`, `country`, `city`, sites) · branding (`project_logo_ref`, `client_logo_ref`, `report_header_title`, `report_footer_text`, `report_reference_prefix`, `default_language`, `include_qr_code`, `include_signature_section`) · subcontractor parties (B22) · harmless structure display attributes (§26.24.2a) | Direct edit as today (2C.3E responsibility rules unchanged). Logged in `project_setup_field_changes` |
+| **Lightweight amendment** | `name` · `short_name` · `contract_number` · `purchase_order_number` · `actual_start_date` · `actual_finish_date` (B22) | Amendment with a mandatory reason; applied at once; no approval |
+| **Governed amendment** | `code` · `client_id` · `project_type_id` + `project_category_detail` (Other-project classification) · Planning Onboarding Mode (subject to the §26.24.6 matrix) · reporting frequency (`weekly_enabled`, `monthly_enabled`, `executive_enabled`, `weekly_reporting_day`) · reporting cut-off and period definition (`monthly_cutoff_day`, `working_week`, `time_zone`) · `currency` (B22) · `milestone_update_approval` (B22) · `contract_start_date` · **`forecast_finish_date`** (B22, until Planning owns it — see below) · `planned_start_date` / `planned_finish_date` (until an approved BL0) · structure scope: Departments, Systems, Programs & Studies, and the Other-project structure (B17, §26.24.2a) | Request with reason and impact warning; applied only on approval by a **different** eligible Project Control Admin or System Administrator |
+| **System-Administrator-only correction** *(existing, unchanged)* | `structure_family` (Project Type) | The existing `correct_project_structure_family()`, with its own audit (2C.1). Single actor; **no second approver** (B16, closed). Not duplicated in `project_setup_amendments`; Project History shows its own audit row |
+| **Superseded** *(from 13.12)* | `planned_start_date` / `planned_finish_date` once an approved BL0 exists | Not editable. Shown as "Superseded by approved Planning Baseline BL0". Dates change through Planning re-plan / re-baseline only |
+| **Planning-owned** *(from 13.14, planning-governed projects)* | `forecast_finish_date` | Read-only in Project Setup; derived from the governed Planning / Published Planning Snapshot. Until 13.14 it is **governed** (row above). A `no_formal_schedule` project has no Planning owner, so it stays governed |
+| **Retired / hidden** | `priority` · `overall_status` · `planned_progress` · `actual_progress` | No change after Controlled. An unchanged value passes, because the form re-sends hidden columns |
+
+Before Controlled every field behaves exactly as today. Existing stricter
+rules stay stricter: the Project Type correction remains System
+Administrator only, and the responsibility rules of `05` §3.7 apply.
+
+**Legacy classification bootstrap (owner closure 2026-10-17; as built in
+13.9B Step 2).** A **Controlled** project whose Project Type is still NULL
+(never classified) is classified **once**, by the **System Administrator**,
+through the existing Project Type correction
+(`correct_project_structure_family()`). That one atomic correction may set
+or clear the Project Category / custom category needed for a valid initial
+classification. It is recorded once in the existing classification history
+(`project_classification_corrections.correction_kind = 'legacy_bootstrap'`,
+old family NULL, at most one per project) and **never** as a
+`project_setup_amendment`. Once the project has a Project Type the exception
+is over: later family changes are the ordinary System Administrator
+correction and later Category changes are governed amendments. A project
+that is **not** Controlled still classifies through Project Setup exactly as
+before (2C.1). *(Step 1 briefly let any setup manager classify a Controlled
+legacy project through Project Setup; Step 2 withdrew that.)* The local
+preflight found all eight snapshot-anchored projects in this state.
+
+#### 26.24.2a Structure-scope changes after Controlled (B17, closed 2026-10-16)
+
+The rule is "**meaningful** structure / scope change → governed; harmless
+display / order change → not governed, unless it alters historical meaning".
+Because the database cannot judge meaning, each stored attribute is classed
+deterministically. **Renames are governed** (owner decision 2026-10-16): a
+rename can alter how historical reports read even when the underlying id is
+stable, so every unit or level rename is governed rather than inferred.
+
+| Relation (as built) | Governed amendment | Free / logged |
+|---|---|---|
+| **Departments** (`project_departments`) | Add or remove a department · `reporting_required` · its `systems` scope | `project_description` · `lead_name` (non-semantic notes) |
+| **Systems and Programs & Studies** (`project_disciplines`: discipline ↔ department ↔ system) | Add, remove or move (re-parent) a discipline / system link | — |
+| **Other-project structure units** (`project_structure_nodes`) | Add a unit · archive / reactivate (remove) · change `parent_id` (re-parent) · `weekly_reporting_required` / `monthly_reporting_required` (reporting scope) · **rename** (`name`, `code`) | `sort_order` · `description` |
+| **Other-project levels** (`project_structure_levels`, via `configure_project_structure_levels()`) | Add or remove a level · **rename** (`singular_label` / `plural_label`) | — |
+| Unit responsibilities and members (2C.3 / structure responsibilities) | — | Free, as today, under their own history (not duplicated in the field-change log) |
+
+There is no lightweight structure class.
+
+*As built (13.9B Step 4, 2026-10-17; migration 20261019090000 — reconciled
+from the earlier "whole relation, through the editor write paths" wording,
+per the owner's Step 4 instruction for a structured target / action
+payload):*
+
+- A governed structure amendment is **one action on one target**, in the
+  same `project_setup_amendments` model as a field amendment (no second
+  approval system). `field_key` is the relation key (`structure_units`,
+  `structure_levels`, `structure_departments`, `structure_disciplines`);
+  `target_key` names the target (`unit:<id>`, `add:<parent>:<level>:<name>`,
+  `levels`, `department:<id>`, `discipline:<id>`); `proposed_value` is
+  `{action, …payload, labels}`; `previous_value` is the server's read of
+  **that target's** state. Actions:
+  - units: `add` · `rename` · `move` · `archive` · `restore` ·
+    `set_reporting_scope`;
+  - levels: `rename_level` · `add_level` · `remove_level`;
+  - departments: `add_department` · `remove_department` ·
+    `set_department_scope` (systems and reporting);
+  - Programs & Studies: `add_discipline` · `move_discipline` ·
+    `remove_discipline` (never merged with Disciplines).
+- **One pending request per project, key and target**: unrelated targets can
+  be pending together; a second request on the same target is refused.
+- The request is validated against the live structure up front, with the
+  same rules the structure triggers enforce. Examples: parent on the level
+  above, no active children before archive, no people before archive,
+  unique active names and codes, no reporting overlap, at most four levels,
+  only the deepest empty level removed, systems belonging to the department,
+  no removal of a department or system still used by a Program & Study.
+- **Approval** (a different PCA / SA, B12) re-reads the target's state:
+  - if it changed, the request is recorded **stale** and nothing is applied;
+  - if the target is unchanged but the change is no longer valid (a sibling
+    took the name, a child was added), it is stale with the reason;
+  - otherwise the change is applied **in the decision transaction** by an
+    internal targeted write.
+
+  That write is internal and not callable by any client. Every existing
+  structure trigger still applies to it: archived, 2C.1c, 13.6 people,
+  overlap and level checks. The full-set editor RPCs are not reused because
+  they replace a whole relation and check the caller's page version, which a
+  single approved change does not carry.
+- **Database guard** `guard_structure_setup_controlled` on the four tables
+  compares old and new. Once Controlled:
+  - a governed change is accepted only in the transaction that approved the
+    amendment for exactly that key and target;
+  - unchanged saves pass;
+  - order, descriptions, department lead and project description stay free;
+  - before Controlled nothing changes.
+
+  The Programs & Studies save now writes differences only, so an unchanged
+  save is a no-op.
+- Every applied or free structure change is recorded once, with its before
+  and after, in `project_setup_relation_changes` (`06` §10A.11.8).
+- Archive-not-delete and the existing referenced-record rules are unchanged.
+  Once Controlled, a unit is removed by archiving it; a delete is refused.
+
+#### 26.24.3 Amendments
+
+**Server functions** (no direct table writes):
+- **Request:**
+  - The server reads the current value as `previous_value`, refusing with
+    PT409 if the caller's base value is no longer current.
+  - It takes the class and impact warning from the registry.
+  - A lightweight request is applied in the same transaction (`applied`). A
+    governed one is stored as `pending`.
+- **Decide (approve / reject):**
+  - Locks the amendment and the project.
+  - Requires `pending`, and an eligible decider other than the requester.
+  - Approve re-checks the authoritative value: if it changed, the request is
+    recorded `stale` and nothing is applied. Otherwise the value is applied
+    through the guarded path and the request is recorded `approved`.
+  - Reject requires a comment.
+- **Withdraw:** the requester, or a Project Control Admin / System
+  Administrator, moves a `pending` request to `withdrawn`.
+
+**History** shows every request and its single decision. Nothing is
+overwritten or deleted.
+
+#### 26.24.4 Self-approval and concurrency (database-enforced)
+
+| Situation | Deterministic outcome |
+|---|---|
+| Requester approves own request | Refused (42501), every role, including System Administrator. No break-glass |
+| Two requests for the same field | The second is refused: one `pending` per (project, field), by unique index |
+| Value changes while a request is pending | Approval records `stale`, applies nothing, and tells the decider |
+| Concurrent / duplicate approval | Row lock; the second decision finds the request no longer `pending` and is refused (PT409) |
+| Direct edit of a governed field after Controlled | Refused (`[SETUP_CONTROLLED]`). The UI offers "Amend" |
+| Project becomes Controlled while a setup form is open | The save is refused for any changed governed field, with "Setup is now controlled — use Amend". Free fields still save |
+| Duplicate Finalise | The second is refused: one finalisation per project (unique) |
+| Second Reported Progress entry for the same Data Date | Refused; the user corrects the existing entry instead |
+| Back-dated Reported Progress entry without a reason | Refused (B20) |
+| Two corrections of the same entry | The second is refused: the unique successor keeps the chain linear |
+| Project archived while a request is pending | The stored row is not changed (B24). Approve, reject and withdraw are refused for every role; the UI shows the derived state "Frozen — project archived" (§26.24.8) |
+
+Every setup-governance write serialises on the existing Project Setup
+advisory lock used by `save_project_setup_patch()`.
+
+#### 26.24.5 Finalise Project Setup and Reported Progress
+
+**Finalise Project Setup** (no-formal-schedule only):
+- **Allowed for:** System Administrator, Project Control Admin, or the
+  project's assigned Project Control / Planning.
+- **Requires:**
+  - the project is not archived and not already Controlled;
+  - the stored onboarding mode is `no_formal_schedule`;
+  - the confirmation.
+- **Records** an append-only finalisation.
+- **Never** creates a snapshot, a figure or planning governance.
+- **Not reversible** (B23, closed). There is no un-finalise path. The
+  finalisation record stays historical truth. Later setup changes go through
+  amendments; a later move to a planning-governed mode is a new governed
+  transition (§26.24.6) that neither deletes nor reverses the finalisation,
+  and Setup stays Controlled.
+
+**Reported Progress** (B19–B21, closed 2026-10-16):
+- **The canonical stream** for a not-planning-governed project (`06`
+  §10A.11.5).
+- **Who writes** (B21): only the System Administrator, a Project Control
+  Admin, or the project's assigned Project Control / Planning —
+  `can_manage_project_operations(project)`. Never the Reporting Coordinator,
+  department users or ordinary members; never a Weekly or Monthly path.
+- **When it is writable:** the stored onboarding mode is
+  `no_formal_schedule`, the project is **Finalised** (B19), no Published
+  Planning Snapshot exists, and the project is not archived. After a governed
+  transition to a planning-governed mode, the stream is frozen history,
+  labelled "before planning governance".
+- **Data Date** (B20):
+  - never later than today in the project's time zone;
+  - back-dating is allowed. A `report` whose Data Date is earlier than the
+    project's latest **valid** Reported Progress Data Date (the greatest Data
+    Date whose chain head is not a withdrawal — owner wording 2026-10-17)
+    needs a **mandatory reason**, and is stored as back-dated (set by the
+    server, never by the caller);
+  - a correction or withdrawal keeps the Data Date of the entry it
+    supersedes and always carries its own reason;
+  - one original `report` per Data Date; a second is refused (correct the
+    existing entry instead).
+- **Chain rules (as built, Step 2).** `report → correction* → [withdrawal]`
+  per Data Date.
+  - Only the **current head** (an entry nothing supersedes) can be corrected
+    or withdrawn; acting on a superseded entry is refused, so two users
+    working from the same screen cannot both succeed.
+  - One successor per entry (unique), within the same project and Data Date
+    (composite foreign key). Chains cannot fork, cross projects or cycle
+    (rows are insert-only and a successor references an earlier row).
+  - **A withdrawal is final** (design decision): it cannot be corrected or
+    withdrawn again. That Data Date then has no valid position; because the
+    original report is unique per date, it cannot be reported again.
+- **Latest valid position:** the head of a chain (no successor) with the
+  greatest Data Date whose kind is not `withdrawal`. A back-dated entry never
+  becomes "latest" unless its date is the latest, and never overwrites or
+  supersedes a later entry.
+- **History is never rewritten.** A new, back-dated or corrected entry never
+  changes a frozen or approved Weekly / Monthly / Executive report that
+  referenced an earlier entry. Correcting a historical report is a separate
+  **report-revision** concern (`03` §12), never a side effect of the stream.
+- **Project Progress shows:**
+  - the latest valid entry: Data Date, reported actual %, reported planned %
+    where given, narrative and provenance;
+  - its correction history, with back-dated entries marked;
+  - always "Reported — not planning governed" and SPI "N/A".
+- **Never shown:** PV, EV, planning SPI or an S-curve.
+- **Update Reported Progress** adds a `report`, or a `correction` /
+  `withdrawal` that supersedes the head of a chain with a reason. It is
+  offered only to the B21 set, only when the stream is writable.
+- **Weekly and Monthly** may later reference an entry by id, pinned at
+  approval (13.17–13.19); they never copy, write or own it.
+
+#### 26.24.6 Planning Onboarding Mode transitions after Controlled
+
+B18, closed 2026-10-16. The stored mode lives in
+`project_planning_settings.onboarding_mode`.
+
+| From → To | Not Controlled | Controlled, **no** Published Snapshot | A Published Snapshot exists | Effect on history |
+|---|---|---|---|---|
+| `no_formal_schedule` → `new_project` / `existing_active_project` | Free, as today | **Governed amendment** | **Governed amendment** *(only reachable for legacy data: from 13.9B a snapshot cannot be published while the mode is `no_formal_schedule`, §26.24.1)* | Reported Progress becomes frozen history, labelled "before planning governance". The finalisation record stays (B23). The project is "awaiting first Published Planning Snapshot" until one is published |
+| `new_project` / `existing_active_project` → `no_formal_schedule` | Free, as today | **Governed amendment** *(e.g. a Finalised project already moved to a planned mode, before its first snapshot; from 13.12 also a project Controlled by an approved BL0 — the BL0 stays as history)* | **Prohibited** — the snapshot is a planning fact (§26.14) | Snapshots stay official history |
+| `new_project` ↔ `existing_active_project` | Free, as today | **Governed amendment** *(same cases)* | **Prohibited** — the first snapshot already embodies how planning began | No snapshot or Opening Position is altered |
+
+Notes:
+- **Corrected 2026-10-16 (13.9B Step 1).** Controlled without a snapshot
+  arises from a Setup Finalisation (Step 2) — including a Finalised project
+  that has since moved to a planned mode but not yet published — and, from
+  13.12, from an approved BL0. All three cells in that column are therefore
+  live once Step 2 ships. In Step 1 the only anchor is a snapshot, so that
+  column cannot occur yet; `project_onboarding_transition_rule()` already
+  implements it and Step 2's runtime suite proves it.
+- A prohibited transition is refused by the database, and the UI does not
+  offer it. A governed transition is applied only by an approved amendment
+  in the same transaction (`06` §10A.11.6).
+- **Nothing historical is rewritten:** no snapshot, Opening Position,
+  baseline, finalisation or Reported Progress entry changes on any
+  transition.
+
+#### 26.24.7 History and audit integration
+
+- **Structured records are the source:**
+  - amendments (requests and decisions);
+  - finalisations;
+  - Reported Progress entries and corrections;
+  - free-field changes (`project_setup_field_changes`);
+  - the existing classification corrections and responsibility history.
+- **Project History** (still mock today) gains a real **Setup & governance**
+  feed that reads those tables. It shows actor, time, reason and before /
+  after for each event.
+- **No second audit system.** The field-change log exists only because
+  nothing generic exists yet, and the platform Audit Trail (§19) will absorb
+  it.
+
+#### 26.24.8 Archived projects
+
+- Every new table and action follows the 13.9 / 2C.3E guards. Archived
+  projects refuse every:
+  - amendment request, decision or withdrawal;
+  - Finalise;
+  - Reported Progress entry or correction.
+
+  This applies for every role, at the data boundary.
+- History stays readable.
+- **Pending amendment requests on an archived project** (B24, closed
+  2026-10-16):
+  - the stored request row is **not changed** — it keeps status `pending` as
+    immutable history; no "withdrawn" or "stale" is recorded because of the
+    archive;
+  - approve, reject and withdraw are refused for every role (the archived
+    guard);
+  - it is excluded from every active approval queue;
+  - the UI shows the **derived** state **"Frozen — project archived"**,
+    computed from `status = pending` plus the project's archived state —
+    never stored;
+  - Project History lists it normally with its request details.
+  - If an archived project is ever restored, the row was never altered, so
+    the request is decidable again and the stale check (§26.24.4) still
+    protects it.
+- **Defence in depth:**
+  - **Database:** the guard triggers.
+  - **Services:** archived refusals are mapped to plain sentences.
+  - **UI:** no Amend, Approve, Finalise or Update Reported Progress controls,
+    and the existing "Archived · read-only" notice.

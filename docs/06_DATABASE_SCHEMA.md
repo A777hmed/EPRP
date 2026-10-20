@@ -709,30 +709,351 @@ milestones; a stored calendar event of type "milestone".
 5. **Archived projects are read-only** for every entity in this group.
 6. **Manpower never enters SPI.**
 
-### 10A.11 Future note — Project Setup Governance (13.9B) *(logical intent only; not specified)*
+### 10A.11 Project Setup Governance (13.9B) — logical design *(specified 2026-10-16; Steps 1–3 implemented locally 2026-10-16 / 2026-10-17)*
 
-> **FUTURE — not a schema.** Approved on 2026-10-15 (`02` §26.23.6–§26.23.7,
-> §26.14; closed decisions B11, B12, B14). The entities are specified here only
-> when roadmap slice **13.9B** is specified. No physical table, column or
-> constraint is defined yet. Three append-only records are intended:
-> - a **Project Setup Amendment** (`project_setup_amendments`):
->   - field, previous / new value, reason, class, impact warning;
->   - requester and time, status, approver and decision;
->   - the approver is never the requester.
-> - a **Setup Finalisation** record for no-formal-schedule projects: project,
->   actor, time. It never implies a Planning Snapshot.
-> - a **Reported Progress** entry for no-formal-schedule projects:
->   - project and Data Date / as-of date;
->   - reported planned progress (where applicable) and reported actual
->     progress;
->   - narrative, actor, timestamp and source / provenance.
->
-> This entry becomes the canonical progress source for those projects only.
-> The project record's progress fields and Weekly / Monthly are not.
->
-> **Project Priority** and the legacy Lifecycle Status values `planning` /
-> `delayed` remain stored and readable. Nothing is deleted or migrated by this
-> decision.
+**Status: Step 1 (governance core) and Step 2 (finalisation, Reported
+Progress, legacy classification bootstrap) IMPLEMENTED on the local
+development database only** — migrations
+`20261016090000_project_setup_governance_core.sql` and
+`20261017090000_project_setup_finalise_reported_progress.sql`: §10A.11.2
+(snapshot and finalisation anchors), §10A.11.3–§10A.11.8 (structure
+relations of §10A.11.6 are Step 4). Architecture: `02` §26.24. Authority:
+`05` §3.9. Closed decisions B11–B24 (`02` §26.19; B15–B24 closed
+2026-10-16). Names below are the built names.
+
+#### 10A.11.1 Shared rules
+
+1. **Writes only through hardened server functions** (SECURITY DEFINER, with
+   `search_path` fixed and EXECUTE revoked from `anon`). There are no direct
+   INSERT / UPDATE / DELETE grants. This is the `project_classification_corrections`
+   pattern (2C.1).
+2. **Append-only.**
+   - No row is ever deleted, including by a System Administrator. Removal
+     happens only through the project's own `ON DELETE CASCADE`, which never
+     occurs because projects are archived, not deleted.
+   - The only permitted UPDATE is the single **write-once decision transition**
+     of an amendment (§10A.11.3), enforced by trigger.
+3. **People are recorded as auth-user id + name captured at the time**, with
+   no FK that could block or rewrite history (2C.1 pattern).
+4. **Transaction binding.** Every row that authorises a change to a
+   governed value carries `transaction_id = pg_current_xact_id()`. The guard
+   on the governed table accepts the change only when the **same transaction**
+   wrote the matching row (§10A.11.6). This is the 2C.1 classification-lock
+   pattern.
+5. **Archived projects.** Every new table carries a BEFORE INSERT / UPDATE /
+   DELETE archived guard, installed first among its triggers, both ends of
+   an UPDATE checked, failing closed:
+   - setup governance tables use the 2C.3E `guard_archived_project_setup()`
+     wording;
+   - Reported Progress uses the 13.9 `guard_archived_project_planning()`
+     pattern.
+
+   Reads are unaffected.
+6. **Read visibility.** Rows are readable by whoever can read the project:
+   `can_access_project(project_id)`, the canonical project READ predicate.
+   Nothing here widens visibility.
+
+#### 10A.11.2 Setup control — derived, never stored as a status
+
+`project_setup_controlled_since(project) → timestamptz | null` is a stable
+function returning the **earliest governance anchor**:
+
+| Anchor | Source | Available from |
+|---|---|---|
+| First Published Planning Snapshot (including a promoted Opening Position, Snapshot V1) | `min(planning_snapshots.published_at)` | 13.9B (exists today) |
+| Setup Finalisation (no-formal-schedule) | `project_setup_finalisations.finalised_at` | 13.9B |
+| Approved Original Baseline BL0 | the 13.12 Baseline Revision approval | **13.12**. `planning_baselines` has no approval today and is **not** an anchor |
+
+Rules:
+- `project_setup_controlled(project)` is `controlled_since IS NOT NULL`.
+- Anchors are immutable: snapshots have no DELETE path and finalisations are
+  append-only. So Controlled never reverts and needs no backfill. Projects
+  that already have a snapshot are Controlled from the moment 13.9B ships.
+- **Draft vs Ready for Planning stays derived in the application** (the
+  existing setup checks in `project-workflow.ts`). The database does not
+  evaluate readiness (B15, closed). It enforces the first-anchor invariants
+  instead: the explicit confirmation (`p_confirm_setup_control` on
+  `publish_planning_snapshot()`; the acknowledgement on Finalise), authority,
+  the archived guard, one finalisation per project, and the onboarding-mode
+  precondition — Finalise requires `no_formal_schedule`, and
+  `publish_planning_snapshot()` (publish and Opening Position promotion) is
+  refused while the stored mode is `no_formal_schedule`.
+
+#### 10A.11.3 Project Setup Amendment — `project_setup_amendments`
+
+| Attribute | Rule |
+|---|---|
+| `id` | uuid PK |
+| `project_id` | FK projects, NOT NULL |
+| `field_key` | NOT NULL. One key from the **fixed field-governance registry** (§10A.11.7) — never free text |
+| `amendment_class` | `lightweight` \| `governed` — taken from the registry by the server, never from the caller |
+| `previous_value` | jsonb NOT NULL. The authoritative value **read by the server at request time**. This is the "based-on" reference used for stale detection |
+| `proposed_value` | jsonb NOT NULL; must differ from `previous_value` |
+| `reason` | text NOT NULL, not blank |
+| `impact_warning` | text NOT NULL. Generated from the registry and stored exactly as shown to the requester |
+| `requested_by` / `requested_by_name` / `requested_at` | NOT NULL |
+| `status` | `applied` (lightweight only) · `pending` · `approved` · `rejected` · `withdrawn` · `stale` |
+| `decided_by` / `decided_by_name` / `decided_at` | NULL until decided; written once. A system-recorded `stale` has no decider |
+| `decision_comment` | Optional on approve; **required on reject** |
+| `applied_transaction_id` | xid8. Set when the value is applied (`applied` / `approved`); NULL otherwise |
+| `impact_code` / `request_transaction_id` / `source` | *As built:* the registry's impact code; the request's transaction; provenance (`project_setup` only) |
+| `target_key` | *As built 13.9B Step 4 (migration 20261019090000):* text NOT NULL, default `''`. Empty for a field amendment. For a structure amendment, the target it changes: `unit:<id>` · `add:<parent id \| root>:<level>:<lower(name)>` · `levels` · `department:<id>` · `discipline:<id>`. Written by the server, never by the caller |
+
+**Constraints.**
+- Request columns are immutable.
+- A `governed` row starts `pending`; a `lightweight` row starts and stays
+  `applied`.
+- Allowed transitions: `pending → approved | rejected | withdrawn | stale`,
+  **exactly once**.
+- `decided_by ≠ requested_by` for `approved` / `rejected` (B12).
+- **At most one `pending` amendment per (project, field_key, target_key)**,
+  as a partial unique index (Step 4 added `target_key`; for field amendments
+  it is empty, so the rule there is unchanged: one per field).
+- **Archived project** (B24, closed): no transition is possible — the
+  archived guard refuses decide and withdraw. The row keeps `pending`
+  unchanged; "Frozen — project archived" is a **derived** read state
+  (`status = 'pending'` and the project archived), never stored. Active
+  approval queues exclude it; History lists it.
+- **Structure amendments** (B17) use one registry key per relation:
+  `structure_departments`, `structure_disciplines`, `structure_levels`,
+  `structure_units`. *As built (Step 4):* each is one action on one target.
+  - `previous_value` is that target's state (the stale basis).
+  - `proposed_value` is `{action, …payload, labels}`. The labels are names
+    the server read at request time, for display.
+  - Requested through `request_project_structure_amendment(project,
+    field_key, proposed, reason)`.
+  - Decided by the same `decide_project_setup_amendment()`. A changed
+    target state, or a change that is no longer valid, records `stale`.
+  - Applied in the decision transaction by the internal
+    `project_setup_apply_structure()`. `02` §26.24.2a.
+
+**Stale detection is value-based, not row-version-based.** Unrelated edits to
+other fields never stale a request.
+- At decision time, if the field's current authoritative value is distinct
+  from `previous_value`, the decision records `stale` (committed, with no
+  value applied) instead of `approved`. The decider is told why.
+- A request is refused at creation (PT409) if the caller's displayed base
+  value is no longer current.
+
+#### 10A.11.4 Setup Finalisation — `project_setup_finalisations`
+
+| Attribute | Rule |
+|---|---|
+| `id` | uuid PK |
+| `project_id` | FK projects, NOT NULL, **UNIQUE**: one finalisation per project, so a duplicate is refused deterministically |
+| `onboarding_mode_at_finalisation` | CHECK = `no_formal_schedule` |
+| `state_before` / `state_after` | CHECK = `not_controlled` / `controlled`. Constant provenance: the row can only be written for a not-Controlled project, and its existence makes the project Controlled |
+| `acknowledgement` | text NOT NULL. The confirmation statement shown, stored as shown |
+| `note` | Optional context |
+| `finalised_by` / `finalised_by_name` / `finalised_at` | NOT NULL |
+| `transaction_id` | xid8 |
+| `source` | *As built:* `project_setup` (provenance) |
+
+*As built:* written only by `finalise_project_setup(project, confirm,
+acknowledgement, note)` — `can_manage_project_operations()`, `confirm = true`
+and a non-blank acknowledgement, under the Project Setup advisory lock. A
+BEFORE INSERT trigger re-checks the mode and "not yet Controlled" for every
+inserter, the owner included.
+
+Never creates a snapshot, a PV / EV / SPI figure or planning governance.
+**Not reversible** (B23, closed); there is no un-finalise path. The row stays
+historical truth after a later governed move to a planning-governed mode
+(`02` §26.24.6); the project stays Controlled.
+
+#### 10A.11.5 Reported Progress — `project_reported_progress`
+
+The canonical progress source for **not planning-governed**
+(no-formal-schedule) projects only (`02` §26.14). Not the project record's
+`planned_progress` / `actual_progress`; not Weekly; not Monthly.
+
+| Attribute | Rule |
+|---|---|
+| `id` | uuid PK |
+| `project_id` | FK projects, NOT NULL |
+| `data_date` | date NOT NULL. The as-of date; never later than today in the project's `time_zone` (B20) |
+| `entry_kind` | `report` \| `correction` \| `withdrawal` |
+| `reported_planned_percent` | numeric 0–100, nullable ("where applicable"); NULL for a withdrawal |
+| `reported_actual_percent` | numeric 0–100; NOT NULL for report / correction, NULL for a withdrawal |
+| `narrative` | text. Required (non-blank) for report / correction; optional for a withdrawal *(as built)* |
+| `supersedes_entry_id` | self-FK on `(id, project_id)`, so a chain never leaves its project. NULL for `report`; NOT NULL for `correction` / `withdrawal`. **UNIQUE**, so an entry is superseded at most once and the chain stays linear |
+| `is_backdated` | boolean NOT NULL, **set by the server**, never by the caller: true for a `report` whose `data_date` is earlier than the project's latest **valid** `data_date` (greatest Data Date whose head is not a withdrawal) at insert time (B20, owner wording 2026-10-17). Always false for correction / withdrawal |
+| `reason` | NOT NULL for correction / withdrawal; NOT NULL for a back-dated `report` (B20); NULL otherwise |
+| `source` | `eprp_entry` (only value in 13.9B; the provenance column exists so later sources stay distinguishable) |
+| `recorded_by` / `recorded_by_name` / `recorded_at` | NOT NULL |
+| `transaction_id` | xid8 |
+
+**Rules.**
+- **One original `report` per (project, data_date)**, as a partial unique
+  index where `entry_kind = 'report'`. A second report for the same Data
+  Date is refused; the user corrects the existing entry instead.
+- A correction or withdrawal must supersede the **current head** of a chain
+  (an entry with no successor, guaranteed by the unique index), with the same
+  `project_id` and `data_date` (the server copies the head's Data Date).
+- *As built:* **a withdrawal is terminal** — it cannot itself be corrected or
+  withdrawn (`[ENTRY_WITHDRAWN]`).
+- *As built:* writes go through `record_reported_progress()`,
+  `correct_reported_progress()` and `withdraw_reported_progress()` under the
+  Project Setup advisory lock; a BEFORE INSERT trigger re-checks eligibility,
+  the future-date rule, the back-dated flag and the chain for every
+  inserter, the owner included. Reads: `project_reported_progress_heads()`
+  and `project_reported_progress_latest()` (SECURITY INVOKER, so RLS applies).
+  The archived guard is `guard_archived_reported_progress()` (13.9 pattern,
+  both ends, "its reported progress is read-only").
+- **Head** = an entry with no successor. **Latest valid position** = the head
+  with the greatest `data_date` whose kind is not `withdrawal`. Back-dated
+  entries are allowed and never become "latest" unless their date is the
+  latest.
+- **Writable only while** the project's onboarding mode is
+  `no_formal_schedule`, no Published Planning Snapshot exists, the project is
+  not archived, and the project is Finalised (B19). After a governed
+  transition (`02` §26.24.6) the stream is frozen history.
+- **Writers** (B21): `can_manage_project_operations(project)` — System
+  Administrator, Project Control Admin, assigned Project Control / Planning.
+  The Reporting Coordinator, department users and ordinary members are
+  refused. No Weekly / Monthly function writes this table.
+- A back-dated entry never supersedes, overwrites or reorders a later entry,
+  and never changes a report that referenced an earlier entry (`02` §26.24.5).
+- SPI does not exist here: there is no PV / EV, so SPI is "N/A" by
+  construction.
+- Weekly / Monthly may later **reference an entry by id** (pinned at
+  approval, 13.17–13.19). They never copy or own the value.
+
+#### 10A.11.6 Enforcement on the governed tables
+
+A BEFORE UPDATE guard on `projects` (and on `project_planning_settings` for
+`onboarding_mode`) works as follows.
+- **Not Controlled:** everything behaves exactly as today.
+- **Controlled:** for every column in the registry with class `lightweight`,
+  `governed`, `retired` or `superseded` whose value **changes**, the update is
+  allowed only if this transaction wrote an `applied` / `approved` amendment
+  row for that `(project, field_key)` with `proposed_value` equal to the new
+  value. Otherwise it is refused with `[SETUP_CONTROLLED]` / 42501.
+- Values are compared old-to-new, so a form that re-sends unchanged hidden
+  columns (`priority`, `overall_status`, `planned_progress`,
+  `actual_progress`) passes.
+- `free` columns are untouched by the guard and are logged (§10A.11.8).
+- `structure_family` keeps its existing System-Administrator-only correction
+  path and its own transaction-bound audit row (2C.1). The new guard does not
+  apply to it.
+- Structure-scope relations follow the same rule (B17, closed; classes in
+  `02` §26.24.2a): BEFORE INSERT / UPDATE / DELETE guards on
+  `project_departments`, `project_disciplines`, `project_structure_levels`
+  and `project_structure_nodes` refuse, once Controlled, any **governed**
+  change (add, remove, archive / reactivate, re-parent, reporting scope,
+  unit `name` / `code` rename, level label rename) unless this transaction
+  wrote the matching `approved` structure amendment. There is no lightweight
+  structure class (renames governed, owner decision 2026-10-16). Free attributes
+  (`sort_order`, `description`, department `project_description` /
+  `lead_name`) pass and are logged. `save_project_setup_relation()` and
+  `configure_project_structure_levels()` keep working before Controlled
+  exactly as today.
+- **Publish precondition:** `publish_planning_snapshot()` refuses while
+  `project_planning_settings.onboarding_mode = 'no_formal_schedule'`, and
+  requires `p_confirm_setup_control = true` while the project is not
+  Controlled.
+
+#### 10A.11.7 Field-governance registry
+
+A fixed, code-defined registry (an immutable SQL function, mirrored in
+TypeScript and proved equal by a source test), keyed by `field_key`.
+**As built (13.9B Step 1, 2026-10-16):** `project_setup_field_registry()`
+mirrored by `src/features/projects/setup-governance.ts`; 62 keys.
+- **Per key it holds:** `kind` (`column` — stored columns of `projects` or
+  `project_planning_settings`; `relation` — governed elsewhere), target table
+  and columns, class, `future_class` / `future_slice` (recorded, not
+  enforced), `enforced_from`, label, impact code and impact-warning text.
+  A key may span columns changed together (`project_category` =
+  `project_type_id` + `project_category_detail`).
+- **Not master data:** no user can edit it.
+- **Classes:** `free_logged` · `lightweight` · `governed` ·
+  `system_admin_correction` (the existing Project Type path, single System
+  Administrator, B16) · `superseded` (13.12: Planned Start / Finish once BL0
+  is approved) · `planning_owned` (13.14: Forecast Finish on
+  planning-governed projects) · `retired` (unchanged pass-through only). In
+  13.9B nothing is yet `superseded` or `planning_owned`; Forecast Finish and
+  Planned Start / Finish are `governed` (B22).
+- **Coverage:** every `projects` column is either in the registry or one of
+  the system columns `id`, `active`, `archived_at`, `created_at`,
+  `updated_at` (`project_setup_system_columns()`); the migration's
+  post-check refuses an unclassified column.
+
+The class of each field is in `02` §26.24.2.
+
+#### 10A.11.8 Setup field-change log — `project_setup_field_changes`
+
+There is **no existing generic project audit log**: History is still mock
+data, and §19's platform Audit Trail is unbuilt. FREE / LOGGED fields
+therefore need a minimal append-only log:
+- **Scope:** written by the BEFORE UPDATE guard on `projects`
+  (`guard_project_setup_controlled`) for `free_logged` columns, **only while
+  Controlled** — before the row changes, so the archived guard on the log
+  still sees the project as it was (archiving itself is logged as a status
+  change). A refused statement rolls the row back with it. *(As built; the
+  earlier "AFTER UPDATE" wording would have refused the archiving update.)*
+- **Columns:** project, field_key, previous_value, new_value,
+  `change_source` (`direct_edit` only since Step 2 — the legacy
+  classification bootstrap is recorded in `project_classification_corrections`
+  instead), changed_by / name / at, transaction_id.
+- **Exclusions:** relations already logged by their own history (Team and
+  responsibilities, 2C.3 history) are not duplicated.
+- **Future:** designed to be absorbed by the platform Audit Trail when §19 is
+  built.
+
+**Contacts / Sites / Parties — `project_setup_relation_changes`** *(13.9B
+Step 3, as built 2026-10-17; migration 20261018090000).* The Free / Logged
+relations without their own history:
+- **Written by** AFTER INSERT / UPDATE / DELETE row triggers on
+  `project_contacts`, `project_sites` and `project_parties`, **only while
+  Controlled** (same rule as the field log).
+- **One net row per record per transaction** (unique on transaction,
+  relation, record): `previous_value` is the image before the transaction's
+  first change, `new_value` the image after its last; a net no-op leaves no
+  row. So the Sites save that clears and re-sets `is_primary`, or a save
+  that re-sends unchanged rows, records nothing. `action` (added / changed /
+  removed) is generated.
+- **Images** keep the business columns only (no ids, ordering or
+  timestamps); Contacts capture the contact's name at the time.
+  Project-level responsibility holders are excluded (their `projects.*_id`
+  columns are already logged); department / system / discipline and team
+  rows are included.
+- **Append-only:** only the logging trigger may revise a row while its own
+  transaction builds it; afterwards no role, the owner included, can edit or
+  delete it (`[SETUP_HISTORY_IMMUTABLE]`). The 2C.3E archived guard answers
+  first. Readable through `can_access_project()`.
+- **Structure (13.9B Step 4, as built 2026-10-17; migration
+  20261019090000).** The same table and triggers also cover
+  `project_departments`, `project_disciplines`, `project_structure_levels`
+  and `project_structure_nodes`, as the relations `departments`,
+  `disciplines`, `structure_levels` and `structure_units`. Images:
+  - **departments:** department name, reporting, system names, lead,
+    project description;
+  - **Programs & Studies:** name, department, system;
+  - **levels:** number and labels;
+  - **units:** level label, name, code, parent name, archived, reporting
+    input, description, display order.
+
+  Both governed changes applied on approval and free changes (order, notes,
+  lead, description) appear here once each, with before and after.
+
+**Structure guard — `guard_structure_setup_controlled`** *(13.9B Step 4).*
+BEFORE INSERT / UPDATE / DELETE on the four structure tables. It sorts after
+the 2C.3E archived guard, the 2C.1c structure guard and the 13.6 people
+guard, so their refusals answer first. Once Controlled, a governed change
+raises `[SETUP_CONTROLLED]` unless this transaction approved the amendment
+for exactly that key and target.
+
+Governed changes (old against new; unchanged values pass):
+- any insert or delete;
+- on units: level, parent, name, code, archived, Weekly or Monthly input;
+- on levels: number or labels;
+- on departments: department, reporting, or the **set** of system ids
+  (order and the stored entry shape are ignored);
+- on Programs & Studies: department or system.
+
+An upsert of an existing PSM row is judged as the UPDATE it becomes. The
+Programs & Studies branch of `save_project_setup_relation()` now applies
+differences, keyed by the Program & Study (unique per project), instead of
+replacing every row.
 
 ---
 
@@ -1435,7 +1756,7 @@ Decisions 1–6 from §1.1 are settled. These remain.
 | **4** | **Sensitive content** | Universal read (§17.1) means nothing in the platform is private. | Confirm no content requires restriction, or define an explicitly-restricted classification as a later addition. |
 | **5** | **Report Template ownership** | Modelled as organization-owned with project copies, matching Lifecycle Template. | Confirm templates belong in the global set even though decision 2 listed seven kinds without them. |
 | **6** | **Action vocabulary versus roles** | §17.2 defines six actions; `02` §8 defines eight roles; `05` §8 defines the operating role table. | Compatible — roles grant action sets — but the mapping must be written once, authoritatively, when `05` is next revised. |
-| **7** | **Master Planning & Control open items** | B1–B9 open in `02_PLATFORM_ARCHITECTURE.md` §26.19 (B10 closed 2026-10-14; B11–B14 raised and closed 2026-10-15) | Each blocks only the roadmap slice named there; none blocks 13.9A or 13.9B |
+| **7** | **Master Planning & Control open items** | B1–B9 open in `02_PLATFORM_ARCHITECTURE.md` §26.19 (B10 closed 2026-10-14; B11–B14 raised and closed 2026-10-15; B15–B24 raised and closed 2026-10-16) | Each blocks only the roadmap slice named there; none blocks 13.9B (`02` §26.24) |
 
 ---
 

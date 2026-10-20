@@ -207,7 +207,13 @@ for the reporting engine.
    Structure units flagged for Weekly input. Each section shows the planning
    facts mapped to it (`02` §26.3 H6).
 5. **Not planning-governed** projects keep typed progress, labelled "Reported —
-   not planning governed", with SPI "N/A" (`02` §26.14).
+   not planning governed", with SPI "N/A" (`02` §26.14). *(Reconciled
+   2026-10-16, B14 / B21.)* From 13.9B the canonical value is the project's
+   append-only **Reported Progress stream** (`02` §26.24.5), written only by
+   Project Control. Weekly and Monthly never write or own it: from 13.17–13.19
+   they reference an entry by id, pinned at approval. Until then the as-built
+   typed fields stay as they are. A later or corrected stream entry never
+   changes an approved report; correcting one is a revision (§12).
 
 ### 4.8 Collaborative section comments (2026-10-14)
 

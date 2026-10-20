@@ -54,6 +54,7 @@ import {
   type HealthAxis,
 } from "./dashboard-analytics";
 import { MilestoneModal } from "./milestone-modal";
+import { SetupAmendmentQueue } from "./components/setup-amendment-queue";
 import { ProjectProgressComparisonPanel } from "./components/progress-comparison-panel";
 import { ExpandedProgressCurveModal } from "./components/progress-curve-modal";
 import { SummaryDetailModal, type SummaryModalKind } from "./components/summary-modals";
@@ -411,6 +412,8 @@ export function DashboardView({ canManage }: { canManage: boolean }) {
             onSelectMilestone={openMilestoneDetail}
           />
           <ManagementAttention positions={positions} onSelectProject={openManagementWorkspace} />
+          {/* 13.9B: Project Setup amendments awaiting this approver (global authorities only). */}
+          <SetupAmendmentQueue />
         </div>
       </section>
 

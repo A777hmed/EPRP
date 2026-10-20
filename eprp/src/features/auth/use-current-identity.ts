@@ -23,6 +23,12 @@ import { startTimer, timed } from "@/lib/perf-temp";
  * write, never a wider one.
  */
 export interface CurrentIdentity {
+  /**
+   * The signed-in account (`auth.users.id` = `profiles.id`); "" when signed
+   * out. 13.9B: governance records store the requester / decider by this id,
+   * so the screens can tell "my request" from someone else's.
+   */
+  profileId: string;
   /** The `contacts` row this login is linked to; "" when unlinked. */
   contactId: string;
   /** Raw `profiles.role`; "" when no profile row resolved. */
@@ -41,6 +47,7 @@ export interface CurrentIdentity {
 
 /** Nobody. Also the correct answer for an unconfigured environment. */
 export const NO_IDENTITY: CurrentIdentity = {
+  profileId: "",
   contactId: "",
   role: "",
   isAdmin: false,
@@ -132,6 +139,7 @@ async function readIdentity(sb: SupabaseClient): Promise<CurrentIdentity> {
 
     cachedUserId = userId;
     return {
+      profileId: userId,
       contactId: profile?.contact_id ?? "",
       role,
       isAdmin: role === "system_admin",

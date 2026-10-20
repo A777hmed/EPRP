@@ -40,7 +40,8 @@ import {
   getServerNewProjectDraft,
   subscribeNewProjectDraft,
 } from "@/features/projects/new-project-draft-store";
-import { useHierarchyTerms } from "@/features/projects/use-hierarchy-terms";
+import { structureLevelHref, structureSetupHref } from "@/features/projects/structure-navigation";
+import { useStructureNav } from "@/features/projects/use-structure-nav";
 import { useProjectById } from "@/features/projects/use-project-by-id";
 import type { Project } from "@/types";
 import { cn } from "@/lib/utils";
@@ -201,12 +202,12 @@ function ContextFooter({
 function SectionLink({
   href,
   active,
-  section,
+  icon: Icon,
   label,
 }: {
   href: string;
   active: boolean;
-  section: ProjectSection;
+  icon: LucideIcon;
   label: string;
 }) {
   return (
@@ -229,7 +230,7 @@ function SectionLink({
               )
         )}
       >
-        <section.icon className="size-4 shrink-0" aria-hidden="true" />
+        <Icon className="size-4 shrink-0" aria-hidden="true" />
         <span className="truncate">{label}</span>
       </Link>
     </li>
@@ -240,12 +241,12 @@ function SectionLink({
 function CollapsedSectionLink({
   href,
   active,
-  section,
+  icon: Icon,
   label,
 }: {
   href: string;
   active: boolean;
-  section: ProjectSection;
+  icon: LucideIcon;
   label: string;
 }) {
   return (
@@ -263,7 +264,7 @@ function CollapsedSectionLink({
               : cn("text-sidebar-foreground/55 hover:text-sidebar", ROW_HOVER_BG)
           )}
         >
-          <section.icon className="size-4" aria-hidden="true" />
+          <Icon className="size-4" aria-hidden="true" />
         </Link>
       </TooltipTrigger>
       <TooltipContent side="right">{label}</TooltipContent>
@@ -468,7 +469,9 @@ export function ProjectContextNav({
 }) {
   const projectId = activeProjectId(pathname);
   const project = useProjectById(projectId);
-  const terms = useHierarchyTerms(project);
+  // The project's own structure vocabulary: Departments / Systems / Programs & Studies
+  // for PSM and legacy, the configured levels (e.g. Function / Workstream) for Other.
+  const structureNav = useStructureNav(project);
 
   // Before the first save: setup navigation only, never a project id.
   if (!projectId && isNewProjectRoute(pathname)) {
@@ -481,50 +484,83 @@ export function ProjectContextNav({
   }
   if (!projectId) return null;
 
-  const sectionLabel = (section: ProjectSection) =>
-    section.id === "disciplines" ? terms.plural : section.label;
+  /** One sidebar row: a fixed section or (Other projects) a configured structure level. */
+  interface NavEntry {
+    key: string;
+    href: string;
+    icon: LucideIcon;
+    label: string;
+    active: boolean;
+  }
+  const sectionEntry = (section: ProjectSection): NavEntry => {
+    const href = projectSectionHref(projectId, section.id);
+    return {
+      key: section.id,
+      href,
+      icon: section.icon,
+      label: section.label,
+      active:
+        isSectionActive(pathname, href) ||
+        (section.id === "reporting" && isReportingRouteActive(pathname, projectId)),
+    };
+  };
+  // The structure group: PSM / legacy keep their three fixed sections (the third in the
+  // project's terminology); an Other project lists exactly its configured levels.
+  const structureEntries = (): NavEntry[] => {
+    if (structureNav.other) {
+      if (structureNav.pending) return [];
+      if (structureNav.items.length === 0) {
+        const href = structureSetupHref(projectId);
+        return [{ key: "structure-setup", href, icon: Layers, label: "Project Structure", active: isSectionActive(pathname, href) }];
+      }
+      return structureNav.items.flatMap((item): NavEntry[] => {
+        if (item.kind !== "level") return [];
+        const href = structureLevelHref(projectId, item.levelNumber);
+        return [{ key: item.id, href, icon: Layers, label: item.label, active: isSectionActive(pathname, href) }];
+      });
+    }
+    return structureNav.items.flatMap((item): NavEntry[] => {
+      if (item.kind !== "section") return [];
+      const section = projectSections.find((candidate) => candidate.id === item.id);
+      return section ? [{ ...sectionEntry(section), label: item.label }] : [];
+    });
+  };
 
   const overview = projectSections.find((section) => section.id === "overview");
   const grouped = GROUP_ORDER.map((group) => ({
     group,
-    items: projectSections.filter(
-      (section) => SECTION_GROUP[section.id] === group
-    ),
-  })).filter((bucket) => bucket.items.length > 0);
+    entries:
+      group === "Project Structure"
+        ? structureEntries()
+        : projectSections
+            .filter((section) => SECTION_GROUP[section.id] === group)
+            .map(sectionEntry),
+  })).filter((bucket) => bucket.entries.length > 0);
+  const overviewEntry = overview ? sectionEntry(overview) : null;
 
   if (collapsed) {
     return (
       <nav aria-label="Project navigation" className="flex h-full flex-col">
         <ProjectIdentity project={project} collapsed />
         <div className="flex min-h-0 flex-1 flex-col items-center gap-0.5 overflow-y-auto px-1 py-2">
-          {overview && (
+          {overviewEntry && (
             <CollapsedSectionLink
-              href={projectSectionHref(projectId, overview.id)}
-              active={isSectionActive(
-                pathname,
-                projectSectionHref(projectId, overview.id)
-              )}
-              section={overview}
-              label={sectionLabel(overview)}
+              href={overviewEntry.href}
+              active={overviewEntry.active}
+              icon={overviewEntry.icon}
+              label={overviewEntry.label}
             />
           )}
           {grouped.flatMap((bucket) =>
-            bucket.items.map((section) => {
-              const href = projectSectionHref(projectId, section.id);
-              const active =
-                isSectionActive(pathname, href) ||
-                (section.id === "reporting" &&
-                  isReportingRouteActive(pathname, projectId));
-              return (
-                <CollapsedSectionLink
-                  key={section.id}
-                  href={href}
-                  active={active}
-                  section={section}
-                  label={sectionLabel(section)}
-                />
-              );
-            })
+            bucket.entries.map((entry) => (
+              <CollapsedSectionLink
+                key={entry.key}
+                href={entry.href}
+                active={entry.active}
+                icon={entry.icon}
+                label={entry.label}
+              />
+            ))
           )}
         </div>
         <ContextFooter collapsed onToggleCollapsed={onToggleCollapsed} />
@@ -536,16 +572,13 @@ export function ProjectContextNav({
     <nav aria-label="Project navigation" className="flex h-full flex-col">
       <ProjectIdentity project={project} collapsed={false} />
       <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
-        {overview && (
+        {overviewEntry && (
           <ul className="flex flex-col gap-0.5 px-2">
             <SectionLink
-              href={projectSectionHref(projectId, overview.id)}
-              active={isSectionActive(
-                pathname,
-                projectSectionHref(projectId, overview.id)
-              )}
-              section={overview}
-              label={sectionLabel(overview)}
+              href={overviewEntry.href}
+              active={overviewEntry.active}
+              icon={overviewEntry.icon}
+              label={overviewEntry.label}
             />
           </ul>
         )}
@@ -561,22 +594,15 @@ export function ProjectContextNav({
               {bucket.group}
             </span>
             <ul className="flex flex-col gap-0.5">
-              {bucket.items.map((section) => {
-                const href = projectSectionHref(projectId, section.id);
-                const active =
-                  isSectionActive(pathname, href) ||
-                  (section.id === "reporting" &&
-                    isReportingRouteActive(pathname, projectId));
-                return (
-                  <SectionLink
-                    key={section.id}
-                    href={href}
-                    active={active}
-                    section={section}
-                    label={sectionLabel(section)}
-                  />
-                );
-              })}
+              {bucket.entries.map((entry) => (
+                <SectionLink
+                  key={entry.key}
+                  href={entry.href}
+                  active={entry.active}
+                  icon={entry.icon}
+                  label={entry.label}
+                />
+              ))}
             </ul>
           </div>
         ))}
