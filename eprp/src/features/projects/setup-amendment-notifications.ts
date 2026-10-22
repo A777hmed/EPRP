@@ -10,6 +10,7 @@
 import type { NotificationDetail, NotificationItem, NotificationTarget, NotificationToast } from "@/features/notifications/model";
 import { formatSetupValue, type SetupAmendment, type SetupValueLookups } from "./setup-amendments";
 import { amendmentWording, isStructureAmendment } from "./structure-amendments";
+import { compactAmendmentToast, type AmendmentToastEvent } from "./amendment-toast";
 
 export const AMENDMENT_NOTIFICATION_EVENTS = [
   "amendment_submitted",
@@ -56,12 +57,6 @@ const OUTCOME: Partial<Record<AmendmentNotificationEvent, string>> = {
   amendment_frozen: "The project was archived while the request was pending. It can no longer be decided.",
 };
 
-/** The toast's second line for those events. */
-const OUTCOME_SHORT: Partial<Record<AmendmentNotificationEvent, string>> = {
-  amendment_stale: "Not applied: the value changed",
-  amendment_frozen: "Project archived",
-};
-
 /** A toast line is a glance, not a record: long values are clipped (the card has them in full). */
 const TOAST_LINE_MAX = 90;
 export function clipToastLine(text: string): string {
@@ -86,29 +81,30 @@ export function amendmentRequestLine(amendment: SetupAmendment, lookups: SetupVa
   return STRUCTURE_ACTIONS_WITH_RESULT.has(String(amendment.proposedValue.action ?? "")) ? `${subject} → ${proposed}` : subject;
 }
 
+/** Which compact toast each notification event shows. */
+const TOAST_EVENT: Record<AmendmentNotificationEvent, AmendmentToastEvent> = {
+  amendment_submitted: "approval_needed",
+  amendment_approved: "approved",
+  amendment_rejected: "rejected",
+  amendment_stale: "stale",
+  amendment_frozen: "frozen",
+};
+
 /**
- * The in-app toast for a notification: the event title, then two short lines:
- * what was requested, and who acted on which project. The Notification Center
- * card stays the permanent, complete record; this is only the heads-up.
+ * The in-app toast for a notification (13.11 UAT): a status title, ONE context
+ * line ("project code · subject") and View. Values, reason, impact, people
+ * and dates stay in the Notification Center card, the permanent record.
  */
 export function amendmentToast(input: {
   eventType: AmendmentNotificationEvent;
   project: AmendmentNotificationProject | undefined;
-  request: string | null;
-  actorName: string | null;
+  amendment: SetupAmendment | null;
 }): NotificationToast {
-  const { eventType, project, request, actorName } = input;
-  const who =
-    eventType === "amendment_submitted" ? `Requested by ${actorName ?? "Project Control"}`
-      : eventType === "amendment_approved" ? `Approved by ${actorName ?? "a Project Control Admin"}`
-        : eventType === "amendment_rejected" ? `Rejected by ${actorName ?? "a Project Control Admin"}`
-          : OUTCOME_SHORT[eventType] ?? "";
-  const second = [who, project?.name].filter(Boolean).join(" · ");
-  return {
-    title: AMENDMENT_NOTIFICATION_TITLE[eventType],
-    description: [clipToastLine(request ?? "Project Setup request"), second].join("\n"),
-    actionLabel: eventType === "amendment_submitted" ? "View request" : "View details",
-  };
+  const compact = compactAmendmentToast(TOAST_EVENT[input.eventType], {
+    projectCode: input.project?.code,
+    amendment: input.amendment,
+  });
+  return { title: compact.title, description: compact.context, actionLabel: "View", tone: compact.tone };
 }
 
 /**
@@ -220,6 +216,6 @@ export function composeAmendmentNotification(input: {
     details,
     // Mirrors notification_requires_action(): a request still waiting for this approver's decision.
     actionRequired: eventType === "amendment_submitted" && amendment?.status === "pending",
-    toast: amendmentToast({ eventType, project, request, actorName }),
+    toast: amendmentToast({ eventType, project, amendment }),
   };
 }

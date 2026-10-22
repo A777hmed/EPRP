@@ -111,6 +111,9 @@ export function MilestonesPanel({ project }: { project: Project }) {
   const authority = useMilestoneAuthority(project);
   const options = useMilestoneScopeOptions(project);
   const terms = useHierarchyTerms(project);
+  // PSM and legacy projects file milestones by department; an Other Project
+  // reports through its Project Structure, which the register does not link yet.
+  const departmentScoped = project.structureFamily !== "other";
 
   const [milestones, setMilestones] = React.useState<MasterMilestone[]>([]);
   const [updates, setUpdates] = React.useState<MilestoneUpdate[]>([]);
@@ -425,22 +428,25 @@ export function MilestonesPanel({ project }: { project: Project }) {
               onValueChange={setQuery}
               placeholder="Search code, name or description…"
             />
-            <Select
-              value={departmentFilter}
-              onValueChange={setDepartmentFilter}
-            >
-              <SelectTrigger className="w-52">
-                <SelectValue placeholder="All departments" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All departments</SelectItem>
-                {options.departments.map((department) => (
-                  <SelectItem key={department.id} value={department.id}>
-                    {department.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* An Other Project files milestones project-wide: no department to filter by. */}
+            {departmentScoped && (
+              <Select
+                value={departmentFilter}
+                onValueChange={setDepartmentFilter}
+              >
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder="All departments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All departments</SelectItem>
+                  {options.departments.map((department) => (
+                    <SelectItem key={department.id} value={department.id}>
+                      {department.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="All statuses" />
@@ -562,6 +568,7 @@ export function MilestonesPanel({ project }: { project: Project }) {
           register={milestones}
           options={options}
           scopeTerm={terms.singular}
+          departmentScoped={departmentScoped}
           onClose={() => setEditing(undefined)}
           onSaved={() => {
             setEditing(undefined);

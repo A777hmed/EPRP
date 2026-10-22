@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+
 import { createDefaultNotificationService } from "@/services/setup-notification-service";
 import { startForegroundPoll } from "./foreground-poll";
-import { ToastBell } from "./toast-bell";
-import { createToastGate, TOAST_DURATION_MS, TOAST_POSITION, type ToastGate, type ToastGateTrace, type ToastResult } from "./toast-feed";
+import { showCompactToast } from "./compact-toast";
+import { createToastGate, type ToastGate, type ToastGateTrace, type ToastResult } from "./toast-feed";
 import { createNotificationAdapter, developmentNotifications, notificationHref, type NotificationOverview, type NotificationPage, type NotificationPreferences, type NotificationQuery, type NotificationService } from "./model";
 
 interface NotificationContextValue {
@@ -81,13 +81,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       if (DEVELOPMENT && (show.length || overflow)) console.info("[EPRP toasts] toast() called", show.map((item) => item.id), { overflow });
       for (const item of show) {
         const href = item.projectId === item.target.projectId ? notificationHref(item.target) : null;
-        toast(item.toast!.title, {
+        showCompactToast({
           id: `notification:${item.id}`,
-          description: item.toast!.description,
-          icon: <ToastBell />,
-          position: TOAST_POSITION,
-          duration: TOAST_DURATION_MS,
-          closeButton: true,
+          title: item.toast!.title,
+          context: item.toast!.description,
+          tone: item.toast!.tone ?? "approval",
           action: href
             ? {
                 label: item.toast!.actionLabel,
@@ -103,13 +101,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         });
       }
       if (overflow > 0) {
-        toast(`${overflow} more Project Setup notification${overflow === 1 ? "" : "s"}`, {
+        showCompactToast({
           id: "notification:overflow",
-          description: "Open the bell to see them.",
-          icon: <ToastBell />,
-          position: TOAST_POSITION,
-          duration: TOAST_DURATION_MS,
-          closeButton: true,
+          title: `${overflow} more Project Setup notification${overflow === 1 ? "" : "s"}`,
+          context: "Open the bell to see them.",
+          tone: "approval",
         });
       }
   }, [service, refresh, router]);
@@ -166,7 +162,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       const sample = developmentNotifications().items[0];
       // A sample item whose target is not its project, so the toast has no live link.
       showToasts({ show: [{ ...sample, id: `test-${Date.now()}`, target: { ...sample.target, projectId: "00000000-0000-4000-8000-000000000000" },
-        toast: { title: "Test toast", description: "Renderer check: top-centre, about 12 s, amber bell\nDevelopment preview · no real notification", actionLabel: "View details" } }], overflow: 0 });
+        toast: { title: "Test toast", description: "Development preview · renderer check", actionLabel: "View", tone: "approval" } }], overflow: 0 });
     },
   };
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;

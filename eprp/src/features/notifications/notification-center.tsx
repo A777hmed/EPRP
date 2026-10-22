@@ -141,7 +141,16 @@ export function NotificationBell() {
   const [open, setOpen] = React.useState(false);
   const unread = overview?.unreadCount ?? 0;
   const label = loading ? "Notifications, loading" : error ? "Notifications unavailable, open to retry" : `Notifications, ${unread} unread`;
-  return <Sheet open={open} onOpenChange={setOpen}><SheetTrigger asChild><Button variant="ghost" size="icon" className="relative" aria-label={label}><Bell aria-hidden="true" />{!loading && !error && unread > 0 && <span aria-hidden="true" className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-destructive px-1 text-[10px] font-semibold leading-4 text-white">{unread > 9 ? "9+" : unread}</span>}{error && <span aria-hidden="true" className="absolute top-1 right-1 size-2 rounded-full bg-amber-500" />}</Button></SheetTrigger>
+  // 13.11 UAT: the badge bumps once when the unread count goes up (never on
+  // the first load, never looping; static under reduced motion).
+  const [bump, setBump] = React.useState(0);
+  const seenUnread = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    if (loading || error) return;
+    if (seenUnread.current !== null && unread > seenUnread.current) setBump((count) => count + 1);
+    seenUnread.current = unread;
+  }, [unread, loading, error]);
+  return <Sheet open={open} onOpenChange={setOpen}><SheetTrigger asChild><Button variant="ghost" size="icon" className="relative" aria-label={label}><Bell aria-hidden="true" />{!loading && !error && unread > 0 && <span key={bump} aria-hidden="true" data-bump={bump > 0 ? "true" : undefined} className="notif-badge absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-destructive px-1 text-[10px] font-semibold leading-4 text-white">{unread > 9 ? "9+" : unread}</span>}{error && <span aria-hidden="true" className="absolute top-1 right-1 size-2 rounded-full bg-amber-500" />}</Button></SheetTrigger>
     <SheetContent size="wide" className="gap-0 data-[side=right]:sm:max-w-lg data-[side=right]:lg:max-w-lg">
       <SheetHeader className="border-b pr-12"><SheetTitle>Notifications</SheetTitle><SheetDescription>Updates that matter to your work.</SheetDescription></SheetHeader>
       <div className="min-h-0 flex-1 overflow-y-auto p-4"><div className="mb-4"><NotificationModeNotice /></div><NotificationFeed compact onOpen={() => setOpen(false)} /></div>

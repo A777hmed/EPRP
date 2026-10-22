@@ -245,8 +245,13 @@ begin
   -- LGC deliberately has no settings row (reads the default new_project).
 
   -- NFS: a draft Opening Position (promotion must be refused for the mode).
+  -- Since 13.11 (20261023090000) a no_formal_schedule project cannot gain an
+  -- Opening Position, so this models LEGACY data: written with that guard
+  -- disabled for this one insert, inside this rolled-back transaction.
+  alter table public.planning_opening_positions disable trigger guard_no_formal_schedule_planning;
   insert into public.planning_opening_positions (project_id, data_date, planned_progress_percent, actual_progress_percent, source)
   values (pg_temp.project('ZZ-139B-NFS'), '2026-10-01', 30, 25, 'ZZ prior contractor S-curve');
+  alter table public.planning_opening_positions enable trigger guard_no_formal_schedule_planning;
   insert into ids(key, id) values ('NFS_OP',
     (select id from public.planning_opening_positions where project_id = pg_temp.project('ZZ-139B-NFS')));
 

@@ -12,12 +12,20 @@ export interface NotificationTarget {
   id: string;
   projectId: string;
 }
+/**
+ * The toast's status icon: a bell for an approval waiting on the reader, a
+ * check for an approval / applied change, an x for a rejection, a clock for a
+ * request now waiting, an info mark for anything else.
+ */
+export type NotificationToastTone = "approval" | "approved" | "rejected" | "pending" | "notice";
 /** Compact wording for the in-app toast of a notification (absent: never toasted). */
 export interface NotificationToast {
   title: string;
+  /** ONE context line ("project code · subject"); details stay in the card. */
   description: string;
   /** The toast action; it opens the same deep link as the bell item. */
   actionLabel: string;
+  tone?: NotificationToastTone;
 }
 export interface NotificationDetail {
   label: string;

@@ -265,7 +265,7 @@ export function StructureGovernancePanel({
         <StructureRequestDialog
           // Re-created when the dialog switches to another unit (a blocker's own archive request).
           key={`${dialog.kind}:${"unit" in dialog ? dialog.unit.id : "level" in dialog ? dialog.level.id : "new"}`}
-          projectId={project.id} dialog={dialog} structure={structure} levelLabel={levelLabel}
+          projectId={project.id} projectCode={project.code} dialog={dialog} structure={structure} levelLabel={levelLabel}
           pendingTargets={new Set(pending.keys())}
           onRequestArchive={(unitId) => {
             const child = structure.nodes.find((node) => node.id === unitId);
@@ -281,6 +281,7 @@ export function StructureGovernancePanel({
 
 function StructureRequestDialog({
   projectId,
+  projectCode,
   dialog,
   structure,
   levelLabel,
@@ -290,6 +291,7 @@ function StructureRequestDialog({
   onSubmitted,
 }: {
   projectId: string;
+  projectCode: string;
   dialog: Exclude<DialogState, { kind: "notes" }>;
   structure: ProjectStructure;
   levelLabel: (number: number) => string;
@@ -480,7 +482,7 @@ function StructureRequestDialog({
   }
 
   return (
-    <ProposeStructureChangeDialog open projectId={projectId} title={title} current={current} proposal={proposal}
+    <ProposeStructureChangeDialog open projectId={projectId} projectCode={projectCode} title={title} current={current} proposal={proposal}
       onClose={onClose} onSubmitted={onSubmitted} blockedReason={blockedReason}>
       {fields}
     </ProposeStructureChangeDialog>

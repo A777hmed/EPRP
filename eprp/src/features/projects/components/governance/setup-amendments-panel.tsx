@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowRight, Check, Undo2, X } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog, SectionCard, StatusBadge } from "@/components/shared";
 import { formatDateTime } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 import { setupGovernanceService } from "@/services/setup-governance-service";
 import {
   AMENDMENT_STATUS_LABEL,
@@ -24,6 +25,8 @@ import {
 } from "../../setup-amendments";
 import { amendmentWording, isStructureAmendment } from "../../structure-amendments";
 import { useSetupValueLookups } from "./setup-governance-ui";
+import { compactAmendmentToast, type AmendmentToastEvent } from "../../amendment-toast";
+import { CONFIRMATION_TOAST_DURATION_MS, showCompactToast } from "@/features/notifications/compact-toast";
 
 /**
  * Project Setup amendments for one project (`07` §10.12): the approval queue
@@ -57,14 +60,44 @@ export function SetupAmendmentsPanel({
       ? actionable.some((amendment) => amendment.id === focused.id) ? "approvals" : "all"
       : actionable.length > 0 ? "approvals" : "all"
   );
+  // 13.11 UAT: collapsible. Open when something waits for this viewer (or a
+  // notification points at a request); the counts stay visible either way, and
+  // the chosen tab survives collapsing.
+  const [open, setOpen] = React.useState(actionable.length > 0 || Boolean(focused));
+  const contentId = React.useId();
+  const awaiting = actionable.length;
+  const seenAwaiting = React.useRef(awaiting);
+  React.useEffect(() => {
+    // A new request for this viewer arrived (e.g. re-read on return): show it.
+    if (awaiting > seenAwaiting.current) setOpen(true);
+    seenAwaiting.current = awaiting;
+  }, [awaiting]);
   if (amendments.length === 0) return null;
 
+  const counts = `Awaiting decision (${actionable.length}) · My requests (${ownPending.length}) · All amendments (${amendments.length})`;
   return (
     <SectionCard
       title="Setup amendments"
-      description="Changes to controlled Project Setup fields and structure. Governed requests apply only after another Project Control Admin or System Administrator approves them."
+      description={
+        open
+          ? "Changes to controlled Project Setup fields and structure. Governed requests apply only after another Project Control Admin or System Administrator approves them."
+          : counts
+      }
+      action={
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-expanded={open}
+          aria-controls={contentId}
+          onClick={() => setOpen((current) => !current)}
+        >
+          {open ? "Hide" : "Show"}
+          <ChevronDown data-icon="inline-end" aria-hidden="true" className={cn("transition-transform", open && "rotate-180")} />
+        </Button>
+      }
+      contentClassName={open ? undefined : "hidden"}
     >
-      <Tabs value={tab} onValueChange={setTab}>
+      <Tabs id={contentId} value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="approvals">
             Awaiting decision{actionable.length > 0 ? ` (${actionable.length})` : ""}
@@ -159,16 +192,24 @@ function AmendmentRow({
   const [approveOpen, setApproveOpen] = React.useState(false);
   const [withdrawOpen, setWithdrawOpen] = React.useState(false);
   const [comment, setComment] = React.useState("");
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
+  const detailsId = React.useId();
   const commentId = React.useId();
   const rowRef = React.useRef<HTMLLIElement>(null);
   React.useEffect(() => {
     if (focused) rowRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [focused]);
 
-  const run = async (action: () => Promise<SetupAmendment>, success: (result: SetupAmendment) => string) => {
+  // 13.11 UAT: the one compact toast — what happened, then project code ·
+  // subject. The full record stays in this row, History and the Notification Center.
+  const run = async (
+    action: () => Promise<SetupAmendment>,
+    outcome: (result: SetupAmendment) => AmendmentToastEvent
+  ) => {
     try {
       const result = await action();
-      toast.success(success(result));
+      const { title, context, tone } = compactAmendmentToast(outcome(result), { projectCode, amendment: result });
+      showCompactToast({ title, context, tone, duration: CONFIRMATION_TOAST_DURATION_MS });
       onChanged();
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : "That could not be completed.");
@@ -176,58 +217,37 @@ function AmendmentRow({
     }
   };
 
+  /*
+   * 13.11 UAT — one card, five clear bands: header (subject, badges, actions),
+   * the change itself (prominent), who / when, the reason (two lines), and the
+   * impact behind "View details". Presentation only: the same data, the same
+   * permissions, the same actions.
+   */
+  const decided = Boolean(amendment.decidedAt) && amendment.status !== "applied";
   return (
     <li
       ref={rowRef}
       id={`amendment-${amendment.id}`}
       data-focused={focused ? "true" : undefined}
-      className={focused ? "rounded-lg border border-primary bg-primary/5 p-3 text-sm ring-2 ring-primary/40" : "rounded-lg border p-3 text-sm"}
+      className={cn(
+        "overflow-hidden rounded-lg border bg-card text-sm",
+        focused && "border-primary bg-primary/5 ring-2 ring-primary/40"
+      )}
     >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 space-y-1">
-          <p className="flex flex-wrap items-center gap-2 font-medium">
-            <span className="text-xs font-normal text-muted-foreground">{projectCode}</span>
-            {label}
+      {/* HEADER */}
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 px-3 pt-3">
+        <div className="min-w-0 space-y-0.5">
+          <p className="text-xs text-muted-foreground">{projectCode}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="font-medium text-pretty">{label}</h4>
             <StatusBadge tone={AMENDMENT_STATUS_TONE[status]}>{AMENDMENT_STATUS_LABEL[status]}</StatusBadge>
             <StatusBadge tone="neutral">
               {structure ? "Structure" : amendment.amendmentClass === "governed" ? "Governed" : "Lightweight"}
             </StatusBadge>
-          </p>
-          <p className="flex flex-wrap items-center gap-1.5 text-pretty">
-            <span className="text-muted-foreground">{previous}</span>
-            <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" aria-label="to" />
-            <span className="font-medium">{proposed}</span>
-          </p>
-          <p className="text-pretty"><span className="text-muted-foreground">Reason: </span>{amendment.reason}</p>
-          <p className="text-xs text-muted-foreground text-pretty">Impact: {amendment.impactWarning}</p>
-          <p className="text-xs text-muted-foreground tabular-nums">
-            Requested by {own ? "you" : amendment.requestedByName ?? "a Project Control user"} · {formatDateTime(amendment.requestedAt)}
-            {amendment.decidedAt && amendment.status !== "applied" && (
-              <>
-                {" "}· {AMENDMENT_STATUS_LABEL[amendment.status]}
-                {amendment.decidedByName ? ` by ${amendment.decidedByName}` : ""} {formatDateTime(amendment.decidedAt)}
-              </>
-            )}
-          </p>
-          {amendment.decisionComment && (
-            <p className="text-xs text-pretty"><span className="text-muted-foreground">Decision note: </span>{amendment.decisionComment}</p>
-          )}
-          {status === "stale" && (
-            <p className="text-xs text-warning">
-              {structure
-                ? "The structure changed after this request — nothing was applied. Propose it again if it is still needed."
-                : "The value changed after this request — nothing was applied."}
-            </p>
-          )}
-          {status === "frozen" && (
-            <p className="text-xs text-muted-foreground">The project was archived while this request was pending. It can no longer be decided.</p>
-          )}
-          {amendment.status === "pending" && own && !projectArchived && (
-            <p className="text-xs text-muted-foreground">You cannot approve your own request.</p>
-          )}
+          </div>
         </div>
         {(canDecide || canWithdraw) && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex shrink-0 flex-wrap gap-2">
             {canDecide && (
               <>
                 <Button size="sm" onClick={() => setApproveOpen(true)}>
@@ -247,6 +267,74 @@ function AmendmentRow({
         )}
       </div>
 
+      {/* CHANGE */}
+      <div className="mx-3 mt-2.5 grid gap-x-3 gap-y-1 rounded-md bg-muted/40 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
+        <div className="min-w-0">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Current</p>
+          <p className="text-muted-foreground text-pretty break-words">{previous}</p>
+        </div>
+        <ArrowRight className="hidden size-4 shrink-0 text-muted-foreground sm:block" aria-label="to" />
+        <div className="min-w-0">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Proposed</p>
+          <p className="font-semibold text-pretty break-words">{proposed}</p>
+        </div>
+      </div>
+
+      {/* METADATA */}
+      <div className="space-y-0.5 px-3 pt-2 text-xs text-muted-foreground tabular-nums">
+        <p>Requested by {own ? "you" : amendment.requestedByName ?? "a Project Control user"} · {formatDateTime(amendment.requestedAt)}</p>
+        {decided && amendment.decidedAt && (
+          <p>
+            {AMENDMENT_STATUS_LABEL[amendment.status]}
+            {amendment.decidedByName ? ` by ${amendment.decidedByName}` : ""} · {formatDateTime(amendment.decidedAt)}
+          </p>
+        )}
+      </div>
+
+      <div className="mx-3 mt-2.5 space-y-2 border-t py-2.5">
+        {/* REASON */}
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Reason</p>
+          <p className={cn("text-pretty break-words", !detailsOpen && "line-clamp-2")}>{amendment.reason}</p>
+        </div>
+        {/* DECISION NOTE */}
+        {amendment.decisionComment && (
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Decision note</p>
+            <p className="text-pretty break-words">{amendment.decisionComment}</p>
+          </div>
+        )}
+        {/* IMPACT */}
+        {detailsOpen && (
+          <div id={detailsId}>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Impact</p>
+            <p className="text-xs text-muted-foreground text-pretty">{amendment.impactWarning}</p>
+          </div>
+        )}
+        {status === "stale" && (
+          <p className="text-xs text-warning">
+            {structure
+              ? "The structure changed after this request — nothing was applied. Propose it again if it is still needed."
+              : "The value changed after this request — nothing was applied."}
+          </p>
+        )}
+        {status === "frozen" && (
+          <p className="text-xs text-muted-foreground">The project was archived while this request was pending. It can no longer be decided.</p>
+        )}
+        {amendment.status === "pending" && own && !projectArchived && (
+          <p className="text-xs text-muted-foreground">You cannot approve your own request.</p>
+        )}
+        <button
+          type="button"
+          aria-expanded={detailsOpen}
+          aria-controls={detailsId}
+          onClick={() => setDetailsOpen((open) => !open)}
+          className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+        >
+          {detailsOpen ? "Hide details" : "View details"}
+        </button>
+      </div>
+
       <ConfirmDialog
         open={approveOpen}
         onOpenChange={setApproveOpen}
@@ -259,11 +347,7 @@ function AmendmentRow({
         confirmLabel="Approve and apply"
         onConfirm={() =>
           run(() => setupGovernanceService.approveAmendment(amendment.id), (result) =>
-            result.status === "stale"
-              ? `The ${structure ? "structure" : "value"} changed after this request — it was recorded as stale and nothing was applied.`
-              : structure
-                ? `Approved and applied: ${label}.`
-                : `${label} amendment approved and applied.`)
+            result.status === "stale" ? "stale" : "approved")
         }
       />
       <ConfirmDialog
@@ -281,7 +365,7 @@ function AmendmentRow({
             toast.error("A comment is required to reject a request.");
             return Promise.reject(new Error("comment required"));
           }
-          return run(() => setupGovernanceService.rejectAmendment(amendment.id, comment.trim()), () => "Amendment rejected.");
+          return run(() => setupGovernanceService.rejectAmendment(amendment.id, comment.trim()), () => "rejected");
         }}
       >
         <Field>
@@ -296,7 +380,7 @@ function AmendmentRow({
         title="Withdraw this request?"
         description="The request is closed without a decision. Nothing is applied, and the request stays in the record."
         confirmLabel="Withdraw request"
-        onConfirm={() => run(() => setupGovernanceService.withdrawAmendment(amendment.id), () => "Request withdrawn.")}
+        onConfirm={() => run(() => setupGovernanceService.withdrawAmendment(amendment.id), () => "withdrawn")}
       />
     </li>
   );

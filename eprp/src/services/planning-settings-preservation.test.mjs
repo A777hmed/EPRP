@@ -64,6 +64,8 @@ function harness(initial) {
     require(name) {
       if (name === "@/lib/supabase/client") return { getSupabaseBrowserClient: () => client };
       if (name === "./service-errors") return { describeFailure: async ({ error }) => new Error(error.message) };
+      // 13.11: the pure Working Plan refusal wording (no runtime dependencies).
+      if (name === "@/features/projects/working-plan") return { workingPlanRefusalMessage: () => undefined };
       throw new Error(`Unexpected service dependency ${name}`);
     },
   });

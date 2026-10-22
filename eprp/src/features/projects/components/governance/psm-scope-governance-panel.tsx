@@ -288,7 +288,7 @@ export function PsmScopeGovernancePanel({
           onSave={onSaveDepartmentNotes} onClose={close} />
       )}
       {dialog && dialog.kind !== "notes" && (
-        <ScopeRequestDialog projectId={project.id} project={project} dialog={dialog} assigned={assigned} links={links}
+        <ScopeRequestDialog projectId={project.id} projectCode={project.code} project={project} dialog={dialog} assigned={assigned} links={links}
           departments={departments} systems={allSystems as System[]} disciplines={disciplines}
           lookups={lookups} terms={terms} hrefs={hrefs} pendingTargets={new Set(pending.keys())}
           names={{ department: departmentName, system: systemName, discipline: disciplineName }}
@@ -304,6 +304,7 @@ const NO_SYSTEM = "__none__";
 
 function ScopeRequestDialog({
   projectId,
+  projectCode,
   project,
   lookups,
   terms,
@@ -320,6 +321,7 @@ function ScopeRequestDialog({
   onSubmitted,
 }: {
   projectId: string;
+  projectCode: string;
   project: Pick<Project, "id" | "departments" | "disciplines">;
   lookups: PsmLookups;
   terms: HierarchyTerms;
@@ -526,7 +528,7 @@ function ScopeRequestDialog({
   }
 
   return (
-    <ProposeStructureChangeDialog open projectId={projectId} title={title} current={current} proposal={proposal}
+    <ProposeStructureChangeDialog open projectId={projectId} projectCode={projectCode} title={title} current={current} proposal={proposal}
       onClose={onClose} onSubmitted={onSubmitted} blockedReason={blockedReason}>
       {fields}
     </ProposeStructureChangeDialog>

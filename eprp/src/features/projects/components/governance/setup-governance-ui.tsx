@@ -24,11 +24,13 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { StatusBadge } from "@/components/shared";
+import { ContextHelp, StatusBadge } from "@/components/shared";
 import { useMasterData } from "@/features/master-data";
 import { formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { setupGovernanceService, type SetupControlState } from "@/services/setup-governance-service";
+import { CONFIRMATION_TOAST_DURATION_MS, showCompactToast } from "@/features/notifications/compact-toast";
+import { compactAmendmentToast } from "../../amendment-toast";
 import type { Client, ProjectType } from "@/types";
 import { isOtherProjectCategory } from "../../project-category";
 import {
@@ -117,6 +119,7 @@ export function GovernedField({
         ) : (
           <span>{governed ? "Controlled · changes need approval" : "Controlled · change with a reason"}</span>
         )}
+        <SetupChangeHelp governed={governed} />
         {amendable && governance.canAmend && !pending && (
           <button
             type="button"
@@ -129,6 +132,33 @@ export function GovernedField({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * 13.11 UAT: what "Request amendment" and "Amend" mean on a controlled field.
+ * Wording only — the database decides who may approve.
+ */
+export function SetupChangeHelp({ governed }: { governed: boolean }) {
+  return governed ? (
+    <ContextHelp topic="governed fields">
+      <p>
+        Governed field — even administrators require independent approval after
+        Project Setup is controlled.
+      </p>
+      <p>
+        <strong>Request amendment</strong> records the change with a reason and
+        its impact. It applies only when a different Project Control Admin or a
+        System Administrator approves it; nobody approves their own request.
+      </p>
+    </ContextHelp>
+  ) : (
+    <ContextHelp topic="controlled fields">
+      <p>
+        <strong>Amend</strong> is a lighter controlled change: it applies at
+        once, and the reason is kept in the change history.
+      </p>
+    </ContextHelp>
   );
 }
 
@@ -189,11 +219,14 @@ export function useSetupValueLookups(): SetupValueLookups {
  */
 export function AmendSetupDialog({
   projectId,
+  projectCode,
   fieldKey,
   onClose,
   onSubmitted,
 }: {
   projectId: string;
+  /** For the confirmation toast ("code · subject"). */
+  projectCode?: string;
   /** The field to amend; null closes the dialog. */
   fieldKey: string | null;
   onClose: () => void;
@@ -204,7 +237,7 @@ export function AmendSetupDialog({
     <Dialog open={fieldKey !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
         {fieldKey && (
-          <AmendSetupBody projectId={projectId} fieldKey={fieldKey} onClose={onClose} onSubmitted={onSubmitted} />
+          <AmendSetupBody projectId={projectId} projectCode={projectCode} fieldKey={fieldKey} onClose={onClose} onSubmitted={onSubmitted} />
         )}
       </DialogContent>
     </Dialog>
@@ -213,11 +246,13 @@ export function AmendSetupDialog({
 
 function AmendSetupBody({
   projectId,
+  projectCode,
   fieldKey,
   onClose,
   onSubmitted,
 }: {
   projectId: string;
+  projectCode?: string;
   fieldKey: string;
   onClose: () => void;
   onSubmitted: (amendment: SetupAmendment) => void;
@@ -273,11 +308,12 @@ function AmendSetupBody({
         proposedValue: proposed,
         reason: reason.trim(),
       });
-      toast.success(
-        amendment.status === "applied"
-          ? `${entry.label} amended. The change is recorded in Project History.`
-          : `Amendment submitted. ${entry.label} stays unchanged until another Project Control Admin or System Administrator approves it.`
+      // 13.11 UAT: the one compact toast; the record carries the detail.
+      const { title, context, tone } = compactAmendmentToast(
+        amendment.status === "applied" ? "applied" : "submitted",
+        { projectCode, amendment }
       );
+      showCompactToast({ title, context, tone, duration: CONFIRMATION_TOAST_DURATION_MS });
       onSubmitted(amendment);
       onClose();
     } catch (cause) {

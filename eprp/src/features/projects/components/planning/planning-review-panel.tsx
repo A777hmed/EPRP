@@ -112,8 +112,11 @@ export function PlanningReviewPanel({
   const confirmAsImported = async (row: ReviewRow) => {
     try {
       const raw = row.importRow.rawData;
+      // Schedule-owned fields only. The node attachment, local weight, earning
+      // method and reporting-unit mapping are EPRP-owned and never changed by
+      // an import (`docs/02` §26.10 rule 3) — re-confirming used to clear the
+      // node attachment here and silently detach the activity (fixed in 13.11).
       const patch = {
-        work_item_id: null,
         planned_start_date: text(raw.currentStart) ?? null,
         planned_finish_date: text(raw.currentFinish) ?? null,
         baseline_start_date: text(raw.baselineStart) ?? null,

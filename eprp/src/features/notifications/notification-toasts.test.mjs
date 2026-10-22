@@ -44,29 +44,31 @@ const item = (eventType, over = {}, a = amendment()) =>
 
 /* ------------------------------- toast wording ----------------------------- */
 
-test("each event has a compact toast: title, what was requested, who acted on which project", () => {
-  const request = "Project Category / Classification: General → Asset Integrity";
+test("each event has ONE compact toast: a status title, one context line (code · subject), View (13.11 UAT)", () => {
+  const subject = "Project Category / Classification";
   assert.deepEqual(item("amendment_submitted").toast, {
-    title: "Approval required",
-    description: `${request}\nRequested by Dina · Pump Station`,
-    actionLabel: "View request",
+    title: "Approval needed", description: `MDP-PSAIM-01 · ${subject}`, actionLabel: "View", tone: "approval",
   });
   const decided = { decidedByName: "Omar", decidedAt: "2026-10-18T10:07:00Z" };
   assert.deepEqual(item("amendment_approved", {}, amendment({ status: "approved", ...decided })).toast,
-    { title: "Request approved", description: `${request}\nApproved by Omar · Pump Station`, actionLabel: "View details" });
+    { title: "Amendment approved", description: `MDP-PSAIM-01 · ${subject} updated`, actionLabel: "View", tone: "approved" });
   // The rejection reason stays in the Notification Center card; the toast is a glance.
   const rejected = item("amendment_rejected", {}, amendment({ status: "rejected", ...decided, decisionComment: "Not the contract category." })).toast;
-  assert.deepEqual(rejected, { title: "Request rejected", description: `${request}\nRejected by Omar · Pump Station`, actionLabel: "View details" });
+  assert.deepEqual(rejected, { title: "Amendment rejected", description: `MDP-PSAIM-01 · ${subject}`, actionLabel: "View", tone: "rejected" });
   assert.deepEqual(item("amendment_stale", {}, amendment({ status: "stale" })).toast, {
-    title: "Request not applied", description: `${request}\nNot applied: the value changed · Pump Station`, actionLabel: "View details" });
+    title: "Amendment not applied", description: `MDP-PSAIM-01 · ${subject} changed after the request`, actionLabel: "View", tone: "notice" });
   assert.deepEqual(item("amendment_frozen").toast, {
-    title: "Request frozen", description: `${request}\nProject archived · Pump Station`, actionLabel: "View details" });
-  // Every toast is two short lines, never a paragraph; long values are clipped.
+    title: "Amendment frozen", description: `MDP-PSAIM-01 · ${subject}`, actionLabel: "View", tone: "notice" });
+  // ONE short line — never old → new, reason, impact, people, dates or the project name.
   for (const event of ["amendment_submitted", "amendment_approved", "amendment_rejected", "amendment_stale", "amendment_frozen"]) {
-    const lines = item(event, {}, amendment({ reason: "x".repeat(400), decisionComment: "y".repeat(400) })).toast.description.split("\n");
-    assert.equal(lines.length, 2, event);
-    assert.ok(lines.every((line) => line.length <= 90), event);
+    const toast = item(event, {}, amendment({ reason: "x".repeat(400), decisionComment: "y".repeat(400), decidedByName: "Omar" })).toast;
+    assert.equal(toast.description.split("\n").length, 1, event);
+    assert.ok(toast.description.length <= 90, event);
+    assert.doesNotMatch(toast.description, /→|General|Asset Integrity|Dina|Omar|Pump Station|xxx|yyy|2026/, event);
   }
+  // The planning approach reads in everyday words.
+  const planning = amendment({ fieldKey: "onboarding_mode", previousValue: { onboarding_mode: "new_project" }, proposedValue: { onboarding_mode: "no_formal_schedule" } });
+  assert.equal(item("amendment_approved", {}, { ...planning, status: "approved" }).toast.description, "MDP-PSAIM-01 · Planning approach updated");
   const long = notify.clipToastLine("z".repeat(200));
   assert.equal(long.length, 90);
   assert.ok(long.endsWith("…"));
@@ -75,11 +77,11 @@ test("each event has a compact toast: title, what was requested, who acted on wh
 test("a structure request toasts in business words (PSM and Other projects alike)", () => {
   const other = amendment({ fieldKey: "structure_units", targetKey: "unit:u2",
     proposedValue: { action: "rename", unit_id: "u2", name: "Unit Two", labels: { target: "U2", level: "Unit" } }, previousValue: { unit: { name: "U2" } } });
-  assert.equal(item("amendment_submitted", {}, other).toast.description, "Rename Unit · U2 → Unit Two\nRequested by Dina · Pump Station");
-  assert.equal(item("amendment_approved", {}, amendment({ ...other, decidedByName: "Omar" })).toast.description, "Rename Unit · U2 → Unit Two\nApproved by Omar · Pump Station");
+  assert.equal(item("amendment_submitted", {}, other).toast.description, "MDP-PSAIM-01 · Rename Unit · U2");
+  assert.equal(item("amendment_approved", {}, amendment({ ...other, decidedByName: "Omar" })).toast.description, "MDP-PSAIM-01 · Rename Unit · U2");
   const psm = amendment({ fieldKey: "structure_departments", targetKey: "department:d1", previousValue: { assignment: null },
     proposedValue: { action: "add_department", department_id: "d1", system_ids: [], reporting_required: true, labels: { target: "Civil", systems: [] } } });
-  assert.equal(item("amendment_rejected", {}, amendment({ ...psm, decidedByName: "Omar" })).toast.description, "Add department · Civil\nRejected by Omar · Pump Station");
+  assert.equal(item("amendment_rejected", {}, amendment({ ...psm, decidedByName: "Omar" })).toast.description, "MDP-PSAIM-01 · Add department · Civil");
 });
 
 /* --------------------------- backlog and dedup rules ----------------------- */
@@ -278,7 +280,7 @@ test("the provider: one gate per session, focus shows pending + forces a catch-u
   assert.match(provider, /onError: DEVELOPMENT \? \(failure\) => console\.warn\(/);
   assert.match(provider, /if \(DEVELOPMENT && \(show\.length \|\| overflow\)\) console\.info\("\[EPRP toasts\] toast\(\) called"/);
   // One toast renderer for real toasts and the development renderer check.
-  assert.equal((provider.match(/toast\(item\.toast!\.title/g) ?? []).length, 1);
+  assert.equal((provider.match(/title: item\.toast!\.title/g) ?? []).length, 1);
   assert.match(provider, /showTestToast: \(\) => \{\s*if \(!DEVELOPMENT\) return;[\s\S]*?showToasts\(\{ show: \[/);
   assert.match(code("./notification-center.tsx"), /<Button size="sm" variant="ghost" onClick=\{showTestToast\}>Show test toast<\/Button>/);
   // The poll: visibility / focus requests a guaranteed catch-up; the interval does not queue; 30 s unchanged.
@@ -312,14 +314,17 @@ test("clicking a toast uses the same deep link as the bell item", () => {
   assert.match(provider, /service\.setRead\(item\.id, true\)[\s\S]*?router\.push\(href\)/);
   // Dedup is also enforced by the toast id, and the toast auto-dismisses and can be closed.
   assert.match(provider, /id: `notification:\$\{item\.id\}`/);
-  assert.match(provider, /icon: <ToastBell \/>,\s*position: TOAST_POSITION,\s*duration: TOAST_DURATION_MS,\s*closeButton: true,/);
+  const compact = code("./compact-toast.tsx");
+  assert.match(compact, /icon: <ToastIcon tone=\{input\.tone\} \/>,\s*position: TOAST_POSITION,\s*duration: input\.duration \?\? TOAST_DURATION_MS,\s*closeButton: true,/);
+  assert.match(provider, /tone: item\.toast!\.tone \?\? "approval",/);
   assert.equal(feed.TOAST_DURATION_MS, 12_000, "about 12 seconds");
   assert.equal(feed.TOAST_POSITION, "top-center");
 });
 
 test("the existing toast system and notification provider are reused", () => {
   const provider = code("./provider.tsx");
-  assert.match(provider, /import \{ toast \} from "sonner";/);
+  assert.match(code("./compact-toast.tsx"), /import \{ toast \} from "sonner";/);
+  assert.match(provider, /import \{ showCompactToast \} from "\.\/compact-toast";/);
   assert.match(provider, /if \(service\.mode !== "connected"\) return;/);        // not in the sample preview or disconnected mode
   assert.match(provider, /service\.list\(\{ projectId: "all", category: "all", read: "unread", page: 1, pageSize: 20 \}\)/);
   assert.match(provider, /gate\.observe\(unread\.items, /);
@@ -412,51 +417,61 @@ test("the toast carries an amber bell with a finite, reduced-motion-safe attenti
   assert.equal(css.split(marker).length, 2, "exactly one notification toast block");
   const block = css.slice(css.indexOf(marker));
   assert.doesNotMatch(block, /polish v2|polish v3/);
-  // Ring, glow and ripple: 3 pulses of 0.8 s (2.4 s), then static. Never infinite.
+  // 13.11 UAT: ONE short arrival cue (ring for the bell, pop for the others), then static. Never infinite.
   const motion = block.slice(block.indexOf("@media (prefers-reduced-motion: no-preference)"));
-  const durations = [...motion.matchAll(/animation: notif-toast-(ring|glow|ripple) ([\d.]+)s [^;]*? (\d+) both;/g)];
-  assert.deepEqual(durations.map((match) => match[1]).sort(), ["glow", "ring", "ripple"]);
+  const durations = [...motion.matchAll(/animation: notif-(?:toast|badge)-(ring|glow|ripple|pop|bump) ([\d.]+)s [^;]*? (\d+) both;/g)];
+  assert.deepEqual(durations.map((match) => match[1]).sort(), ["bump", "glow", "pop", "ring", "ripple"]);
   for (const [, , seconds, count] of durations) {
-    assert.equal(Number(count), 3, "3 pulses");
-    const total = Number(seconds) * Number(count);
-    assert.ok(total >= 2 && total <= 3, `about 2–3 s (${total} s)`);
+    assert.equal(Number(count), 1, "one cue");
+    assert.ok(Number(seconds) <= 1, `short (${seconds} s)`);
   }
-  for (const name of ["ring", "glow", "ripple"]) assert.match(block, new RegExp(`@keyframes notif-toast-${name} \\{`), name);
+  for (const name of ["toast-ring", "toast-glow", "toast-ripple", "toast-pop", "badge-bump"]) assert.match(block, new RegExp(`@keyframes notif-${name} \\{`), name);
   assert.doesNotMatch(block, /infinite/);
   // Animation is declared ONLY for no-preference; reduced motion is explicitly static.
   const outsideNoPreference = block.replace(/@media \(prefers-reduced-motion: no-preference\) \{[\s\S]*?\n\}/, "");
-  assert.doesNotMatch(outsideNoPreference, /animation: notif-toast-/);
-  assert.match(block, /@media \(prefers-reduced-motion: reduce\) \{\s*\.notif-toast-bell,\s*\.notif-toast-bell__icon,\s*\.notif-toast-bell__ripple \{ animation: none; \}\s*\}/);
+  assert.doesNotMatch(outsideNoPreference, /animation: notif-(toast|badge)-/);
+  assert.match(block, /@media \(prefers-reduced-motion: reduce\) \{\s*\.notif-toast-bell,\s*\.notif-toast-bell__icon,\s*\.notif-toast-bell__ripple,\s*\.notif-badge \{ animation: none; \}\s*\}/);
+  // Status colours: amber bell, green check, red x.
+  assert.match(block, /\.notif-toast-bell\[data-tone="approved"\] \{ color: #4ade80; \}/);
+  assert.match(block, /\.notif-toast-bell\[data-tone="rejected"\] \{ color: #f87171; \}/);
+  // The icon sits on the title line, not centred on the whole toast.
+  assert.match(block, /\[data-sonner-toast\]:has\(\.notif-toast-bell\) \{[^}]*align-items: flex-start !important;/);
   // Amber bell; dark navy/charcoal surface with light text (not the bright primary blue).
   assert.match(block, /\.notif-toast-bell \{[^}]*color: #f5c451;/);
   const surface = block.match(/\[data-sonner-toast\]:has\(\.notif-toast-bell\) \{([^}]*)\}/)[1];
   assert.match(surface, /background: linear-gradient\(135deg, #17263d 0%, #0f1b2d 100%\) !important;/);
   assert.match(surface, /color: #f8fafc !important;/);
   assert.doesNotMatch(surface, /var\(--primary\)/);
-  // Two-line description (request, then who / project).
-  assert.match(block, /\[data-description\] \{[^}]*white-space: pre-line;/);
+  // One context line.
+  assert.doesNotMatch(block, /white-space: pre-line/);
   // Top-centre, just below the 3.5 rem top bar.
   assert.match(block, /\[data-sonner-toaster\]\[data-y-position="top"\]\[data-x-position="center"\] \{\s*top: 4rem !important;/);
   assert.match(readFileSync(new URL("../../components/layout/top-bar.tsx", import.meta.url), "utf8"), /sticky top-0 z-40 flex h-14/);
-  // The component: a ring icon plus a ripple, decorative only, no sound.
+  // The component: one status icon (bell / check / x / clock / info) plus a ripple, decorative only, no sound.
   const bell = code("./toast-bell.tsx");
-  assert.match(bell, /<BellRing className="notif-toast-bell__icon" \/>/);
+  assert.match(bell, /approval: BellRing,\s*approved: Check,\s*rejected: X,/);
+  assert.match(bell, /<Icon className="notif-toast-bell__icon" \/>/);
   assert.match(bell, /notif-toast-bell__ripple/);
   assert.match(bell, /aria-hidden="true"/);
   assert.doesNotMatch(bell + code("./provider.tsx"), /Audio\(|\.play\(|\bnew Howl\b/);
-  // Every amendment toast (and the overflow summary) gets the icon and the placement.
+  // Every amendment toast (and the overflow summary) goes through the one compact toast.
   const provider = code("./provider.tsx");
-  assert.equal((provider.match(/icon: <ToastBell \/>/g) ?? []).length, 2);
-  assert.equal((provider.match(/position: TOAST_POSITION/g) ?? []).length, 2);
+  assert.equal((provider.match(/showCompactToast\(\{/g) ?? []).length, 2);
+  assert.equal((code("./compact-toast.tsx").match(/position: TOAST_POSITION/g) ?? []).length, 1);
   // The ring is gated on a bell marked ringing (set on visible mount), never on the element alone.
   const rules = [...motion.slice(0, motion.indexOf("\n}")).matchAll(/^\s*([^{\n]+?) \{ animation: notif-toast-(\w+)/gm)].map((match) => [match[2], match[1]]);
   assert.deepEqual(rules, [
     ["glow", '.notif-toast-bell[data-ringing="true"]'],
-    ["ring", '.notif-toast-bell[data-ringing="true"] .notif-toast-bell__icon'],
-    ["ripple", '.notif-toast-bell[data-ringing="true"] .notif-toast-bell__ripple'],
+    ["ring", '.notif-toast-bell[data-tone="approval"][data-ringing="true"] .notif-toast-bell__icon'],
+    ["ripple", '.notif-toast-bell[data-tone="approval"][data-ringing="true"] .notif-toast-bell__ripple'],
+    ["pop", '.notif-toast-bell:not([data-tone="approval"])[data-ringing="true"] .notif-toast-bell__icon'],
   ]);
+  // The header bell's badge bumps once when the unread count rises, never on first load.
+  const center = code("./notification-center.tsx");
+  assert.match(center, /if \(seenUnread\.current !== null && unread > seenUnread\.current\) setBump/);
+  assert.match(center, /data-bump=\{bump > 0 \? "true" : undefined\}/);
   assert.match(bell, /React\.useEffect\(\(\) => \(ref\.current \? ringWhenShown\(ref\.current\) : undefined\), \[\]\);/);
-  assert.match(bell, /<span ref=\{ref\} className="notif-toast-bell"/);
+  assert.match(bell, /<span ref=\{ref\} className="notif-toast-bell" data-tone=\{tone\}/);
 });
 
 /** A fake browser for the ring start: visibility, the toast's data-mounted, and painted frames. */

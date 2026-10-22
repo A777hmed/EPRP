@@ -135,7 +135,10 @@ test("PT409: the live functions raise no 40001 except the genuine Weekly concurr
     "reported_progress_supersede", "guard_reported_progress_entry",
     // 13.9B Step 4: a second pending request on the same structure target,
     // and an approved structure change whose row has gone.
-    "request_project_structure_amendment", "project_setup_apply_structure"];
+    "request_project_structure_amendment", "project_setup_apply_structure",
+    // 13.11: a weight decision built on stale weights, and a Planning
+    // Configuration saved over a newer version.
+    "record_planning_weight_decision", "save_planning_configuration"];
   assert.deepEqual(stale, [...RECREATED.map(([name]) => name), ...LATER_PT409].sort());
 });
 

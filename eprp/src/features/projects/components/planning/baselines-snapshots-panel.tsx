@@ -40,6 +40,7 @@ import type {
   ProjectPlanningSettings,
 } from "@/types";
 import { OpeningPositionDialog } from "./opening-position-dialog";
+import { useReturnRefresh } from "../../use-return-refresh";
 
 const NONE = "none";
 
@@ -97,7 +98,9 @@ export function BaselinesSnapshotsPanel({
     void setupGovernanceService.getControlState(project.id).then(setControl).catch(() => setControl(undefined));
   }, [project.id]);
 
-  React.useEffect(() => load(), [load]);
+  // 13.11 UAT: re-read on return to the tab (a Planning Approach approved elsewhere).
+  const returned = useReturnRefresh();
+  React.useEffect(() => load(), [load, returned]);
 
   if (snapshots === undefined || settings === undefined || openingPosition === undefined) {
     return <LoadingState variant="table" label="Loading snapshots…" />;

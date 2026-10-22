@@ -940,6 +940,46 @@ ornamental icons (§3.1, §3.3).
 - "Superseded by BL0".
 - "Reported — not planning governed".
 
+### 10.13 Contextual help — one pattern for the whole platform (2026-10-21)
+
+Introduced with roadmap slice 13.11 (Planning). There is **one** help
+component, `ContextHelp` (`src/components/shared/context-help.tsx`). Every
+surface uses it, and no surface builds its own help tooltip.
+
+- **Hierarchy of explanation.**
+  1. A short visible label, plus at most one line of visible guidance.
+  2. A small **information** icon beside the label. Opening it shows a short
+     explanation (one to three sentences or a short list) and, optionally,
+     one concrete example.
+  3. An optional **Learn more** section inside the popover, only where it is
+     genuinely needed.
+- **Interaction.**
+  - The icon is a real button: click, tap, Enter or Space opens a compact
+    popover.
+  - Escape or clicking outside closes it and returns focus to the icon.
+  - Help is never hover-only.
+- **Accessibility.**
+  - The trigger is named "About ⟨topic⟩" (e.g. "About Weight source") and
+    shows a visible focus ring.
+  - The popover is a labelled dialog, titled with the topic.
+  - "Learn more" is a disclosure button with `aria-expanded`.
+- **Layout.**
+  - The popover width is `min(20rem, 100vw − 2rem)` with collision padding,
+    so it never overflows a phone screen.
+  - It uses theme tokens only, so it works in light and dark mode.
+- **Icon semantics.** Use the information icon for explanation. Warning and
+  error icons stay reserved for risk, error and governed-action states. Help
+  never replaces a warning, a confirmation or a governed-action dialog.
+- **Where to use it.**
+  - Only for concepts that are genuinely non-obvious: terms of art, calculated
+    figures, governance states, data semantics.
+  - Never beside Save, Cancel, a name field or other self-explanatory
+    controls.
+  - Do not put an icon on every label of a form.
+- **Write once.** A feature keeps its help text in one content module (e.g.
+  `planning-help.tsx` for Planning) and every surface points to that entry. The
+  same explanation is never pasted into several places.
+
 ---
 
 ## 11. Weekly UI

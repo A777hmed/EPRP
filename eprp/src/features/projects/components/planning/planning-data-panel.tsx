@@ -3,13 +3,18 @@
 import * as React from "react";
 import { ChevronLeft, FileSpreadsheet, Upload } from "lucide-react";
 
+import Link from "next/link";
+
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingState, StatusBadge } from "@/components/shared";
 import { formatDateTime } from "@/lib/formatters";
 import { planningService } from "@/services/planning-service";
 import type { PlanningImportBatch, Project } from "@/types";
+import { projectWorkflowHref } from "@/config/project-workflow";
+import { NO_FORMAL_SCHEDULE_NOTICE } from "../../planning-experience";
 import { PlanningImportWizard } from "./planning-import-wizard";
 import { PlanningReviewPanel } from "./planning-review-panel";
+import { useReturnRefresh } from "../../use-return-refresh";
 
 const SOURCE_LABEL: Record<PlanningImportBatch["sourceType"], string> = {
   eprp_excel: "EPRP Excel Template",
@@ -32,9 +37,13 @@ const STATUS_TONE: Record<PlanningImportBatch["status"], "neutral" | "success" |
 export function PlanningDataPanel({
   project,
   canManage,
+  noFormalSchedule = false,
 }: {
   project: Project;
+  /** Write authority, already withdrawn for an archived or no-formal-schedule project. */
   canManage: boolean;
+  /** The Planning Approach is "No formal schedule": no import invitation. */
+  noFormalSchedule?: boolean;
 }) {
   const [batches, setBatches] = React.useState<PlanningImportBatch[] | undefined>();
   const [existingCodes, setExistingCodes] = React.useState<string[]>([]);
@@ -48,7 +57,9 @@ export function PlanningDataPanel({
     );
   }, [project.id]);
 
-  React.useEffect(() => load(), [load]);
+  // 13.11 UAT: re-read on return to the tab (a Planning Approach approved elsewhere).
+  const returned = useReturnRefresh();
+  React.useEffect(() => load(), [load, returned]);
 
   if (batches === undefined) {
     return <LoadingState variant="table" label="Loading import history…" />;
@@ -82,11 +93,14 @@ export function PlanningDataPanel({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          Every import lands here as a Draft Import Batch first — nothing is
-          published or added to the Master Plan until Planning Review
-          confirms it.
-        </p>
+        {/* With no imports, the empty state below already says it once. */}
+        {!(noFormalSchedule && batches.length === 0) && (
+          <p className="text-xs text-muted-foreground">
+            {noFormalSchedule
+              ? `${NO_FORMAL_SCHEDULE_NOTICE.description} Earlier imports are kept for reference.`
+              : "Every import lands here as a Draft Import Batch first — nothing is published or added to the Master Plan until Planning Review confirms it."}
+          </p>
+        )}
         {canManage && (
           <Button size="sm" onClick={() => setWizardOpen(true)}>
             <Upload data-icon="inline-start" aria-hidden="true" />
@@ -95,7 +109,19 @@ export function PlanningDataPanel({
         )}
       </div>
 
-      {batches.length === 0 ? (
+      {batches.length === 0 && noFormalSchedule ? (
+        <EmptyState
+          icon={FileSpreadsheet}
+          title={NO_FORMAL_SCHEDULE_NOTICE.title}
+          description={NO_FORMAL_SCHEDULE_NOTICE.description}
+          className="py-10"
+          action={
+            <Button variant="outline" asChild>
+              <Link href={`${projectWorkflowHref(project.id, "info")}#planning-entry`}>Open Project Setup</Link>
+            </Button>
+          }
+        />
+      ) : batches.length === 0 ? (
         <EmptyState
           icon={FileSpreadsheet}
           title="No imports yet"

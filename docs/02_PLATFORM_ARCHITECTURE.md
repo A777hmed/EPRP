@@ -1868,6 +1868,15 @@ Weekly/Monthly comments (§26.21) belong to **13.17** (PSM Weekly), **13.18**
 history (§26.22) belong to **13.16** (Import v2), with snapshot provenance and
 Baseline Revisions in **13.12**. None of these changes the slice order.
 
+*Implementation status (2026-10-20):* **13.11 is implemented locally and
+awaits owner closeout.** It delivers §26.3 H1–H7 in the Working Plan, §26.4
+local weights with W1–W5 checks, and W3 as an explicit, logged decision. It
+also delivers the §26.20 Guided / Advanced Planning Setup over one Planning
+Configuration (breakdown, weight source, default earning method) and the
+canonical Working Plan → engine adapter. As-built: `06` §10A.9; roadmap
+13.11 checkpoint. Nothing published changes yet. Publish and every consumer
+are unchanged until 13.12 / 13.14+.
+
 **13.9A — Planning Experience Foundation** (approved 2026-10-15) is a
 pre-engine **UI / information-architecture** sub-slice between 13.9 and 13.10.
 It applies the navigation, Planning Workspace, Project Setup and Project
@@ -1912,6 +1921,7 @@ Reported Progress stream. It is separate from the Planning Engine. Sequence:
 | ~~B7~~ | **CLOSED 2026-10-20 (owner decision, at the start of 13.10).** PV for the discrete methods follows their earning points exactly as specified in §26.4 — 0/100: 0 until BLn finish, then 100; 50/50: 50 at BLn start, 100 at BLn finish; Milestone: 0 until the BLn date, then 100 — and only Percent Complete is linear over the project's working days. A correctly progressing discrete activity therefore never shows a false variance | — |
 | B8 | Who approves the **original** baseline BL0: the re-baseline rule (Project Control Admin or System Administrator only), as specified in §26.8, or the project's assigned Project Control | 13.12 |
 | B9 | Other projects: confirm that a unit's **active members** are the "engineers" who may author comments in that unit's section (§26.21). Unit membership is authority-free today (`06` §8.9) | 13.18 |
+| B25 | **Planning Setup Templates** (raised 2026-10-21; owner kept them deferred at 13.11). §26.20.1 says templates are managed "from 13.11", but the roadmap's 13.11 scope line does not include them and 13.11 shipped without them. Open: which slice delivers the admin-managed templates (`05` §3.8) that are copied into a project's Planning Configuration, and whether any are needed before the first v2 publish. Until decided, no template exists, Planning Setup offers no recommended defaults, and nothing branches on a template (§26.20 rule 3) | Template work only — blocks no current slice |
 | ~~B10~~ | **CLOSED 2026-10-14 (owner decision).** Back-dated Schedule Versions are accepted only through the explicit **Historical Correction** workflow. Operational versions must be dated on or after the latest accepted operational version (§26.22.2). Also closed: **one Schedule Version Under Review per project** at a time | — |
 | ~~B11~~ | **CLOSED 2026-10-15 (owner decision).** Setup-control enforcement gets its own slice, **13.9B — Project Setup Governance**, between 13.9A and 13.10. 13.12 is not overloaded (§26.23.9) | — |
 | ~~B12~~ | **CLOSED 2026-10-15 (owner decision).** A requester may **never** approve their own governed setup amendment. Approval needs a **different** eligible Project Control Admin or System Administrator. There is no break-glass or self-approval exception; if operational evidence later shows one is needed, it is specified as a separate governance decision. Lightweight amendments, which need no approval, are unaffected | — |
@@ -2079,7 +2089,8 @@ templates.
 - Examples: a PSM Project recommended configuration, an Other Project
   recommended configuration, and later RBI, engineering and study templates.
 - Templates provide **editable defaults only**, under rule 3. They are
-  managed as Planning Setup Templates (`05` §3.8) from 13.11.
+  managed as Planning Setup Templates (`05` §3.8). *Delivery slice open —
+  deferred by the owner at 13.11 (§26.19 B25).*
 - No behaviour may branch solely on which template was used.
 
 ### 26.21 Weekly and Monthly collaborative comments (approved 2026-10-14)

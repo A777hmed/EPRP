@@ -318,6 +318,20 @@ enforced at the data boundary by the roadmap slice that builds it (Phase 13,
 13.9–13.20). **No new platform role is created**: every grant below uses an
 authority source already listed in §3.7.
 
+*13.11 (implemented locally 2026-10-20, awaiting owner closeout).* Three rows
+are enforced, all with the existing `can_manage_project_operations()`
+predicate, which is unchanged:
+- **Edit the Working Plan:** the existing table RLS, plus integrity triggers.
+- **Explicit weight normalisation:** `record_planning_weight_decision()`.
+- **Planning setup — Guided or Advanced:** `save_planning_configuration()`.
+
+Both functions check authority and the archive themselves and are callable
+by signed-in accounts only. The Reporting Coordinator, department or unit
+roles and members are refused. Every write on an archived project is refused
+for every role. Planning Setup Templates are not built: the owner deferred
+them on 2026-10-21, and their delivering slice is open decision B25 (`02`
+§26.19). The "Manage Planning Setup Templates" row below is not enforced yet.
+
 "Project Control" below means: System Administrator, Project Control Admin, or
 the project's assigned **Project Control Manager** (Project Control / Planning)
 — the same set that manages project operations today.

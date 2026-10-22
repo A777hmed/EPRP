@@ -22,6 +22,12 @@ export {
 } from "./clear-value-button";
 export { FilterBar, type FilterBarProps } from "./filter-bar";
 export { ConfirmDialog, type ConfirmDialogProps } from "./confirm-dialog";
+export {
+  ContextHelp,
+  type ContextHelpProps,
+  contextHelpLabel,
+  LabelWithHelp,
+} from "./context-help";
 export { DetailModal, type DetailModalProps } from "./detail-modal";
 export {
   DetailDrawer,

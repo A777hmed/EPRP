@@ -33,7 +33,7 @@ import { usePlanningPosition } from "../use-planning-position";
 import { useProjectWorkflow } from "../use-project-workflow";
 import { PlanningStatus } from "./planning/planning-status";
 import { formatDate } from "@/lib/formatters";
-import { useSetupFormGovernance, type SetupFinaliseContext } from "./governance/setup-governance-ui";
+import { SetupChangeHelp, useSetupFormGovernance, type SetupFinaliseContext } from "./governance/setup-governance-ui";
 import { FINALISE_EXPLANATION, FinaliseSetupDialog } from "./governance/finalise-setup-dialog";
 
 /**
@@ -208,6 +208,7 @@ export function PlanningEntry({
               Request amendment
             </button>
           )}
+          {!onboardingPending && <SetupChangeHelp governed />}
         </div>
       )}
 

@@ -5766,15 +5766,51 @@ span.dash-plotkey { cursor: default; }
 }
 
 /* ---------------------------------------------------------------------------
+   Shared table frame (13.11 UAT) — the shell around a wide data table:
+   one rounded outer container (the caller supplies `rounded-lg border
+   bg-card overflow-hidden`), and a horizontal scrollbar that sits INSIDE the
+   frame, inset from its edges and lifted off the bottom border, so it never
+   reads as the table's bottom edge. Rows stay compact and square; only the
+   outer container is rounded. Usable by any table built on <Table>.
+   --------------------------------------------------------------------------- */
+.table-frame {
+  padding-bottom: 0.375rem;
+}
+.table-frame > [data-slot="table-container"] {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 40%, transparent) transparent;
+}
+.table-frame > [data-slot="table-container"]::-webkit-scrollbar {
+  height: 0.5rem;
+}
+.table-frame > [data-slot="table-container"]::-webkit-scrollbar-track {
+  margin-inline: 0.5rem;
+  background: transparent;
+}
+.table-frame > [data-slot="table-container"]::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--muted-foreground) 40%, transparent);
+}
+.table-frame > [data-slot="table-container"]::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
    Notification toasts (13.9B UAT polish) — one block, one source of truth.
    Placement: top-centre, just below the 3.5 rem top bar.
    Surface: dark navy/charcoal in both themes, high contrast, compact.
-   Attention cue: an amber bell that rings 3 finite pulses (3 x 0.8 s = 2.4 s)
-   with a soft glow and ripple, then stays static. No sound, no looping.
+   Content (13.11 UAT): a title, ONE context line, an optional action; the
+   status icon sits on the title line (not centred on the whole toast).
+   Status icon: amber bell (approval needed), green check (approved / applied),
+   red x (rejected), blue clock (waiting), blue info (anything else).
+   Arrival cue: ONE short cue, then static — the bell rings once with a soft
+   glow and ripple; the other icons pop in with a soft glow. No sound, no
+   looping. Sonner's own slide / fade carries the toast in.
    Motion runs only under `prefers-reduced-motion: no-preference`; with reduced
-   motion the bell is simply static. It runs only on a bell marked
-   `data-ringing`, set once the toast is visibly mounted (toast-bell-start.ts):
-   a ring started at creation could finish before the toast was ever painted.
+   motion the icon is simply static (Sonner drops its slide / fade too). It
+   runs only on an icon marked `data-ringing`, set once the toast is visibly
+   mounted (toast-bell-start.ts): a cue started at creation could finish
+   before the toast was ever painted.
    --------------------------------------------------------------------------- */
 [data-sonner-toaster][data-y-position="top"][data-x-position="center"] {
   top: 4rem !important;
@@ -5784,18 +5820,20 @@ span.dash-plotkey { cursor: default; }
   border: 1px solid #334a68 !important;
   color: #f8fafc !important;
   box-shadow: 0 18px 44px rgb(2 8 23 / 34%), 0 5px 16px rgb(2 8 23 / 24%) !important;
+  align-items: flex-start !important;
 }
 [data-sonner-toast]:has(.notif-toast-bell) [data-title] {
   color: #ffffff !important;
   font-weight: 700 !important;
+  line-height: 1.25rem !important;
 }
-/* Two short lines: what was requested, then who acted on which project. */
+/* One context line ("project code · subject"); details stay in the card. */
 [data-sonner-toast]:has(.notif-toast-bell) [data-description] {
   color: #d8e2ef !important;
-  line-height: 1.45 !important;
-  white-space: pre-line;
+  line-height: 1.25rem !important;
 }
 [data-sonner-toast]:has(.notif-toast-bell) [data-button] {
+  align-self: center;
   background: #f8fafc !important;
   color: #132238 !important;
   border: 1px solid #ffffff !important;
@@ -5806,10 +5844,13 @@ span.dash-plotkey { cursor: default; }
   border: 1px solid #51647e !important;
   color: #f8fafc !important;
 }
+/* Aligned with the title line: a 1.25 rem box on the 1.25 rem first line. */
 [data-sonner-toast] [data-icon]:has(.notif-toast-bell) {
   overflow: visible;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0 0.25rem 0 0;
+  align-self: flex-start;
 }
 
 .notif-toast-bell {
@@ -5817,15 +5858,23 @@ span.dash-plotkey { cursor: default; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.25rem;
+  height: 1.25rem;
   color: #f5c451;
 }
+.notif-toast-bell[data-tone="approved"] { color: #4ade80; }
+.notif-toast-bell[data-tone="rejected"] { color: #f87171; }
+.notif-toast-bell[data-tone="pending"],
+.notif-toast-bell[data-tone="notice"] { color: #93c5fd; }
 .notif-toast-bell__icon {
   position: relative;
   width: 1.125rem;
   height: 1.125rem;
   transform-origin: 50% 12%;
+}
+.notif-toast-bell:not([data-tone="approval"]) .notif-toast-bell__icon {
+  transform-origin: 50% 50%;
+  stroke-width: 2.5;
 }
 .notif-toast-bell__ripple {
   position: absolute;
@@ -5835,14 +5884,17 @@ span.dash-plotkey { cursor: default; }
   opacity: 0;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .notif-toast-bell[data-ringing="true"] { animation: notif-toast-glow 0.8s ease-in-out 3 both; }
-  .notif-toast-bell[data-ringing="true"] .notif-toast-bell__icon { animation: notif-toast-ring 0.8s cubic-bezier(0.36, 0.07, 0.19, 0.97) 3 both; }
-  .notif-toast-bell[data-ringing="true"] .notif-toast-bell__ripple { animation: notif-toast-ripple 0.8s ease-out 3 both; }
+  .notif-toast-bell[data-ringing="true"] { animation: notif-toast-glow 0.9s ease-in-out 1 both; }
+  .notif-toast-bell[data-tone="approval"][data-ringing="true"] .notif-toast-bell__icon { animation: notif-toast-ring 0.9s cubic-bezier(0.36, 0.07, 0.19, 0.97) 1 both; }
+  .notif-toast-bell[data-tone="approval"][data-ringing="true"] .notif-toast-bell__ripple { animation: notif-toast-ripple 0.9s ease-out 1 both; }
+  .notif-toast-bell:not([data-tone="approval"])[data-ringing="true"] .notif-toast-bell__icon { animation: notif-toast-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 1 both; }
+  .notif-badge[data-bump="true"] { animation: notif-badge-bump 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 1 both; }
 }
 @media (prefers-reduced-motion: reduce) {
   .notif-toast-bell,
   .notif-toast-bell__icon,
-  .notif-toast-bell__ripple { animation: none; }
+  .notif-toast-bell__ripple,
+  .notif-badge { animation: none; }
 }
 @keyframes notif-toast-ring {
   0%, 100% { transform: rotate(0deg) scale(1); }
@@ -5854,11 +5906,21 @@ span.dash-plotkey { cursor: default; }
   90% { transform: rotate(-2deg) scale(1); }
 }
 @keyframes notif-toast-glow {
-  0%, 100% { filter: drop-shadow(0 0 0 rgb(245 196 81 / 0%)); }
-  45% { filter: drop-shadow(0 0 8px rgb(245 196 81 / 90%)); }
+  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+  45% { filter: drop-shadow(0 0 7px currentColor); }
 }
 @keyframes notif-toast-ripple {
   0% { opacity: 0.7; transform: scale(0.55); }
   70% { opacity: 0.2; }
   100% { opacity: 0; transform: scale(2); }
+}
+@keyframes notif-toast-pop {
+  0% { opacity: 0; transform: scale(0.5); }
+  70% { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+/* The bell's unread badge bumps once when the count goes up. */
+@keyframes notif-badge-bump {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(1.35); }
 }

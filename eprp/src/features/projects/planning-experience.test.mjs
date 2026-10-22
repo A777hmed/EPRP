@@ -113,26 +113,36 @@ const facts = (overrides = {}) => ({
   hasPlanData: false,
   hasOpeningDraft: false,
   hasPublishedSnapshot: false,
+  configurationComplete: false,
   ...overrides,
 });
 const states = (steps) => steps.map((step) => `${step.id}:${step.state}`);
 
-test("new project readiness: onboarding → plan → publish, from existing data only", () => {
-  assert.deepEqual(states(planningReadinessSteps(facts())), ["onboarding:done", "plan:next", "publish:pending"]);
-  assert.deepEqual(states(planningReadinessSteps(facts({ hasPlanData: true }))), ["onboarding:done", "plan:done", "publish:next"]);
-  const done = planningReadinessSteps(facts({ hasPlanData: true, hasPublishedSnapshot: true }));
-  assert.deepEqual(states(done), ["onboarding:done", "plan:done", "publish:done"]);
+// 13.11 adds its own question area — "Set up how the plan is broken down and
+// measured" (`docs/02` §26.20.1: breakdown, weights and earning method are
+// interactive from 13.11). Its state comes from the saved configuration.
+test("new project readiness: onboarding → planning setup → plan → publish, from existing data only", () => {
+  assert.deepEqual(states(planningReadinessSteps(facts())), ["onboarding:done", "configure:next", "plan:pending", "publish:pending"]);
+  assert.deepEqual(states(planningReadinessSteps(facts({ configurationComplete: true }))),
+    ["onboarding:done", "configure:done", "plan:next", "publish:pending"]);
+  assert.deepEqual(states(planningReadinessSteps(facts({ configurationComplete: true, hasPlanData: true }))),
+    ["onboarding:done", "configure:done", "plan:done", "publish:next"]);
+  const done = planningReadinessSteps(facts({ configurationComplete: true, hasPlanData: true, hasPublishedSnapshot: true }));
+  assert.deepEqual(states(done), ["onboarding:done", "configure:done", "plan:done", "publish:done"]);
   assert.equal(nextReadinessStep(done), undefined);
-  assert.deepEqual(states(planningReadinessSteps(facts({ onboardingSaved: false }))), ["onboarding:next", "plan:pending", "publish:pending"]);
+  assert.deepEqual(states(planningReadinessSteps(facts({ onboardingSaved: false }))),
+    ["onboarding:next", "configure:pending", "plan:pending", "publish:pending"]);
+  assert.equal(planningReadinessSteps(facts()).find((s) => s.id === "configure").target, "planning-setup");
 });
 
 test("already-running readiness: Opening Position, then Snapshot V1; the schedule is optional", () => {
   const start = planningReadinessSteps(facts({ onboardingMode: "existing_active_project" }));
-  assert.deepEqual(states(start), ["onboarding:done", "opening:next", "publish:pending", "plan:pending"]);
+  assert.deepEqual(states(start), ["onboarding:done", "opening:next", "publish:pending", "configure:pending", "plan:pending"]);
+  assert.equal(start.find((s) => s.id === "configure").optional, true);
   assert.equal(start.find((s) => s.id === "opening").target, "baselines");
   assert.equal(start.find((s) => s.id === "plan").optional, true);
   const promoted = planningReadinessSteps(facts({ onboardingMode: "existing_active_project", hasPublishedSnapshot: true }));
-  assert.deepEqual(states(promoted), ["onboarding:done", "opening:done", "publish:done", "plan:pending"]);
+  assert.deepEqual(states(promoted), ["onboarding:done", "opening:done", "publish:done", "configure:pending", "plan:pending"]);
   assert.equal(nextReadinessStep(promoted), undefined); // optional step never becomes "next"
 });
 
@@ -140,18 +150,18 @@ test("no-formal-schedule readiness asks nothing beyond the choice itself", () =>
   assert.deepEqual(states(planningReadinessSteps(facts({ onboardingMode: "no_formal_schedule" }))), ["onboarding:done"]);
 });
 
-test("future-slice questions are not part of the 13.9A checklist", () => {
+test("future-slice questions are not part of the checklist (13.11 adds only its own)", () => {
   const ids = new Set(
     ["new_project", "existing_active_project", "no_formal_schedule"].flatMap((mode) =>
       planningReadinessSteps(facts({ onboardingMode: mode })).map((step) => step.id)
     )
   );
-  assert.deepEqual([...ids].sort(), ["onboarding", "opening", "plan", "publish"]);
+  assert.deepEqual([...ids].sort(), ["configure", "onboarding", "opening", "plan", "publish"]);
   const titles = ["new_project", "existing_active_project", "no_formal_schedule"]
     .flatMap((mode) => planningReadinessSteps(facts({ onboardingMode: mode })))
     .map((step) => step.title)
     .join(" | ");
-  assert.doesNotMatch(titles, /weight|earning|manpower|resource|look-ahead|baseline/i);
+  assert.doesNotMatch(titles, /manpower|resource|look-ahead|baseline/i);
 });
 
 /* --------------------------- Governance and setup state ------------------- */
@@ -338,7 +348,9 @@ test("the Summary side note is short and secondary", () => {
   const workspace = code("./components/planning/planning-workspace.tsx");
   const aside = workspace.slice(workspace.indexOf("<aside"), workspace.indexOf("</aside>"));
   assert.match(aside, /How Planning works/);
-  assert.equal((aside.match(/<li>/g) ?? []).length, 3);
+  // Three short points per Planning Approach (13.11 UAT: a no-formal-schedule
+  // project gets its own three, without PV / EV / SPI).
+  assert.equal((aside.match(/<li>/g) ?? []).length, 6);
   assert.match(aside, /Published Planning Snapshot is the governed source/);
   assert.match(aside, /calculated — never typed in/);
   assert.match(aside, /Master Plan, Imports &amp; Review and Baselines &amp; Snapshots/);
@@ -412,7 +424,8 @@ test("UAT bug: Save Draft and Save both persist the onboarding mode and clear th
   // The saved Planning Status re-reads when the stored value changes.
   assert.match(form, /savedValue=\{savedOnboardingMode\}/);
   assert.match(code("./components/planning-entry.tsx"), /usePlanningPosition\(projectId, savedValue\)/);
-  assert.match(code("./use-planning-position.ts"), /\}, \[projectId, reloadKey\]\);/);
+  // 13.11 UAT: and on return to the tab (an approval taken elsewhere).
+  assert.match(code("./use-planning-position.ts"), /\}, \[projectId, reloadKey, returned\]\);/);
 });
 
 test("no-formal-schedule wording: no snapshot implied; Weekly/Monthly never own reported progress", () => {
@@ -496,7 +509,10 @@ test("13.9A adds no migration", () => {
     "20261019090000_project_setup_structure_governance.sql",
     "20261020090000_project_setup_amendment_notifications.sql",
     // 13.9B UAT: notification Clear history (a 13.9B migration, not 13.9A).
-    "20261021090000_notification_history_clear.sql"];
+    "20261021090000_notification_history_clear.sql",
+    // 13.11 Working Plan hardening, and its UAT no-formal-schedule guard.
+    "20261022090000_working_plan_hardening.sql",
+    "20261023090000_no_formal_schedule_planning_guard.sql"];
   assert.ok(names.every((name) => name <= "20261014090000_planning_control_archived_read_only.sql" || LATER.includes(name)),
     "no 13.9A migration after 13.9");
 });

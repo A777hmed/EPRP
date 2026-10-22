@@ -47,7 +47,7 @@ and a lifecycle transition correctly refused).
 | 10a | Control Center + Calendar | ⚠️ Partial — Dashboard rebuilt on real data (mock removed), regrouped sidebar with notched active indicator, and a project-scoped Calendar (`project_events`) with Day/Week/Month/Agenda and full CRUD. Attachments on events are NOT implemented: the platform has no attachment storage at all (`attachment-service.ts` is `notImplemented`, no table, no bucket) |
 | 11 | A4/PDF output | ⚠️ Partial — dedicated Weekly A4 preview/print delivered; other report types remain untouched |
 | 12 | Hardening and future integrations | ❌ Not started |
-| 13 | Master Planning & Control *(added — see note)* | ⚠️ **CURRENT ACTIVE PHASE** — in progress — **13.1 & 13.2 CLOSED**, **13.3 implemented** (verified in UI), **13.2c + 13.2d implemented** (verified on the local rehearsal database); **13.4 Wave 1 implemented with isolated database validation green and authenticated UI review pending**. **13.8 Master Planning & Control specification DOCUMENTED 2026-10-14** (`02` §26 — docs only, no code or database change). **13.9 archived / read-only safety guards CLOSED 2026-10-15 (browser UAT passed; LOCAL ONLY, not deployed)**; **13.9A Planning Experience Foundation CLOSED 2026-10-16 (owner visual UAT PASS)**; **13.9B Project Setup Governance CLOSED 2026-10-20** (owner closeout after browser UAT and final regression; LOCAL ONLY — commit pending; notification bell animation deferred as non-blocking polish); B11–B24 closed; **13.10 CLOSED 2026-10-20 — Planning Engine Core + prepared consumer contract complete** (owner closeout; pure module, no schema or UI change; LOCAL ONLY — commit pending; B7 closed; no consumer uses the engine or the contract yet; B4 open for 13.14); 13.11–13.21 not started; they supersede the unstarted 13.4 Wave 2 and 13.5–13.7 (see Phase 13) |
+| 13 | Master Planning & Control *(added — see note)* | ⚠️ **CURRENT ACTIVE PHASE** — in progress — **13.1 & 13.2 CLOSED**, **13.3 implemented** (verified in UI), **13.2c + 13.2d implemented** (verified on the local rehearsal database); **13.4 Wave 1 implemented with isolated database validation green and authenticated UI review pending**. **13.8 Master Planning & Control specification DOCUMENTED 2026-10-14** (`02` §26 — docs only, no code or database change). **13.9 archived / read-only safety guards CLOSED 2026-10-15 (browser UAT passed; LOCAL ONLY, not deployed)**; **13.9A Planning Experience Foundation CLOSED 2026-10-16 (owner visual UAT PASS)**; **13.9B Project Setup Governance CLOSED 2026-10-20** (owner closeout after browser UAT and final regression; LOCAL ONLY — commit pending; notification bell animation deferred as non-blocking polish); B11–B24 closed; **13.10 CLOSED 2026-10-20 — Planning Engine Core + prepared consumer contract complete** (owner closeout; pure module, no schema or UI change; LOCAL ONLY — commit pending; B7 closed; no consumer uses the engine or the contract yet; B4 open for 13.14); **13.11 Working Plan hardening IMPLEMENTED — ready for owner closeout** (closure review GO 2026-10-22; owner browser UAT functionally passing, residual P2 polish non-blocking; NOT CLOSED; migrations `20261022090000` and `20261023090000` applied to the local development database only; runtime 131 148/148; LOCAL ONLY — commit pending; no consumer wired, publish unchanged); 13.12–13.21 not started; they supersede the unstarted 13.4 Wave 2 and 13.5–13.7 (see Phase 13) |
 
 **CURRENT ACTIVE PHASE: Phase 13 — Master Planning & Control** (since
 2026-10-14). **13.8 Specification — DOCUMENTED** in
@@ -62,7 +62,10 @@ CLOSED 2026-10-16 (owner visual UAT PASS; no schema change). Next slice:
 13.9B — Project Setup Governance — SPECIFIED, owner decisions B15–B24 closed
 2026-10-16, CLOSED 2026-10-20 (local only, commit pending); 13.10 — Planning
 Engine core — CLOSED 2026-10-20: Planning Engine Core + prepared consumer
-contract complete (local only, commit pending; see the 13.10 checkpoint); next: 13.11 — Working Plan hardening. Each starts only on explicit
+contract complete (local only, commit pending; see the 13.10 checkpoint); 13.11 — Working Plan hardening —
+IMPLEMENTED, ready for owner closeout (closure review GO 2026-10-22; local
+only, commit pending; see the 13.11 checkpoint); next after closeout: 13.12 —
+Snapshot v2 + baselines (needs B3, B8). Each starts only on explicit
 instruction.** The slice plan (13.8–13.21, plus 13.9A and 13.9B), in
 dependency order, is in Phase 13 below.
 
@@ -1280,7 +1283,7 @@ but are not the same increment. Use the numbering in this file.
 | 13.9A | Planning Experience Foundation (UI / IA only) | ✅ **CLOSED 2026-10-16 — owner visual UAT PASS** (desktop, tablet 800×900, phone 390×844, dark mode). No migration, no schema change. tsc · eslint · build PASS; source suite 772/772. See the 13.9A checkpoint |
 | 13.9B | Project Setup Governance | ✅ **CLOSED 2026-10-20 — LOCAL ONLY, commit pending.** Steps 0–4 plus UAT fixes (amendment notifications, toasts, Clear history). Migrations `20261016090000` – `20261021090000`; final regression 2026-10-20: runtime 110 102/102 · 114 63/63 · 116 96/96 · 117 29/29 · 118 66/66 · 119 19/19 · 120 28/28 · 121 201/206 as-is (known) · 123 146/146 · 124 137/137 · 125 31/31 · 126 139/139 · 127 62/62 · 128 108/108 · 129 32/32; source 924/924; tsc · eslint · `next build` PASS. Deferred (non-blocking): toast bell animation polish. `02` §26.24, `06` §10A.11, `05` §3.9; see the 13.9B checkpoints |
 | 13.10 | Planning Engine core (pure) | ✅ **CLOSED 2026-10-20 — Planning Engine Core + prepared consumer contract complete.** Owner closeout after the closure review; LOCAL ONLY, commit pending. **No consumer uses the engine or the contract yet:** Dashboard, Weekly and Monthly still read the legacy flat roll-up, and Executive reads approved Monthly figures; wiring stays with 13.14 / 13.17 / 13.19 / 13.20. **B4 stays open for 13.14.** Pure module `src/lib/planning-engine/` + consumer contract `features/projects/planning-position-contract.ts`. `02` §26.5 reproduced exactly; both calculation paths agree. No migration, no schema or UI change; flat roll-up untouched. B7 closed 2026-10-20. Source suite 1031/1031 (924 + 107); tsc · eslint · `next build` PASS. See the 13.10 checkpoint |
-| 13.11 | Working Plan hardening — hierarchy, levels, local weights, activity kinds and earning methods, reporting-unit mapping (supersedes 2C.2) | ❌ Not started |
+| 13.11 | Working Plan hardening — hierarchy, levels, local weights, activity kinds and earning methods, reporting-unit mapping (supersedes 2C.2) | ⚠️ **IMPLEMENTED — ready for owner closeout (NOT CLOSED).** Closure review GO 2026-10-22; owner browser UAT functionally passing (residual P2 polish non-blocking). LOCAL ONLY, commit pending. Migrations `20261022090000_working_plan_hardening.sql` and `20261023090000_no_formal_schedule_planning_guard.sql` applied to the local development database only (no row written, no weight reinterpreted). Local weights, level labels, Control Account flag, earning methods with inheritance, node attachment, PSM / Other reporting-unit mapping, logged W3 weight decisions, Working Plan change log, Planning Setup (Guided / Advanced over one Planning Configuration), Master Plan editor with local weight and calculated contribution, canonical Working Plan → engine adapter (reproduces `02` §26.5 from real rows). **No consumer wired; publish unchanged (13.12); B4 open (13.14).** Runtime 130 preflight clean · 131 148/148; source 1128/1128 after the final UAT and presentation passes; tsc · eslint · `next build` PASS. See the 13.11 checkpoint |
 | 13.12 | Snapshot v2 + baselines (BL0/BLn, re-baseline approval) + curves | ❌ Not started — needs decisions B3, B8 |
 | 13.13 | Manpower / resource foundation | ❌ Not started |
 | 13.14 | Core consumers — Governed Performance, Project Progress, Dashboard, Calendar | ❌ Not started |
@@ -2067,8 +2070,9 @@ instruction. Each ends with the `CLAUDE.md` completion report (lint, type-check,
 production build, changed files, completed and deferred requirements) and an
 update to this roadmap. Database slices also need migration replay and runtime
 SQL verification on the local stack; a green build is not database
-verification. Open decisions are B1–B9 in `02` §26.19 (B15–B24 were raised
-and closed by the owner on 2026-10-16). **B10
+verification. Open decisions are B1–B6, B8, B9 and B25 (Planning Setup
+Templates, raised 2026-10-21) in `02` §26.19 (B7 closed 2026-10-20; B15–B24
+were raised and closed by the owner on 2026-10-16). **B10
 (back-dated Schedule Versions → Historical Correction workflow) and the
 one-under-review policy were closed by the owner on 2026-10-14. B11–B14 were
 raised and closed by the owner on 2026-10-15.**
@@ -3267,3 +3271,275 @@ milestone linkage (13.15); approved schedule-condition thresholds (B4, 13.14).
 
 **Closed 2026-10-20** by owner closeout (no UI to browser-test). 13.11 does
 not start without explicit instruction.
+
+### 13.11 — Working Plan hardening (checkpoint, 2026-10-20)
+
+**Status: IMPLEMENTED — ready for owner closeout. NOT CLOSED.** Closure
+review GO on 2026-10-22 (see "Closure review" at the end of this
+checkpoint). The owner's browser UAT is functionally passing; the residual
+items are P2 polish and do not block. LOCAL ONLY: migrations
+`20261022090000_working_plan_hardening.sql` and
+`20261023090000_no_formal_schedule_planning_guard.sql` are applied to the
+local development database only, and the work is not committed. Started on explicit instruction on branch
+`feat/phase-13-11-working-plan-inputs`.
+
+**Boundaries kept.**
+- No consumer is wired to the engine or the adapter: Dashboard, Weekly,
+  Monthly, Executive and Calendar are untouched (fenced by a test).
+- `publish_planning_snapshot()` and the snapshot tables are unchanged;
+  Snapshot v2 and publish-time engine execution remain 13.12.
+- B4 stays open for 13.14.
+- 13.9B governance is unchanged: the onboarding mode is still written only
+  by Project Setup.
+- The 13.9 archived guard is unchanged on its 16 tables.
+
+**Delivered against the 13.11 scope line.**
+
+| Scope item | Where |
+|---|---|
+| Local-weight semantics | New `local_weight_percent` on `planning_work_items` and `planning_activities`. `weight_percent` keeps its values and readers as the **recorded** (unreviewed) weight. The legacy flat roll-up and the current publish still read only that column; nothing reinterprets it (preflight 130, runtime 131 §07) |
+| Level labels · Control Account flag | `project_planning_settings.level_labels` (≤ 8) and `control_account_level`; `planning_work_items.is_control_account`. Depth is derived from the tree, never stored |
+| Activity kind and earning method | Kind stays `is_milestone` (task or true milestone). `earning_method` lives on activities, with a node default and a project default. Inheritance: activity → nearest node → project. A Milestone default never reaches a task. CHECK: Milestone method ⇔ true milestone |
+| Activity attached to a node | Database: attach only to an active node; an attached activity is moved, never detached. App: an unattached activity in a project with a hierarchy is a blocking Working Plan finding. Defect fixed: import "Confirm as imported" used to null `work_item_id` |
+| Reporting-unit mapping | PSM: the existing Department / System / Program & Study columns, now also on activities as an override, guarded to the project's own structure. Other: `structure_node_id`, enforced same-project by a composite FK, no archived unit. Family enforced both ways. Children inherit (H6) |
+| Logged normalisation (W3) | `record_planning_weight_decision()`: proportional rescale, equal split, or adopt a recorded weight. Verified under the project lock against the stored weights (PT409 when stale); results total exactly 100.000; reason required. Logged per child in `planning_confirmations` with decision id, mode, parent, actor and time |
+| Working Plan change log (F2) | A trigger logs every governed field change, whatever the route. EPRP-owned fields are always logged; schedule fields only for manual activities, because imported ones are logged by the review decision. The database stamps the actor and time |
+| Master Plan editor | One tree of nodes and activities: level label, earning method (own or inherited), local weight, **calculated** contribution, per-parent children total (W1 / W2), recorded weight, reporting unit, Working Plan checks, decision dialog, per-item history. Add / edit node and activity dialogs. "Milestone" is no longer offered as a node classification (H5) |
+| Planning Setup — Guided / Advanced | `save_planning_configuration()` is the one writer of the configuration. Both views edit the same draft and the same four fields, with no second store and no calculated input. It lives in Workspace → Summary, plus a readiness step. Every change goes to the append-only `planning_configuration_changes`; a weight-source switch after local weights exist needs a reason. A no-formal-schedule project is refused, and so is a project whose onboarding mode is not yet chosen |
+| Canonical adapter | `features/projects/working-plan.ts` `toEnginePlanInput()`. Real rows rebuilt from the `02` §26.5 fixture reproduce the engine's figures exactly, with both paths agreeing. BLn is pluggable and defaults to the activity's recorded baseline columns, which is provisional until 13.12. The recorded weight is never substituted |
+| Archived read-only | Existing 13.9 guard on both tables. The new history table has its own archived guard. Both writers refuse `[PROJECT_ARCHIVED]` for every role. The UI withdraws actions through archive-aware `canManageOperations` |
+
+**Deferred (by design or open).**
+- Snapshot v2, publish validation running the adapter and engine, BL0 / BLn
+  and the approved-baseline BLn source for the adapter: 13.12.
+- External WBS code on nodes and import WBS → node mapping: 13.16.
+- Key-milestone flag and milestone links from activities: 13.15.
+- Consumers: 13.14 / 13.17 / 13.19 / 13.20.
+- Look-ahead and report-section questions: 13.17 / 13.18.
+- Manpower questions: 13.13.
+- **Planning Setup Templates** — **deferred by owner decision 2026-10-21,
+  recorded as open decision B25** (`02` §26.19). `02` §26.20.1 said "from
+  13.11", but the 13.11 scope line does not include them. The delivering
+  slice is still to be decided; this does not block 13.11 closeout.
+- The reporting-unit *source* is derived from the project type (PSM /
+  Other), not stored.
+
+**Observation for 13.12.** The as-built publish archives whole rows
+(`to_jsonb(row)`), so `snapshot_data` now also freezes the 13.11 fields as
+they stood. No consumer reads them (they only count activities), no
+calculated figure is added, and `planning_snapshot_activities` is
+unchanged.
+
+**Verification.**
+
+| Check | Result |
+|---|---|
+| Focused tests | `working-plan.test.mjs` 27/27 (configuration, tree, inheritance, mapping, W1 / W2, W4, W3 rounding, findings, adapter + engine reproducing §26.5) · `working-plan-sql-contract.test.mjs` 15/15. Deliberately updated fences: 13.9A readiness (new 13.11 step), 13.9A / 13.10 migration fences, PT409 list (+2), settings-preservation harness |
+| Source suite | **1073 / 1073** (1031 + 42) |
+| `tsc --noEmit` · `eslint src --max-warnings=0` · `next build` | PASS |
+| Database (local only) | Preflight `130` (read-only): recorded weights on 5 demo projects; nothing unattached, no milestone nodes, no mapping or milestone-shape issues. Migration applied with `--single-transaction`. Runtime `131` **121 / 121** (rolled back, no residue). Regression: 123 146/146 · 124 137/137 · 125 31/31 · 126 139/139 · 127 62/62 · 128 108/108 · 129 32/32 · 121 201/206 as-is (known 13.9B first-anchor confirmation), **206/206** with it |
+| Browser | **Not run**: the in-app browser has no session and no test credentials exist. Owner UAT pending |
+
+**Owner UAT to close 13.11** (one PSM and one Other project, as Project
+Control):
+1. **Planning Setup.** Workspace → Summary → Planning setup:
+   - answer the three Guided questions and save;
+   - switch to Advanced: the same values are shown;
+   - change the weight source after weights exist: a reason is asked for;
+   - "Show setup history" lists each change.
+2. **Master Plan — build.** Add nodes (a Control Account, a child level) and
+   activities (a task and a milestone). Check that:
+   - local weights and the calculated contribution show;
+   - children totals turn green at 100%;
+   - "Milestone" is not offered as a node classification.
+3. **Master Plan — decisions.** Leave one weight blank, then "Normalise
+   weights…" with a reason: the results total 100%, and the History of each
+   child shows the decision. On a demo project with recorded weights, "Use
+   recorded weights…".
+4. **Activity edits.**
+   - Edit an imported activity: its dates and progress are read-only, while
+     node, weight, method and reporting unit are editable.
+   - Try to leave a node blank once a hierarchy exists: blocked.
+5. **Reporting units.** PSM offers the project's Departments → Systems →
+   Programs & Studies; Other offers its own active units; "Inherit" shows
+   the parent's mapping.
+6. **Read-only.**
+   - As the Reporting Coordinator: the Master Plan is read-only with History
+     only, and Planning Setup controls are disabled.
+   - On an archived project: no write actions anywhere.
+   - On a no-formal-schedule project: no Planning Setup section.
+7. **Regression.** Imports & Review "Confirm as imported" on an attached
+   activity keeps its node. Dashboard, Weekly, Monthly and Project Progress
+   figures are unchanged.
+
+**UAT refinements (2026-10-21; UI and copy only — no schema, engine,
+permission or persistence change).**
+- **Workspace header:** the four facts are separated cells — 2 × 2 below
+  1024 px, one row from 1024 px.
+- **Shared contextual-help pattern:** `ContextHelp` (`07` §10.13) is
+  introduced. Planning help text lives once, in `planning-help.tsx`.
+- **Planning Setup:**
+  - reduced to one visible sentence;
+  - concepts behind help icons: Planning setup, Guided / Advanced, planning
+    levels, Control Account level, weight source, default earning method;
+  - the stray emphasis on "how" is removed.
+- **Help also added to:** Master Plan columns (earning method, local weight,
+  project contribution, children total, recorded weight), the node and
+  activity dialogs, Data Date, Planning readiness and the item history.
+- **Open decision:** Planning Setup Templates are recorded as B25.
+- **Planning Setup after save:**
+  - shows "Planning setup saved successfully." and a "Configured" state with
+    the four saved values;
+  - offers an explicit "Edit planning setup" action, with Cancel while
+    editing;
+  - no longer drops back to Question 1.
+- **Master Plan table:**
+  - one column grid (`master-plan-columns.ts`) drives the colgroup, header
+    and body, under fixed table layout with a single scroll container;
+  - numeric columns are right-aligned with tabular figures, and their help
+    icon sits before the label;
+  - Children total in the table shows plain figures;
+  - Code and Name stay pinned on solid backgrounds;
+  - "Reports in" is a fixed width, truncated, with the full value on hover
+    (`title`);
+  - Actions has a visible header.
+- **Master Plan table, final pass:**
+  - extracted into the presentational `MasterPlanTable`;
+  - borders are drawn by the cells (`border-collapse: separate`), with a
+    scroll fade at the pinned edge;
+  - Code and Name are pinned from 1280 px;
+  - the frame sits on the card surface;
+  - numeric help icons are attached inline to their labels;
+  - Code is 11rem wide;
+  - every empty numeric cell shows the same muted "—".
+  - Checked in a rendered harness at 1440 / 1280 / 1024 / 900 px, light and
+    dark.
+- **Master Plan table, structural cleanup:**
+  - one **Item** column (name, then "code · classification") replaces Code
+    + Name, and is the only pinned column (from 1280 px);
+  - column order: Item · Level · Earning method · Local weight · Project
+    contribution · Children total · Recorded weight · Reports in · Actions;
+  - every header is a fixed 56 px; numeric headers are two lines with the
+    help icon attached;
+  - every row is two lines.
+  - Measured at 1440 / 1280 / 1024 / 900 px.
+- **UAT P1 — "No formal schedule" is read-only for planning.**
+  - Migration `20261023090000_no_formal_schedule_planning_guard.sql` (local
+    only): `guard_no_formal_schedule_planning()` refuses every INSERT /
+    UPDATE on the eight planning authoring tables, for every role, with
+    `[NOT_PLANNING_GOVERNED]`.
+  - Publish was already refused (13.9B).
+  - In the UI, Master Plan, Imports & Review and Baselines withdraw their
+    write actions and show a "No formal schedule" empty state that links to
+    Project Setup.
+  - Changing the Planning Approach re-enables authoring.
+  - Runtime 131 148/148 (new §09); 123 146/146 (its legacy fixture now
+    seeds that state with the guard disabled).
+- **Final consolidated UAT pass (2026-10-21, UI only — no schema change):**
+  - Node and activity dialogs: one column when narrow, two from `sm`. Selects
+    fill their cell and truncate, so long values no longer push fields into
+    each other. PSM keeps Department / System / Program & Study; an Other
+    Project keeps its generic Reporting unit.
+  - Freshness after an amendment decision:
+    - the deciding session re-reads at once (as before);
+    - other tabs re-read on return (`visibilitychange` / focus, reusing the
+      notification foreground signal; no polling). This covers Setup
+      governance and amendments, the stored project and Planning Entry,
+      Planning Workspace facts and gating, Master Plan, Imports & Review,
+      Baselines & Snapshots, and the Planning position used by Project
+      Progress.
+  - Milestones on an Other Project:
+    - the register files milestones by department only, and an Other Project
+      has none, so the "All departments" filter and the Department / System
+      pickers are withheld there;
+    - the form shows "Reporting unit: Project-wide".
+    - Linking milestones to Project Structure units is deferred, because it
+      needs a schema change.
+  - Setup amendments is collapsible:
+    - the counts stay visible;
+    - it opens when a decision waits for the viewer, or when a notification
+      points at a request;
+    - the chosen tab survives collapsing.
+  - The deciding-session toasts are concise ("Amendment approved" ·
+    "⟨project code⟩ · ⟨subject⟩ updated"). Notification toasts were already
+    compact and are unchanged.
+  - Governed fields have help that explains Request amendment vs Amend. One
+    Project Control Admin is not a dead end: a System Administrator can decide.
+  - Label changes:
+    - "Enter & manage weights in EPRP" (the enum is unchanged);
+    - "Flag this node as a Control Account";
+    - Planning Setup history shows who, date and time, and the reason;
+    - archived Master Plan empty-state copy.
+  - "No formal schedule":
+    - Imports & Review states the notice once;
+    - the Summary aside drops its PV / EV / SPI points for these projects.
+  - Deferred: one shared enterprise table visual standard (rounded outer
+    container only, subtle header background, calm borders, compact rows,
+    consistent hover / empty / actions, not every row a card); Milestone
+    Update dialog wording on Other Projects (goes with the milestone
+    reporting-unit link).
+- **Presentation polish (2026-10-22, UI only — no schema, permission or
+  governance change):**
+  - Toasts. Every Project Setup amendment toast is now one compact pattern:
+    - the paths covered are the notification feed and the in-page request,
+      amend, approve, reject, withdraw and structure-proposal actions;
+    - each toast has a status title, one "⟨project code⟩ · ⟨subject⟩" line and
+      an optional View action;
+    - the status icon sits on the title line: bell (approval needed), check
+      (approved), x (rejected);
+    - the arrival cue plays once: Sonner's slide/fade, one bell ring or icon
+      pop, and a one-time unread-badge bump. All of it is static under
+      `prefers-reduced-motion`;
+    - values, reason, impact and people stay in the Notification Center card;
+    - the Notification Center titles, deep links and read state are unchanged.
+  - Setup amendment cards have five bands:
+    - a header with the subject, status and governance badges, and the
+      actions;
+    - the change, Current → Proposed, given prominence;
+    - "Requested by / Decided by · date, time";
+    - the reason, shown on two lines;
+    - the impact, behind "View details". A decision note appears only when one
+      exists.
+  - Planning Setup history shows "person · role · date, time":
+    - the name comes from the audit row's own contact, or else the changer's
+      profile where RLS lets the reader see it;
+    - nothing is invented, and a reason appears only when one was recorded.
+  - Shared `.table-frame` shell (used by the Master Plan): the horizontal
+    scrollbar sits inside the rounded frame, lifted off the bottom border and
+    inset from the corners.
+  - Copy fixes:
+    - the client-approval wording in the milestone form;
+    - no PV/EV/SPI footer on a no-formal-schedule Master Plan.
+- **Verification:** source suite 1128/1128; tsc, eslint and `next build`
+  clean. Neither UI pass changed a database object, so the runtime SQL suites
+  were not re-run.
+
+**Closure review (2026-10-22) — GO, ready for owner closeout.**
+- **Scope:** reviewed against the 13.11 scope line and `02` §26.20 as one
+  slice, comparing the working tree with `phase-13.10-closed` (= HEAD
+  `a4ea2e2`).
+- **Boundaries held:**
+  - the Planning Engine and the prepared consumer contract are unchanged since
+    13.10;
+  - `toEnginePlanInput()` has no consumer;
+  - no migration touches `publish_planning_snapshot()` or the snapshot
+    tables;
+  - `save_planning_configuration()` never writes `onboarding_mode`, which
+    stays with Project Setup and its governed amendment.
+- **Runtime SQL:** re-run on the local app database (`supabase_db_eprp`), all
+  rolled back. The `20261023090000` guard post-dated earlier runs of some
+  suites.
+  - 131: 148/148.
+  - 123: 146/146 · 124: 137/137 · 125: 31/31 · 126: 139/139.
+  - 127: 62/62 · 128: 108/108 · 129: 32/32.
+  - 121: 201/206 as-is (the known 13.9B first-anchor confirmation);
+    206/206 with it.
+  - Preflight 130 (read-only): clean.
+- **Source, type and build:** source suite 1128/1128; tsc, eslint
+  (`--max-warnings=0`) and `next build` all pass.
+- **Non-blocking P2:**
+  - Master Plan table bottom / scrollbar shell refinement;
+  - a more noticeable notification arrival cue;
+  - the shared enterprise table visual standard (deferred);
+  - the Milestone Update dialog's wording on Other Projects (it goes with the
+    milestone reporting-unit link).

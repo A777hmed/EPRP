@@ -8,6 +8,7 @@ import type {
   RiskSeverity,
   Weekday,
 } from "./core";
+import type { UserRole } from "./admin";
 
 /**
  * Base shape shared by admin-managed master-data records (clients,
@@ -639,14 +640,66 @@ export type PlanningOnboardingMode =
 /** The formats Planning Slice 1 recognises. Native XER/MPP is out of scope. */
 export type PlanningImportSourceType = "eprp_excel" | "p6" | "msproject";
 
-/** A project's Planning configuration. One row per project. */
+/**
+ * How an activity earns progress (`docs/02` §26.4). Structurally identical to
+ * the Planning Engine's `EarningMethod`; Milestone applies to true milestones
+ * only.
+ */
+export type PlanningEarningMethod = "percent_complete" | "zero_hundred" | "fifty_fifty" | "milestone";
+
+/** Where local weights are managed (`docs/02` §26.4 W7). */
+export type PlanningWeightSource = "eprp" | "imported";
+
+/**
+ * A project's Planning Configuration (`docs/06` §10A.1). One row per project.
+ *
+ * Guided Setup and Advanced mode read and write these same fields (`docs/02`
+ * §26.20 rule 2) through `save_planning_configuration()`; nothing here is a
+ * calculated value. `onboardingMode` is the Project Setup field (13.9B
+ * governance), never written by Planning Setup.
+ */
 export interface ProjectPlanningSettings {
   projectId: string;
   onboardingMode: PlanningOnboardingMode;
   defaultImportSource?: PlanningImportSourceType | "manual";
   planningEnabled: boolean;
+  /** 13.11. Planning level labels, depth 1 first (max 8). Display only. */
+  levelLabels: string[];
+  /** 13.11. The level performance is normally reported at (1-based). */
+  controlAccountLevel?: number;
+  /** 13.11. EPRP-managed or imported weights. */
+  weightSource?: PlanningWeightSource;
+  /** 13.11. The project's default earning method. */
+  defaultEarningMethod?: PlanningEarningMethod;
   createdAt: IsoDateTime;
   updatedAt: IsoDateTime;
+}
+
+/** The Planning Configuration fields one change-log row can name. */
+export type PlanningConfigurationField =
+  | "level_labels"
+  | "control_account_level"
+  | "weight_source"
+  | "default_earning_method";
+
+/** One append-only Planning Configuration change (13.11, `docs/02` §26.20 rule 4). */
+export interface PlanningConfigurationChange {
+  id: string;
+  projectId: string;
+  fieldKey: PlanningConfigurationField;
+  previousValue: unknown;
+  newValue: unknown;
+  reason?: string;
+  changedByContactId?: string;
+  /**
+   * Who changed it, resolved from the audit row's own user / contact ids:
+   * the contact's name, else the profile's name where the reader may see it.
+   * Absent when neither is readable — never invented.
+   */
+  changedByName?: string;
+  /** The changer's platform role, where the reader may see their profile. */
+  changedByRole?: UserRole;
+  changedAt: IsoDateTime;
 }
 
 /** Whether an Opening Position is still editable or has produced Snapshot V1. */
@@ -797,8 +850,22 @@ export interface PlanningWorkItem {
   itemType: PlanningWorkItemType;
   level: number;
   sortOrder: number;
+  /** Deprecated (13.11, H5): a node is never a milestone. Kept readable. */
   isMilestone: boolean;
+  /**
+   * RECORDED weight — as entered or imported before 13.11, semantics
+   * unreviewed. Never read as a local weight; adopted into
+   * `localWeightPercent` only by an explicit, logged decision.
+   */
   weightPercent?: number;
+  /** 13.11. Local weight: percent of the parent (the Project at top level). */
+  localWeightPercent?: number;
+  /** 13.11. Control Account flag (`docs/02` §26.3 H2). */
+  isControlAccount: boolean;
+  /** 13.11. Default earning method for the work under this node; absent inherits. */
+  earningMethod?: PlanningEarningMethod;
+  /** 13.11. Other-project reporting-unit mapping (a Project Structure unit). */
+  structureNodeId?: string;
   plannedStartDate?: IsoDate;
   plannedFinishDate?: IsoDate;
   baselineStartDate?: IsoDate;
@@ -825,7 +892,18 @@ export interface PlanningActivity {
   externalId?: string;
   code?: string;
   name: string;
+  /** The activity kind: a true milestone (zero duration, leaf) or a task. */
   isMilestone: boolean;
+  /** 13.11. Local weight: percent of the activity's planning node. */
+  localWeightPercent?: number;
+  /** 13.11. Earning method; absent inherits the node, then the project default. */
+  earningMethod?: PlanningEarningMethod;
+  /** 13.11. Reporting-unit override (PSM); absent inherits the node's mapping. */
+  departmentId?: string;
+  systemId?: string;
+  disciplineId?: string;
+  /** 13.11. Reporting-unit override (Other project). */
+  structureNodeId?: string;
   plannedStartDate?: IsoDate;
   plannedFinishDate?: IsoDate;
   baselineStartDate?: IsoDate;
@@ -905,12 +983,20 @@ export interface PlanningImportRow {
   createdAt: IsoDateTime;
 }
 
-export type PlanningConfirmationAction = "confirm" | "adjust";
+/**
+ * `confirm` / `adjust` — import review decisions (and `adjust` for adopting a
+ * recorded weight, 13.11); `edit` — a direct, logged Project Control edit of
+ * the Working Plan (13.11); `normalise` — an explicit W3 weight decision.
+ */
+export type PlanningConfirmationAction = "confirm" | "adjust" | "edit" | "normalise";
+
+/** The weight decisions of `record_planning_weight_decision()` (13.11, W3). */
+export type PlanningWeightDecisionMode = "proportional_rescale" | "equal_split" | "adopt_recorded";
 
 /**
- * One confirm/adjust decision against a work item or activity value, with a
- * required reason. Append-only — never edited or removed. Exactly one of
- * `workItemId`/`activityId` is set.
+ * One entry of the Planning Decision log against a work item or activity.
+ * Append-only — never edited or removed. Exactly one of
+ * `workItemId`/`activityId` is set. Every action but `edit` carries a reason.
  */
 export interface PlanningConfirmation {
   id: string;
@@ -921,7 +1007,10 @@ export interface PlanningConfirmation {
   fieldName: string;
   previousValue?: string;
   newValue?: string;
-  reason: string;
+  reason?: string;
+  /** 13.11. Groups the rows of one weight decision. */
+  decisionId?: string;
+  decisionMode?: PlanningWeightDecisionMode;
   confirmedByContactId?: string;
   confirmedAt: IsoDateTime;
 }

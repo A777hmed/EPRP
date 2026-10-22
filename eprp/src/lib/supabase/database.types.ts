@@ -207,8 +207,26 @@ export interface ProjectPlanningSettingsRow {
   onboarding_mode: string;
   default_import_source: string | null;
   planning_enabled: boolean;
+  /** 13.11 Planning Configuration — written only by save_planning_configuration(). */
+  level_labels: string[];
+  control_account_level: number | null;
+  weight_source: string | null;
+  default_earning_method: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** 13.11 — append-only Planning Configuration change log (trigger-written). */
+export interface PlanningConfigurationChangeRow {
+  id: string;
+  project_id: string;
+  field_key: string;
+  previous_value: unknown;
+  new_value: unknown;
+  reason: string | null;
+  changed_by_user_id: string | null;
+  changed_by_contact_id: string | null;
+  changed_at: string;
 }
 
 /**
@@ -307,7 +325,12 @@ export interface PlanningWorkItemRow extends Timestamps {
   level: number;
   sort_order: number;
   is_milestone: boolean;
+  /** RECORDED weight (unreviewed). 13.11's local weight is local_weight_percent. */
   weight_percent: number | null;
+  local_weight_percent: number | null;
+  is_control_account: boolean;
+  earning_method: string | null;
+  structure_node_id: string | null;
   planned_start_date: string | null;
   planned_finish_date: string | null;
   baseline_start_date: string | null;
@@ -337,11 +360,18 @@ export interface PlanningActivityRow extends Timestamps {
   percent_complete_planned: number | null;
   percent_complete_actual: number | null;
   percent_complete_physical: number | null;
+  /** RECORDED weight (unreviewed). 13.11's local weight is local_weight_percent. */
   weight_percent: number | null;
   status: string | null;
   planned_value: number | null;
   earned_value: number | null;
   source: string;
+  local_weight_percent: number | null;
+  earning_method: string | null;
+  department_id: string | null;
+  system_id: string | null;
+  discipline_id: string | null;
+  structure_node_id: string | null;
 }
 
 export interface PlanningImportBatchRow {
@@ -386,7 +416,14 @@ export interface PlanningConfirmationRow {
   field_name: string;
   previous_value: string | null;
   new_value: string | null;
-  reason: string;
+  /** Null only for a direct `edit` (13.11). */
+  reason: string | null;
+  /** 13.11 weight decisions (W3). */
+  decision_id: string | null;
+  decision_mode: string | null;
+  decision_parent_work_item_id: string | null;
+  /** 13.11 — stamped by the database. */
+  actor_user_id: string | null;
   confirmed_by_contact_id: string | null;
   confirmed_at: string;
 }
@@ -1107,7 +1144,7 @@ export interface Database {
       monthly_plan_items: TableDef<MonthlyPlanItemRow, Omit<MonthlyPlanItemRow, "id" | "created_at" | "updated_at">, Partial<MonthlyPlanItemRow>>;
       project_planning_settings: TableDef<
         ProjectPlanningSettingsRow,
-        Omit<ProjectPlanningSettingsRow, "created_at" | "updated_at"> & { project_id: string },
+        Partial<Omit<ProjectPlanningSettingsRow, "created_at" | "updated_at">> & { project_id: string },
         Partial<ProjectPlanningSettingsRow>
       >;
       planning_opening_positions: TableDef<
@@ -1156,9 +1193,14 @@ export interface Database {
       >;
       planning_confirmations: TableDef<
         PlanningConfirmationRow,
-        Omit<PlanningConfirmationRow, "id" | "confirmed_at">,
+        Omit<
+          PlanningConfirmationRow,
+          "id" | "confirmed_at" | "actor_user_id" | "decision_id" | "decision_mode" | "decision_parent_work_item_id"
+        >,
         never
       >;
+      // 13.11: written only by the trigger on project_planning_settings.
+      planning_configuration_changes: TableDef<PlanningConfigurationChangeRow, never, never>;
       planning_baselines: TableDef<
         PlanningBaselineRow,
         Omit<PlanningBaselineRow, "id" | "created_at"> & { project_id: string; name: string; baseline_date: string },

@@ -138,7 +138,8 @@ test("every event uses the same card shape and correct Unicode (no mojibake)", (
     const item = compose(event, amendment({ status: "rejected", ...decided, decisionComment: "c" }));
     assert.ok(item.details.length >= 4, event);
     assert.ok(item.details.every((detail) => detail.label && detail.value), event);
-    assert.ok(item.toast && item.toast.title === item.title, event);
+    // 13.11 UAT: the toast has its own compact status title; the card keeps the full one.
+    assert.ok(item.toast && item.toast.title && item.toast.description.split("\n").length === 1, event);
     const text = JSON.stringify(item);
     assert.doesNotMatch(text, /Ã|Â|â€|â†|�/, event);
   }

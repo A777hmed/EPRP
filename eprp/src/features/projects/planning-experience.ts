@@ -151,17 +151,25 @@ export interface ReadinessFacts {
   hasOpeningDraft: boolean;
   /** A Published Planning Snapshot exists. */
   hasPublishedSnapshot: boolean;
+  /**
+   * 13.11: every Planning Setup question is answered (breakdown levels and
+   * reporting level, weight source, default earning method).
+   */
+  configurationComplete: boolean;
 }
 
 export type ReadinessStepState = "done" | "next" | "pending";
 
 export interface ReadinessStep {
-  id: "onboarding" | "plan" | "opening" | "publish";
+  id: "onboarding" | "configure" | "plan" | "opening" | "publish";
   title: string;
   description: string;
   state: ReadinessStepState;
-  /** Where the work is done. `"setup"` is Project Setup → Planning Entry. */
-  target: PlanningWorkspaceView | "setup";
+  /**
+   * Where the work is done. `"setup"` is Project Setup → Planning Entry;
+   * `"planning-setup"` is the Planning Setup section on Summary (13.11).
+   */
+  target: PlanningWorkspaceView | "setup" | "planning-setup";
   /** Shown, but never blocks the steps after it. */
   optional?: boolean;
 }
@@ -172,8 +180,9 @@ interface StepDraft extends Omit<ReadinessStep, "state"> {
 
 /**
  * The guided checklist on Planning Workspace → Summary, derived only from what
- * already exists. Steps whose model belongs to a later slice (weights, earning
- * methods, baselines, manpower, look-ahead) are deliberately absent.
+ * already exists. 13.11 adds its own question area — breakdown, weights and
+ * how progress is earned (`docs/02` §26.20.1). Steps whose model belongs to a
+ * later slice (baselines, manpower, look-ahead) are deliberately absent.
  */
 export function planningReadinessSteps(facts: ReadinessFacts): ReadinessStep[] {
   const onboarding: StepDraft = {
@@ -183,12 +192,22 @@ export function planningReadinessSteps(facts: ReadinessFacts): ReadinessStep[] {
     target: "setup",
     done: facts.onboardingSaved,
   };
+  const configure = (optional: boolean): StepDraft => ({
+    id: "configure",
+    title: "Set up how the plan is broken down and measured",
+    description:
+      "Name the breakdown levels, choose where weights are managed and how progress is earned. Two or three short questions.",
+    target: "planning-setup",
+    done: facts.configurationComplete,
+    optional,
+  });
 
   let drafts: StepDraft[];
   switch (facts.onboardingMode) {
     case "new_project":
       drafts = [
         onboarding,
+        configure(false),
         {
           id: "plan",
           title: "Build or import the plan",
@@ -225,6 +244,7 @@ export function planningReadinessSteps(facts: ReadinessFacts): ReadinessStep[] {
           target: "baselines",
           done: facts.hasPublishedSnapshot,
         },
+        configure(true),
         {
           id: "plan",
           title: "Bring in the current schedule",
@@ -255,6 +275,27 @@ export function planningReadinessSteps(facts: ReadinessFacts): ReadinessStep[] {
 export function nextReadinessStep(steps: readonly ReadinessStep[]): ReadinessStep | undefined {
   return steps.find((step) => step.state === "next");
 }
+
+/* ------------------------ No formal schedule: read-only ------------------ */
+
+/**
+ * 13.11 UAT: while the Planning Approach is "No formal schedule" the Working
+ * Plan, imports and baselines are read-only — the database refuses every
+ * such write (`guard_no_formal_schedule_planning()`, 20261023090000) and the
+ * screens withdraw the actions first. Changing the approach in Project Setup
+ * re-enables authoring. An unknown mode (no settings row yet) is not
+ * no-formal-schedule.
+ */
+export function planningAuthoringAllowed(mode: PlanningOnboardingMode | null | undefined): boolean {
+  return mode !== "no_formal_schedule";
+}
+
+/** The read-only state's wording, shared by Master Plan and Imports & Review. */
+export const NO_FORMAL_SCHEDULE_NOTICE = {
+  title: "No formal schedule",
+  description:
+    "This project is currently reported without planning governance. Change the Planning Approach in Project Setup before creating or importing a schedule.",
+} as const;
 
 /* ------------------------------ Planning governance ---------------------- */
 

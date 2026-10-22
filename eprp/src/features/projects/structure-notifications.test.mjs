@@ -102,6 +102,8 @@ const CASES = [
 // The one-line request: actions whose title does not say the result add "→ result".
 const WITH_RESULT = new Set(["rename", "move", "set_reporting_scope", "rename_level", "set_department_scope", "move_discipline"]);
 const requestLine = (entry) => (WITH_RESULT.has(entry.proposed.action) ? `${entry.title} → ${entry.to}` : entry.title);
+// 13.11 UAT: the toast's one context line — project code · what the request is about.
+const toastLine = (entry) => notify.clipToastLine(`MDP-PSAIM-01 · ${entry.title}`);
 const rows = (item) => Object.fromEntries(item.details.map((detail) => [detail.label, detail.value]));
 const labels = (item) => item.details.map((detail) => detail.label);
 
@@ -126,11 +128,12 @@ test("every governed structure action composes an actionable, structured approve
     }, label);
     assert.ok(!JSON.stringify(item).includes(IMPACT), `${label}: the impact text stays on the deep-linked request`);
     assert.doesNotMatch(JSON.stringify(item.details) + item.description, /null|undefined|\[object|unit_id|department_id/, label);
-    // The toast: title, what was requested, who and which project. No raw ids.
+    // The toast (13.11 UAT): a status title, one context line, View. No raw ids, no people.
     assert.deepEqual(item.toast, {
-      title: "Approval required",
-      description: `${notify.clipToastLine(requestLine(entry))}\nRequested by UAT Project Control Admin · Pump Station`,
-      actionLabel: "View request",
+      title: "Approval needed",
+      description: toastLine(entry),
+      actionLabel: "View",
+      tone: "approval",
     }, label);
   }
 });
@@ -159,9 +162,10 @@ test("approved: the requester is told what was applied, by whom and when", () =>
       Request: requestLine(entry), "Requested by": "UAT Project Control Admin", "Decision by": "Executive Review (Temporary)",
       Project: "MDP-PSAIM-01 · Pump Station", Requested: "@2026-10-18T19:10", "Decision time": "@2026-10-18T20:00",
     }, entry.name);
-    assert.equal(item.toast.title, "Request approved", entry.name);
-    assert.equal(item.toast.description, `${notify.clipToastLine(requestLine(entry))}\nApproved by Executive Review (Temporary) · Pump Station`, entry.name);
-    assert.equal(item.toast.actionLabel, "View details", entry.name);
+    assert.equal(item.toast.title, "Amendment approved", entry.name);
+    assert.equal(item.toast.description, toastLine(entry), entry.name);
+    assert.equal(item.toast.actionLabel, "View", entry.name);
+    assert.equal(item.toast.tone, "approved", entry.name);
   }
 });
 
@@ -175,8 +179,9 @@ test("rejected: the mandatory reason travels in the card; the toast stays compac
     assert.equal(rows(item)["Decision by"], "Executive Review (Temporary)", entry.name);
     assert.equal(rows(item)["Decision time"], "@2026-10-18T20:00", entry.name);
     assert.equal(rows(item).Reason, "Civil works need Department C.", entry.name);
-    assert.equal(item.toast.title, "Request rejected", entry.name);
-    assert.equal(item.toast.description, `${notify.clipToastLine(requestLine(entry))}\nRejected by Executive Review (Temporary) · Pump Station`, entry.name);
+    assert.equal(item.toast.title, "Amendment rejected", entry.name);
+    assert.equal(item.toast.description, toastLine(entry), entry.name);
+    assert.equal(item.toast.tone, "rejected", entry.name);
   }
 });
 
@@ -188,12 +193,12 @@ test("stale and frozen: the requester is told nothing was applied / the project 
   assert.deepEqual(labels(stale), ["Request", "Requested by", "Project", "Requested", "Outcome", "Detail"]);
   assert.match(rows(stale).Outcome, /^Nothing was applied: the underlying value changed after the request\.$/);
   assert.equal(rows(stale).Detail, "The structure changed after this request; nothing was applied.");
-  assert.deepEqual(stale.toast, { title: "Request not applied", description: "Remove department · HSE\nNot applied: the value changed · Pump Station", actionLabel: "View details" });
+  assert.deepEqual(stale.toast, { title: "Amendment not applied", description: "MDP-PSAIM-01 · Remove department · HSE changed after the request", actionLabel: "View", tone: "notice" });
   const frozen = compose("amendment_frozen", structureAmendment(entry.key, entry.previous, entry.proposed));
   assert.equal(frozen.title, "Request frozen");
   assert.match(rows(frozen).Outcome, /archived while the request was pending/);
-  assert.equal(frozen.toast.title, "Request frozen");
-  assert.equal(frozen.toast.description, "Remove department · HSE\nProject archived · Pump Station");
+  assert.equal(frozen.toast.title, "Amendment frozen");
+  assert.equal(frozen.toast.description, "MDP-PSAIM-01 · Remove department · HSE");
   // Every outcome opens the same exact request.
   for (const item of [stale, frozen]) assert.equal(model.notificationHref(item.target), `/projects/${PROJECT_ID}/setup/info?amendment=${AMENDMENT_ID}`);
 });
@@ -212,7 +217,7 @@ test("a new structure approval and a requester result both toast once; the backl
   // A later arrival toasts once (top-centre, same system); the same id never repeats.
   const second = gate.observe([submitted, approved]);
   assert.deepEqual(second.show.map((entry) => entry.id), ["n-result"]);
-  assert.equal(second.show[0].toast.title, "Request approved");
+  assert.equal(second.show[0].toast.title, "Amendment approved");
   assert.deepEqual(gate.observe([submitted, approved]), { show: [], overflow: 0 });
   assert.equal(feed.TOAST_POSITION, "top-center");
 });

@@ -1,8 +1,12 @@
 import type {
   PlanningActivity,
   PlanningBaseline,
+  PlanningConfigurationChange,
+  UserRole,
+  PlanningConfigurationField,
   PlanningConfirmation,
   PlanningConfirmationAction,
+  PlanningEarningMethod,
   PlanningImportBatch,
   PlanningImportBatchStatus,
   PlanningImportRow,
@@ -16,13 +20,17 @@ import type {
   PlanningSnapshot,
   PlanningSnapshotActivity,
   PlanningWorkItem,
+  PlanningWeightDecisionMode,
+  PlanningWeightSource,
   PlanningWorkItemType,
   ProjectPlanningSettings,
 } from "@/types";
+import { workingPlanRefusalMessage } from "@/features/projects/working-plan";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   PlanningActivityRow,
   PlanningBaselineRow,
+  PlanningConfigurationChangeRow,
   PlanningConfirmationRow,
   PlanningImportBatchRow,
   PlanningImportRowRow,
@@ -83,6 +91,10 @@ function mapSettings(row: ProjectPlanningSettingsRow): ProjectPlanningSettings {
       (row.default_import_source as ProjectPlanningSettings["defaultImportSource"]) ??
       undefined,
     planningEnabled: row.planning_enabled,
+    levelLabels: row.level_labels ?? [],
+    controlAccountLevel: row.control_account_level ?? undefined,
+    weightSource: (row.weight_source as PlanningWeightSource | null) ?? undefined,
+    defaultEarningMethod: (row.default_earning_method as PlanningEarningMethod | null) ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -168,6 +180,10 @@ function mapWorkItem(row: PlanningWorkItemRow): PlanningWorkItem {
     sortOrder: row.sort_order,
     isMilestone: row.is_milestone,
     weightPercent: row.weight_percent ?? undefined,
+    localWeightPercent: row.local_weight_percent ?? undefined,
+    isControlAccount: row.is_control_account ?? false,
+    earningMethod: (row.earning_method as PlanningEarningMethod | null) ?? undefined,
+    structureNodeId: row.structure_node_id ?? undefined,
     plannedStartDate: row.planned_start_date ?? undefined,
     plannedFinishDate: row.planned_finish_date ?? undefined,
     baselineStartDate: row.baseline_start_date ?? undefined,
@@ -191,6 +207,12 @@ function mapActivity(row: PlanningActivityRow): PlanningActivity {
     code: row.code ?? undefined,
     name: row.name,
     isMilestone: row.is_milestone,
+    localWeightPercent: row.local_weight_percent ?? undefined,
+    earningMethod: (row.earning_method as PlanningEarningMethod | null) ?? undefined,
+    departmentId: row.department_id ?? undefined,
+    systemId: row.system_id ?? undefined,
+    disciplineId: row.discipline_id ?? undefined,
+    structureNodeId: row.structure_node_id ?? undefined,
     plannedStartDate: row.planned_start_date ?? undefined,
     plannedFinishDate: row.planned_finish_date ?? undefined,
     baselineStartDate: row.baseline_start_date ?? undefined,
@@ -258,9 +280,24 @@ function mapConfirmation(row: PlanningConfirmationRow): PlanningConfirmation {
     fieldName: row.field_name,
     previousValue: row.previous_value ?? undefined,
     newValue: row.new_value ?? undefined,
-    reason: row.reason,
+    reason: row.reason ?? undefined,
+    decisionId: row.decision_id ?? undefined,
+    decisionMode: (row.decision_mode as PlanningWeightDecisionMode | null) ?? undefined,
     confirmedByContactId: row.confirmed_by_contact_id ?? undefined,
     confirmedAt: row.confirmed_at,
+  };
+}
+
+function mapConfigurationChange(row: PlanningConfigurationChangeRow): PlanningConfigurationChange {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    fieldKey: row.field_key as PlanningConfigurationField,
+    previousValue: row.previous_value,
+    newValue: row.new_value,
+    reason: row.reason ?? undefined,
+    changedByContactId: row.changed_by_contact_id ?? undefined,
+    changedAt: row.changed_at,
   };
 }
 
@@ -300,8 +337,13 @@ export interface PlanningWorkItemInput {
   name: string;
   itemType: PlanningWorkItemType;
   sortOrder?: number;
-  isMilestone?: boolean;
-  weightPercent?: number;
+  /** 13.11: local weight — percent of the parent. The recorded weight is never written here. */
+  localWeightPercent?: number;
+  isControlAccount?: boolean;
+  /** "" clears it (inherit). */
+  earningMethod?: PlanningEarningMethod | "";
+  /** Other-project reporting unit; "" clears it. */
+  structureNodeId?: string;
   plannedStartDate?: string;
   plannedFinishDate?: string;
   baselineStartDate?: string;
@@ -315,6 +357,13 @@ export interface PlanningActivityInput {
   code?: string;
   name: string;
   isMilestone?: boolean;
+  /** 13.11 Working Plan fields. "" clears a reference (inherit). */
+  localWeightPercent?: number;
+  earningMethod?: PlanningEarningMethod | "";
+  departmentId?: string;
+  systemId?: string;
+  disciplineId?: string;
+  structureNodeId?: string;
   plannedStartDate?: string;
   plannedFinishDate?: string;
   baselineStartDate?: string;
@@ -379,6 +428,78 @@ export const planningService = {
     return mapSettings(data as ProjectPlanningSettingsRow);
   },
 
+  /**
+   * 13.11 / `docs/02` §26.20: saves the Planning Configuration — the same
+   * four fields whether the user answered the Guided questions or edited
+   * Advanced mode. Never writes the onboarding mode. `expectedUpdatedAt` is
+   * the version the page loaded; a newer row is refused (reload).
+   */
+  async saveConfiguration(input: {
+    projectId: string;
+    levelLabels: string[];
+    controlAccountLevel?: number;
+    weightSource?: PlanningWeightSource;
+    defaultEarningMethod?: PlanningEarningMethod;
+    expectedUpdatedAt: string;
+    reason?: string;
+  }): Promise<ProjectPlanningSettings> {
+    const { data, error } = await client().rpc("save_planning_configuration", {
+      p_project: input.projectId,
+      p_level_labels: input.levelLabels,
+      p_control_account_level: input.controlAccountLevel ?? null,
+      p_weight_source: input.weightSource ?? null,
+      p_default_earning_method: input.defaultEarningMethod ?? null,
+      p_expected_updated_at: input.expectedUpdatedAt,
+      p_reason: clean(input.reason),
+    });
+    if (error) throw await writeFailure("save the planning configuration", error);
+    return mapSettings(data as ProjectPlanningSettingsRow);
+  },
+
+  /** The append-only Planning Configuration history, newest first. */
+  async listConfigurationChanges(projectId: string): Promise<PlanningConfigurationChange[]> {
+    const { data, error } = await client()
+      .from("planning_configuration_changes")
+      .select("*")
+      .eq("project_id", projectId)
+      .order("changed_at", { ascending: false });
+    if (error) throw await readFailure("read the planning configuration history", error);
+    const rows = (data ?? []) as PlanningConfigurationChangeRow[];
+    /*
+     * 13.11 UAT: who made each change, from the audit row's own ids. A profile
+     * is readable only where RLS allows it (the reader's own row; every row for
+     * a System Administrator); the contact gives the name otherwise. A name
+     * that cannot be read is left out, never guessed. Best effort: the history
+     * still shows when either lookup fails.
+     */
+    const userIds = [...new Set(rows.flatMap((row) => (row.changed_by_user_id ? [row.changed_by_user_id] : [])))];
+    const contactIds = [...new Set(rows.flatMap((row) => (row.changed_by_contact_id ? [row.changed_by_contact_id] : [])))];
+    const [profiles, contacts] = await Promise.all([
+      userIds.length > 0
+        ? client().from("profiles").select("id, full_name, role").in("id", userIds)
+        : Promise.resolve({ data: [] as { id: string; full_name: string; role: string }[] }),
+      contactIds.length > 0
+        ? client().from("contacts").select("id, name").in("id", contactIds)
+        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    ]);
+    const profileById = new Map(
+      ((profiles.data ?? []) as { id: string; full_name: string; role: string }[]).map((profile) => [profile.id, profile])
+    );
+    const contactName = new Map(
+      ((contacts.data ?? []) as { id: string; name: string }[]).map((contact) => [contact.id, contact.name])
+    );
+    return rows.map((row) => {
+      const change = mapConfigurationChange(row);
+      const profile = row.changed_by_user_id ? profileById.get(row.changed_by_user_id) : undefined;
+      const name = (row.changed_by_contact_id && contactName.get(row.changed_by_contact_id)) || profile?.full_name;
+      return {
+        ...change,
+        changedByName: name?.trim() || undefined,
+        changedByRole: profile ? (profile.role as UserRole) : undefined,
+      };
+    });
+  },
+
   /* ---------------------------- Master Plan ------------------------------- */
 
   /** Every active work item for a project — the Master Plan register. */
@@ -414,8 +535,10 @@ export const planningService = {
         name: input.name.trim(),
         item_type: input.itemType,
         sort_order: input.sortOrder ?? 0,
-        is_milestone: input.isMilestone ?? false,
-        weight_percent: num(input.weightPercent),
+        local_weight_percent: num(input.localWeightPercent),
+        is_control_account: input.isControlAccount ?? false,
+        earning_method: input.earningMethod || null,
+        structure_node_id: input.structureNodeId || null,
         planned_start_date: clean(input.plannedStartDate),
         planned_finish_date: clean(input.plannedFinishDate),
         baseline_start_date: clean(input.baselineStartDate),
@@ -442,8 +565,10 @@ export const planningService = {
     if (input.name !== undefined) patch.name = input.name.trim();
     if (input.itemType !== undefined) patch.item_type = input.itemType;
     if (input.sortOrder !== undefined) patch.sort_order = input.sortOrder;
-    if (input.isMilestone !== undefined) patch.is_milestone = input.isMilestone;
-    if (input.weightPercent !== undefined) patch.weight_percent = num(input.weightPercent);
+    if ("localWeightPercent" in input) patch.local_weight_percent = num(input.localWeightPercent);
+    if (input.isControlAccount !== undefined) patch.is_control_account = input.isControlAccount;
+    if (input.earningMethod !== undefined) patch.earning_method = input.earningMethod || null;
+    if (input.structureNodeId !== undefined) patch.structure_node_id = input.structureNodeId || null;
     if (input.plannedStartDate !== undefined) patch.planned_start_date = clean(input.plannedStartDate);
     if (input.plannedFinishDate !== undefined) patch.planned_finish_date = clean(input.plannedFinishDate);
     if (input.baselineStartDate !== undefined) patch.baseline_start_date = clean(input.baselineStartDate);
@@ -506,6 +631,12 @@ export const planningService = {
         code: clean(input.code),
         name: input.name.trim(),
         is_milestone: input.isMilestone ?? false,
+        local_weight_percent: num(input.localWeightPercent),
+        earning_method: input.earningMethod || null,
+        department_id: input.departmentId || null,
+        system_id: input.systemId || null,
+        discipline_id: input.disciplineId || null,
+        structure_node_id: input.structureNodeId || null,
         planned_start_date: clean(input.plannedStartDate),
         planned_finish_date: clean(input.plannedFinishDate),
         baseline_start_date: clean(input.baselineStartDate),
@@ -527,6 +658,67 @@ export const planningService = {
       .single();
     if (error) throw await writeFailure("create the activity", error);
     return mapActivity(data as PlanningActivityRow);
+  },
+
+  /**
+   * 13.11: a direct Project Control edit of an activity's Working Plan
+   * fields. Only the fields passed are written; the database logs every
+   * governed change (`log_working_plan_change()`). The schedule-owned fields
+   * of an IMPORTED activity change through Imports & Review, never here —
+   * callers pass them only for manual activities.
+   */
+  async updateActivity(id: string, input: Partial<PlanningActivityInput>): Promise<PlanningActivity> {
+    const patch: Record<string, unknown> = {};
+    if (input.workItemId !== undefined) patch.work_item_id = input.workItemId || null;
+    if (input.code !== undefined) patch.code = clean(input.code);
+    if (input.name !== undefined) patch.name = input.name.trim();
+    if (input.isMilestone !== undefined) patch.is_milestone = input.isMilestone;
+    if ("localWeightPercent" in input) patch.local_weight_percent = num(input.localWeightPercent);
+    if (input.earningMethod !== undefined) patch.earning_method = input.earningMethod || null;
+    if (input.departmentId !== undefined) patch.department_id = input.departmentId || null;
+    if (input.systemId !== undefined) patch.system_id = input.systemId || null;
+    if (input.disciplineId !== undefined) patch.discipline_id = input.disciplineId || null;
+    if (input.structureNodeId !== undefined) patch.structure_node_id = input.structureNodeId || null;
+    if (input.plannedStartDate !== undefined) patch.planned_start_date = clean(input.plannedStartDate);
+    if (input.plannedFinishDate !== undefined) patch.planned_finish_date = clean(input.plannedFinishDate);
+    if (input.actualStartDate !== undefined) patch.actual_start_date = clean(input.actualStartDate);
+    if (input.actualFinishDate !== undefined) patch.actual_finish_date = clean(input.actualFinishDate);
+    if ("percentCompletePhysical" in input) {
+      patch.percent_complete_physical = num(input.percentCompletePhysical);
+    }
+
+    const { data, error } = await client()
+      .from("planning_activities")
+      .update(patch)
+      .eq("id", id)
+      .select("*")
+      .single();
+    if (error) throw await writeFailure("update the activity", error);
+    return mapActivity(data as PlanningActivityRow);
+  },
+
+  /**
+   * 13.11 / W3: one explicit, logged weight decision for one parent's
+   * children (`null` = the Project). `children` is the proposal from
+   * `proposeWeightDecision()`; the database re-verifies it against the
+   * stored weights and refuses a stale one. Returns the decision id.
+   */
+  async recordWeightDecision(input: {
+    projectId: string;
+    parentWorkItemId: string | null;
+    mode: PlanningWeightDecisionMode;
+    children: { kind: "node" | "activity"; id: string; before: number | null; after: number }[];
+    reason: string;
+  }): Promise<string> {
+    const { data, error } = await client().rpc("record_planning_weight_decision", {
+      p_project: input.projectId,
+      p_parent_work_item_id: input.parentWorkItemId,
+      p_mode: input.mode,
+      p_children: input.children,
+      p_reason: input.reason,
+    });
+    if (error) throw await writeFailure("record the weight decision", error);
+    return data as string;
   },
 
   /**
@@ -976,6 +1168,7 @@ async function writeFailure(
     scope: "planning-service",
     operation,
     error,
+    known: workingPlanRefusalMessage(error),
     deniedMessage: DENIED,
     fallback:
       "That change could not be saved. Please try again, and let Project Control know if it keeps happening.",

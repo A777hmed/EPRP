@@ -69,6 +69,7 @@ export function MilestoneFormDialog({
   register,
   options,
   scopeTerm,
+  departmentScoped = true,
   onClose,
   onSaved,
 }: {
@@ -79,6 +80,8 @@ export function MilestoneFormDialog({
   options: MilestoneScopeOptions;
   /** "Discipline", or "Program & Study" on PSM/PSAIM projects. Display only. */
   scopeTerm: string;
+  /** PSM and legacy projects file milestones by department; an Other Project does not. */
+  departmentScoped?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -226,82 +229,97 @@ export function MilestoneFormDialog({
             />
           </div>
 
-          <div className="grid gap-1.5">
-            <Label htmlFor="milestone-department">Department</Label>
-            <Select
-              value={form.departmentId || NONE}
-              onValueChange={(value) => {
-                const departmentId = value === NONE ? "" : value;
-                // Clearing the children rather than leaving them behind: a
-                // system from another department would file the milestone under
-                // scope the department does not own.
-                setForm((current) => ({
-                  ...current,
-                  departmentId,
-                  systemId: "",
-                  disciplineId: "",
-                }));
-              }}
-            >
-              <SelectTrigger id="milestone-department">
-                <SelectValue placeholder="Project-wide" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>Project-wide</SelectItem>
-                {options.departments.map((department) => (
-                  <SelectItem key={department.id} value={department.id}>
-                    {department.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {departmentScoped ? (
+            <>
+              <div className="grid gap-1.5">
+                <Label htmlFor="milestone-department">Department</Label>
+                <Select
+                  value={form.departmentId || NONE}
+                  onValueChange={(value) => {
+                    const departmentId = value === NONE ? "" : value;
+                    // Clearing the children rather than leaving them behind: a
+                    // system from another department would file the milestone under
+                    // scope the department does not own.
+                    setForm((current) => ({
+                      ...current,
+                      departmentId,
+                      systemId: "",
+                      disciplineId: "",
+                    }));
+                  }}
+                >
+                  <SelectTrigger id="milestone-department">
+                    <SelectValue placeholder="Project-wide" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>Project-wide</SelectItem>
+                    {options.departments.map((department) => (
+                      <SelectItem key={department.id} value={department.id}>
+                        {department.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="grid gap-1.5">
-            <Label htmlFor="milestone-system">System</Label>
-            <Select
-              value={form.systemId || NONE}
-              onValueChange={(value) =>
-                set("systemId", value === NONE ? "" : value)
-              }
-            >
-              <SelectTrigger id="milestone-system">
-                <SelectValue placeholder="Not system-specific" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>Not system-specific</SelectItem>
-                {systems.map((system) => (
-                  <SelectItem key={system.id} value={system.id}>
-                    {system.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="milestone-system">System</Label>
+                <Select
+                  value={form.systemId || NONE}
+                  onValueChange={(value) =>
+                    set("systemId", value === NONE ? "" : value)
+                  }
+                >
+                  <SelectTrigger id="milestone-system">
+                    <SelectValue placeholder="Not system-specific" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>Not system-specific</SelectItem>
+                    {systems.map((system) => (
+                      <SelectItem key={system.id} value={system.id}>
+                        {system.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="grid gap-1.5">
-            <Label htmlFor="milestone-discipline">{scopeTerm}</Label>
-            <Select
-              value={form.disciplineId || NONE}
-              onValueChange={(value) =>
-                set("disciplineId", value === NONE ? "" : value)
-              }
-            >
-              <SelectTrigger id="milestone-discipline">
-                <SelectValue placeholder={`Not ${scopeTerm.toLowerCase()}-specific`} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>
-                  Not {scopeTerm.toLowerCase()}-specific
-                </SelectItem>
-                {disciplines.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="milestone-discipline">{scopeTerm}</Label>
+                <Select
+                  value={form.disciplineId || NONE}
+                  onValueChange={(value) =>
+                    set("disciplineId", value === NONE ? "" : value)
+                  }
+                >
+                  <SelectTrigger id="milestone-discipline">
+                    <SelectValue placeholder={`Not ${scopeTerm.toLowerCase()}-specific`} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>
+                      Not {scopeTerm.toLowerCase()}-specific
+                    </SelectItem>
+                    {disciplines.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          ) : (
+            // An Other Project reports through its Project Structure, not
+            // Departments → Systems → Disciplines, and the milestone register
+            // has no reporting-unit link yet: its milestones are project-wide.
+            <div className="grid gap-1.5 sm:col-span-2">
+              <Label htmlFor="milestone-reporting-unit">Reporting unit</Label>
+              <Input id="milestone-reporting-unit" value="Project-wide" readOnly disabled />
+              <p className="text-xs text-muted-foreground">
+                Milestones on this project are recorded for the whole project.
+              </p>
+            </div>
+          )}
 
           <div className="grid gap-1.5">
             <Label htmlFor="milestone-owner">Owner</Label>
@@ -424,8 +442,9 @@ export function MilestoneFormDialog({
                 Client approval required
               </Label>
               <p className="text-xs text-muted-foreground">
-                Whether the client must approve. Whether they DID is reported
-                through an update, never recorded here.
+                Whether the client must approve this milestone. Whether the
+                client has approved it is reported through a milestone update,
+                not recorded here.
               </p>
             </div>
           </div>

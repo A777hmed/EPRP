@@ -402,6 +402,23 @@ function SetupShell({
       });
   }, [projectId]);
 
+  // 13.11 UAT: an amendment decided elsewhere (another tab, another person)
+  // arrives with the governance re-read on return; the stored project and the
+  // planning approach are then re-read too, exactly as after a local decision.
+  const amendmentStates = `${projectId ?? ""}#${governanceState.amendments
+    .map((amendment) => `${amendment.id}:${amendment.status}`)
+    .join("|")}`;
+  const seenAmendmentStates = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!projectId || governanceState.loadedFor !== projectId) return;
+    const previous = seenAmendmentStates.current;
+    seenAmendmentStates.current = amendmentStates;
+    // The first read for a project is its baseline, not a change.
+    if (previous === null || !previous.startsWith(`${projectId}#`) || previous === amendmentStates) return;
+    reloadProject();
+    setDecisionRevision((revision) => revision + 1);
+  }, [amendmentStates, governanceState.loadedFor, projectId, reloadProject]);
+
   const acceptStepSaved = (
     submitted: Project,
     saved: Project,

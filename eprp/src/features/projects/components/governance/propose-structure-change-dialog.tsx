@@ -3,6 +3,8 @@
 import * as React from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { compactAmendmentToast } from "../../amendment-toast";
+import { CONFIRMATION_TOAST_DURATION_MS, showCompactToast } from "@/features/notifications/compact-toast";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +34,7 @@ import type { StructureProposal } from "../../structure-amendments";
 export function ProposeStructureChangeDialog({
   open,
   projectId,
+  projectCode,
   title,
   current,
   proposal,
@@ -42,6 +45,8 @@ export function ProposeStructureChangeDialog({
 }: {
   open: boolean;
   projectId: string;
+  /** For the confirmation toast ("code · subject"). */
+  projectCode?: string;
   /** e.g. "Request rename · Pump House". */
   title: string;
   /** The target as it stands now, in business words. */
@@ -63,7 +68,7 @@ export function ProposeStructureChangeDialog({
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain sm:max-w-lg">
         {open && (
-          <ProposeBody projectId={projectId} title={title} current={current} proposal={proposal}
+          <ProposeBody projectId={projectId} projectCode={projectCode} title={title} current={current} proposal={proposal}
             onClose={onClose} onSubmitted={onSubmitted} blockedReason={blockedReason}>
             {children}
           </ProposeBody>
@@ -75,6 +80,7 @@ export function ProposeStructureChangeDialog({
 
 function ProposeBody({
   projectId,
+  projectCode,
   title,
   current,
   proposal,
@@ -84,6 +90,7 @@ function ProposeBody({
   children,
 }: {
   projectId: string;
+  projectCode?: string;
   title: string;
   current: React.ReactNode;
   proposal: StructureProposal | null;
@@ -106,9 +113,9 @@ function ProposeBody({
         proposal,
         reason: reason.trim(),
       });
-      toast.success(
-        "Structure change proposed. The structure stays unchanged until another Project Control Admin or System Administrator approves it."
-      );
+      // 13.11 UAT: the one compact toast; the record carries the detail.
+      const { title, context, tone } = compactAmendmentToast("submitted", { projectCode, amendment });
+      showCompactToast({ title, context, tone, duration: CONFIRMATION_TOAST_DURATION_MS });
       onSubmitted(amendment);
       onClose();
     } catch (cause) {

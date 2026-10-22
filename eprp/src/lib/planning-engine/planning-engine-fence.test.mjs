@@ -38,9 +38,12 @@ test("purity: no storage, network, React or clock reads inside the engine", () =
 
 /* ------------------------------ No schema change ------------------------- */
 
-test("13.10 adds no migration: the newest migration is still the 13.9B close", () => {
+test("13.10 adds no migration: nothing sorts between the 13.9B close and the 13.11 migration", () => {
   const names = readdirSync(MIGRATIONS_DIR).filter((name) => name.endsWith(".sql")).sort();
-  assert.equal(names.at(-1), "20261021090000_notification_history_clear.sql");
+  const close = names.indexOf("20261021090000_notification_history_clear.sql");
+  assert.ok(close >= 0);
+  // The next migration is 13.11's Working Plan hardening, not a 13.10 one.
+  assert.equal(names[close + 1], "20261022090000_working_plan_hardening.sql");
 });
 
 /* ------------------------------ Immutability ----------------------------- */

@@ -8,6 +8,7 @@ import {
 } from "@/services/planning-rollup-service";
 import { planningService } from "@/services/planning-service";
 import type { PlanningSnapshot, ProjectPlanningSettings } from "@/types";
+import { useReturnRefresh } from "./use-return-refresh";
 
 export type PlanningPositionState =
   | { status: "loading" }
@@ -37,6 +38,8 @@ export function usePlanningPosition(
   reloadKey?: string
 ): PlanningPositionState {
   const [state, setState] = React.useState<PlanningPositionState>({ status: "loading" });
+  // 13.11 UAT: an approved Planning Approach change shows on return to the tab.
+  const returned = useReturnRefresh();
 
   React.useEffect(() => {
     if (!projectId) return;
@@ -58,7 +61,7 @@ export function usePlanningPosition(
     return () => {
       cancelled = true;
     };
-  }, [projectId, reloadKey]);
+  }, [projectId, reloadKey, returned]);
 
   return state;
 }

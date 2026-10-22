@@ -21,17 +21,21 @@ export function PlanningFact({
   label,
   value,
   hint,
+  help,
   className,
 }: {
   label: string;
   value: React.ReactNode;
   hint?: string;
+  /** Optional contextual help (`ContextHelp`) shown beside the label. */
+  help?: React.ReactNode;
   className?: string;
 }) {
   return (
     <div className={cn("min-w-0", className)} title={hint}>
-      <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <dt className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
+        {help}
       </dt>
       <dd className="mt-0.5 truncate text-sm font-semibold tabular-nums">{value}</dd>
     </div>

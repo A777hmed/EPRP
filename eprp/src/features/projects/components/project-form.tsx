@@ -1908,6 +1908,7 @@ export function ProjectForm({
     {projectId && governance && (
       <AmendSetupDialog
         projectId={projectId}
+        projectCode={project?.code}
         fieldKey={amendField}
         onClose={() => setAmendField(null)}
         onSubmitted={(amendment) => void handleAmendmentSubmitted(amendment)}

@@ -17,7 +17,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { LoadingState, StatusBadge } from "@/components/shared";
+import { LabelWithHelp, LoadingState, StatusBadge } from "@/components/shared";
 import { projectWorkflowHref } from "@/config/project-workflow";
 import { formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -32,16 +32,21 @@ import {
   PLANNING_WORKSPACE_VIEWS,
   nextReadinessStep,
   onboardingChoice,
+  planningAuthoringAllowed,
   planningReadinessSteps,
   resolvePlanningView,
   type PlanningWorkspaceView,
   type ReadinessStep,
 } from "../../planning-experience";
+import { configurationComplete } from "../../working-plan";
 import { ArchivedPlanningNotice } from "./archived-planning-notice";
 import { BaselinesSnapshotsPanel } from "./baselines-snapshots-panel";
 import { MasterPlanPanel } from "./master-plan-panel";
 import { PlanningDataPanel } from "./planning-data-panel";
+import { PlanningHelp } from "./planning-help";
+import { PlanningSetupPanel } from "./planning-setup-panel";
 import { PlanningFact } from "./planning-status";
+import { useReturnRefresh } from "../../use-return-refresh";
 
 /* ---------------------------- URL-addressable view ------------------------ */
 
@@ -88,6 +93,8 @@ interface WorkspaceFacts {
   activityCount: number;
   importCount: number;
   hasOpeningDraft: boolean;
+  /** 13.11: any node or activity carries a local weight. */
+  hasLocalWeights: boolean;
 }
 
 async function loadWorkspaceFacts(projectId: string): Promise<WorkspaceFacts> {
@@ -106,6 +113,9 @@ async function loadWorkspaceFacts(projectId: string): Promise<WorkspaceFacts> {
     activityCount: activities.length,
     importCount: imports.length,
     hasOpeningDraft: Boolean(openingDraft),
+    hasLocalWeights:
+      workItems.some((item) => item.localWeightPercent !== undefined) ||
+      activities.some((activity) => activity.localWeightPercent !== undefined),
   };
 }
 
@@ -133,6 +143,9 @@ export function PlanningWorkspace({
   const [view, selectView] = usePlanningView();
   const [facts, setFacts] = React.useState<WorkspaceFacts | null | undefined>();
   const [reloadToken, setReloadToken] = React.useState(0);
+  // 13.11 UAT: a Planning Approach approved in another tab re-gates authoring
+  // (Master Plan, Imports, Baselines) when the user returns here.
+  const returned = useReturnRefresh();
 
   React.useEffect(() => {
     let cancelled = false;
@@ -147,9 +160,15 @@ export function PlanningWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [project.id, reloadToken, view]);
+  }, [project.id, reloadToken, view, returned]);
 
   const archived = isPlanningControlReadOnly(project);
+  // 13.11 UAT: while the Planning Approach is "No formal schedule" the
+  // Working Plan, imports and baselines are read-only (the database refuses
+  // the writes too). Authoring waits until the approach is known.
+  const noFormalSchedule = facts?.settings?.onboardingMode === "no_formal_schedule";
+  const authoring =
+    canManage && facts !== undefined && planningAuthoringAllowed(facts?.settings?.onboardingMode);
 
   return (
     <div className="space-y-4">
@@ -204,20 +223,27 @@ export function PlanningWorkspace({
             <PlanningSummary
               project={project}
               facts={facts}
+              canManage={canManage}
               onOpen={selectView}
+              onChanged={() => setReloadToken((token) => token + 1)}
             />
           )}
         </TabsContent>
         <TabsContent value="master-plan" className="pt-4">
-          <MasterPlanPanel projectId={project.id} canManage={canManage} hierarchyTerm={hierarchyTerm} />
+          <MasterPlanPanel
+            project={project}
+            canManage={authoring}
+            noFormalSchedule={noFormalSchedule}
+            hierarchyTerm={hierarchyTerm}
+          />
         </TabsContent>
         <TabsContent value="imports" className="pt-4">
-          <PlanningDataPanel project={project} canManage={canManage} />
+          <PlanningDataPanel project={project} canManage={authoring} noFormalSchedule={noFormalSchedule} />
         </TabsContent>
         <TabsContent value="baselines" className="pt-4">
           <BaselinesSnapshotsPanel
             project={project}
-            canManage={canManage}
+            canManage={authoring}
             onChanged={() => setReloadToken((token) => token + 1)}
           />
         </TabsContent>
@@ -332,42 +358,68 @@ function WorkspaceHeaderStrip({
       : `${facts.workItemCount} work item${facts.workItemCount === 1 ? "" : "s"} · ${facts.activityCount} activit${facts.activityCount === 1 ? "y" : "ies"}`;
   const snapshot = facts.snapshot;
 
+  // Each fact is its own cell, separated by a hairline: a 2 × 2 grid on
+  // tablets and narrow laptops, one row of equal columns from `lg`. Values
+  // and their sources are unchanged; a value the data cannot supply (Data
+  // Date before any snapshot) is still omitted, never estimated.
+  const cells: { key: string; label: string; value: React.ReactNode; help?: React.ReactNode }[] = [
+    { key: "plan", label: "Working Plan", value: workingPlan },
+    {
+      key: "snapshot",
+      label: "Published snapshot",
+      value: snapshot ? (
+        <span className="inline-flex items-center gap-1.5">
+          v{snapshot.version}
+          {snapshot.isOpeningSnapshot && <StatusBadge tone="info">Opening</StatusBadge>}
+        </span>
+      ) : (
+        <span className="font-normal text-muted-foreground">None yet</span>
+      ),
+    },
+    ...(snapshot
+      ? [{ key: "data-date", label: "Data Date", value: formatDate(snapshot.dataDate), help: <PlanningHelp concept="dataDate" /> }]
+      : []),
+    // Only a STORED choice is shown as the approach. With no settings row the
+    // fallback ("new_project") is not a decision anyone made — the readiness
+    // checklist rightly says so too.
+    {
+      key: "approach",
+      label: "Planning approach",
+      value: facts.settings ? (
+        onboardingChoice(facts.settings.onboardingMode).label
+      ) : (
+        <span className="font-normal text-muted-foreground">Not chosen yet</span>
+      ),
+    },
+  ];
+
   return (
-    <dl className="grid grid-cols-2 gap-x-6 gap-y-3 px-4 py-3 sm:flex sm:flex-wrap sm:items-start">
-      <PlanningFact label="Working Plan" value={workingPlan} />
-      <PlanningFact
-        label="Published snapshot"
-        value={
-          snapshot ? (
-            <span className="inline-flex items-center gap-1.5">
-              v{snapshot.version}
-              {snapshot.isOpeningSnapshot && <StatusBadge tone="info">Opening</StatusBadge>}
-            </span>
-          ) : (
-            <span className="font-normal text-muted-foreground">None yet</span>
-          )
-        }
-      />
-      {snapshot && <PlanningFact label="Data Date" value={formatDate(snapshot.dataDate)} />}
-      {/* Only a STORED choice is shown as the approach. With no settings row
-          the fallback ("new_project") is not a decision anyone made — the
-          readiness checklist rightly says so too. */}
-      <PlanningFact
-        label="Planning approach"
-        value={
-          facts.settings ? (
-            onboardingChoice(facts.settings.onboardingMode).label
-          ) : (
-            <span className="font-normal text-muted-foreground">Not chosen yet</span>
-          )
-        }
-      />
+    <div className="flex flex-col lg:flex-row lg:items-stretch">
+      <dl className="grid min-w-0 flex-1 grid-cols-1 sm:grid-cols-2 lg:flex">
+        {cells.map((cell, index) => (
+          <PlanningFact
+            key={cell.key}
+            label={cell.label}
+            value={cell.value}
+            help={cell.help}
+            className={cn(
+              "px-4 py-3 lg:min-w-0 lg:flex-1",
+              // Separators: rows below the first on the stacked layouts,
+              // the second column in the 2 × 2 grid, every later column on one row.
+              index > 0 && "border-t sm:border-t-0",
+              index >= 2 && "sm:border-t lg:border-t-0",
+              index % 2 === 1 && "sm:border-l",
+              index > 0 && "lg:border-l"
+            )}
+          />
+        ))}
+      </dl>
       {archived && (
-        <div className="col-span-2 flex items-center sm:ml-auto sm:self-center">
+        <div className="flex items-center border-t px-4 py-3 lg:border-t-0 lg:border-l">
           <StatusBadge tone="neutral">Archived · read-only</StatusBadge>
         </div>
       )}
-    </dl>
+    </div>
   );
 }
 
@@ -418,12 +470,19 @@ const STEP_ICON = {
 function PlanningSummary({
   project,
   facts,
+  canManage,
   onOpen,
+  onChanged,
 }: {
   project: Project;
   facts: WorkspaceFacts | null | undefined;
+  canManage: boolean;
   onOpen: (view: PlanningWorkspaceView) => void;
+  onChanged: () => void;
 }) {
+  // The version the user just saved in Planning Setup, so the reloaded panel
+  // can confirm the save (it remounts on every new version).
+  const [savedVersion, setSavedVersion] = React.useState<string | null>(null);
   if (facts === undefined) {
     return <LoadingState variant="spinner" label="Loading planning readiness…" />;
   }
@@ -442,54 +501,75 @@ function PlanningSummary({
     hasPlanData: facts.workItemCount + facts.activityCount + facts.importCount > 0,
     hasOpeningDraft: facts.hasOpeningDraft,
     hasPublishedSnapshot: Boolean(facts.snapshot),
+    configurationComplete: configurationComplete(facts.settings),
   });
   const next = nextReadinessStep(steps);
   const setupHref = `${projectWorkflowHref(project.id, "info")}#planning-entry`;
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_15rem]">
-      <section aria-labelledby="planning-readiness" className="rounded-xl border bg-card p-4 shadow-soft sm:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 id="planning-readiness" className="text-sm font-semibold">
-              Planning readiness
-            </h2>
-            <p className="mt-0.5 text-xs text-muted-foreground text-pretty">
-              {mode === "no_formal_schedule"
-                ? "This project is reported without a formal schedule."
-                : next
-                  ? "What to do next to bring this project under planning control."
-                  : "The project is under planning control. Keep the plan current and publish new snapshots as it moves."}
-            </p>
+      <div className="grid min-w-0 gap-4 self-start">
+        <section aria-labelledby="planning-readiness" className="rounded-xl border bg-card p-4 shadow-soft sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 id="planning-readiness" className="text-sm font-semibold">
+                <LabelWithHelp help={<PlanningHelp concept="readiness" />}>Planning readiness</LabelWithHelp>
+              </h2>
+              <p className="mt-0.5 text-xs text-muted-foreground text-pretty">
+                {mode === "no_formal_schedule"
+                  ? "This project is reported without a formal schedule."
+                  : next
+                    ? "What to do next to bring this project under planning control."
+                    : "The project is under planning control. Keep the plan current and publish new snapshots as it moves."}
+              </p>
+            </div>
+            {next && (
+              <NextStepAction step={next} setupHref={setupHref} onOpen={onOpen} />
+            )}
           </div>
-          {next && (
-            <NextStepAction step={next} setupHref={setupHref} onOpen={onOpen} />
+
+          <ol className="mt-4 divide-y rounded-lg border">
+            {steps.map((step, index) => (
+              <ReadinessRow
+                key={step.id}
+                step={step}
+                index={index}
+                setupHref={setupHref}
+                onOpen={onOpen}
+              />
+            ))}
+          </ol>
+
+          {mode === "no_formal_schedule" && (
+            <div className="mt-4 flex items-start gap-2 rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
+              <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+              <p className="text-pretty">
+                Progress is shown as “Reported — not planning governed” and SPI is
+                not applicable. If a schedule becomes available, change how the
+                project is planned in Project Setup.
+              </p>
+            </div>
           )}
-        </div>
+        </section>
 
-        <ol className="mt-4 divide-y rounded-lg border">
-          {steps.map((step, index) => (
-            <ReadinessRow
-              key={step.id}
-              step={step}
-              index={index}
-              setupHref={setupHref}
-              onOpen={onOpen}
-            />
-          ))}
-        </ol>
-
-        {mode === "no_formal_schedule" && (
-          <div className="mt-4 flex items-start gap-2 rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
-            <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-            <p className="text-pretty">
-              Progress is shown as “Reported — not planning governed” and SPI is
-              not applicable. If a schedule becomes available, change how the
-              project is planned in Project Setup.
-            </p>
-          </div>
+        {/* 13.11: the Planning Setup questions. A no-formal-schedule project is
+            not planning-governed and has no planning configuration. */}
+        {mode !== "no_formal_schedule" && (
+          <PlanningSetupPanel
+            key={facts.settings?.updatedAt ?? "unsaved"}
+            projectId={project.id}
+            settings={facts.settings}
+            canManage={canManage}
+            hasLocalWeights={facts.hasLocalWeights}
+            setupHref={setupHref}
+            justSaved={savedVersion !== null && savedVersion === facts.settings?.updatedAt}
+            onSaved={(updatedAt) => {
+              setSavedVersion(updatedAt);
+              onChanged();
+            }}
+          />
         )}
-      </section>
+      </div>
 
       {/* Secondary by design: a light outlined container (border token,
           card radius, near-transparent tint, no shadow), three short points. */}
@@ -500,18 +580,29 @@ function PlanningSummary({
         <p id="how-planning-works" className="text-[11px] font-medium uppercase tracking-wide">
           How Planning works
         </p>
-        <ul className="mt-2 space-y-1.5 text-pretty">
-          <li>The Published Planning Snapshot is the governed source.</li>
-          <li>PV, EV, SPI and the S-curve are calculated — never typed in.</li>
-          <li>Planning Engineers work in Master Plan, Imports &amp; Review and Baselines &amp; Snapshots.</li>
-        </ul>
+        {/* A no-formal-schedule project has no planned figures to explain. */}
+        {mode === "no_formal_schedule" ? (
+          <ul className="mt-2 space-y-1.5 text-pretty">
+            <li>This project is reported without a formal schedule.</li>
+            <li>Any earlier planning data stays visible for reference, read-only.</li>
+            <li>To plan it, change the Planning Approach in Project Setup.</li>
+          </ul>
+        ) : (
+          <ul className="mt-2 space-y-1.5 text-pretty">
+            <li>The Published Planning Snapshot is the governed source.</li>
+            <li>PV, EV, SPI and the S-curve are calculated — never typed in.</li>
+            <li>Planning Engineers work in Master Plan, Imports &amp; Review and Baselines &amp; Snapshots.</li>
+          </ul>
+        )}
       </aside>
     </div>
   );
 }
 
 function stepHref(step: ReadinessStep, setupHref: string): string | undefined {
-  return step.target === "setup" ? setupHref : undefined;
+  if (step.target === "setup") return setupHref;
+  if (step.target === "planning-setup") return "#planning-setup";
+  return undefined;
 }
 
 function NextStepAction({
@@ -561,7 +652,9 @@ function ReadinessRow({
   const label =
     step.target === "setup"
       ? "Project Setup"
-      : PLANNING_WORKSPACE_VIEWS.find((view) => view.id === step.target)?.label;
+      : step.target === "planning-setup"
+        ? "Planning setup"
+        : PLANNING_WORKSPACE_VIEWS.find((view) => view.id === step.target)?.label;
 
   return (
     <li
