@@ -615,6 +615,8 @@ function SetupShell({
       ? {
           controlled,
           canAmend: canManage && !readOnly,
+          // 13.12: Planned Start / Finish are superseded once BL0 is approved.
+          supersededByBl0: Boolean(controlState.bl0ApprovedAt),
           pending: pendingByField,
           decisionRevision,
           finalise: {

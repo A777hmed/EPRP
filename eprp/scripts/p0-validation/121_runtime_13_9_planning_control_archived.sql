@@ -29,6 +29,18 @@
 --   docker exec -i supabase_db_eprp psql -U postgres -d postgres \
 --     -f - < scripts/p0-validation/121_runtime_13_9_planning_control_archived.sql
 
+-- 13.12 (docs/02 §26.25), deliberately updated expectations:
+--   * a baseline is no longer inserted directly by any client role — Baseline
+--     Revisions are requested through the server-only request_planning_baseline()
+--     (archived refusal for them: 133 §09), so the direct insert is refused with
+--     42501 on an active and an archived project alike;
+--   * a normal publish is v2 only (D-D): the legacy manual / import publish
+--     answers [V2_PUBLISH_REQUIRED] on an active project (on an archived one the
+--     archived refusal still answers first); Opening Position promotion is unchanged;
+--   * the INSERT policies of planning_baselines, planning_snapshots and
+--     planning_snapshot_activities are removed (44 → 41 policies);
+--   * deleting a whole archived project still cascades through everything.
+
 \set ON_ERROR_STOP off
 \set QUIET on
 \pset pager off
@@ -348,8 +360,8 @@ begin
     perform pg_temp.must_fail(1, '01 ARCHIVED · PLANNING', 'apply an import decision (confirmation)' || t,
       format('insert into public.planning_confirmations (activity_id, action, field_name, new_value, reason) values (%L, %L, %L, %L, %L)',
              A1, 'adjust', 'percent_complete_physical', '55', 'x'), E);
-    perform pg_temp.must_fail(1, '01 ARCHIVED · PLANNING', 'create a baseline / re-baseline' || t,
-      format('insert into public.planning_baselines (project_id, name, baseline_date) values (%L, %L, %L)', A, 'ZZ BL1', '2026-10-01'), E);
+    perform pg_temp.must_fail(1, '01 ARCHIVED · PLANNING', 'create a baseline / re-baseline (13.12: no direct insert for any role)' || t,
+      format('insert into public.planning_baselines (project_id, name, baseline_date) values (%L, %L, %L)', A, 'ZZ BL1', '2026-10-01'), '42501');
     perform pg_temp.must_fail(1, '01 ARCHIVED · PLANNING', 'change Planning settings' || t,
       format('update public.project_planning_settings set default_import_source = %L where project_id = %L', 'p6', A), E);
 
@@ -547,14 +559,14 @@ begin
     perform pg_temp.must_pass(4, '04 ACTIVE · PLANNING', 'apply an import decision (confirmation)' || t,
       format('insert into public.planning_confirmations (activity_id, action, field_name, new_value, reason) values (%L, %L, %L, %L, %L)',
              A1, 'adjust', 'percent_complete_physical', '40', 'ZZ ' || s));
-    perform pg_temp.must_pass(4, '04 ACTIVE · PLANNING', 'create a baseline' || t,
-      format('insert into public.planning_baselines (project_id, name, baseline_date) values (%L, %L, %L)', P, 'ZZ BL ' || s, '2026-10-01'));
+    perform pg_temp.must_fail(4, '04 ACTIVE · PLANNING', 'create a baseline directly → refused (13.12: Baseline Revisions only through the request)' || t,
+      format('insert into public.planning_baselines (project_id, name, baseline_date) values (%L, %L, %L)', P, 'ZZ BL ' || s, '2026-10-01'), '42501');
     perform pg_temp.must_pass(4, '04 ACTIVE · PLANNING', 'change Planning settings' || t,
       format('update public.project_planning_settings set default_import_source = %L where project_id = %L', 'p6', P));
     perform pg_temp.must_pass(4, '04 ACTIVE · SNAPSHOT', 'edit the draft Opening Position' || t,
       format('update public.planning_opening_positions set source = %L where id = %L', 'ZZ source ' || s, OP));
-    perform pg_temp.must_pass(4, '04 ACTIVE · SNAPSHOT', 'publish a manual snapshot (publish RPC)' || t,
-      format('select public.publish_planning_snapshot(p_project_id => %L::uuid, p_data_date => %L::date)', P, '2026-10-10'));
+    perform pg_temp.must_fail(4, '04 ACTIVE · SNAPSHOT', 'a legacy manual publish → [V2_PUBLISH_REQUIRED] (13.12 D-D)' || t,
+      format('select public.publish_planning_snapshot(p_project_id => %L::uuid, p_data_date => %L::date)', P, '2026-10-10'), 'V2_PUBLISH_REQUIRED');
 
     perform pg_temp.must_pass(4, '04 ACTIVE · MILESTONES', 'create a governed milestone' || t,
       format('insert into public.master_milestones (project_id, code, name) values (%L, %L, %L)', P, 'M-' || s, 'x'));
@@ -591,8 +603,8 @@ begin
 
   -- One-off writes, once per project: import publish, link removal, draft removal.
   perform pg_temp.act(pg_temp.id('P_X'));
-  perform pg_temp.must_pass(4, '04 ACTIVE · SNAPSHOT', 'publish a snapshot from the validated import batch (apply import) — assigned Project Control',
-    format('select public.publish_planning_snapshot(p_project_id => %L::uuid, p_import_batch_id => %L::uuid)', P, BATCH));
+  perform pg_temp.must_fail(4, '04 ACTIVE · SNAPSHOT', 'a legacy publish from an import batch → [V2_PUBLISH_REQUIRED] (13.12 D-D) — assigned Project Control',
+    format('select public.publish_planning_snapshot(p_project_id => %L::uuid, p_import_batch_id => %L::uuid)', P, BATCH), 'V2_PUBLISH_REQUIRED');
   perform pg_temp.must_pass(4, '04 ACTIVE · MILESTONES', 'remove a milestone link — assigned Project Control',
     format('delete from public.planning_milestone_links where id = %L', pg_temp.id('ACT_LINK')));
   perform pg_temp.must_pass(4, '04 ACTIVE · MILESTONES', 'delete a Weekly milestone draft — assigned Project Control',
@@ -603,7 +615,7 @@ begin
     (select count(*) from public.planning_work_items where project_id = P) = 4
     and (select count(*) from public.master_milestones where project_id = P) = 5
     and (select count(*) from public.master_deliverables where project_id = P) = 4
-    and (select count(*) from public.planning_snapshots where project_id = P) = 4
+    and (select count(*) from public.planning_snapshots where project_id = P) = 0  -- 13.12: normal publish is v2 only
     and (select count(*) from public.milestone_updates where milestone_id = M1 and approval_status = 'approved') = 4);
 end $act$;
 
@@ -693,11 +705,16 @@ begin
     not has_function_privilege('anon', 'public.guard_archived_project_planning()', 'EXECUTE')
     and not has_function_privilege('authenticated', 'public.guard_archived_project_planning()', 'EXECUTE')
     and not has_function_privilege('service_role', 'public.guard_archived_project_planning()', 'EXECUTE'));
-  perform pg_temp.chk(7, '07 CATALOG', 'every policy on the 16 tables is byte-for-byte unchanged (44 policies, pre-13.9 fingerprint)',
+  -- 13.12: the three INSERT policies of planning_baselines, planning_snapshots and
+  -- planning_snapshot_activities are removed; every other policy is unchanged.
+  perform pg_temp.chk(7, '07 CATALOG', '13.12: exactly the baseline / snapshot INSERT policies are gone',
+    not exists (select 1 from pg_policies where schemaname = 'public'
+                 and policyname in ('planning_baselines_insert', 'planning_snapshots_insert', 'planning_snapshot_activities_insert')));
+  perform pg_temp.chk(7, '07 CATALOG', 'every other policy on the 16 tables is byte-for-byte unchanged (41 policies, 13.12 fingerprint)',
     (select count(*) || '|' || md5(string_agg(tablename || '|' || policyname || '|' || cmd || '|' || coalesce(qual, '') || '|' || coalesce(with_check, ''),
                                                E'\n' order by tablename, policyname))
        from pg_policies where schemaname = 'public' and tablename = any (v_tables))
-    = '44|86f1323db3600887c00f42a0aa0c1960');
+    = '41|a0ae2c9ba6741c064a80fc4ea3ca9bda');
   perform pg_temp.chk(7, '07 CATALOG', 'can_manage_project_operations() is byte-for-byte unchanged (pre-13.9 fingerprint)',
     (select md5(prosrc) from pg_proc where oid = 'public.can_manage_project_operations(uuid)'::regprocedure)
     = '05c5f58290be4341497507fffc05c2a0');

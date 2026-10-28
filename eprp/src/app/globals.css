@@ -5776,12 +5776,22 @@ span.dash-plotkey { cursor: default; }
 .table-frame {
   padding-bottom: 0.375rem;
 }
-.table-frame > [data-slot="table-container"] {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 40%, transparent) transparent;
+/* 13.12 closure: Chromium ignores every ::-webkit-scrollbar rule below once
+   `scrollbar-width` / `scrollbar-color` are set on the element, which drew a
+   full-width scrollbar with arrow buttons clipped by the rounded corners — the
+   table looked cut off at the bottom. The standard properties are therefore
+   only a fallback for engines without ::-webkit-scrollbar (Firefox). */
+@supports not selector(::-webkit-scrollbar) {
+  .table-frame > [data-slot="table-container"] {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 40%, transparent) transparent;
+  }
 }
 .table-frame > [data-slot="table-container"]::-webkit-scrollbar {
   height: 0.5rem;
+}
+.table-frame > [data-slot="table-container"]::-webkit-scrollbar-button {
+  display: none;
 }
 .table-frame > [data-slot="table-container"]::-webkit-scrollbar-track {
   margin-inline: 0.5rem;

@@ -8,6 +8,7 @@ import {
 } from "@/features/master-data";
 import type { Project } from "@/types";
 import {
+  overviewReferenceDates,
   planningGovernanceOf,
   showLegacyPerformanceBadge,
 } from "../planning-experience";
@@ -23,7 +24,7 @@ export interface ProjectSummaryHeaderProps {
 
 /**
  * Project overview header: identity, badges, the compact Planning Status and
- * the Project Setup reference dates.
+ * the reference dates, each group captioned with its real source (13.12).
  *
  * 13.9A: the Priority badge is gone (Priority is no longer part of the UI; its
  * stored value is kept), and the typed Planned / Actual / Variance / SPI
@@ -46,12 +47,14 @@ export function ProjectSummaryHeader({
           Boolean(position.snapshot)
         )
       : undefined;
-  const dates: { label: string; value: string | undefined }[] = [
-    { label: "Start", value: project.actualStartDate ?? project.plannedStartDate },
-    { label: "Planned finish", value: project.plannedFinishDate },
-    { label: "Forecast finish", value: project.forecastFinishDate },
-    { label: "Actual finish", value: project.actualFinishDate },
-  ];
+  // 13.12 closure: each group of dates is named by its real source — the
+  // Published Planning Snapshot once the Planning Engine governs the plan,
+  // Project Setup otherwise (and for recorded actuals).
+  // Nothing while the snapshot loads, so superseded Setup dates never flash.
+  const dateGroups =
+    position.status === "loading"
+      ? []
+      : overviewReferenceDates(project, position.status === "ready" ? position.snapshot : null);
 
   return (
     <div className="space-y-4">
@@ -85,18 +88,24 @@ export function ProjectSummaryHeader({
 
       <PlanningStatus projectId={project.id} position={position} className="bg-card shadow-soft" />
 
-      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-xs text-muted-foreground tabular-nums">
-        <dl className="contents">
-          {dates
-            .filter((date) => date.value || date.label === "Start" || date.label === "Planned finish")
-            .map((date) => (
-              <div key={date.label} className="flex gap-1.5">
-                <dt>{date.label}</dt>
-                <dd className="font-medium text-foreground">{formatDate(date.value)}</dd>
-              </div>
-            ))}
-        </dl>
-        <span className="text-muted-foreground/80">Reference dates from Project Setup</span>
+      <div className="space-y-1">
+        {dateGroups.map((group) => (
+          <div
+            key={group.source}
+            data-date-source={group.source}
+            className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-xs text-muted-foreground tabular-nums"
+          >
+            <dl className="contents">
+              {group.dates.map((date) => (
+                <div key={date.label} className="flex gap-1.5">
+                  <dt>{date.label}</dt>
+                  <dd className="font-medium text-foreground">{formatDate(date.value)}</dd>
+                </div>
+              ))}
+            </dl>
+            <span className="text-muted-foreground/80">{group.caption}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

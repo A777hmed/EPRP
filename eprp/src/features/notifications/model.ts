@@ -8,7 +8,7 @@ export const notificationCategories = {
 } as const;
 export type NotificationCategory = keyof typeof notificationCategories;
 export interface NotificationTarget {
-  type: "weekly" | "monthly" | "milestone" | "calendar" | "setup_amendment";
+  type: "weekly" | "monthly" | "milestone" | "calendar" | "setup_amendment" | "planning_baseline";
   id: string;
   projectId: string;
 }
@@ -80,6 +80,8 @@ export interface NotificationService {
   /** Hides the caller's resolved and informational notifications; action-required ones stay. */
   clearHistory(): Promise<void>;
   savePreferences(preferences: NotificationPreferences): Promise<NotificationPreferences>;
+  /** The signed-in user's id, read locally (no request); keys the toast gate's per-tab memory. */
+  viewerId?(): Promise<string | null>;
 }
 export const defaultQuery: NotificationQuery = { projectId: "all", category: "all", read: "all", page: 1, pageSize: 10 };
 export function defaultPreferences(): NotificationPreferences {
@@ -95,6 +97,8 @@ export function notificationHref(target: NotificationTarget): string | null {
     case "calendar": return `/calendar?event=${target.id}`;
     // 13.9B: Project Setup -> Setup amendments, with the request focused.
     case "setup_amendment": return `/projects/${target.projectId}/setup/info?amendment=${target.id}`;
+    // 13.12: Planning Workspace → Baselines & Snapshots, with the request focused.
+    case "planning_baseline": return `/projects/${target.projectId}/planning?view=baselines&baseline=${target.id}`;
     default: return null;
   }
 }

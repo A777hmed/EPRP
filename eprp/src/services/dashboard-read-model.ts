@@ -398,6 +398,9 @@ interface DashboardPlanningRollupRow {
   earned_value: number | null;
   spi: number | null;
   coverage_percent: number;
+  /** 13.12: engine (frozen v2 figures) · legacy · declared (Opening Position). */
+  calculation: "engine" | "legacy" | "declared" | null;
+  engine_version: string | null;
 }
 
 function rowToPlanningRollup(row: DashboardPlanningRollupRow): PlanningSnapshotRollup {
@@ -413,6 +416,8 @@ function rowToPlanningRollup(row: DashboardPlanningRollupRow): PlanningSnapshotR
     earnedValue: row.earned_value,
     spi: row.spi,
     coveragePercent: row.coverage_percent,
+    calculation: row.calculation ?? "legacy",
+    engineVersion: row.engine_version ?? undefined,
   };
 }
 

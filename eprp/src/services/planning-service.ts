@@ -12,13 +12,15 @@ import type {
   PlanningImportRow,
   PlanningImportRowParseStatus,
   PlanningImportSourceFormat,
-  PlanningItemSource,
   PlanningMilestoneLink,
   PlanningOnboardingMode,
   PlanningOpeningPosition,
   PlanningOpeningPositionStatus,
   PlanningSnapshot,
   PlanningSnapshotActivity,
+  PlanningSnapshotMilestone,
+  PlanningSnapshotNode,
+  PlanningCurvePoint,
   PlanningWorkItem,
   PlanningWeightDecisionMode,
   PlanningWeightSource,
@@ -37,12 +39,25 @@ import type {
   PlanningMilestoneLinkRow,
   PlanningOpeningPositionRow,
   PlanningSnapshotActivityRow,
+  PlanningSnapshotMilestoneRow,
+  PlanningSnapshotNodeRow,
   PlanningSnapshotRow,
   PlanningWorkItemRow,
   ProjectPlanningSettingsRow,
 } from "@/lib/supabase/database.types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describeFailure, type ServiceError } from "./service-errors";
+import {
+  mapActivity,
+  mapBaseline,
+  mapSettings,
+  mapSnapshot,
+  mapSnapshotActivity,
+  mapSnapshotMilestone,
+  mapSnapshotNode,
+  mapWorkItem,
+} from "./planning-row-mappers";
+import { planningRefusal } from "@/features/projects/planning-publish/publish-refusals";
 
 /**
  * Planning & Control.
@@ -83,40 +98,6 @@ function clean(value: string | undefined | null): string | null {
 
 /* -------------------------------- mappers -------------------------------- */
 
-function mapSettings(row: ProjectPlanningSettingsRow): ProjectPlanningSettings {
-  return {
-    projectId: row.project_id,
-    onboardingMode: row.onboarding_mode as PlanningOnboardingMode,
-    defaultImportSource:
-      (row.default_import_source as ProjectPlanningSettings["defaultImportSource"]) ??
-      undefined,
-    planningEnabled: row.planning_enabled,
-    levelLabels: row.level_labels ?? [],
-    controlAccountLevel: row.control_account_level ?? undefined,
-    weightSource: (row.weight_source as PlanningWeightSource | null) ?? undefined,
-    defaultEarningMethod: (row.default_earning_method as PlanningEarningMethod | null) ?? undefined,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function mapSnapshot(row: PlanningSnapshotRow): PlanningSnapshot {
-  return {
-    id: row.id,
-    projectId: row.project_id,
-    version: row.version,
-    sourceImportBatchId: row.source_import_batch_id ?? undefined,
-    sourceOpeningPositionId: row.source_opening_position_id ?? undefined,
-    baselineId: row.baseline_id ?? undefined,
-    isOpeningSnapshot: row.is_opening_snapshot,
-    label: row.label ?? undefined,
-    dataDate: row.data_date ?? undefined,
-    snapshotData: row.snapshot_data,
-    publishedByContactId: row.published_by_contact_id ?? undefined,
-    publishedAt: row.published_at,
-  };
-}
-
 function mapOpeningPosition(row: PlanningOpeningPositionRow): PlanningOpeningPosition {
   return {
     id: row.id,
@@ -130,107 +111,6 @@ function mapOpeningPosition(row: PlanningOpeningPositionRow): PlanningOpeningPos
     promotedAt: row.promoted_at ?? undefined,
     promotedToSnapshotId: row.promoted_to_snapshot_id ?? undefined,
     createdByContactId: row.created_by_contact_id ?? undefined,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function mapSnapshotActivity(row: PlanningSnapshotActivityRow): PlanningSnapshotActivity {
-  return {
-    id: row.id,
-    snapshotId: row.snapshot_id,
-    sourceActivityId: row.source_activity_id ?? undefined,
-    sourceWorkItemId: row.source_work_item_id ?? undefined,
-    externalId: row.external_id ?? undefined,
-    code: row.code ?? undefined,
-    name: row.name,
-    isMilestone: row.is_milestone,
-    plannedStartDate: row.planned_start_date ?? undefined,
-    plannedFinishDate: row.planned_finish_date ?? undefined,
-    baselineStartDate: row.baseline_start_date ?? undefined,
-    baselineFinishDate: row.baseline_finish_date ?? undefined,
-    actualStartDate: row.actual_start_date ?? undefined,
-    actualFinishDate: row.actual_finish_date ?? undefined,
-    remainingDurationDays: row.remaining_duration_days ?? undefined,
-    percentCompletePlanned: row.percent_complete_planned ?? undefined,
-    percentCompleteActual: row.percent_complete_actual ?? undefined,
-    percentCompletePhysical: row.percent_complete_physical ?? undefined,
-    weightPercent: row.weight_percent ?? undefined,
-    status: row.status ?? undefined,
-    plannedValue: row.planned_value ?? undefined,
-    earnedValue: row.earned_value ?? undefined,
-    createdAt: row.created_at,
-  };
-}
-
-function mapWorkItem(row: PlanningWorkItemRow): PlanningWorkItem {
-  return {
-    id: row.id,
-    projectId: row.project_id,
-    parentWorkItemId: row.parent_work_item_id ?? undefined,
-    originImportRowId: row.origin_import_row_id ?? undefined,
-    departmentId: row.department_id ?? undefined,
-    systemId: row.system_id ?? undefined,
-    disciplineId: row.discipline_id ?? undefined,
-    masterDeliverableId: row.master_deliverable_id ?? undefined,
-    code: row.code,
-    name: row.name,
-    itemType: row.item_type as PlanningWorkItemType,
-    level: row.level,
-    sortOrder: row.sort_order,
-    isMilestone: row.is_milestone,
-    weightPercent: row.weight_percent ?? undefined,
-    localWeightPercent: row.local_weight_percent ?? undefined,
-    isControlAccount: row.is_control_account ?? false,
-    earningMethod: (row.earning_method as PlanningEarningMethod | null) ?? undefined,
-    structureNodeId: row.structure_node_id ?? undefined,
-    plannedStartDate: row.planned_start_date ?? undefined,
-    plannedFinishDate: row.planned_finish_date ?? undefined,
-    baselineStartDate: row.baseline_start_date ?? undefined,
-    baselineFinishDate: row.baseline_finish_date ?? undefined,
-    plannedDurationDays: row.planned_duration_days ?? undefined,
-    source: row.source as PlanningItemSource,
-    active: row.active,
-    archivedAt: row.archived_at ?? undefined,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function mapActivity(row: PlanningActivityRow): PlanningActivity {
-  return {
-    id: row.id,
-    projectId: row.project_id,
-    workItemId: row.work_item_id ?? undefined,
-    originImportRowId: row.origin_import_row_id ?? undefined,
-    externalId: row.external_id ?? undefined,
-    code: row.code ?? undefined,
-    name: row.name,
-    isMilestone: row.is_milestone,
-    localWeightPercent: row.local_weight_percent ?? undefined,
-    earningMethod: (row.earning_method as PlanningEarningMethod | null) ?? undefined,
-    departmentId: row.department_id ?? undefined,
-    systemId: row.system_id ?? undefined,
-    disciplineId: row.discipline_id ?? undefined,
-    structureNodeId: row.structure_node_id ?? undefined,
-    plannedStartDate: row.planned_start_date ?? undefined,
-    plannedFinishDate: row.planned_finish_date ?? undefined,
-    baselineStartDate: row.baseline_start_date ?? undefined,
-    baselineFinishDate: row.baseline_finish_date ?? undefined,
-    actualStartDate: row.actual_start_date ?? undefined,
-    actualFinishDate: row.actual_finish_date ?? undefined,
-    plannedDurationDays: row.planned_duration_days ?? undefined,
-    remainingDurationDays: row.remaining_duration_days ?? undefined,
-    percentCompletePlanned: row.percent_complete_planned ?? undefined,
-    percentCompleteActual: row.percent_complete_actual ?? undefined,
-    percentCompletePhysical: row.percent_complete_physical ?? undefined,
-    weightPercent: row.weight_percent ?? undefined,
-    status: row.status ?? undefined,
-    plannedValue: row.planned_value ?? undefined,
-    earnedValue: row.earned_value ?? undefined,
-    source: row.source as PlanningItemSource,
-    active: row.active,
-    archivedAt: row.archived_at ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -298,19 +178,6 @@ function mapConfigurationChange(row: PlanningConfigurationChangeRow): PlanningCo
     reason: row.reason ?? undefined,
     changedByContactId: row.changed_by_contact_id ?? undefined,
     changedAt: row.changed_at,
-  };
-}
-
-function mapBaseline(row: PlanningBaselineRow): PlanningBaseline {
-  return {
-    id: row.id,
-    projectId: row.project_id,
-    name: row.name,
-    baselineDate: row.baseline_date,
-    capturedItems: row.captured_items,
-    notes: row.notes ?? undefined,
-    createdByContactId: row.created_by_contact_id ?? undefined,
-    createdAt: row.created_at,
   };
 }
 
@@ -899,26 +766,50 @@ export const planningService = {
     return ((data ?? []) as PlanningBaselineRow[]).map(mapBaseline);
   },
 
-  async createBaseline(input: {
-    projectId: string;
-    name: string;
-    baselineDate: string;
-    notes?: string;
-    capturedItems?: unknown;
+  /*
+   * 13.12: a Baseline Revision is REQUESTED through the server action
+   * (`features/projects/planning-publish/actions.ts`), because its curve is
+   * calculated by the Planning Engine on the server. Deciding and withdrawing
+   * carry no calculated data, so they are ordinary calls as the user.
+   */
+
+  /** Approve or reject a request (another Project Control Admin / System Administrator; never the requester). */
+  async decideBaseline(input: {
+    baselineId: string;
+    decision: "approve" | "reject";
+    comment?: string;
+    /** The approver's explicit "Project Setup becomes controlled" confirmation for the first BL0. */
+    confirmSetupControl?: boolean;
   }): Promise<PlanningBaseline> {
-    const { data, error } = await client()
-      .from("planning_baselines")
-      .insert({
-        project_id: input.projectId,
-        name: input.name.trim(),
-        baseline_date: input.baselineDate,
-        notes: clean(input.notes),
-        captured_items: input.capturedItems ?? [],
-      })
-      .select("*")
-      .single();
-    if (error) throw await writeFailure("create the baseline", error);
+    const { data, error } = await client().rpc("decide_planning_baseline", {
+      p_baseline: input.baselineId,
+      p_decision: input.decision,
+      p_comment: clean(input.comment),
+      p_confirm_setup_control: input.confirmSetupControl ?? false,
+    });
+    if (error) throw await baselineFailure(input.decision === "approve" ? "approve the baseline" : "reject the baseline", error);
     return mapBaseline(data as PlanningBaselineRow);
+  },
+
+  /** The requester closes their own pending request. */
+  async withdrawBaseline(baselineId: string): Promise<PlanningBaseline> {
+    const { data, error } = await client().rpc("withdraw_planning_baseline", { p_baseline: baselineId });
+    if (error) throw await baselineFailure("withdraw the baseline request", error);
+    return mapBaseline(data as PlanningBaselineRow);
+  },
+
+  /** The frozen baseline curve of one revision. */
+  async listBaselineCurve(baselineId: string): Promise<PlanningCurvePoint[]> {
+    const { data, error } = await client()
+      .from("planning_baseline_curve_points")
+      .select("point_date, value")
+      .eq("baseline_id", baselineId)
+      .order("point_date", { ascending: true });
+    if (error) throw await readFailure("read the baseline curve", error);
+    return ((data ?? []) as { point_date: string; value: number | string }[]).map((row) => ({
+      date: row.point_date,
+      value: Number(row.value),
+    }));
   },
 
   /* --------------------------- Milestone linking ----------------------------- */
@@ -946,6 +837,42 @@ export const planningService = {
   },
 
   /* ------------------------------- Snapshots -------------------------------- */
+
+  /** 13.12: the frozen WBS roll-up of a v2 snapshot (empty for a legacy snapshot). */
+  async listSnapshotNodes(snapshotId: string): Promise<PlanningSnapshotNode[]> {
+    const { data, error } = await client()
+      .from("planning_snapshot_nodes")
+      .select("*")
+      .eq("snapshot_id", snapshotId)
+      .order("item_position", { ascending: true });
+    if (error) throw await readFailure("read the snapshot roll-up", error);
+    return ((data ?? []) as PlanningSnapshotNodeRow[]).map(mapSnapshotNode);
+  },
+
+  /** 13.12: the frozen true-milestone states of a v2 snapshot. */
+  async listSnapshotMilestones(snapshotId: string): Promise<PlanningSnapshotMilestone[]> {
+    const { data, error } = await client()
+      .from("planning_snapshot_milestones")
+      .select("*")
+      .eq("snapshot_id", snapshotId);
+    if (error) throw await readFailure("read the snapshot milestones", error);
+    return ((data ?? []) as PlanningSnapshotMilestoneRow[]).map(mapSnapshotMilestone);
+  },
+
+  /** 13.12: the frozen forecast curve of a v2 snapshot. */
+  async listSnapshotForecastCurve(snapshotId: string): Promise<PlanningCurvePoint[]> {
+    const { data, error } = await client()
+      .from("planning_snapshot_curve_points")
+      .select("point_date, value")
+      .eq("snapshot_id", snapshotId)
+      .eq("curve_kind", "forecast")
+      .order("point_date", { ascending: true });
+    if (error) throw await readFailure("read the forecast curve", error);
+    return ((data ?? []) as { point_date: string; value: number | string }[]).map((row) => ({
+      date: row.point_date,
+      value: Number(row.value),
+    }));
+  },
 
   /** Every published snapshot for a project, newest first. */
   async listSnapshots(projectId: string): Promise<PlanningSnapshot[]> {
@@ -1173,6 +1100,13 @@ async function writeFailure(
     fallback:
       "That change could not be saved. Please try again, and let Project Control know if it keeps happening.",
   });
+}
+
+/** 13.12: a refused baseline decision reads as the database's own sentence ("[CODE] Sentence."). */
+async function baselineFailure(operation: string, error: ServiceError): Promise<Error> {
+  const refusal = planningRefusal(error, "");
+  if (refusal.message) return new Error(refusal.message);
+  return writeFailure(operation, error);
 }
 
 async function readFailure(

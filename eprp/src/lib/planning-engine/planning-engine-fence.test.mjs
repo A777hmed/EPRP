@@ -76,7 +76,9 @@ function latestPublishDefinition() {
 
 test("publish authority: the live publish requires Project Control authority, then refuses archived and no_formal_schedule", () => {
   const latest = latestPublishDefinition();
-  assert.equal(latest.name, "20261016090000_project_setup_governance_core.sql");
+  // 13.12 re-creates the legacy publish (Opening Position promotion only, D-D).
+  assert.equal(latest.name, "20261025090000_published_planning_snapshot_v2.sql");
+  assert.match(latest.body, /if p_opening_position_id is null then\s+raise exception\s+'\[V2_PUBLISH_REQUIRED\]/);
   const { body } = latest;
   const authority = body.indexOf("public.can_manage_project_operations(p_project_id)");
   const archived = body.indexOf("public.project_is_archived(p_project_id)");
@@ -86,6 +88,21 @@ test("publish authority: the live publish requires Project Control authority, th
   assert.ok(noSchedule > archived, "no_formal_schedule refusal present");
   assert.match(body, /using errcode = 'insufficient_privilege'/);
   assert.match(body, /security definer/i);
+});
+
+test("13.12 trusted writer: as the requesting user — authority, then archived, then no_formal_schedule, then the first-anchor confirmation", () => {
+  const source = readFileSync(new URL("20261025090000_published_planning_snapshot_v2.sql", MIGRATIONS_DIR), "utf8");
+  const body = /create function public\.publish_planning_snapshot_v2\([\s\S]*?\$fn\$;/.exec(source)[0];
+  const actor = body.indexOf("set_config('request.jwt.claim.sub', p_actor::text, true)");
+  const authority = body.indexOf("public.can_manage_project_operations(p_project)");
+  const archived = body.indexOf("public.project_is_archived(p_project)");
+  const noSchedule = body.indexOf("'no_formal_schedule'");
+  const confirmation = body.indexOf("SETUP_CONTROL_CONFIRMATION_REQUIRED");
+  assert.ok(actor > 0 && authority > actor && archived > authority && noSchedule > archived && confirmation > noSchedule);
+  assert.match(source, /revoke execute on function public\.publish_planning_snapshot_v2\(uuid, uuid, jsonb, boolean\) from public, anon, authenticated;/);
+  assert.match(source, /grant execute on function public\.publish_planning_snapshot_v2\(uuid, uuid, jsonb, boolean\) to service_role;/);
+  // It freezes; it never calculates a figure.
+  assert.doesNotMatch(body, /percent_complete_physical\s*\*|weight_percent\s*\*|sum\(.*pv|\/\s*nullif/i);
 });
 
 test("publish authority: can_manage_project_operations admits global operational authority or assigned Project Control only", () => {

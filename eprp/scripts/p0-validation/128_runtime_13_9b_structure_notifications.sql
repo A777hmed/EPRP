@@ -97,6 +97,22 @@ begin
   perform set_config('role', 'postgres', true);
   perform set_config('request.jwt.claims', '', true);
 end $$;
+
+-- 13.12 (docs/02 §26.25 D-D): a normal publish is v2 only — the Planning Engine
+-- on the server and its trusted writer (proved in 133). A fixture that only
+-- needs a project to be Controlled seeds one historical (legacy, pre-13.12)
+-- snapshot as data; it tests nothing about publishing.
+create or replace function pg_temp.seed_legacy_snapshot(p_project uuid, p_date date) returns uuid
+language plpgsql security definer set search_path = '' as $seed$
+declare v uuid;
+begin
+  insert into public.planning_snapshots (project_id, version, data_date, snapshot_data)
+  values (p_project, coalesce((select max(version) from public.planning_snapshots where project_id = p_project), 0) + 1,
+          p_date, '{"work_items": [], "activities": [], "milestone_links": [], "opening_position": null}'::jsonb)
+  returning id into v;
+  return v;
+end $seed$;
+
 create or replace function pg_temp.id(p_key text) returns uuid language sql as $$ select id from ids where key = p_key $$;
 create or replace function pg_temp.project(p_code text) returns uuid
 language sql as $$ select id from ids where key = 'PRJ:' || p_code $$;
@@ -254,10 +270,10 @@ $fix$;
 
 select pg_temp.act(pg_temp.id('P_X'));
 do $anchor$ begin
-  perform pg_temp.must_pass(0, '00 FIXTURE', 'PSM, OTH and ARC are Controlled by a confirmed first publish',
-    format('select public.publish_planning_snapshot(p_project_id => %L::uuid, p_data_date => %L::date, p_confirm_setup_control => true)', pg_temp.project('ZZ-139G-PSM'), '2026-10-10') || '; ' ||
-    format('select public.publish_planning_snapshot(p_project_id => %L::uuid, p_data_date => %L::date, p_confirm_setup_control => true)', pg_temp.project('ZZ-139G-OTH'), '2026-10-10') || '; ' ||
-    format('select public.publish_planning_snapshot(p_project_id => %L::uuid, p_data_date => %L::date, p_confirm_setup_control => true)', pg_temp.project('ZZ-139G-ARC'), '2026-10-10'));
+  perform pg_temp.must_pass(0, '00 FIXTURE', 'PSM, OTH and ARC are Controlled by a first (historical) snapshot',
+    format('select pg_temp.seed_legacy_snapshot(%L::uuid, %L::date)', pg_temp.project('ZZ-139G-PSM'), '2026-10-10') || '; ' ||
+    format('select pg_temp.seed_legacy_snapshot(%L::uuid, %L::date)', pg_temp.project('ZZ-139G-OTH'), '2026-10-10') || '; ' ||
+    format('select pg_temp.seed_legacy_snapshot(%L::uuid, %L::date)', pg_temp.project('ZZ-139G-ARC'), '2026-10-10'));
 end $anchor$;
 
 /* ===================== 01. SUBMIT — PSM structure actions ================= */
@@ -507,15 +523,17 @@ begin
   perform pg_temp.must_pass(9, '09 RECONCILE', 'reconcile runs for the caller', 'select public.reconcile_my_setup_amendment_notifications()');
   perform pg_temp.chk(9, '09 RECONCILE', 'the late approver finds every pending request exactly once, the 7 still-pending structure requests included',
     v_fixture = 7
-    and (select count(*) from public.user_notifications) = v_pending
-    and (select count(distinct source_id) from public.user_notifications) = v_pending
+    -- 13.12: reconcile also restores pending Baseline Revision requests (baseline_requested);
+    -- this suite counts the amendment rows it owns.
+    and (select count(*) from public.user_notifications where event_type like 'amendment_%') = v_pending
+    and (select count(distinct source_id) from public.user_notifications where event_type like 'amendment_%') = v_pending
     and (select count(*) from public.user_notifications n join public.project_setup_amendments a on a.id = n.source_id
           where a.target_key <> '' and a.project_id in (pg_temp.project('ZZ-139G-PSM'), pg_temp.project('ZZ-139G-OTH'))) = v_fixture);
   perform pg_temp.chk(9, '09 RECONCILE', 'decided, withdrawn and frozen requests never come back',
     pg_temp.seen('S_ADD_D') = 0 and pg_temp.seen('S_REM_C') = 0 and pg_temp.seen('S_MOVE_PS1') = 0
     and pg_temp.seen('S_SCOPE_A') = 0 and pg_temp.seen('S_ARC') = 0);
   perform pg_temp.must_pass(9, '09 RECONCILE', 'running it again is idempotent', 'select public.reconcile_my_setup_amendment_notifications()');
-  perform pg_temp.chk(9, '09 RECONCILE', 'no duplicate', (select count(*) from public.user_notifications) = v_pending);
+  perform pg_temp.chk(9, '09 RECONCILE', 'no duplicate', (select count(*) from public.user_notifications where event_type like 'amendment_%') = v_pending);
 end $s09$;
 select pg_temp.act(pg_temp.id('P_X'));
 do $s09x$ begin

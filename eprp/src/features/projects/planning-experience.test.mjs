@@ -373,9 +373,13 @@ test("Planning Entry has one Planning Workspace CTA; the status links only to Pr
 
 test("Project Progress pending states: honest S-curve empty state, one exceptions note, legacy wording", () => {
   const view = code("./components/progress/project-progress-view.tsx");
-  // S-curve: no future series legend, swatches or chart frame — an empty state.
-  assert.match(view, /S-Curve not available yet/);
-  assert.match(view, /Original Baseline, Current\s+Baseline, Forecast and Earned curves automatically once governed\s+time-phased planning data is available/);
+  // S-curve (13.12 closure): drawn from the snapshot's frozen curves; a legacy or declared
+  // snapshot, or one without curve points, says so instead of drawing an empty frame.
+  assert.match(view, /<SnapshotSCurve snapshot=\{snapshot\} \/>/);
+  assert.doesNotMatch(view, /S-Curve not available yet/);
+  const curve = code("./components/progress/snapshot-s-curve.tsx");
+  assert.match(curve, /No S-curve for this snapshot/);
+  assert.match(curve, /S-curve not available for this snapshot/);
   assert.doesNotMatch(view, /CURVE_SERIES|swatch|BL0 — original baseline/);
   // Exceptions: one section-level explanation, a subtle per-row marker.
   assert.equal((view.match(/calculated by the Planning Engine from\s+governed schedule data/g) ?? []).length, 1);
@@ -384,15 +388,21 @@ test("Project Progress pending states: honest S-curve empty state, one exception
   for (const row of ["Late activities", "Overdue activities", "Forecast finish vs BL0 / BLn", "Key milestone exposure"]) {
     assert.match(view, new RegExp(row.replace("/", "\\/")));
   }
-  // Legacy wording, with its explanation; schedule condition still not derived.
+  // 13.12: one shared label says how a snapshot's figures were produced — a
+  // legacy snapshot keeps its wording and explanation; a v2 snapshot reads
+  // "Planning Engine calculation"; its schedule condition is not evaluated (B4).
+  const experience = code("./planning-experience.ts");
+  assert.match(experience, /badge: "Legacy snapshot", tone: "neutral", hint: LEGACY_SNAPSHOT_HINT/);
+  assert.match(experience, /export const LEGACY_SNAPSHOT_HINT = "Published before the governed Planning Engine calculation model\.";/);
+  assert.match(experience, /badge: "Planning Engine calculation"/);
+  assert.match(experience, /export const SCHEDULE_CONDITION_NOT_EVALUATED = "Not evaluated — thresholds pending B4";/);
   for (const file of ["./components/progress/project-progress-view.tsx", "./components/planning/planning-status.tsx"]) {
     const text = code(file);
-    assert.match(text, />Legacy snapshot</);
-    assert.doesNotMatch(text, /Legacy calculation/);
-    assert.match(text, /Published before the governed Planning Engine calculation model\./);
+    assert.match(text, /snapshotCalculationLabel\(snapshot\)/, file);
+    assert.doesNotMatch(text, /Legacy calculation/, file);
+    assert.match(text, /snapshot\.calculation === "engine" \? SCHEDULE_CONDITION_NOT_EVALUATED : "Not derived yet"/, file);
   }
   assert.match(view, /label="Snapshot coverage"/);
-  assert.match(view, /label="Schedule condition"[\s\S]*?Not derived yet/);
 });
 
 test("an unsaved onboarding choice shows its pending outcome, not the stale saved status", () => {
@@ -512,7 +522,13 @@ test("13.9A adds no migration", () => {
     "20261021090000_notification_history_clear.sql",
     // 13.11 Working Plan hardening, and its UAT no-formal-schedule guard.
     "20261022090000_working_plan_hardening.sql",
-    "20261023090000_no_formal_schedule_planning_guard.sql"];
+    "20261023090000_no_formal_schedule_planning_guard.sql",
+    // 13.12 Baseline Revisions, Snapshot v2 + trusted writer, compatibility roll-up.
+    "20261024090000_baseline_revisions.sql",
+    "20261025090000_published_planning_snapshot_v2.sql",
+    "20261025090100_v2_compatibility_rollup.sql",
+    // 13.12 UAT: Baseline Revision notifications.
+    "20261025090200_baseline_notifications.sql"];
   assert.ok(names.every((name) => name <= "20261014090000_planning_control_archived_read_only.sql" || LATER.includes(name)),
     "no 13.9A migration after 13.9");
 });

@@ -138,7 +138,11 @@ test("PT409: the live functions raise no 40001 except the genuine Weekly concurr
     "request_project_structure_amendment", "project_setup_apply_structure",
     // 13.11: a weight decision built on stale weights, and a Planning
     // Configuration saved over a newer version.
-    "record_planning_weight_decision", "save_planning_configuration"];
+    "record_planning_weight_decision", "save_planning_configuration",
+    // 13.12: a Working Plan or baselines changed while the server calculated,
+    // a second pending baseline request, and a request already decided.
+    "request_planning_baseline", "decide_planning_baseline", "withdraw_planning_baseline",
+    "publish_planning_snapshot_v2"];
   assert.deepEqual(stale, [...RECREATED.map(([name]) => name), ...LATER_PT409].sort());
 });
 

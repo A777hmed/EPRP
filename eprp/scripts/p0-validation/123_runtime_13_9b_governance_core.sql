@@ -116,6 +116,22 @@ begin
   perform set_config('request.jwt.claims', '', true);
 end $$;
 
+-- 13.12 (docs/02 §26.25 D-D): a normal publish is v2 only — the Planning Engine
+-- on the server and its trusted writer (proved in 133). A fixture that only
+-- needs a project to be Controlled seeds one historical (legacy, pre-13.12)
+-- snapshot as data; it tests nothing about publishing.
+create or replace function pg_temp.seed_legacy_snapshot(p_project uuid, p_date date) returns uuid
+language plpgsql security definer set search_path = '' as $seed$
+declare v uuid;
+begin
+  insert into public.planning_snapshots (project_id, version, data_date, snapshot_data)
+  values (p_project, coalesce((select max(version) from public.planning_snapshots where project_id = p_project), 0) + 1,
+          p_date, '{"work_items": [], "activities": [], "milestone_links": [], "opening_position": null}'::jsonb)
+  returning id into v;
+  return v;
+end $seed$;
+
+
 -- Fixture ids are pinned at creation: an approved Project Code amendment
 -- changes the code later in this script.
 create or replace function pg_temp.project(p_code text) returns uuid
@@ -291,23 +307,25 @@ end $s01$;
 do $s02$
 declare A uuid := pg_temp.project('ZZ-139B-ACT');
 begin
-  perform pg_temp.must_fail(2, '02 ANCHOR', 'first publish WITHOUT the confirmation is refused',
-    pg_temp.publish_sql(A, false), 'SETUP_CONTROL_CONFIRMATION_REQUIRED');
+  -- 13.12: the first-anchor confirmation now guards the v2 writer, BL0 approval
+  -- and Opening Position promotion (133 §02, §05, §10); a normal legacy publish is retired.
+  perform pg_temp.must_fail(2, '02 ANCHOR', '13.12: a normal legacy publish is refused ([V2_PUBLISH_REQUIRED])',
+    pg_temp.publish_sql(A, false), 'V2_PUBLISH_REQUIRED');
   perform pg_temp.chk(2, '02 ANCHOR', 'the refused publish created no snapshot and the project stays not Controlled',
     not exists (select 1 from public.planning_snapshots where project_id = A) and not public.project_setup_controlled(A));
-  perform pg_temp.must_pass(2, '02 ANCHOR', 'first publish WITH the confirmation succeeds (assigned Project Control)',
-    pg_temp.publish_sql(A, true));
+  perform pg_temp.must_pass(2, '02 ANCHOR', 'a first (historical) snapshot exists — fixture data',
+    format('select pg_temp.seed_legacy_snapshot(%L::uuid, %L::date)', A, '2026-10-10'));
   perform pg_temp.chk(2, '02 ANCHOR', 'the first snapshot makes the project Controlled, since its published_at',
     public.project_setup_controlled(A)
     and public.project_setup_controlled_since(A) = (select min(published_at) from public.planning_snapshots where project_id = A));
-  perform pg_temp.must_pass(2, '02 ANCHOR', 'a later publish needs no confirmation (already Controlled)',
-    pg_temp.publish_sql(A, false, '2026-10-12'));
+  perform pg_temp.must_pass(2, '02 ANCHOR', 'a later (historical) snapshot — fixture data',
+    format('select pg_temp.seed_legacy_snapshot(%L::uuid, %L::date)', A, '2026-10-12'));
 end $s02$;
 do $s02b$
 declare A uuid := pg_temp.project('ZZ-139B-ACT');
 begin
-  perform pg_temp.must_pass(2, '02 ANCHOR', 'a client delete of the snapshots is attempted',
-    format('delete from public.planning_snapshots where project_id = %L', A));
+  perform pg_temp.must_fail(2, '02 ANCHOR', 'a client delete of the snapshots is refused (13.12: no client write at all)',
+    format('delete from public.planning_snapshots where project_id = %L', A), '42501');
   perform pg_temp.chk(2, '02 ANCHOR', 'Controlled never reverts (snapshots survive; the state is unchanged)',
     public.project_setup_controlled(A) and (select count(*) from public.planning_snapshots where project_id = A) = 2);
 end $s02b$;
@@ -315,16 +333,16 @@ end $s02b$;
 -- The remaining anchors (as X with confirmation): ARC and OTH; X2P by X2; LGC by X.
 do $s02c$
 begin
-  perform pg_temp.must_pass(2, '02 ANCHOR', 'fixtures ARC / OTH / LGC become Controlled by a confirmed publish',
-    pg_temp.publish_sql(pg_temp.project('ZZ-139B-ARC'), true) || '; ' ||
-    pg_temp.publish_sql(pg_temp.project('ZZ-139B-OTH'), true) || '; ' ||
-    pg_temp.publish_sql(pg_temp.project('ZZ-139B-LGC'), true));
+  perform pg_temp.must_pass(2, '02 ANCHOR', 'fixtures ARC / OTH / LGC become Controlled by a first (historical) snapshot',
+    format('select pg_temp.seed_legacy_snapshot(%L::uuid, %L::date); select pg_temp.seed_legacy_snapshot(%L::uuid, %L::date); select pg_temp.seed_legacy_snapshot(%L::uuid, %L::date)',
+           pg_temp.project('ZZ-139B-ARC'), '2026-10-10', pg_temp.project('ZZ-139B-OTH'), '2026-10-10',
+           pg_temp.project('ZZ-139B-LGC'), '2026-10-10'));
 end $s02c$;
 select pg_temp.act(pg_temp.id('P_X2'));
 do $s02d$
 begin
-  perform pg_temp.must_pass(2, '02 ANCHOR', 'fixture X2P becomes Controlled by its own assigned Project Control',
-    pg_temp.publish_sql(pg_temp.project('ZZ-139B-X2P'), true));
+  perform pg_temp.must_pass(2, '02 ANCHOR', 'fixture X2P becomes Controlled by a first (historical) snapshot',
+    format('select pg_temp.seed_legacy_snapshot(%L::uuid, %L::date)', pg_temp.project('ZZ-139B-X2P'), '2026-10-10'));
 end $s02d$;
 select pg_temp.act(pg_temp.id('P_X'));
 

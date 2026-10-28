@@ -19,10 +19,20 @@ import {
   type AmendmentNotificationRow,
 } from "@/features/projects/setup-amendment-notifications";
 import type { SetupAmendment, SetupValueLookups } from "@/features/projects/setup-amendments";
+import {
+  baselineNumberOf,
+  composeBaselineNotification,
+  isBaselineNotificationEvent,
+  type BaselineNotificationRow,
+} from "@/features/projects/baseline-notifications";
+import type { PlanningBaseline } from "@/types";
+import type { PlanningBaselineRow } from "@/lib/supabase/database.types";
+import { mapBaseline } from "./planning-row-mappers";
 import { rowToAmendment } from "./setup-governance-service";
 
 /**
- * Phase 13.9B — the notification backend for Project Setup amendments.
+ * Phase 13.9B — the notification backend for Project Setup amendments; 13.12
+ * adds Baseline Revision requests and decisions on the same rows and contract.
  *
  * It is the first real implementation of the existing `NotificationService`
  * contract that the bell and the inbox already render; nothing about that UI
@@ -43,15 +53,24 @@ interface NotificationRow {
   id: string;
   event_type: string;
   project_id: string;
-  source_id: string;
+  /** The amendment of an amendment_* row. */
+  source_id: string | null;
+  /** 13.12: the Baseline Revision of a baseline_* row. */
+  baseline_id: string | null;
   actor_name: string | null;
   created_at: string;
   read_at: string | null;
 }
 
-const toRow = (row: NotificationRow): AmendmentNotificationRow | null =>
-  isAmendmentNotificationEvent(row.event_type)
-    ? {
+type InboxRow =
+  | { kind: "amendment"; row: AmendmentNotificationRow }
+  | { kind: "baseline"; row: BaselineNotificationRow };
+
+const toRow = (row: NotificationRow): InboxRow | null => {
+  if (isAmendmentNotificationEvent(row.event_type) && row.source_id) {
+    return {
+      kind: "amendment",
+      row: {
         id: row.id,
         eventType: row.event_type,
         projectId: row.project_id,
@@ -59,8 +78,25 @@ const toRow = (row: NotificationRow): AmendmentNotificationRow | null =>
         actorName: row.actor_name,
         createdAt: row.created_at,
         readAt: row.read_at,
-      }
-    : null;
+      },
+    };
+  }
+  if (isBaselineNotificationEvent(row.event_type) && row.baseline_id) {
+    return {
+      kind: "baseline",
+      row: {
+        id: row.id,
+        eventType: row.event_type,
+        projectId: row.project_id,
+        baselineId: row.baseline_id,
+        actorName: row.actor_name,
+        createdAt: row.created_at,
+        readAt: row.read_at,
+      },
+    };
+  }
+  return null;
+};
 
 const FAILED = "Notifications could not be loaded. Try again.";
 
@@ -83,6 +119,12 @@ export function createSetupNotificationService(): NotificationService {
 
   return {
     mode: "connected",
+
+    async viewerId() {
+      // The session already held by the browser client: no request.
+      const { data } = await client().auth.getSession();
+      return data.session?.user.id ?? null;
+    },
 
     async getOverview() {
       // Safety net for the caller only: any pending request they may decide
@@ -128,9 +170,9 @@ export function createSetupNotificationService(): NotificationService {
         fetched = await fetchPage(page);
       }
       const total = fetched.total;
-      const rows = fetched.rows
-        .map(toRow)
-        .filter((row): row is AmendmentNotificationRow => row !== null);
+      const inbox = fetched.rows.map(toRow).filter((row): row is InboxRow => row !== null);
+      const rows = inbox.flatMap((entry) => (entry.kind === "amendment" ? [entry.row] : []));
+      const baselineRows = inbox.flatMap((entry) => (entry.kind === "baseline" ? [entry.row] : []));
 
       const sourceIds = [...new Set(rows.map((row) => row.sourceId))];
       const amendments = new Map<string, SetupAmendment>();
@@ -140,7 +182,25 @@ export function createSetupNotificationService(): NotificationService {
         ) as Parameters<typeof rowToAmendment>[0][];
         for (const row of found) amendments.set(row.id, rowToAmendment(row));
       }
-      const projects = await projectsFor([...new Set(rows.map((row) => row.projectId))]);
+      // 13.12: the Baseline Revisions the baseline rows point at, and each
+      // project's approved decision times (to name a request "BL<n>").
+      const baselines = new Map<string, PlanningBaseline>();
+      const approvedTimes = new Map<string, string[]>();
+      if (baselineRows.length > 0) {
+        const found = unwrap(
+          await client().from("planning_baselines").select("*").in("id", [...new Set(baselineRows.map((row) => row.baselineId))])
+        ) as PlanningBaselineRow[];
+        for (const row of found) baselines.set(row.id, mapBaseline(row));
+        const approved = unwrap(
+          await client()
+            .from("planning_baselines")
+            .select("project_id, decided_at")
+            .eq("revision_status", "approved")
+            .in("project_id", [...new Set(baselineRows.map((row) => row.projectId))])
+        ) as { project_id: string; decided_at: string }[];
+        for (const row of approved) approvedTimes.set(row.project_id, [...(approvedTimes.get(row.project_id) ?? []), row.decided_at]);
+      }
+      const projects = await projectsFor([...new Set(inbox.map((entry) => entry.row.projectId))]);
 
       // Names for client / category values, only when a request needs them.
       const lookups: SetupValueLookups = { formatDate };
@@ -156,15 +216,26 @@ export function createSetupNotificationService(): NotificationService {
         lookups.categoryName = (id) => typeNames.get(id);
       }
 
-      const items: NotificationItem[] = rows.map((row) =>
-        composeAmendmentNotification({
-          row,
-          amendment: amendments.get(row.sourceId) ?? null,
-          project: projects.get(row.projectId),
-          lookups,
+      // In inbox order, each row by its own composer.
+      const items: NotificationItem[] = inbox.map((entry) => {
+        if (entry.kind === "amendment") {
+          return composeAmendmentNotification({
+            row: entry.row,
+            amendment: amendments.get(entry.row.sourceId) ?? null,
+            project: projects.get(entry.row.projectId),
+            lookups,
+            formatDateTime,
+          });
+        }
+        const baseline = baselines.get(entry.row.baselineId) ?? null;
+        return composeBaselineNotification({
+          row: entry.row,
+          baseline,
+          project: projects.get(entry.row.projectId),
+          number: baselineNumberOf(baseline, approvedTimes.get(entry.row.projectId) ?? []),
           formatDateTime,
-        })
-      );
+        });
+      });
       return { items, total, page, pageCount };
     },
 

@@ -20,9 +20,9 @@
 --       for a weight-source switch, onboarding mode untouched, no-formal-
 --       schedule refused, onboarding not chosen refused
 --   06  archived project: every 13.11 write refused for every role; reads work
---   07  boundaries: publish still copies the RECORDED weight (legacy roll-up
---       unchanged); no-formal-schedule publish still refused; existing
---       projects' weights were not reinterpreted
+--   07  boundaries: (13.12) the legacy normal publish is retired; no-formal-
+--       schedule publish still refused; existing projects' weights were not
+--       reinterpreted
 --   08  catalog: guards answer after the 13.9 guard, functions not client-
 --       callable, authority predicate byte-for-byte unchanged
 --
@@ -699,23 +699,21 @@ begin
     from public.planning_work_items w where w.project_id = G and w.code = 'G-N';
 
   perform pg_temp.act(pg_temp.id('P_X'));
-  execute format('select public.publish_planning_snapshot(%L::uuid, null, null, false, ''13.11 boundary'', null, ''2026-10-31'', true)', G)
-    into v_snapshot;
-  perform pg_temp.chk(7, '07 BOUNDARY', 'publish (unchanged until 13.12) still copies the RECORDED weight, never the local one',
-    (select weight_percent from public.planning_snapshot_activities where snapshot_id = v_snapshot) = 70);
-  -- The as-built publish archives WHOLE rows (to_jsonb(row)), so its JSON
-  -- archive now also freezes the 13.11 fields as they stood. That is a
-  -- faithful capture, read by no consumer (they only count activities); no
-  -- calculated figure is added and the normalised snapshot table is unchanged.
-  perform pg_temp.chk(7, '07 BOUNDARY', 'the legacy archive captures rows as they stood: recorded 70 and local 100, side by side, nothing calculated',
-    (select (a ->> 'weight_percent')::numeric = 70 and (a ->> 'local_weight_percent')::numeric = 100
-            and not (a ? 'effective_weight') and not (a ? 'pv') and not (a ? 'spi')
-       from public.planning_snapshots s, jsonb_array_elements(s.snapshot_data -> 'activities') a
-      where s.id = v_snapshot));
-  perform pg_temp.chk(7, '07 BOUNDARY', 'the normalised snapshot activity table gained no 13.11 column (Snapshot v2 is 13.12)',
-    not exists (select 1 from information_schema.columns where table_schema = 'public'
-                 and table_name = 'planning_snapshot_activities'
-                 and column_name in ('local_weight_percent', 'earning_method', 'structure_node_id')));
+  -- 13.12 (docs/02 §26.25 D-D) replaced the "publish unchanged until 13.12"
+  -- boundary: a normal publish is now v2 only — the Planning Engine on the
+  -- server and its trusted writer. That writer still copies the RECORDED
+  -- weight into the legacy column and keeps the whole-row archive, with the
+  -- engine's view in separate v2 columns (proved in 133 §05).
+  perform pg_temp.must_fail(7, '07 BOUNDARY', '13.12: the legacy normal publish is retired ([V2_PUBLISH_REQUIRED])',
+    format('select public.publish_planning_snapshot(%L::uuid, null, null, false, ''13.11 boundary'', null, ''2026-10-31'', true)', G),
+    'V2_PUBLISH_REQUIRED');
+  perform pg_temp.chk(7, '07 BOUNDARY', 'the snapshot activity table keeps its legacy weight column; 13.12 adds the engine''s view separately',
+    exists (select 1 from information_schema.columns where table_schema = 'public'
+             and table_name = 'planning_snapshot_activities' and column_name = 'weight_percent')
+    and exists (select 1 from information_schema.columns where table_schema = 'public'
+                 and table_name = 'planning_snapshot_activities' and column_name = 'local_weight')
+    and not exists (select 1 from information_schema.columns where table_schema = 'public'
+                     and table_name = 'planning_snapshot_activities' and column_name = 'local_weight_percent'));
   perform pg_temp.must_fail(7, '07 BOUNDARY', 'publishing a no-formal-schedule project is still refused (13.9B unchanged)',
     format('select public.publish_planning_snapshot(%L::uuid, null, null, false, null, null, ''2026-10-31'', true)', pg_temp.project('ZZ-1311-NF')));
   perform pg_temp.owner();
@@ -755,9 +753,11 @@ begin
       format('insert into public.planning_activities (project_id, name) values (%L, ''x'')', F), '[NOT_PLANNING_GOVERNED]');
     perform pg_temp.must_fail(9, '09 NO FORMAL', v_actor || ': schedule import refused',
       format('insert into public.planning_import_batches (project_id, source_type) values (%L, ''p6'')', F), '[NOT_PLANNING_GOVERNED]');
+    -- 13.12: no client inserts a baseline at all (42501); a no-formal-schedule
+    -- baseline REQUEST is refused [NOT_PLANNING_GOVERNED] (133 §09).
     perform pg_temp.must_fail(9, '09 NO FORMAL', v_actor || ': baseline refused',
       format('insert into public.planning_baselines (project_id, name, baseline_date) values (%L, ''BL'', ''2026-10-01'')', F),
-      '[NOT_PLANNING_GOVERNED]');
+      '42501');
     perform pg_temp.must_fail(9, '09 NO FORMAL', v_actor || ': Opening Position refused',
       format('insert into public.planning_opening_positions (project_id, data_date, source) values (%L, ''2026-10-01'', ''x'')', F),
       '[NOT_PLANNING_GOVERNED]');

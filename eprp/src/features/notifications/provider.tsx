@@ -7,6 +7,7 @@ import { createDefaultNotificationService } from "@/services/setup-notification-
 import { startForegroundPoll } from "./foreground-poll";
 import { showCompactToast } from "./compact-toast";
 import { createToastGate, type ToastGate, type ToastGateTrace, type ToastResult } from "./toast-feed";
+import { tabToastMemory } from "./toast-memory";
 import { createNotificationAdapter, developmentNotifications, notificationHref, type NotificationOverview, type NotificationPage, type NotificationPreferences, type NotificationQuery, type NotificationService } from "./model";
 
 interface NotificationContextValue {
@@ -113,10 +114,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   React.useEffect(() => {
     if (service.mode !== "connected") return;
     // One gate per provider: an effect re-run must not re-baseline (and so swallow) a pending arrival.
-    const gate = (toastGate.current ??= createToastGate(Date.now, DEVELOPMENT ? traceToastGate : undefined));
-    const onFocus = () => showToasts(gate.flush());
+    // Made on the first refresh, once the viewer is known: its memory is per tab and per user, so a
+    // reloaded / restored tab still toasts what arrived while it was away (13.12 UAT), exactly once.
+    const gateFor = async () =>
+      (toastGate.current ??= createToastGate(Date.now, DEVELOPMENT ? traceToastGate : undefined,
+        tabToastMemory((await service.viewerId?.()) ?? null)));
+    const onFocus = () => {
+      if (toastGate.current) showToasts(toastGate.current.flush());
+    };
     window.addEventListener("focus", onFocus);
     const stop = startForegroundPoll(async () => {
+      const gate = await gateFor();
       const next = await service.getOverview();
       const known = overviewRef.current;
       // Keep the bell and any open list current without flashing a loading state.
@@ -166,6 +174,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     },
   };
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
+}
+/** 13.12: the context when a provider is mounted, else null (for surfaces that only nudge a refresh). */
+export function useNotificationsIfAvailable(): NotificationContextValue | null {
+  return React.useContext(NotificationContext);
 }
 export function useNotifications(): NotificationContextValue {
   const value = React.useContext(NotificationContext);

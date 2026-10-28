@@ -17,10 +17,18 @@ const functions = [...code.matchAll(/create function public\.(\w+)\(/g)].map((m)
 
 test("13.11 migrations: Working Plan hardening after the 13.9B close, then the no-formal-schedule guard (UAT)", () => {
   const names = readdirSync(MIGRATIONS).filter((name) => name.endsWith(".sql")).sort();
-  assert.deepEqual(names.slice(-3), [
+  // 13.12 follows with its own three migrations.
+  const at = names.indexOf(FILE);
+  assert.deepEqual(names.slice(at - 1, at + 2), [
     "20261021090000_notification_history_clear.sql",
     FILE,
     "20261023090000_no_formal_schedule_planning_guard.sql",
+  ]);
+  assert.deepEqual(names.slice(at + 2), [
+    "20261024090000_baseline_revisions.sql",
+    "20261025090000_published_planning_snapshot_v2.sql",
+    "20261025090100_v2_compatibility_rollup.sql",
+    "20261025090200_baseline_notifications.sql",
   ]);
 });
 

@@ -340,10 +340,10 @@ the project's assigned **Project Control Manager** (Project Control / Planning)
 |---|---|---|
 | Edit the Working Plan — planning nodes, activities, local weights, earning methods, reporting-unit mapping, planned manpower | Project Control | Reporting Coordinator, every department or unit role, members, and anyone named responsible on a milestone, activity or task |
 | Import: upload, validate, map; accept or reject a **Schedule Version** and its differences; explicit weight normalisation; re-match; resolve a protected removal; accept a back-dated version as a **Historical Correction** (mandatory reason, recorded actor and time) (`02` §26.22) | Project Control | As above |
-| **Publish** a Planning Snapshot | Project Control | As above |
+| **Publish** a Planning Snapshot | Project Control. From 13.12 the publish runs server-side: the engine calculates, and a server-only trusted writer re-checks the requesting user's authority before persisting (`02` §26.25 D-A). No client role inserts a snapshot or its rows directly | As above |
 | **Prepare / request** a re-baseline | The project's assigned Project Control / Planning; Project Control Admin; System Administrator | Everyone else |
-| **Approve / reject** a re-baseline | **Project Control Admin or System Administrator only** | The assigned Project Control / Planning (by that assignment alone), Reporting Coordinator, everyone else. Whether an approver may approve their own request is open (`02` §26.19 B3) |
-| Approve the **original** baseline BL0 | Specified as the re-baseline rule above, **pending confirmation** (`02` §26.19 B8) | — |
+| **Approve / reject** a re-baseline | **Another** Project Control Admin or System Administrator — never the person who prepared / requested it (B3, closed 2026-10-22; database-enforced, no override) | The requester, whatever their role; the assigned Project Control / Planning (by that assignment alone); Reporting Coordinator; everyone else |
+| Approve the **original** baseline BL0 | Prepared / requested by the assigned Project Control / Planning; approved only by **another** Project Control Admin or System Administrator (B8, closed 2026-10-22) | The requester, whatever their role; everyone else |
 | Record / promote an **Opening Position** | Project Control, in Planning Workspace → Baselines & Snapshots only | Everyone else. Project Setup offers no entry for it (from **13.9A**; previously scheduled for 13.14) |
 | Governed milestones — identity, updates, decisions, reconciliation, linking to a true milestone | As built (13.2–13.2d): Project Control; reconciliation excludes the Reporting Coordinator | As built |
 | Manage Resource Categories (global master data) | System Administrator, Project Control Admin | Everyone else |

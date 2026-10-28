@@ -1,5 +1,10 @@
-import type { IsoDate, PlanningSnapshot } from "@/types";
-import { computeRollupFromActivities, rollupFromOpeningPosition, type SnapshotRollupMetrics } from "@/lib/planning-rollup";
+import type { IsoDate, PlanningSnapshot, PlanningSnapshotCalculation } from "@/types";
+import {
+  computeRollupFromActivities,
+  rollupFromFrozenEngine,
+  rollupFromOpeningPosition,
+  type SnapshotRollupMetrics,
+} from "@/lib/planning-rollup";
 import { planningService } from "./planning-service";
 
 /**
@@ -32,6 +37,10 @@ export interface PlanningSnapshotRollup extends SnapshotRollupMetrics {
    * than assume "current".
    */
   dataDate?: IsoDate;
+  /** 13.12: engine (v2, frozen figures) · legacy calculation · declared (Opening Position). */
+  calculation: PlanningSnapshotCalculation;
+  /** The Planning Engine version of a v2 snapshot; absent otherwise. */
+  engineVersion?: string;
 }
 
 function toRollup(snapshot: PlanningSnapshot, metrics: SnapshotRollupMetrics): PlanningSnapshotRollup {
@@ -40,6 +49,8 @@ function toRollup(snapshot: PlanningSnapshot, metrics: SnapshotRollupMetrics): P
     snapshotId: snapshot.id,
     snapshotVersion: snapshot.version,
     dataDate: snapshot.dataDate,
+    calculation: snapshot.calculation,
+    engineVersion: snapshot.v2?.engineVersion,
     ...metrics,
   };
 }
@@ -55,6 +66,10 @@ function toRollup(snapshot: PlanningSnapshot, metrics: SnapshotRollupMetrics): P
  * every curve and KPI that reads this rollup.
  */
 async function metricsForSnapshot(snapshot: PlanningSnapshot): Promise<SnapshotRollupMetrics> {
+  // 13.12 D-B: a v2 snapshot answers with its frozen engine figures — the
+  // compatibility bridge every existing consumer already calls. Legacy
+  // snapshots keep the legacy formula below, unchanged.
+  if (snapshot.v2) return rollupFromFrozenEngine(snapshot.v2);
   if (snapshot.sourceOpeningPositionId) {
     const opening = await planningService.getOpeningPositionById(snapshot.sourceOpeningPositionId);
     if (opening) return rollupFromOpeningPosition(opening);

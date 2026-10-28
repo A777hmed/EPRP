@@ -54,6 +54,10 @@ function harness(initial) {
     },
   };
 
+  const mappers = {};
+  vm.runInNewContext(ts.transpileModule(readFileSync(new URL("./planning-row-mappers.ts", import.meta.url), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText, { exports: mappers, require: () => ({}) });
   const exports = {};
   const compiled = ts.transpileModule(readFileSync(new URL("./planning-service.ts", import.meta.url), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -66,6 +70,9 @@ function harness(initial) {
       if (name === "./service-errors") return { describeFailure: async ({ error }) => new Error(error.message) };
       // 13.11: the pure Working Plan refusal wording (no runtime dependencies).
       if (name === "@/features/projects/working-plan") return { workingPlanRefusalMessage: () => undefined };
+      // 13.12: the shared row mappers (pure) and the refusal wording.
+      if (name === "./planning-row-mappers") return mappers;
+      if (name === "@/features/projects/planning-publish/publish-refusals") return { planningRefusal: () => ({ code: "", message: "" }) };
       throw new Error(`Unexpected service dependency ${name}`);
     },
   });

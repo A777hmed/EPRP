@@ -189,3 +189,31 @@ export function rollupFromOpeningPosition(opening: OpeningPositionRollupInput): 
     coveragePercent: plannedProgress !== null && actualProgress !== null ? 100 : 0,
   };
 }
+
+/**
+ * Phase 13.12 (`docs/02` §26.25 D-B) — the rollup of a v2 snapshot is its
+ * FROZEN engine figures, read as published. Nothing is recomputed from its
+ * activities: the flat formula above stays the legacy reading of legacy
+ * snapshots only, so a v2 snapshot never shows a second, competing value.
+ *
+ * Planned / earned VALUE sums are a legacy money concept (reported
+ * planned_value / earned_value); a v2 snapshot carries PV% / EV% instead, so
+ * they stay `null` rather than being filled with a different unit.
+ */
+export function rollupFromFrozenEngine(frozen: {
+  pv: number;
+  ev: number;
+  sv: number;
+  spi: number | null;
+  coveragePercent: number;
+}): SnapshotRollupMetrics {
+  return {
+    plannedProgress: frozen.pv,
+    actualProgress: frozen.ev,
+    variance: frozen.sv,
+    plannedValue: null,
+    earnedValue: null,
+    spi: frozen.spi,
+    coveragePercent: frozen.coveragePercent,
+  };
+}

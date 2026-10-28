@@ -1321,6 +1321,7 @@ export function ProjectForm({
             canAmend: governance.canAmend,
             pending: governance.pending,
             onAmend: setAmendField,
+            supersededByBl0: governance.supersededByBl0,
             finalise: governance.finalise,
           }
         : null,

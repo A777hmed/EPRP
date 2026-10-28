@@ -9,6 +9,8 @@ import { formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import {
   planningGovernanceOf,
+  SCHEDULE_CONDITION_NOT_EVALUATED,
+  snapshotCalculationLabel,
   snapshotFigures,
 } from "../../planning-experience";
 import {
@@ -141,6 +143,7 @@ export function PlanningStatus({
 
   const snapshot = position.snapshot;
   const rollup = position.rollup;
+  const calculation = snapshotCalculationLabel(snapshot);
   const figures = snapshotFigures({
     plannedProgress: rollup?.plannedProgress ?? null,
     actualProgress: rollup?.actualProgress ?? null,
@@ -153,13 +156,9 @@ export function PlanningStatus({
     <div className={cn(shell, "space-y-2")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          {snapshot.isOpeningSnapshot ? (
-            <StatusBadge tone="info">Opening Position — declared</StatusBadge>
-          ) : (
-            <span title="Published before the governed Planning Engine calculation model." className="inline-flex">
-              <StatusBadge tone="neutral">Legacy snapshot</StatusBadge>
-            </span>
-          )}
+          <span title={calculation.hint} className="inline-flex">
+            <StatusBadge tone={calculation.tone}>{calculation.badge}</StatusBadge>
+          </span>
         </div>
         {progressLink}
       </div>
@@ -172,7 +171,11 @@ export function PlanningStatus({
         <PlanningFact label="SPI" value={figures.spi} hint="Earned value ÷ planned value" />
         <PlanningFact
           label="Condition"
-          value={<span className="font-normal text-muted-foreground">Not derived yet</span>}
+          value={
+            <span className="font-normal text-muted-foreground">
+              {snapshot.calculation === "engine" ? SCHEDULE_CONDITION_NOT_EVALUATED : "Not derived yet"}
+            </span>
+          }
           hint="Schedule Condition is derived by the Planning Engine"
         />
       </dl>

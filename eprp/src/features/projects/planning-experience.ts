@@ -291,6 +291,108 @@ export function planningAuthoringAllowed(mode: PlanningOnboardingMode | null | u
 }
 
 /** The read-only state's wording, shared by Master Plan and Imports & Review. */
+/**
+ * 13.12 — how a Published Planning Snapshot's figures were produced, as one
+ * badge and one hint, so no surface labels a v2 snapshot "legacy" (or the
+ * reverse). Wording only; the figures come from the snapshot.
+ */
+export const LEGACY_SNAPSHOT_HINT = "Published before the governed Planning Engine calculation model.";
+
+export function snapshotCalculationLabel(snapshot: {
+  calculation: "engine" | "legacy" | "declared";
+  v2?: { engineVersion: string } | null;
+}): { badge: string; tone: "info" | "neutral"; hint: string } {
+  if (snapshot.calculation === "engine") {
+    return {
+      badge: "Planning Engine calculation",
+      tone: "info",
+      hint: `Calculated by the Planning Engine (v${snapshot.v2?.engineVersion ?? "—"}) at publish and frozen with the snapshot.`,
+    };
+  }
+  if (snapshot.calculation === "declared") {
+    return { badge: "Opening Position — declared", tone: "info", hint: "A declared starting position; SPI is not applicable." };
+  }
+  return { badge: "Legacy snapshot", tone: "neutral", hint: LEGACY_SNAPSHOT_HINT };
+}
+
+/** 13.12 (§26.25 D-C): the schedule condition of a v2 snapshot until B4 is decided. */
+export const SCHEDULE_CONDITION_NOT_EVALUATED = "Not evaluated — thresholds pending B4";
+
+export interface ReferenceDate {
+  label: string;
+  value: string | undefined;
+}
+
+/** A group of reference dates and, truthfully, where they come from. */
+export interface ReferenceDateGroup {
+  source: "snapshot" | "setup";
+  caption: string;
+  dates: ReferenceDate[];
+}
+
+/**
+ * 13.12 closure — the project overview's reference dates, each group named by
+ * its real source (`docs/02` §26.8, §26.22.7).
+ *
+ * - A v2 (Planning Engine) snapshot governs the plan: its frozen finish of the
+ *   original baseline (BL0), of the current approved baseline (when that is a
+ *   re-baseline) and of the forecast. Project Setup's Planned Start / Finish
+ *   are superseded by BL0 then and are not shown as if they were the plan.
+ *   Actual dates recorded on the project stay, captioned as Project Setup.
+ * - Otherwise (no snapshot, a legacy or a declared one) the Project Setup
+ *   reference dates, as before.
+ */
+export function overviewReferenceDates(
+  project: {
+    plannedStartDate?: string;
+    plannedFinishDate?: string;
+    actualStartDate?: string;
+    forecastFinishDate?: string;
+    actualFinishDate?: string;
+  },
+  snapshot: {
+    version: number;
+    calculation: "engine" | "legacy" | "declared";
+    v2?: { bl0BaselineId: string; blnBaselineId: string; bl0FinishDate?: string; blnFinishDate?: string; forecastFinishDate?: string } | null;
+  } | null
+): ReferenceDateGroup[] {
+  if (snapshot?.calculation === "engine" && snapshot.v2) {
+    const v2 = snapshot.v2;
+    const rebaselined = v2.blnBaselineId !== v2.bl0BaselineId;
+    const governed: ReferenceDateGroup = {
+      source: "snapshot",
+      caption: `From Published Planning Snapshot v${snapshot.version}`,
+      dates: [
+        { label: rebaselined ? "Original baseline finish (BL0)" : "Baseline finish (BL0)", value: v2.bl0FinishDate },
+        ...(rebaselined ? [{ label: "Current baseline finish", value: v2.blnFinishDate }] : []),
+        { label: "Forecast finish", value: v2.forecastFinishDate },
+      ],
+    };
+    const actuals = [
+      { label: "Actual start", value: project.actualStartDate },
+      { label: "Actual finish", value: project.actualFinishDate },
+    ].filter((date) => date.value);
+    return actuals.length > 0
+      ? [governed, { source: "setup", caption: "Recorded in Project Setup", dates: actuals }]
+      : [governed];
+  }
+  return [
+    {
+      source: "setup",
+      caption: "Reference dates from Project Setup",
+      dates: [
+        { label: "Start", value: project.actualStartDate ?? project.plannedStartDate },
+        { label: "Planned finish", value: project.plannedFinishDate },
+        { label: "Forecast finish", value: project.forecastFinishDate },
+        { label: "Actual finish", value: project.actualFinishDate },
+      ].filter((date) => date.value || date.label === "Start" || date.label === "Planned finish"),
+    },
+  ];
+}
+
+/** 13.12 closure: the project description is free text — never a calculated schedule condition. */
+export const PROJECT_DESCRIPTION_SOURCE = "Project description · entered manually in Project Setup";
+
 export const NO_FORMAL_SCHEDULE_NOTICE = {
   title: "No formal schedule",
   description:

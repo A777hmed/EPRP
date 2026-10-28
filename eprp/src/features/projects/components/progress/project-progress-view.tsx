@@ -20,8 +20,11 @@ import { isPlanningControlReadOnly } from "../../planning-control-archived";
 import {
   planningGovernanceOf,
   planningViewHref,
+  SCHEDULE_CONDITION_NOT_EVALUATED,
+  snapshotCalculationLabel,
   snapshotFigures,
   type SnapshotFigures,
+  LEGACY_SNAPSHOT_HINT,
 } from "../../planning-experience";
 import {
   usePlanningPosition,
@@ -30,6 +33,7 @@ import {
 import { ArchivedPlanningNotice } from "../planning/archived-planning-notice";
 import { PlanningFact } from "../planning/planning-status";
 import { ReportedProgressPanel } from "./reported-progress-panel";
+import { SnapshotSCurve } from "./snapshot-s-curve";
 
 function activityCountOf(snapshot: PlanningSnapshot): number | undefined {
   const data = snapshot.snapshotData;
@@ -70,17 +74,8 @@ function Panel({
   );
 }
 
-/** The truthful "the engine has not produced this yet" body. */
-function PendingEngine({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-6 text-center text-xs text-muted-foreground text-pretty">
-      {children}
-    </div>
-  );
-}
-
 /** Shown wherever a snapshot pre-dates the governed engine model. */
-const LEGACY_SNAPSHOT_HINT = "Published before the governed Planning Engine calculation model.";
+// 13.12: shared with Planning Status (planning-experience.ts).
 
 /** Subtle, consistent per-row marker for a figure the engine has not produced. */
 function PendingEngineMarker() {
@@ -246,13 +241,11 @@ export function ProjectProgressView({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
-              {snapshot.isOpeningSnapshot ? (
-                <StatusBadge tone="info">Opening Position — declared</StatusBadge>
-              ) : (
-                <span title={LEGACY_SNAPSHOT_HINT} className="inline-flex">
-                  <StatusBadge tone="neutral">Legacy snapshot</StatusBadge>
-                </span>
-              )}
+              <span title={snapshotCalculationLabel(snapshot).hint} className="inline-flex">
+                <StatusBadge tone={snapshotCalculationLabel(snapshot).tone}>
+                  {snapshotCalculationLabel(snapshot).badge}
+                </StatusBadge>
+              </span>
             </div>
             <h2 className="mt-1.5 text-base font-semibold tracking-tight">
               Performance as of {formatDate(snapshot.dataDate)}
@@ -261,7 +254,7 @@ export function ProjectProgressView({
               From Published Planning Snapshot v{snapshot.version}
               {snapshot.label ? ` — ${snapshot.label}` : ""}, published{" "}
               {formatDate(snapshot.publishedAt)}.
-              {!snapshot.isOpeningSnapshot && ` ${LEGACY_SNAPSHOT_HINT}`}
+              {snapshot.calculation === "legacy" && ` ${LEGACY_SNAPSHOT_HINT}`}
             </p>
           </div>
           {workspaceLink}
@@ -271,7 +264,11 @@ export function ProjectProgressView({
           <PlanningFact label="Snapshot" value={`v${snapshot.version}`} />
           <PlanningFact
             label="Schedule condition"
-            value={<span className="font-normal text-muted-foreground">Not derived yet</span>}
+            value={
+              <span className="font-normal text-muted-foreground">
+                {snapshot.calculation === "engine" ? SCHEDULE_CONDITION_NOT_EVALUATED : "Not derived yet"}
+              </span>
+            }
             hint="Derived by the Planning Engine from SPI, milestone slip and forecast finish"
           />
           {rollup && (
@@ -291,19 +288,12 @@ export function ProjectProgressView({
       <Panel
         icon={LineChart}
         title="S-curve"
-        description="Baseline, forecast and earned progress over time, with the Data Date marked."
+        description="Original and current baseline, forecast, and earned value at the Data Date — as frozen in this Published Planning Snapshot."
       >
-        {/* No legend, axes or series until governed time-phased data exists:
-            an empty chart frame reads as a chart that failed to load. */}
-        <PendingEngine>
-          <LineChart className="mx-auto mb-2 size-5 text-muted-foreground/60" aria-hidden="true" />
-          <p className="text-sm font-medium text-foreground">S-Curve not available yet</p>
-          <p className="mx-auto mt-1 max-w-md">
-            The Planning Engine will generate Original Baseline, Current
-            Baseline, Forecast and Earned curves automatically once governed
-            time-phased planning data is available.
-          </p>
-        </PendingEngine>
+        {/* 13.12 closure: drawn only from the frozen baseline and forecast
+            curves of a v2 snapshot; a legacy or declared snapshot says why it
+            has none. The earned history across snapshots is 13.14. */}
+        <SnapshotSCurve snapshot={snapshot} />
       </Panel>
 
       {/* D. WBS / Control Account performance */}

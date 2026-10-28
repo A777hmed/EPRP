@@ -270,11 +270,12 @@ test("a burst is capped and summarised; items older than the session are backlog
 
 test("the provider: one gate per session, focus shows pending + forces a catch-up, failures and transitions traced in development", () => {
   const provider = code("./provider.tsx");
+  assert.match(provider, /const gate = await gateFor\(\);\s*const next = await service\.getOverview\(\);/);
   assert.match(provider, /showToasts\(gate\.observe\(unread\.items, \{ present: document\.hasFocus\(\) \}\)\)/);
-  assert.match(provider, /const onFocus = \(\) => showToasts\(gate\.flush\(\)\);\s*window\.addEventListener\("focus", onFocus\);/);
+  assert.match(provider, /const onFocus = \(\) => \{\s*if \(toastGate\.current\) showToasts\(toastGate\.current\.flush\(\)\);\s*\};\s*window\.addEventListener\("focus", onFocus\);/);
   assert.match(provider, /window\.removeEventListener\("focus", onFocus\)/);
-  // The gate survives an effect re-run (no re-baseline); the trace is development-only.
-  assert.match(provider, /const gate = \(toastGate\.current \?\?= createToastGate\(Date\.now, DEVELOPMENT \? traceToastGate : undefined\)\);/);
+  // The gate survives an effect re-run (no re-baseline); the trace is development-only; its memory is per tab and user.
+  assert.match(provider, /\(toastGate\.current \?\?= createToastGate\(Date\.now, DEVELOPMENT \? traceToastGate : undefined,\s*tabToastMemory\(\(await service\.viewerId\?\.\(\)\) \?\? null\)\)\)/);
   assert.match(provider, /const toastGate = React\.useRef<ToastGate \| null>\(null\);/);
   assert.match(provider, /const DEVELOPMENT = process\.env\.NODE_ENV === "development";/);
   assert.match(provider, /onError: DEVELOPMENT \? \(failure\) => console\.warn\(/);

@@ -57,6 +57,8 @@ export interface SetupFormGovernance {
   /** Pending request per field key. */
   pending: ReadonlyMap<string, SetupAmendment>;
   onAmend: (fieldKey: string) => void;
+  /** 13.12: the original baseline (BL0) is approved, so Planned Start / Finish are superseded. */
+  supersededByBl0?: boolean;
   /** Planning Entry: the derived control state and the Finalise action (no-formal-schedule). */
   finalise?: SetupFinaliseContext;
 }
@@ -101,8 +103,21 @@ export function GovernedField({
   className?: string;
 }) {
   const governance = useSetupFormGovernance();
-  const presentation = fieldPresentation(fieldKey, Boolean(governance?.controlled));
+  const presentation = fieldPresentation(fieldKey, Boolean(governance?.controlled), Boolean(governance?.supersededByBl0));
   if (!governance || presentation === "editable") return <>{children}</>;
+  if (presentation === "superseded") {
+    return (
+      <div className={cn("min-w-0 space-y-1.5", className)} data-governed="superseded">
+        <fieldset disabled className="m-0 min-w-0 border-0 p-0 [&_input]:bg-muted/30">
+          {children}
+        </fieldset>
+        <p className="text-xs text-muted-foreground text-pretty">
+          Superseded by the approved original baseline (BL0) · dates change only through the Working Plan and a
+          re-baseline.
+        </p>
+      </div>
+    );
+  }
 
   const pending = governance.pending.get(fieldKey);
   const amendable = Boolean(amendableField(fieldKey));

@@ -764,6 +764,97 @@ export interface PlanningSnapshot {
   snapshotData: unknown;
   publishedByContactId?: string;
   publishedAt: IsoDateTime;
+  /**
+   * 13.12. How its figures were produced: `engine` (a v2 snapshot, calculated
+   * by the Planning Engine at publish), `legacy` (published before 13.12 —
+   * "legacy calculation"), or `declared` (an Opening Position).
+   */
+  calculation: PlanningSnapshotCalculation;
+  /** 13.12 — present exactly on a v2 snapshot. */
+  v2?: PlanningSnapshotV2Facts;
+}
+
+export type PlanningSnapshotCalculation = "engine" | "legacy" | "declared";
+
+/** The frozen provenance and project figures of a v2 snapshot (`02` §26.8, §26.22.7). */
+export interface PlanningSnapshotV2Facts {
+  engineVersion: string;
+  bl0BaselineId: string;
+  blnBaselineId: string;
+  sourceKind: "manual" | "import_batch";
+  publishedByUserId?: string;
+  workingPlanFingerprint: string;
+  configurationUpdatedAt?: IsoDateTime;
+  /** Logged Project Control edits after the source (§26.22.7). */
+  editsSinceSource?: number;
+  editsHighWaterAt?: IsoDateTime;
+  pv: number;
+  ev: number;
+  sv: number;
+  /** `null` when not applicable — with `spiReason` (e.g. "pv_zero"). */
+  spi: number | null;
+  spiReason?: string;
+  coveragePercent: number;
+  crossCheckMaxDifference?: number;
+  bl0FinishDate?: IsoDate;
+  blnFinishDate?: IsoDate;
+  forecastFinishDate?: IsoDate;
+  forecastCurveReason?: string;
+  /** §26.25 D-C: always "not_evaluated" until B4 is decided (13.14). */
+  scheduleCondition: "not_evaluated";
+}
+
+/** 13.12 — one frozen node of a v2 snapshot's WBS roll-up. */
+export interface PlanningSnapshotNode {
+  snapshotId: string;
+  sourceWorkItemId: string;
+  parentWorkItemId?: string;
+  position: number;
+  depth: number;
+  code?: string;
+  name: string;
+  itemType?: string;
+  isControlAccount: boolean;
+  localWeight: number;
+  effectiveWeight: number;
+  pv: number;
+  ev: number;
+  sv: number;
+  spi: number | null;
+  spiReason?: string;
+  pvContribution: number;
+  evContribution: number;
+  departmentId?: string;
+  systemId?: string;
+  disciplineId?: string;
+  structureNodeId?: string;
+  scheduleCondition: "not_evaluated";
+}
+
+/** 13.12 — one frozen true-milestone state of a v2 snapshot. */
+export interface PlanningSnapshotMilestone {
+  snapshotId: string;
+  sourceActivityId: string;
+  code?: string;
+  name: string;
+  isKey: boolean;
+  bl0Date?: IsoDate;
+  blnDate?: IsoDate;
+  forecastDate?: IsoDate;
+  actualDate?: IsoDate;
+  status: "achieved" | "overdue" | "upcoming" | "unscheduled";
+  slipVsBln: number | null;
+  slipVsBlnReason?: string;
+  slipVsBl0: number | null;
+  slipVsBl0Reason?: string;
+  due: boolean;
+  scheduleCondition: "not_evaluated";
+}
+
+/** 13.12 — one point of a frozen curve (cumulative % of the project). */
+export interface PlanningCurvePoint {
+  date: IsoDate;
+  value: number;
 }
 
 /**
@@ -800,6 +891,26 @@ export interface PlanningSnapshotActivity {
   plannedValue?: number;
   earnedValue?: number;
   createdAt: IsoDateTime;
+  /** 13.12 — the engine's view of the activity; present only in a v2 snapshot. */
+  v2?: {
+    position: number;
+    earningMethod: PlanningEarningMethod;
+    localWeight: number;
+    effectiveWeight: number;
+    pv: number;
+    ev: number;
+    sv: number;
+    pvContribution: number;
+    evContribution: number;
+    bl0StartDate?: IsoDate;
+    bl0FinishDate?: IsoDate;
+    blnStartDate?: IsoDate;
+    blnFinishDate?: IsoDate;
+    departmentId?: string;
+    systemId?: string;
+    disciplineId?: string;
+    structureNodeId?: string;
+  };
 }
 
 /* ------------------------- Master Plan (Slice 2) --------------------------- */
@@ -1025,6 +1136,49 @@ export interface PlanningBaseline {
   notes?: string;
   createdByContactId?: string;
   createdAt: IsoDateTime;
+  /**
+   * 13.12 Baseline Revision state. `legacy` = a named capture made before
+   * 13.12 — readable history, never an approved baseline.
+   */
+  revisionStatus: PlanningBaselineRevisionStatus;
+  /** 0 = BL0, 1 = BL1, … — set only on approval. */
+  revisionNumber?: number;
+  revisionKind?: "original" | "rebaseline";
+  reason?: string;
+  requestedByUserId?: string;
+  requestedByContactId?: string;
+  requestedAt?: IsoDateTime;
+  decidedByUserId?: string;
+  decidedByContactId?: string;
+  decidedAt?: IsoDateTime;
+  decisionComment?: string;
+  capture?: PlanningBaselineCapture;
+  curveEngineVersion?: string;
+}
+
+export type PlanningBaselineRevisionStatus = "legacy" | "requested" | "approved" | "rejected" | "withdrawn";
+
+/** The planning reference a Baseline Revision captured at request (copied, never calculated). */
+export interface PlanningBaselineCapture {
+  nodes: {
+    id: string;
+    parent_id: string | null;
+    code: string | null;
+    name: string;
+    local_weight: number | null;
+    is_control_account: boolean;
+  }[];
+  activities: {
+    id: string;
+    work_item_id: string | null;
+    code: string | null;
+    external_id: string | null;
+    name: string;
+    is_milestone: boolean;
+    local_weight: number | null;
+    start: IsoDate | null;
+    finish: IsoDate | null;
+  }[];
 }
 
 /** Links a work item or activity to its governed Master Milestone identity. */

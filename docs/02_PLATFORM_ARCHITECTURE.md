@@ -1531,8 +1531,9 @@ project's schedule condition (§26.7).
    may *request and prepare* a re-baseline, with a reason. **Only a Project
    Control Admin or System Administrator approves it.** On approval the new BLn
    is frozen with its own baseline curve; nothing already published changes.
-   Whether the approver may be the same person as the preparer is open
-   (§26.19, B3).
+   **The preparer / requester never approves their own re-baseline** (B3,
+   closed 2026-10-22): another Project Control Admin or System Administrator
+   decides, enforced in the database for every role, with no override.
 3. **Data Date integrity.** Actual dates after the Data Date, or a forecast
    before it for incomplete work, fail publish validation.
 4. **Reconstruction.** "What did the plan and progress look like on date X?" is
@@ -1588,7 +1589,7 @@ At its Data Date a v2 snapshot provides:
 | Provides | Notes |
 |---|---|
 | Identity and provenance | Project, snapshot version, Data Date, BL0 and BLn references, **source Schedule Version** (or Opening Position, or manual), the logged Project Control edits applied after that Schedule Version, publisher and time, engine version, coverage — enough to answer "where did these numbers come from?" (§26.22) |
-| **Frozen WBS roll-up** | Per node: local and effective weight, PV%, EV%, SV, SPI, schedule condition |
+| **Frozen WBS roll-up** | Per node: local and effective weight, PV%, EV%, SV, SPI, schedule condition *(until B4 is decided: "not evaluated — thresholds pending B4", with every input it needs frozen — §26.25 D-C)* |
 | **Frozen activities** | Dates (BL0, BLn, forecast, actual), earning method, local and effective weight, PV% and EV% at the Data Date, reporting-unit mapping, external ID |
 | **Frozen milestone states** | Every true milestone and every governed milestone: code, name, type, criticality, key flag, BL0/BLn/forecast/actual dates, slip against each baseline, schedule condition — so a report reproduces milestone status exactly as published |
 | **Curves** | The BLn and BL0 baseline curves it references, its current/forecast curve, and its earned point |
@@ -1602,8 +1603,10 @@ At its Data Date a v2 snapshot provides:
 2. **Validated.** Publishing requires a Data Date, complete weights (W1–W3),
    complete progress (C2), Data Date integrity (§26.6 rule 3), and an approved
    BL0 — except an Opening Position snapshot, which declares a position and
-   carries no baseline. BL0 is established by Project Control and approved
-   under the same rule as a re-baseline, pending confirmation (§26.19 B8).
+   carries no baseline. BL0 is prepared / requested by the assigned Project
+   Control / Planning and approved only by **another** Project Control Admin
+   or System Administrator — the same rule as a re-baseline (B8, closed
+   2026-10-22).
 3. **Resolution.** *Current position* = the latest published snapshot.
    *Position for a period ending P* = the latest published snapshot with
    Data Date ≤ P (ties broken by version). Several snapshots may share a Data
@@ -1914,12 +1917,12 @@ Reported Progress stream. It is separate from the Planning Engine. Sequence:
 |---|---|---|
 | B1 | Confirm the §24.6 amendment: linked governed milestones take their dates from the snapshot (§26.6 rule 5) | 13.15 |
 | B2 | Who approves an Other-project unit section before Project Control review (Unit Lead is authority-free today), and whether Monthly Responsible / Backup receive the same reporting-write scope as Weekly | 13.18 (Weekly), 13.19 (Monthly sections) |
-| B3 | Whether the approver of a re-baseline may be the person who prepared it | 13.12 |
+| ~~B3~~ | **CLOSED 2026-10-22 (owner decision).** No self-approval of a re-baseline: the person who prepared / requested a Baseline Revision can never approve it. Approval needs **another** authorised Project Control Admin or System Administrator. Enforced in the database for every role, with no override (§26.6 rule 2, §26.25) | — |
 | B4 | Schedule-condition thresholds (§26.7 rule 4 proposed defaults) | 13.14 |
 | B5 | Who records actual manpower in the Weekly: each section writer for their unit, or the reporting workflow (Reporting Coordinator / Project Control) project-wide | 13.13 (actual entry), 13.17 |
 | B6 | Portfolio staleness window (proposed 14 days) and the "one basis per aggregate" rule | 13.20 |
 | ~~B7~~ | **CLOSED 2026-10-20 (owner decision, at the start of 13.10).** PV for the discrete methods follows their earning points exactly as specified in §26.4 — 0/100: 0 until BLn finish, then 100; 50/50: 50 at BLn start, 100 at BLn finish; Milestone: 0 until the BLn date, then 100 — and only Percent Complete is linear over the project's working days. A correctly progressing discrete activity therefore never shows a false variance | — |
-| B8 | Who approves the **original** baseline BL0: the re-baseline rule (Project Control Admin or System Administrator only), as specified in §26.8, or the project's assigned Project Control | 13.12 |
+| ~~B8~~ | **CLOSED 2026-10-22 (owner decision).** BL0 is prepared / requested by the assigned Project Control / Planning and approved only by **another** Project Control Admin or System Administrator. The preparer / requester never approves their own BL0 (§26.8 invariant 2, §26.25) | — |
 | B9 | Other projects: confirm that a unit's **active members** are the "engineers" who may author comments in that unit's section (§26.21). Unit membership is authority-free today (`06` §8.9) | 13.18 |
 | B25 | **Planning Setup Templates** (raised 2026-10-21; owner kept them deferred at 13.11). §26.20.1 says templates are managed "from 13.11", but the roadmap's 13.11 scope line does not include them and 13.11 shipped without them. Open: which slice delivers the admin-managed templates (`05` §3.8) that are copied into a project's Planning Configuration, and whether any are needed before the first v2 publish. Until decided, no template exists, Planning Setup offers no recommended defaults, and nothing branches on a template (§26.20 rule 3) | Template work only — blocks no current slice |
 | ~~B10~~ | **CLOSED 2026-10-14 (owner decision).** Back-dated Schedule Versions are accepted only through the explicit **Historical Correction** workflow. Operational versions must be dated on or after the latest accepted operational version (§26.22.2). Also closed: **one Schedule Version Under Review per project** at a time | — |
@@ -3031,3 +3034,29 @@ Notes:
   - **Services:** archived refusals are mapped to plain sentences.
   - **UI:** no Amend, Approve, Finalise or Update Reported Progress controls,
     and the existing "Archived · read-only" notice.
+
+### 26.25 Published Planning Snapshot v2 — approved 13.12 decisions (2026-10-22)
+
+Approved by the project owner on 2026-10-22, together with B3 and B8
+(§26.19). They are canonical for 13.12 and every later slice. **B4 stays
+open** (13.14).
+
+| # | Decision |
+|---|---|
+| **D-A** | **The Planning Engine executes server-side during publish.** One path: Working Plan → the 13.11 canonical adapter (`toEnginePlanInput()`) → validation → the 13.10 engine → an immutable v2 write. The engine runs **once** for the Data Date; nothing in SQL repeats its calculation. The write is done by a **server-only trusted writer**: the browser can never submit PV, EV or SPI. Before it persists anything, the database re-checks, **as the requesting user**: authority, archived state, `no_formal_schedule`, the Data Date, an approved BL0, the first-publish confirmation, and that the Working Plan is unchanged since the engine read it. No client role can insert a Published Planning Snapshot or any of its rows directly. |
+| **D-B** | **Compatibility bridge, not consumer rewiring.** For a v2 snapshot, the shared planning roll-up path returns the snapshot's **frozen engine figures**; a legacy snapshot keeps its legacy formula unchanged. No competing figure is ever computed from v2 data. Dashboard, Weekly, Monthly, Executive and Calendar are **not** rewired screen by screen in 13.12; their migrations stay with 13.14, 13.17, 13.19 and 13.20. |
+| **D-C** | **Schedule Condition is not evaluated until B4.** Every input it needs is frozen with the snapshot — SPI (project and node), each true milestone's slip against BLn and BL0, the forecast finish against the BLn finish — with its provenance. The condition itself is stored as **"not evaluated — thresholds pending B4"**; the proposed §26.7 thresholds are **not** applied. When B4 is decided, no published snapshot is altered: 13.14 derives the condition from the frozen inputs. *(Amends §26.8 "Frozen WBS roll-up … schedule condition" and `06` §10A.7 for snapshots published before B4.)* |
+| **D-D** | **The legacy publish is retired for every new normal publish.** From 13.12 every normal publish is v2 and must pass full v2 validation, including an approved BL0. Existing legacy snapshots stay immutable, readable history. **Opening Position** promotion is unchanged and is not converted into a normal v2 publish. The **earned curve begins with v2 engine snapshots**: legacy and Opening Position points are never presented as engine-earned points. |
+| **New scope after BL0** | **New scope reaches PV only through an approved re-baseline that captures it.** An activity that is not in the current approved baseline (BLn) blocks a v2 publish ("not in the current approved baseline — request a re-baseline"); it is never published with an artificial zero PV. No import or Schedule Version creates or changes a baseline. |
+
+**Consequences for 13.12** (as built: roadmap 13.12 checkpoint):
+- a Baseline Revision is captured when it is requested (the dates and local
+  weights of every active node and activity, and its baseline curve,
+  calculated by the engine) and is immutable from then on — approval freezes
+  exactly what was reviewed;
+- BL0 is the first approved revision; BLn is the latest approved one,
+  derived, never flagged;
+- the approved BL0 is a Project Setup governance anchor
+  (`project_setup_controlled_since()`), and it activates "Superseded by BL0"
+  for Planned Start / Planned Finish (§26.24.2): nobody edits or amends them
+  afterwards; dates change only through the Working Plan and a re-baseline.

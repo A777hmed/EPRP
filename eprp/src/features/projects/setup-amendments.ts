@@ -137,12 +137,18 @@ export function pendingAmendmentsByField(amendments: readonly SetupAmendment[]):
  * How a field is presented. Before Controlled every field is "editable" —
  * exactly as before 13.9B.
  */
-export type FieldPresentation = "editable" | "amend" | "request" | "correction" | "retired";
+export type FieldPresentation = "editable" | "amend" | "request" | "correction" | "retired" | "superseded";
 
-export function fieldPresentation(fieldKey: string, controlled: boolean): FieldPresentation {
+/**
+ * 13.12: once the original baseline (BL0) is approved, a field whose
+ * registered future class is "superseded" (Planned Start / Finish) is
+ * superseded — nobody edits or amends it; the database refuses both.
+ */
+export function fieldPresentation(fieldKey: string, controlled: boolean, supersededByBl0 = false): FieldPresentation {
   if (!controlled) return "editable";
   const entry = setupFieldEntry(fieldKey);
   if (!entry) return "editable";
+  if (supersededByBl0 && entry.futureClass === "superseded" && entry.futureSlice === "13.12") return "superseded";
   return presentationForClass(entry.fieldClass);
 }
 

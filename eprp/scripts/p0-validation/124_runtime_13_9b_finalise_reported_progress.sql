@@ -110,6 +110,22 @@ begin
   perform set_config('request.jwt.claims', '', true);
 end $$;
 
+-- 13.12 (docs/02 §26.25 D-D): a normal publish is v2 only — the Planning Engine
+-- on the server and its trusted writer (proved in 133). A fixture that only
+-- needs a project to be Controlled seeds one historical (legacy, pre-13.12)
+-- snapshot as data; it tests nothing about publishing.
+create or replace function pg_temp.seed_legacy_snapshot(p_project uuid, p_date date) returns uuid
+language plpgsql security definer set search_path = '' as $seed$
+declare v uuid;
+begin
+  insert into public.planning_snapshots (project_id, version, data_date, snapshot_data)
+  values (p_project, coalesce((select max(version) from public.planning_snapshots where project_id = p_project), 0) + 1,
+          p_date, '{"work_items": [], "activities": [], "milestone_links": [], "opening_position": null}'::jsonb)
+  returning id into v;
+  return v;
+end $seed$;
+
+
 create or replace function pg_temp.id(p_key text) returns uuid
 language sql as $$ select id from ids where key = p_key $$;
 create or replace function pg_temp.project(p_code text) returns uuid
@@ -524,8 +540,8 @@ begin
     pg_temp.cor_sql('BAD', 'T1', 41, 'x', 'y'), 'REPORTED_PROGRESS_NOT_ALLOWED');
   perform pg_temp.must_fail(6, '06 ELIGIBILITY', 'TRN: a withdrawal of the earlier entry is refused',
     pg_temp.wd_sql('BAD', 'T1', 'y'), 'REPORTED_PROGRESS_NOT_ALLOWED');
-  perform pg_temp.must_pass(6, '06 ELIGIBILITY', 'TRN: the first Planning Snapshot publishes without a new confirmation (already Controlled)',
-    pg_temp.publish_sql(T, false));
+  perform pg_temp.must_pass(6, '06 ELIGIBILITY', 'TRN: a first (historical) Planning Snapshot exists — fixture data (a normal publish is v2 since 13.12)',
+    format('select pg_temp.seed_legacy_snapshot(%L::uuid, %L::date)', T, '2026-10-10'));
   perform pg_temp.must_fail(6, '06 ELIGIBILITY', 'TRN: once a snapshot exists, the way back to no_formal_schedule is prohibited',
     format('update public.project_planning_settings set onboarding_mode = %L where project_id = %L', 'no_formal_schedule', T),
     'ONBOARDING_TRANSITION_PROHIBITED');

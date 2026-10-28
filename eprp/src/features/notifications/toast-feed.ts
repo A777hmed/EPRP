@@ -59,6 +59,29 @@ const BACKLOG_GRACE_MS = 60_000;
  */
 export const BASELINE_CLOCK_MARGIN_MS = 10_000;
 
+/**
+ * What one browser TAB remembers between page loads (13.12 UAT): when it last
+ * looked at the caller's unread notifications, and which it already handled.
+ * A reload, or a tab the browser discarded while idle and restores, is the
+ * same tab: what arrived while it was away still toasts once on its return,
+ * and nothing it already showed or counted as backlog is replayed. A new tab
+ * or a fresh sign-in has no memory, so its backlog never toasts (as before).
+ */
+export interface ToastGateMemory {
+  load(): RememberedToastState | null;
+  save(state: RememberedToastState): void;
+}
+export interface RememberedToastState {
+  /** The last observation, browser time; never later than the oldest still-pending arrival. */
+  seenUntil: number;
+  /** The most recent handled ids (bounded). */
+  handled: string[];
+}
+/** A tab idle longer than this starts afresh: its backlog is not replayed. */
+export const TOAST_MEMORY_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+/** How many handled ids a tab remembers. */
+export const TOAST_MEMORY_MAX_IDS = 200;
+
 /** One state transition, for the development trace: baseline → discovered → (deferred) → presented, or dropped/skipped. */
 export type ToastGateStage = "baseline" | "discovered" | "deferred" | "presented" | "dropped" | "skipped";
 export type ToastGateTrace = (stage: ToastGateStage, ids: readonly string[]) => void;
@@ -69,12 +92,23 @@ export type ToastGateTrace = (stage: ToastGateStage, ids: readonly string[]) => 
  * toasts again) or `pending` (waiting for a focused moment). So an id toasts at
  * most once, and an arrival is consumed only by actually being shown.
  */
-export function createToastGate(now: () => number = Date.now, trace?: ToastGateTrace): ToastGate {
+export function createToastGate(now: () => number = Date.now, trace?: ToastGateTrace, memory?: ToastGateMemory): ToastGate {
   const handled = new Set<string>();
   const pending = new Map<string, NotificationItem>();
   const sessionStart = now();
-  const notBefore = sessionStart - BACKLOG_GRACE_MS;
+  // A remembered tab baselines from when it last looked (less the clock
+  // margin; what it saw then is in `handled`), otherwise from this page load.
+  const remembered = memory?.load() ?? null;
+  const resumed = remembered !== null && sessionStart - remembered.seenUntil <= TOAST_MEMORY_MAX_AGE_MS;
+  if (resumed) for (const id of remembered.handled) handled.add(id);
+  const baselineFrom = resumed ? remembered.seenUntil - BASELINE_CLOCK_MARGIN_MS : sessionStart + BASELINE_CLOCK_MARGIN_MS;
+  const notBefore = Math.min(sessionStart - BACKLOG_GRACE_MS, baselineFrom);
   let baselined = false;
+  const remember = () => {
+    if (!memory) return;
+    const oldestPending = Math.min(...[...pending.values()].map((item) => Date.parse(item.createdAt)).filter(Number.isFinite));
+    memory.save({ seenUntil: Math.min(now(), oldestPending), handled: [...handled].slice(-TOAST_MEMORY_MAX_IDS) });
+  };
   const note = (stage: ToastGateStage, ids: string[]) => {
     if (ids.length) trace?.(stage, ids);
   };
@@ -84,6 +118,7 @@ export function createToastGate(now: () => number = Date.now, trace?: ToastGateT
     pending.clear();
     for (const item of ordered) handled.add(item.id);
     note("presented", ordered.map((item) => item.id));
+    remember();
     return { show: ordered.slice(0, MAX_TOASTS_PER_REFRESH), overflow: Math.max(0, ordered.length - MAX_TOASTS_PER_REFRESH) };
   };
   const toastable = (item: NotificationItem, from: number) => Boolean(item.toast) && !item.readAt && Date.parse(item.createdAt) >= from;
@@ -98,7 +133,8 @@ export function createToastGate(now: () => number = Date.now, trace?: ToastGateT
         baselined = true;
         const backlog: string[] = [];
         for (const item of unread) {
-          if (toastable(item, sessionStart + BASELINE_CLOCK_MARGIN_MS)) {
+          if (handled.has(item.id)) continue;
+          if (toastable(item, baselineFrom)) {
             pending.set(item.id, item);
             discovered.push(item.id);
           } else {
@@ -135,6 +171,7 @@ export function createToastGate(now: () => number = Date.now, trace?: ToastGateT
       note("skipped", skipped);
       if (present) return take();
       note("deferred", [...pending.keys()]);
+      remember();
       return { show: [], overflow: 0 };
     },
     flush: take,

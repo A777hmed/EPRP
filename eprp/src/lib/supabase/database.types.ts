@@ -266,6 +266,29 @@ export interface PlanningSnapshotRow {
   snapshot_data: unknown;
   published_by_contact_id: string | null;
   published_at: string;
+  /** 13.12 — set exactly on a v2 snapshot (engine-calculated); null = legacy or Opening Position. */
+  engine_version: string | null;
+  published_by_user_id: string | null;
+  bl0_baseline_id: string | null;
+  bln_baseline_id: string | null;
+  source_kind: string | null;
+  working_plan_fingerprint: string | null;
+  configuration_updated_at: string | null;
+  edits_since_source: number | null;
+  edits_high_water_at: string | null;
+  project_pv: number | null;
+  project_ev: number | null;
+  project_sv: number | null;
+  project_spi: number | null;
+  project_spi_reason: string | null;
+  coverage_percent: number | null;
+  cross_check_max_difference: number | null;
+  bl0_finish_date: string | null;
+  bln_finish_date: string | null;
+  forecast_finish_date: string | null;
+  forecast_curve_reason: string | null;
+  schedule_condition: string | null;
+  advisories: unknown;
 }
 
 /**
@@ -299,6 +322,86 @@ export interface PlanningSnapshotActivityRow {
   planned_value: number | null;
   earned_value: number | null;
   created_at: string;
+  /** 13.12 — v2 columns, null on a legacy snapshot's rows. */
+  item_position: number | null;
+  earning_method: string | null;
+  local_weight: number | null;
+  effective_weight: number | null;
+  pv: number | null;
+  ev: number | null;
+  sv: number | null;
+  pv_contribution: number | null;
+  ev_contribution: number | null;
+  bl0_start_date: string | null;
+  bl0_finish_date: string | null;
+  bln_start_date: string | null;
+  bln_finish_date: string | null;
+  department_id: string | null;
+  system_id: string | null;
+  discipline_id: string | null;
+  structure_node_id: string | null;
+}
+
+/** 13.12 — a frozen node of a v2 snapshot. */
+export interface PlanningSnapshotNodeRow {
+  snapshot_id: string;
+  source_work_item_id: string;
+  parent_work_item_id: string | null;
+  item_position: number;
+  depth: number;
+  code: string | null;
+  name: string;
+  item_type: string | null;
+  is_control_account: boolean;
+  local_weight: number;
+  effective_weight: number;
+  pv: number;
+  ev: number;
+  sv: number;
+  spi: number | null;
+  spi_reason: string | null;
+  pv_contribution: number;
+  ev_contribution: number;
+  department_id: string | null;
+  system_id: string | null;
+  discipline_id: string | null;
+  structure_node_id: string | null;
+  schedule_condition: string;
+}
+
+/** 13.12 — a frozen true-milestone state of a v2 snapshot. */
+export interface PlanningSnapshotMilestoneRow {
+  snapshot_id: string;
+  source_activity_id: string;
+  code: string | null;
+  name: string;
+  is_key: boolean;
+  bl0_date: string | null;
+  bln_date: string | null;
+  forecast_date: string | null;
+  actual_date: string | null;
+  status: string;
+  slip_vs_bln: number | null;
+  slip_vs_bln_reason: string | null;
+  slip_vs_bl0: number | null;
+  slip_vs_bl0_reason: string | null;
+  due: boolean;
+  schedule_condition: string;
+}
+
+/** 13.12 — a frozen curve point (snapshot forecast curve). */
+export interface PlanningSnapshotCurvePointRow {
+  snapshot_id: string;
+  curve_kind: string;
+  point_date: string;
+  value: number;
+}
+
+/** 13.12 — a frozen baseline curve point. */
+export interface PlanningBaselineCurvePointRow {
+  baseline_id: string;
+  point_date: string;
+  value: number;
 }
 
 /** Planning Slice 1 — admin-managed Portfolio/Reporting Group master data. */
@@ -437,6 +540,21 @@ export interface PlanningBaselineRow {
   notes: string | null;
   created_by_contact_id: string | null;
   created_at: string;
+  /** 13.12 Baseline Revisions. */
+  revision_status: string;
+  revision_number: number | null;
+  revision_kind: string | null;
+  reason: string | null;
+  requested_by_user_id: string | null;
+  requested_by_contact_id: string | null;
+  requested_at: string | null;
+  decided_by_user_id: string | null;
+  decided_by_contact_id: string | null;
+  decided_at: string | null;
+  decision_comment: string | null;
+  capture: unknown;
+  capture_fingerprint: string | null;
+  curve_engine_version: string | null;
 }
 
 export interface PlanningMilestoneLinkRow {
@@ -1152,11 +1270,11 @@ export interface Database {
         Omit<PlanningOpeningPositionRow, "id" | "created_at" | "updated_at" | "status" | "promoted_at" | "promoted_to_snapshot_id">,
         never
       >;
-      planning_snapshots: TableDef<
-        PlanningSnapshotRow,
-        Omit<PlanningSnapshotRow, "id" | "published_at">,
-        never
-      >;
+      // 13.12: written only by the governed publish (server-only trusted writer).
+      planning_snapshots: TableDef<PlanningSnapshotRow, never, never>;
+      planning_snapshot_nodes: TableDef<PlanningSnapshotNodeRow, never, never>;
+      planning_snapshot_milestones: TableDef<PlanningSnapshotMilestoneRow, never, never>;
+      planning_snapshot_curve_points: TableDef<PlanningSnapshotCurvePointRow, never, never>;
       planning_snapshot_activities: TableDef<
         PlanningSnapshotActivityRow,
         never,
@@ -1201,11 +1319,9 @@ export interface Database {
       >;
       // 13.11: written only by the trigger on project_planning_settings.
       planning_configuration_changes: TableDef<PlanningConfigurationChangeRow, never, never>;
-      planning_baselines: TableDef<
-        PlanningBaselineRow,
-        Omit<PlanningBaselineRow, "id" | "created_at"> & { project_id: string; name: string; baseline_date: string },
-        never
-      >;
+      // 13.12: Baseline Revisions are written only by request / decide / withdraw.
+      planning_baselines: TableDef<PlanningBaselineRow, never, never>;
+      planning_baseline_curve_points: TableDef<PlanningBaselineCurvePointRow, never, never>;
       planning_milestone_links: TableDef<
         PlanningMilestoneLinkRow,
         Omit<PlanningMilestoneLinkRow, "id" | "created_at"> & { master_milestone_id: string },

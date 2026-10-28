@@ -202,12 +202,15 @@ export interface SetupControlState {
   controlledSince: string | null;
   finalisation: SetupFinalisation | null;
   hasPublishedSnapshot: boolean;
+  /** 13.12: when the original baseline (BL0) was approved — it supersedes Planned Start / Finish. */
+  bl0ApprovedAt: string | null;
 }
 
 export const NOT_CONTROLLED: SetupControlState = {
   controlledSince: null,
   finalisation: null,
   hasPublishedSnapshot: false,
+  bl0ApprovedAt: null,
 };
 
 /** A pending amendment awaiting the viewer's decision, with its project. */
@@ -223,18 +226,22 @@ export const setupGovernanceService = {
   async getControlState(projectId: string): Promise<SetupControlState> {
     if (!isSupabaseConfigured()) return NOT_CONTROLLED;
     const db = client();
-    const [since, final, snapshot] = await Promise.all([
+    const [since, final, snapshot, bl0] = await Promise.all([
       db.rpc("project_setup_controlled_since", { p_project: projectId }),
       db.from("project_setup_finalisations").select("*").eq("project_id", projectId).maybeSingle(),
       db.from("planning_snapshots").select("id").eq("project_id", projectId).limit(1),
+      db.from("planning_baselines").select("decided_at").eq("project_id", projectId)
+        .eq("revision_status", "approved").eq("revision_number", 0).maybeSingle(),
     ]);
     if (since.error) throw await failure("read the Project Setup control state", since.error);
     if (final.error) throw await failure("read the Setup Finalisation", final.error);
     if (snapshot.error) throw await failure("read the Planning Snapshots", snapshot.error);
+    if (bl0.error) throw await failure("read the original baseline", bl0.error);
     return {
       controlledSince: (since.data as string | null) ?? null,
       finalisation: final.data ? rowToFinalisation(final.data as FinalisationRow) : null,
       hasPublishedSnapshot: (snapshot.data ?? []).length > 0,
+      bl0ApprovedAt: (bl0.data as { decided_at?: string } | null)?.decided_at ?? null,
     };
   },
 

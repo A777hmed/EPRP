@@ -39,6 +39,7 @@ import { useHierarchyTerms } from "../use-hierarchy-terms";
 import { structureLevelHref } from "../structure-navigation";
 import { useStructureNav } from "../use-structure-nav";
 import { classificationSummary, projectCategoryLabel } from "../classification";
+import { PROJECT_DESCRIPTION_SOURCE } from "../planning-experience";
 import { ProjectTypeCorrections } from "./project-type-corrections";
 import { useProjectAuthority } from "../use-project-authority";
 import { ProjectWorkflowNav } from "./project-workflow-nav";
@@ -268,9 +269,21 @@ export function ProjectDetailsView({ projectId }: ProjectDetailsViewProps) {
         <div className="mt-4 space-y-6 lg:mt-0">
           <Section id="overview">
             <SectionCard title="Overview">
+              {/* 13.12 closure: free text from Project Setup. It may carry a
+                  manual status remark ("AT RISK — …"), so it is labelled as
+                  such and never read as the Planning Engine's schedule
+                  condition (not evaluated until B4, Phase 13.14). */}
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                {PROJECT_DESCRIPTION_SOURCE}
+              </p>
               <p className="text-sm text-muted-foreground text-pretty">
                 {project.description ?? "No description provided."}
               </p>
+              {project.description && (
+                <p className="mt-1.5 text-xs text-muted-foreground/80 text-pretty">
+                  Not a calculated schedule condition. The schedule condition comes only from the Planning Engine.
+                </p>
+              )}
               {(project.contractNumber || project.purchaseOrderNumber) && (
                 <>
                   <Separator className="my-3" />

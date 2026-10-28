@@ -113,6 +113,22 @@ begin
   perform set_config('role', 'postgres', true);
   perform set_config('request.jwt.claims', '', true);
 end $$;
+
+-- 13.12 (docs/02 §26.25 D-D): a normal publish is v2 only — the Planning Engine
+-- on the server and its trusted writer (proved in 133). A fixture that only
+-- needs a project to be Controlled seeds one historical (legacy, pre-13.12)
+-- snapshot as data; it tests nothing about publishing.
+create or replace function pg_temp.seed_legacy_snapshot(p_project uuid, p_date date) returns uuid
+language plpgsql security definer set search_path = '' as $seed$
+declare v uuid;
+begin
+  insert into public.planning_snapshots (project_id, version, data_date, snapshot_data)
+  values (p_project, coalesce((select max(version) from public.planning_snapshots where project_id = p_project), 0) + 1,
+          p_date, '{"work_items": [], "activities": [], "milestone_links": [], "opening_position": null}'::jsonb)
+  returning id into v;
+  return v;
+end $seed$;
+
 create or replace function pg_temp.id(p_key text) returns uuid language sql as $$ select id from ids where key = p_key $$;
 create or replace function pg_temp.project(p_code text) returns uuid
 language sql as $$ select id from ids where key = 'PRJ:' || p_code $$;
@@ -312,18 +328,18 @@ $fix$;
 select pg_temp.act(pg_temp.id('P_X'));
 do $anchor$
 begin
-  perform pg_temp.must_pass(0, '00 FIXTURE', 'OTH, ARC and PSM are Controlled by a confirmed first publish',
-    format('select public.publish_planning_snapshot(p_project_id => %L::uuid, p_data_date => %L::date, p_confirm_setup_control => true)',
+  perform pg_temp.must_pass(0, '00 FIXTURE', 'OTH, ARC and PSM are Controlled by a first (historical) snapshot',
+    format('select pg_temp.seed_legacy_snapshot(%L::uuid, %L::date)',
            pg_temp.project('ZZ-139E-OTH'), '2026-10-10') || '; ' ||
-    format('select public.publish_planning_snapshot(p_project_id => %L::uuid, p_data_date => %L::date, p_confirm_setup_control => true)',
+    format('select pg_temp.seed_legacy_snapshot(%L::uuid, %L::date)',
            pg_temp.project('ZZ-139E-ARC'), '2026-10-10') || '; ' ||
-    format('select public.publish_planning_snapshot(p_project_id => %L::uuid, p_data_date => %L::date, p_confirm_setup_control => true)',
+    format('select pg_temp.seed_legacy_snapshot(%L::uuid, %L::date)',
            pg_temp.project('ZZ-139E-PSM'), '2026-10-10'));
 end $anchor$;
 select pg_temp.act(pg_temp.id('P_X2'));
 do $anchor2$ begin
   perform pg_temp.must_pass(0, '00 FIXTURE', 'X2P is Controlled by its own assigned Project Control',
-    format('select public.publish_planning_snapshot(p_project_id => %L::uuid, p_data_date => %L::date, p_confirm_setup_control => true)',
+    format('select pg_temp.seed_legacy_snapshot(%L::uuid, %L::date)',
            pg_temp.project('ZZ-139E-X2P'), '2026-10-10'));
 end $anchor2$;
 select pg_temp.act(pg_temp.id('P_X'));
